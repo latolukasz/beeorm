@@ -70,7 +70,6 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 
 	var rows []*loadByIdsEntity
 	engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "*")
-	return
 	assert.Len(t, rows, 4)
 	assert.Equal(t, "a", rows[0].Name)
 	assert.Equal(t, "r1", rows[0].ReferenceOne.Name)
