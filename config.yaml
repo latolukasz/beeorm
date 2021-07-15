@@ -1,0 +1,22 @@
+default:
+  mysqlEncoding: utf8
+  mysql: root:root@tcp(localhost:3308)/test
+  redis: localhost:6382:0
+  streams:
+    stream-1:
+      - test-group-1
+      - test-group-2
+    stream-2:
+      - test-group-1
+  local_cache: 1000
+another:
+  sentinel:
+    master:1:
+      - :26379
+      - 192.156.23.11:26379
+      - 192.156.23.12:26379
+  streams:
+      stream-3:
+        - test-group-1
+default_queue:
+  redis: localhost:6382:1

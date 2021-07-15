@@ -1,0 +1,93 @@
+name: Check & test
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  check:
+    name: Quality & security checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Lint Go Code
+        run: |
+          export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
+          go clean -modcache
+          go mod tidy
+          make check
+
+  test:
+    name: Test & coverage
+    runs-on: ubuntu-latest
+    services:
+      redis_search:
+        image: redislabs/redisearch
+        ports:
+          - 6382:6379
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3311:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
+
+      mysql8:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: root
+        ports:
+          - 3312:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
+
+    steps:
+
+      - name: Configure sysctl limits
+        run: |
+          sudo swapoff -a
+          sudo sysctl -w vm.swappiness=1
+          sudo sysctl -w fs.file-max=262144
+          sudo sysctl -w vm.max_map_count=262144
+
+      - name: Set up Go
+        uses: actions/setup-go@v1
+        with:
+          go-version: 1.16
+
+      - name: Check out code
+        uses: actions/checkout@v2
+
+      - name: Create database
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mysql-client
+          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
+          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_schema;'
+          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_log;'
+          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'set global max_connections = 300;'
+          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
+          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test_schema;'
+          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test_log;'
+          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'set global max_connections = 300;'
+
+      - name: Run unit tests with coverage.
+        run: |
+          export GOPATH=$(go env GOPATH)
+          go clean -modcache
+          go mod tidy
+          make cover
+
+      - name: Upload Coverage report to CodeCov
+        uses: codecov/codecov-action@v1.0.0
+        with:
+          token: ${{secrets.CODECOV_TOKEN}}
+          file: ./resources/cover/cover.out
