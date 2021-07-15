@@ -38,10 +38,8 @@ func TestSearch(t *testing.T) {
 	engine.Flush(entity)
 
 	var rows []*searchEntity
-	missing := engine.LoadByIDs([]uint64{1, 2, 20}, &rows)
-	assert.True(t, missing)
+	engine.LoadByIDs([]uint64{1, 2, 20}, &rows)
 	assert.Len(t, rows, 3)
-	assert.True(t, missing)
 	assert.Equal(t, uint(1), rows[0].ID)
 	assert.Equal(t, uint(2), rows[1].ID)
 	assert.Nil(t, rows[2])

@@ -344,14 +344,12 @@ func (e *Engine) load(entity Entity, lazy bool, references ...string) bool {
 	return found
 }
 
-func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) (missing bool) {
-	missing, _ = tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, false)
-	return missing
+func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) {
+	tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, false)
 }
 
-func (e *Engine) LoadByIDsLazy(ids []uint64, entities interface{}, references ...string) (missing bool) {
-	missing, _ = tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, true)
-	return missing
+func (e *Engine) LoadByIDsLazy(ids []uint64, entities interface{}, references ...string) {
+	tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, true)
 }
 
 func (e *Engine) GetAlters() (alters []Alter) {
