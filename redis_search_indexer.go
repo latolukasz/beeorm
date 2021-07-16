@@ -85,9 +85,6 @@ func (p *redisSearchIndexPusher) PushDocument() {
 	p.pipeline.HSet(p.key, p.fields...)
 	p.key = ""
 	p.fields = p.fields[:0]
-	if p.pipeline.commands > 10000 {
-		p.Flush()
-	}
 }
 
 func (p *redisSearchIndexPusher) Flush() {

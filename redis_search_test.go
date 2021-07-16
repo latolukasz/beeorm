@@ -152,7 +152,7 @@ func TestRedisSearch(t *testing.T) {
 	pusher.SetFloat("number_float", 8.12)
 	pusher.SetGeo("location", 52.2328546, 20.9207698)
 	pusher.SetInt("sort_test", 20)
-	pusher.SetTag("status", "inactive")
+	pusher.SetTag("status", "")
 	pusher.PushDocument()
 	pusher.Flush()
 
@@ -504,4 +504,12 @@ func TestRedisSearch(t *testing.T) {
 	query.QueryField("title", "has house")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(2), total)
+
+	pusher.DeleteDocuments("test2:201")
+	pusher.Flush()
+
+	query = &RedisSearchQuery{}
+	query.QueryField("title", "has house")
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
 }
