@@ -23,6 +23,13 @@ jobs:
         with:
           config: revive.toml
 
+
+      - name: Run gocyclo
+        run: |
+          export GOPATH=$(go env GOPATH)
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+          gocyclo -over 250 .
+
   test:
     name: Test & coverage
     runs-on: ubuntu-latest

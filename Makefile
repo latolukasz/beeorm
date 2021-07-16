@@ -28,7 +28,7 @@ test: ## Run tests
 tidy: ## Run go mod tidy
 	@go mod tidy
 
-check: format-check ## Linting and static analysis
+check: format-check cyclo ## Linting and static analysis
 	@if grep -r --include='*.go' -E "fmt.Print|spew.Dump" *; then \
 		echo "code contains fmt.Print* or spew.Dump function"; \
 		exit 1; \
@@ -36,6 +36,10 @@ check: format-check ## Linting and static analysis
 
 	@go get -u github.com/mgechev/revive
 	@revive -config revive.toml -formatter friendly
+
+cyclo: ## Cyclomatic complexities analysis
+	@go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@gocyclo -over 250 .
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
