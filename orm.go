@@ -348,9 +348,8 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, current Bind, updateBind map
 			current = make(Bind)
 		}
 	}
-	serializer := engine.getSerializer()
-	serializer.Reset(orm.binary)
-	orm.buildBind(id, serializer, bind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "", -1)
+	engine.getSerializer().Reset(orm.binary)
+	orm.buildBind(id, engine, bind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "", -1)
 	has = orm.delete || len(bind) > 0
 	return bind, current, updateBind, has
 }
@@ -1140,8 +1139,9 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 	return nil
 }
 
-func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
+func (orm *ORM) buildBind(id uint64, engine *Engine, bind, current Bind, updateBind map[string]string, tableSchema *tableSchema,
 	fields *tableFields, value reflect.Value, prefix string, index int) int {
+	serializer := engine.getSerializer()
 	hasUpdate := updateBind != nil
 	hasCurrent := current != nil
 	noPrefix := prefix == ""
@@ -1906,7 +1906,7 @@ func (orm *ORM) buildBind(id uint64, serializer *serializer, bind, current Bind,
 		}
 	}
 	for k, i := range fields.structs {
-		index = orm.buildBind(id, serializer, bind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name, index)
+		index = orm.buildBind(id, engine, bind, current, updateBind, tableSchema, fields.structsFields[k], value.Field(i), fields.fields[i].Name, index)
 	}
 	return index
 }
