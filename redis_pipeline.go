@@ -19,13 +19,13 @@ type RedisPipeLine struct {
 	log      []string
 }
 
-func (rp *RedisPipeLine) Del(key ...string) *PipeLineInt {
+func (rp *RedisPipeLine) Del(key ...string) {
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "DEL")
 		rp.log = append(rp.log, key...)
 	}
-	return &PipeLineInt{p: rp, cmd: rp.pipeLine.Del(rp.ctx, key...)}
+	rp.pipeLine.Del(rp.ctx, key...)
 }
 
 func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
@@ -36,12 +36,12 @@ func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
 	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(rp.ctx, key)}
 }
 
-func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) *PipeLineStatus {
+func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) {
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "SET", key, expiration.String())
 	}
-	return &PipeLineStatus{p: rp, cmd: rp.pipeLine.Set(rp.ctx, key, value, expiration)}
+	rp.pipeLine.Set(rp.ctx, key, value, expiration)
 }
 
 func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
@@ -60,7 +60,7 @@ func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(rp.ctx, key, field, incr)}
 }
 
-func (rp *RedisPipeLine) HSet(key string, values ...interface{}) *PipeLineInt {
+func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HSET", key)
@@ -68,16 +68,16 @@ func (rp *RedisPipeLine) HSet(key string, values ...interface{}) *PipeLineInt {
 			rp.log = append(rp.log, fmt.Sprintf("%v", v))
 		}
 	}
-	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HSet(rp.ctx, key, values...)}
+	rp.pipeLine.HSet(rp.ctx, key, values...)
 }
 
-func (rp *RedisPipeLine) HDel(key string, values ...string) *PipeLineInt {
+func (rp *RedisPipeLine) HDel(key string, values ...string) {
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HDEL", key)
 		rp.log = append(rp.log, values...)
 	}
-	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HDel(rp.ctx, key, values...)}
+	rp.pipeLine.HDel(rp.ctx, key, values...)
 }
 
 func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
@@ -149,16 +149,6 @@ func (c *PipeLineBool) Result() bool {
 	val, err := c.cmd.Result()
 	checkError(err)
 	return val
-}
-
-type PipeLineStatus struct {
-	p   *RedisPipeLine
-	cmd *redis.StatusCmd
-}
-
-func (c *PipeLineStatus) Result() {
-	_, err := c.cmd.Result()
-	checkError(err)
 }
 
 func (rp *RedisPipeLine) fillLogFields(start *time.Time, err error) {
