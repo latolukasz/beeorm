@@ -18,12 +18,10 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v2
 
-      - name: Lint Go Code
-        run: |
-          export PATH=$PATH:$(go env GOPATH)/bin # temporary fix. See https://github.com/actions/setup-go/issues/14
-          go clean -modcache
-          go mod tidy
-          make check
+      - name: Run Revive Action by pulling pre-built image
+        uses: docker://morphy/revive-action:v2
+        with:
+          config: revive.toml
 
   test:
     name: Test & coverage

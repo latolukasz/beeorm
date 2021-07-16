@@ -10,12 +10,16 @@ require (
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/google/go-cmp v0.5.6
 	github.com/json-iterator/go v1.1.11
+	github.com/mattn/go-isatty v0.0.13 // indirect
+	github.com/mattn/go-runewidth v0.0.13 // indirect
+	github.com/mgechev/revive v1.0.9 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/pkg/errors v0.9.1
 	github.com/segmentio/fasthash v1.0.3
 	github.com/shamaton/msgpack v1.2.1
 	github.com/stretchr/testify v1.7.0
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	golang.org/x/tools v0.1.5 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )

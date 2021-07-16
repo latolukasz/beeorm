@@ -10,7 +10,7 @@ import (
 
 func (e *Engine) RedisSearchIds(entity Entity, query *RedisSearchQuery, pager *Pager) (ids []uint64, totalRows uint64) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
-	return redisSearch(e, schema, query, pager, nil)
+	return redisSearch(e, schema, query, pager)
 }
 
 func (e *Engine) RedisSearch(entities interface{}, query *RedisSearchQuery, pager *Pager, references ...string) (totalRows uint64) {
@@ -23,7 +23,7 @@ func (e *Engine) RedisSearchLazy(entities interface{}, query *RedisSearchQuery, 
 
 func (e *Engine) RedisSearchCount(entity Entity, query *RedisSearchQuery) (totalRows uint64) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
-	_, totalRows = redisSearch(e, schema, query, NewPager(0, 0), nil)
+	_, totalRows = redisSearch(e, schema, query, NewPager(0, 0))
 	return totalRows
 }
 
@@ -34,7 +34,7 @@ func (e *Engine) redisSearchBase(entities interface{}, query *RedisSearchQuery, 
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
 	schema := e.GetRegistry().GetTableSchema(name).(*tableSchema)
-	ids, total := redisSearch(e, schema, query, pager, references)
+	ids, total := redisSearch(e, schema, query, pager)
 	if total > 0 {
 		tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, lazy)
 	}
@@ -51,7 +51,7 @@ func (e *Engine) RedisSearchOneLazy(entity Entity, query *RedisSearchQuery, refe
 
 func (e *Engine) redisSearchOne(entity Entity, query *RedisSearchQuery, lazy bool, references ...string) (found bool) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
-	ids, total := redisSearch(e, schema, query, NewPager(1, 1), nil)
+	ids, total := redisSearch(e, schema, query, NewPager(1, 1))
 	if total == 0 {
 		return false
 	}
@@ -59,7 +59,7 @@ func (e *Engine) redisSearchOne(entity Entity, query *RedisSearchQuery, lazy boo
 	return found
 }
 
-func redisSearch(e *Engine, schema *tableSchema, query *RedisSearchQuery, pager *Pager, references []string) ([]uint64, uint64) {
+func redisSearch(e *Engine, schema *tableSchema, query *RedisSearchQuery, pager *Pager) ([]uint64, uint64) {
 	if schema.redisSearchIndex == nil {
 		panic(errors.Errorf("entity %s is not searchable", schema.t.String()))
 	}

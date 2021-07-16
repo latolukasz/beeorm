@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/shamaton/msgpack"
 
 	"github.com/go-redis/redis/v8"
@@ -475,7 +473,7 @@ func (r *eventsConsumer) consume(count int, handler EventConsumerHandler) bool {
 											if rec := recover(); rec != nil {
 												asErr, isError := rec.(error)
 												if !isError {
-													asErr = errors.New(fmt.Sprintf("%v", rec))
+													asErr = fmt.Errorf("%v", rec)
 												}
 												r.errorHandler(asErr, e)
 											}

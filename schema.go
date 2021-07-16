@@ -808,6 +808,10 @@ func handleString(version int, registry *validatedRegistry, attributes map[strin
 		length = "255"
 	}
 	addDefaultNullIfNullable := true
+	defaultValue := "nil"
+	if !nullable {
+		defaultValue = "''"
+	}
 	if length == "max" {
 		definition = "mediumtext"
 		if version == 8 {
@@ -815,6 +819,7 @@ func handleString(version int, registry *validatedRegistry, attributes map[strin
 			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + defaultCollate
 		}
 		addDefaultNullIfNullable = false
+		defaultValue = "nil"
 	} else {
 		i, err := strconv.Atoi(length)
 		if err != nil || i > 65535 {
@@ -826,11 +831,6 @@ func handleString(version int, registry *validatedRegistry, attributes map[strin
 			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+defaultCollate, strconv.Itoa(i),
 				registry.registry.defaultEncoding, registry.registry.defaultEncoding)
 		}
-	}
-
-	defaultValue := "nil"
-	if !nullable {
-		defaultValue = "''"
 	}
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }

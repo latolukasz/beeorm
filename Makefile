@@ -28,16 +28,14 @@ test: ## Run tests
 tidy: ## Run go mod tidy
 	@go mod tidy
 
-check: format-check ## Linting and static analysis
+check: ## Linting and static analysis
 	@if grep -r --include='*.go' -E "fmt.Print|spew.Dump" *; then \
 		echo "code contains fmt.Print* or spew.Dump function"; \
 		exit 1; \
 	fi
 
-	@if test ! -e ./bin/golangci-lint; then \
-		curl -sfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh| sh; \
-	fi
-	@./bin/golangci-lint run --timeout 180s -E gosec -E stylecheck -E golint -E goimports -E whitespace
+	@go get -u github.com/mgechev/revive
+	@revive -config revive.toml -formatter friendly
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
