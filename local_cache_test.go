@@ -2,6 +2,8 @@ package beeorm
 
 import (
 	"context"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +18,8 @@ func TestLocalCache(t *testing.T) {
 	engine := validatedRegistry.CreateEngine(ctx)
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, false, true)
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 
 	c := engine.GetLocalCache()
 	val := c.GetSet("test_get_set", 10, func() interface{} {

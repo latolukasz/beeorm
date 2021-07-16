@@ -2,6 +2,8 @@ package beeorm
 
 import (
 	"database/sql"
+	"io/ioutil"
+	"log"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -31,6 +33,8 @@ func TestDB(t *testing.T) {
 	engine := PrepareTables(t, &Registry{}, 5, entity)
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 
 	db := engine.GetMysql()
 	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")

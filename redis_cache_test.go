@@ -2,6 +2,8 @@ package beeorm
 
 import (
 	"context"
+	"io/ioutil"
+	"log"
 	"testing"
 	"time"
 
@@ -39,6 +41,8 @@ func testRedis(t *testing.T, engine *Engine) {
 
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 	r.FlushDB()
 	testLogger.clear()
 

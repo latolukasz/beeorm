@@ -3,6 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"log"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -46,9 +47,7 @@ func (d *defaultLogLogger) Handle(fields map[string]interface{}) {
 	if has {
 		microseconds = float64(microsecondsVal.(int64))
 		timeBackground -= int(microseconds / 2400)
-		if timeBackground < 0 {
-			timeBackground = 0
-		}
+		timeBackground = int(math.Max(float64(0), float64(timeBackground)))
 		timeSuffix = strings.Repeat(" ", int(microseconds/10000))
 	}
 	seconds := microseconds / 1000
