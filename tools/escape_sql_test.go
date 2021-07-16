@@ -7,5 +7,7 @@ import (
 )
 
 func TestEscapeSQLParam(t *testing.T) {
-	assert.Equal(t, "'\\\\ss\\\\'", EscapeSQLParam("\\ss\\"))
+	value := []byte{0, '\n', '\r', '\\', '\'', '"', '\032'}
+	assert.Equal(t, "'\\0\\n\\r\\\\\\'\\\"\\Z'", EscapeSQLParam(string(value)))
+	assert.Equal(t, "'test'", EscapeSQLParam("test"))
 }
