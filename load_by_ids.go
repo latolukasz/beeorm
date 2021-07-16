@@ -82,7 +82,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 	}
 	if hasRedis && j > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
-		inCache := redisCache.MGet(cacheKeys...)
+		inCache := redisCache.MGet(cacheKeys[0:j]...)
 		for i, val := range inCache {
 			if val != nil {
 				if val != cacheNilValue {

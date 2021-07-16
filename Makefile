@@ -28,7 +28,7 @@ test: ## Run tests
 tidy: ## Run go mod tidy
 	@go mod tidy
 
-check: ## Linting and static analysis
+check: format-check ## Linting and static analysis
 	@if grep -r --include='*.go' -E "fmt.Print|spew.Dump" *; then \
 		echo "code contains fmt.Print* or spew.Dump function"; \
 		exit 1; \
