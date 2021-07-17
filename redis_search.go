@@ -633,12 +633,9 @@ func (r *RedisSearch) ForceReindex(index string) {
 	if !has {
 		panic(errors.Errorf("unknown index %s in pool %s", index, r.redis.config.GetCode()))
 	}
-	indexID := time.Now().UnixNano()
-	indexIDString := strconv.FormatInt(indexID, 10)
-	r.createIndex(def, uint64(indexID))
-	indexName := def.Name + ":" + indexIDString
-	r.aliasUpdate(def.Name, indexName)
-	event := redisIndexerEvent{Index: index, IndexID: uint64(indexID)}
+	r.dropIndex(index, true)
+	r.createIndex(def)
+	event := redisIndexerEvent{Index: index}
 	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
 }
 
@@ -932,20 +929,8 @@ func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string)
 	return args
 }
 
-func (r *RedisSearch) aliasUpdate(name, index string) {
-	cmd := redis.NewStringCmd(r.ctx, "FT.ALIASUPDATE", name, index)
-	start := getNow(r.engine.hasRedisLogger)
-	err := r.redis.client.Process(r.ctx, cmd)
-	if r.engine.hasRedisLogger {
-		message := fmt.Sprintf("FT.ALIASUPDATE %s %s", name, index)
-		r.fillLogFields("FT.ALIASUPDATE", message, start, err)
-	}
-	checkError(err)
-}
-
-func (r *RedisSearch) createIndex(index *RedisSearchIndex, id uint64) {
-	indexName := index.Name + ":" + strconv.FormatUint(id, 10)
-	args := r.createIndexArgs(index, indexName)
+func (r *RedisSearch) createIndex(index *RedisSearchIndex) {
+	args := r.createIndexArgs(index, index.Name)
 	cmd := redis.NewStringCmd(r.ctx, args...)
 
 	start := getNow(r.engine.hasRedisLogger)
@@ -969,7 +954,7 @@ func (r *RedisSearch) ListIndices() []string {
 	return res
 }
 
-func (r *RedisSearch) dropIndex(indexName string, withHashes bool) string {
+func (r *RedisSearch) dropIndex(indexName string, withHashes bool) bool {
 	args := []interface{}{"FT.DROPINDEX", indexName}
 	if withHashes {
 		args = append(args, "DD")
@@ -980,10 +965,13 @@ func (r *RedisSearch) dropIndex(indexName string, withHashes bool) string {
 	if r.engine.hasRedisLogger {
 		r.fillLogFields("FT.DROPINDEX", cmd.String(), start, err)
 	}
+	if err != nil && strings.HasPrefix(err.Error(), "Unknown Index ") {
+		return false
+	}
 	checkError(err)
-	res, err := cmd.Result()
+	_, err = cmd.Result()
 	checkError(err)
-	return res
+	return true
 }
 
 func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
@@ -1173,38 +1161,20 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 		}
 		search := engine.GetRedisSearch(poolName)
 		inRedis := make(map[string]bool)
-		grouped := make(map[string]int64)
-		groupedList := make(map[string][]int64)
 		for _, name := range search.ListIndices() {
-			parts := strings.Split(name, ":")
-			id := int64(0)
-			if len(parts) == 2 {
-				id, _ = strconv.ParseInt(parts[1], 10, 64)
-			}
-			before, has := grouped[parts[0]]
-			if !has || id > before {
-				grouped[parts[0]] = id
-			}
-			groupedList[parts[0]] = append(groupedList[parts[0]], id)
-		}
-		for name, lastID := range grouped {
 			def, has := engine.registry.redisSearchIndexes[poolName][name]
 			if !has {
-				for _, id := range groupedList[name] {
-					indexName := name + ":" + strconv.FormatInt(id, 10)
-					query := "FT.DROPINDEX " + indexName
-					alter := RedisSearchIndexAlter{Pool: poolName, Query: query, search: search}
-					nameToRemove := indexName
-					alter.Execute = func() {
-						alter.search.dropIndex(nameToRemove, false)
-					}
-					alter.Documents = search.Info(indexName).NumDocs
-					alters = append(alters, alter)
+				alter := RedisSearchIndexAlter{Pool: poolName, Query: "FT.DROPINDEX " + name, search: search}
+				nameToRemove := name
+				alter.Execute = func() {
+					alter.search.dropIndex(nameToRemove, false)
 				}
+				alter.Documents = search.Info(name).NumDocs
+				alters = append(alters, alter)
 				continue
 			}
 			inRedis[name] = true
-			info := search.Info(name + ":" + strconv.FormatInt(lastID, 10))
+			info := search.Info(name)
 			changes := make([]string, 0)
 			stopWords := def.StopWords
 			if len(stopWords) == 0 {

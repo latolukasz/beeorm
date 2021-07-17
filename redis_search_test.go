@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -46,12 +45,12 @@ func TestRedisSearch(t *testing.T) {
 	assert.Len(t, alters, 0)
 
 	testLog.clear()
-	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"}, 100)
+	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"})
 
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "search", alters[0].Pool)
-	assert.Equal(t, "FT.DROPINDEX to_delete:100", alters[0].Query)
+	assert.Equal(t, "FT.DROPINDEX to_delete", alters[0].Query)
 	assert.False(t, alters[0].Executing)
 	alters[0].Execute()
 	alters = engine.GetRedisSearchIndexAlters()
@@ -63,7 +62,7 @@ func TestRedisSearch(t *testing.T) {
 	indexer.Digest()
 
 	info := search.Info("test")
-	assert.True(t, strings.HasPrefix(info.Name, "test:"))
+	assert.Equal(t, "test", info.Name)
 	assert.Equal(t, "_my_payload", info.Definition.PayloadField)
 	assert.Equal(t, "_my_score", info.Definition.ScoreField)
 	assert.Equal(t, "_my_language", info.Definition.LanguageField)
@@ -512,4 +511,8 @@ func TestRedisSearch(t *testing.T) {
 	query.QueryField("title", "has house")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
+
+	assert.PanicsWithError(t, "unknown index invalid in pool search", func() {
+		search.ForceReindex("invalid")
+	})
 }

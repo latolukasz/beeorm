@@ -79,6 +79,7 @@ type TableSchema interface {
 	DropTable(engine *Engine)
 	TruncateTable(engine *Engine)
 	UpdateSchema(engine *Engine)
+	ReindexRedisSearchIndex(engine *Engine)
 	UpdateSchemaAndTruncateTable(engine *Engine)
 	GetMysql(engine *Engine) *DB
 	GetLocalCache(engine *Engine) (cache *LocalCache, has bool)
@@ -180,6 +181,12 @@ func (tableSchema *tableSchema) GetType() reflect.Type {
 func (tableSchema *tableSchema) DropTable(engine *Engine) {
 	pool := tableSchema.GetMysql(engine)
 	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
+}
+
+func (tableSchema *tableSchema) ReindexRedisSearchIndex(engine *Engine) {
+	if tableSchema.redisSearchIndex != nil {
+		engine.GetRedisSearch(tableSchema.searchCacheName).ForceReindex(tableSchema.redisSearchIndex.Name)
+	}
 }
 
 func (tableSchema *tableSchema) TruncateTable(engine *Engine) {

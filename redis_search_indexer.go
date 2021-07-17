@@ -6,8 +6,7 @@ import (
 )
 
 type redisIndexerEvent struct {
-	Index   string
-	IndexID uint64
+	Index string
 }
 
 type RedisSearchIndexPusher interface {

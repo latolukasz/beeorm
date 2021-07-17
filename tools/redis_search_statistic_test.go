@@ -25,7 +25,7 @@ func TestRedisSearchStatistics(t *testing.T) {
 	stats := GetRedisSearchStatistics(engine)
 	assert.Len(t, stats, 1)
 	assert.Equal(t, "test", stats[0].Index.Name)
-	assert.Len(t, stats[0].Versions, 1)
+	assert.Equal(t, "test", stats[0].Info.Name)
 	asJSON, err := jsoniter.ConfigFastest.Marshal(stats)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, asJSON)

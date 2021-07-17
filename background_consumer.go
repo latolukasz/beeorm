@@ -251,7 +251,7 @@ func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 	search := r.engine.GetRedisSearch(redisPool)
 	pusher := &redisSearchIndexPusher{pipeline: search.redis.PipeLine()}
 	id := uint64(0)
-	idRedisKey := redisSearchForceIndexLastIDKeyPrefix + indexEvent.Index + strconv.FormatUint(indexEvent.IndexID, 10)
+	idRedisKey := redisSearchForceIndexLastIDKeyPrefix + indexEvent.Index
 	idInRedis, has := search.redis.Get(idRedisKey)
 	if has {
 		id, _ = strconv.ParseUint(idInRedis, 10, 64)
@@ -273,15 +273,6 @@ func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 
 		if !hasMore {
 			search.redis.Del(idRedisKey)
-			for _, oldName := range search.ListIndices() {
-				if strings.HasPrefix(oldName, indexDefinition.Name+":") {
-					parts := strings.Split(oldName, ":")
-					oldID, _ := strconv.ParseUint(parts[1], 10, 64)
-					if oldID < indexEvent.IndexID {
-						search.dropIndex(oldName, false)
-					}
-				}
-			}
 			break
 		}
 		if nextID <= id {

@@ -1,19 +1,12 @@
 package tools
 
 import (
-	"strings"
-
 	orm "github.com/latolukasz/beeorm"
 )
 
 type RedisSearchStatistics struct {
-	Index    *orm.RedisSearchIndex
-	Versions []*RedisSearchStatisticsIndexVersion
-}
-
-type RedisSearchStatisticsIndexVersion struct {
-	Info    *orm.RedisSearchIndexInfo
-	Current bool
+	Index *orm.RedisSearchIndex
+	Info  *orm.RedisSearchIndexInfo
 }
 
 func GetRedisSearchStatistics(engine *orm.Engine) []*RedisSearchStatistics {
@@ -21,21 +14,9 @@ func GetRedisSearchStatistics(engine *orm.Engine) []*RedisSearchStatistics {
 	indices := engine.GetRegistry().GetRedisSearchIndices()
 	for pool, list := range indices {
 		search := engine.GetRedisSearch(pool)
-		indicesInRedis := search.ListIndices()
 		for _, index := range list {
-			stat := &RedisSearchStatistics{Index: index, Versions: make([]*RedisSearchStatisticsIndexVersion, 0)}
-			current := ""
 			info := search.Info(index.Name)
-			if info != nil {
-				current = info.Name
-			}
-			for _, inRedis := range indicesInRedis {
-				if strings.HasPrefix(inRedis, index.Name+":") {
-					info := search.Info(inRedis)
-					indexStats := &RedisSearchStatisticsIndexVersion{Info: info, Current: current == inRedis}
-					stat.Versions = append(stat.Versions, indexStats)
-				}
-			}
+			stat := &RedisSearchStatistics{Index: index, Info: info}
 			result = append(result, stat)
 		}
 	}

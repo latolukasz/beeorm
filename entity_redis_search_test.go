@@ -3,7 +3,6 @@ package beeorm
 import (
 	"math"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -42,6 +41,8 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	engine := PrepareTables(t, registry, 5, entity)
+
+	assert.Equal(t, []string{"beeorm.redisSearchEntity"}, engine.GetRedisSearch().ListIndices())
 
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -106,7 +107,7 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	indices := engine.GetRedisSearch("search").ListIndices()
 	assert.Len(t, indices, 1)
-	assert.True(t, strings.HasPrefix(indices[0], "beeorm.redisSearchEntity:"))
+	assert.Equal(t, "beeorm.redisSearchEntity", indices[0])
 	info := engine.GetRedisSearch("search").Info(indices[0])
 	assert.False(t, info.Indexing)
 	assert.True(t, info.Options.NoFreqs)
