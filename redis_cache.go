@@ -649,9 +649,6 @@ func (r *RedisCache) XGroupDestroy(stream, group string) int64 {
 func (r *RedisCache) XRead(a *redis.XReadArgs) []redis.XStream {
 	start := getNow(r.engine.hasRedisLogger)
 	info, err := r.client.XRead(r.ctx, a).Result()
-	if err == redis.Nil {
-		err = nil
-	}
 	if r.engine.hasRedisLogger {
 		message := fmt.Sprintf("XREAD %s COUNT %d BLOCK %d", strings.Join(a.Streams, " "), a.Count, a.Block)
 		r.fillLogFields("XREAD", message, start, err)

@@ -301,4 +301,8 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, "618358a5df682faed583025e34f07905c2a96823", val)
 	val = r.EvalSha(val.(string), []string{"3"}, 8)
 	assert.Equal(t, int64(13), val)
+
+	r.Set("a", "n", 10)
+	r.FlushAll()
+	assert.Equal(t, int64(0), r.Exists("a"))
 }
