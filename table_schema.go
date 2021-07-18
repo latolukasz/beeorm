@@ -977,6 +977,8 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			}
 			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
 			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
+		case "*beeorm.CachedQuery":
+			continue
 		case "time.Time":
 			_, hasTime := tags["time"]
 			if hasTime {
@@ -1008,6 +1010,8 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 					}
 					mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
 					mapPointerToValue[prefix+f.Name] = pointerUintNullableScan
+				} else {
+					fields.jsons = append(fields.jsons, i)
 				}
 			} else {
 				if typeName[0:3] == "[]*" {

@@ -57,6 +57,7 @@ type flushEntity struct {
 	TimeWithTimeNullable *time.Time `orm:"time"`
 	Interface            interface{}
 	FlushStruct          flushStruct
+	FlushStructPtr       *flushStruct
 	Int8Nullable         *int8
 	Int16Nullable        *int16
 	Int32Nullable        *int32
@@ -137,6 +138,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.StringSlice = []string{"a", "b"}
 	entity.StringSliceNotNull = []string{"c", "d"}
 	entity.SetNotNull = []string{"a", "b"}
+	entity.FlushStructPtr = &flushStruct{"A", 12}
 	entity.EnumNotNull = "a"
 	entity.TimeWithTime = now
 	entity.Float64 = 2.12
@@ -180,6 +182,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, now.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
+	assert.NotNil(t, entity.FlushStructPtr)
+	assert.Equal(t, "A", entity.FlushStructPtr.Name)
+	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)

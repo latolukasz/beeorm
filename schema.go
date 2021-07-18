@@ -734,6 +734,8 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 				definition = handleReferenceOne(version, subSchema, attributes)
 				addNotNullIfNotSet = false
 				addDefaultNullIfNullable = true
+			} else {
+				definition = "json"
 			}
 		} else {
 			definition = "json"
