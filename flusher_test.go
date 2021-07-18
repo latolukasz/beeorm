@@ -605,6 +605,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		assert.Equal(t, "COMMIT", testLogger2.Logs[3]["operation"])
 		assert.Equal(t, "PIPELINE EXEC", testLogger2.Logs[4]["operation"])
 	}
+
+	entity = &flushEntity{}
+	engine.LoadByID(6, entity)
+	entity.City = `okddlk"nokddlkno'kddlkn f;mf	jg`
+	engine.Flush(entity)
 }
 
 // 17 allocs/op - 6 for Exec
