@@ -111,8 +111,8 @@ type RedisSearchIndexField struct {
 
 type RedisSearchIndexAlter struct {
 	search    *RedisSearch
+	Name      string
 	Query     string
-	Executing bool
 	Documents uint64
 	Changes   []string
 	Pool      string
@@ -1164,7 +1164,7 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 		for _, name := range search.ListIndices() {
 			def, has := engine.registry.redisSearchIndexes[poolName][name]
 			if !has {
-				alter := RedisSearchIndexAlter{Pool: poolName, Query: "FT.DROPINDEX " + name, search: search}
+				alter := RedisSearchIndexAlter{Pool: poolName, Query: "FT.DROPINDEX " + name, Name: name, search: search}
 				nameToRemove := name
 				alter.Execute = func() {
 					alter.search.dropIndex(nameToRemove, false)
@@ -1292,7 +1292,7 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 func (r *RedisSearch) addAlter(index *RedisSearchIndex, documents uint64, changes []string) RedisSearchIndexAlter {
 	query := fmt.Sprintf("%v", r.createIndexArgs(index, index.Name))[1:]
 	query = query[0 : len(query)-1]
-	alter := RedisSearchIndexAlter{Pool: r.redis.config.GetCode(), Query: query, Changes: changes, search: r}
+	alter := RedisSearchIndexAlter{Pool: r.redis.config.GetCode(), Name: index.Name, Query: query, Changes: changes, search: r}
 	indexToAdd := index.Name
 	alter.Execute = func() {
 		alter.search.ForceReindex(indexToAdd)
