@@ -613,7 +613,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{}
 	engine.LoadByID(6, entity)
-	entity.City = `okddlk"nokddlkno'kddlkn f;mf	jg`
+	engine.EnableQueryDebug(true, true, true)
+	entity.FlushStructPtr = &flushStruct{Name: `okddlk"nokddlkno'kddlkn f;mf	jg`}
 	engine.Flush(entity)
 }
 
