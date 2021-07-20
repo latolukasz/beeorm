@@ -60,6 +60,14 @@ type RedisSearchIndex struct {
 	Indexer         RedisSearchIndexerFunc `json:"-"`
 }
 
+func NewRedisSearchIndex(name, pool string, prefixes []string) *RedisSearchIndex {
+	return &RedisSearchIndex{
+		Name:      name,
+		RedisPool: pool,
+		Prefixes:  prefixes,
+	}
+}
+
 func (rs *RedisSearchIndex) AddTextField(name string, weight float64, sortable, noindex, nostem bool) {
 	rs.Fields = append(rs.Fields, RedisSearchIndexField{
 		Type:     redisSearchIndexFieldText,

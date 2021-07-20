@@ -255,23 +255,19 @@ func (e *Engine) SearchOneLazy(where *Where, entity Entity, references ...string
 }
 
 func (e *Engine) CachedSearchOne(entity Entity, indexName string, arguments ...interface{}) (found bool) {
-	found, _ = cachedSearchOne(e, entity, indexName, true, false, arguments, nil)
-	return found
+	return cachedSearchOne(e, entity, indexName, true, false, arguments, nil)
 }
 
 func (e *Engine) CachedSearchOneLazy(entity Entity, indexName string, arguments ...interface{}) (found bool) {
-	found, _ = cachedSearchOne(e, entity, indexName, true, true, arguments, nil)
-	return found
+	return cachedSearchOne(e, entity, indexName, true, true, arguments, nil)
 }
 
 func (e *Engine) CachedSearchOneWithReferences(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
-	found, _ = cachedSearchOne(e, entity, indexName, true, false, arguments, references)
-	return found
+	return cachedSearchOne(e, entity, indexName, true, false, arguments, references)
 }
 
 func (e *Engine) CachedSearchOneWithReferencesLazy(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
-	found, _ = cachedSearchOne(e, entity, indexName, true, true, arguments, references)
-	return found
+	return cachedSearchOne(e, entity, indexName, true, true, arguments, references)
 }
 
 func (e *Engine) CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {

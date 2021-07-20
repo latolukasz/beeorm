@@ -10,9 +10,13 @@ import (
 
 func TestRedisSearch(t *testing.T) {
 	registry := &Registry{}
-	testIndex := &RedisSearchIndex{Name: "test", RedisPool: "search", PayloadField: "_my_payload",
-		ScoreField: "_my_score", LanguageField: "_my_language", DefaultScore: 0.8,
-		Prefixes: []string{"doc1:", "doc2:"}, StopWords: []string{"and", "in"}}
+	testIndex := NewRedisSearchIndex("test", "search", []string{"doc1:", "doc2:"})
+	testIndex.PayloadField = "_my_payload"
+	testIndex.ScoreField = "_my_score"
+	testIndex.LanguageField = "_my_language"
+	testIndex.DefaultScore = 0.8
+	testIndex.StopWords = []string{"and", "in"}
+
 	testIndex.MaxTextFields = true
 	testIndex.NoOffsets = true
 	testIndex.NoNHL = true // TODO why not visible in info

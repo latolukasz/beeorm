@@ -130,9 +130,7 @@ func cachedSearch(engine *Engine, entities interface{}, indexName string, pager 
 					cacheFields = append(cacheFields, page, total)
 					continue
 				}
-				if sliceEnd > l {
-					sliceEnd = l
-				}
+				sliceEnd = int(math.Min(float64(sliceEnd), float64(l)))
 				values := []uint64{uint64(total)}
 				foundIDs := results[sliceStart:sliceEnd]
 				filledPages[key] = foundIDs
@@ -180,7 +178,7 @@ func cachedSearch(engine *Engine, entities interface{}, indexName string, pager 
 	return totalRows, idsToReturn
 }
 
-func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct, lazy bool, arguments []interface{}, references []string) (has bool, id uint64) {
+func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct, lazy bool, arguments []interface{}, references []string) (has bool) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
 	schema := getTableSchema(engine.registry, entityType)
@@ -209,6 +207,7 @@ func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct
 	if fromCache["1"] == nil && hasRedis {
 		fromCache = redisCache.HMGet(cacheKey, "1")
 	}
+	id := uint64(0)
 	if fromCache["1"] == nil {
 		results, _ := searchIDs(true, engine, Where, NewPager(1, 1), false, entityType)
 		l := len(results)
@@ -234,12 +233,9 @@ func cachedSearchOne(engine *Engine, entity Entity, indexName string, fillStruct
 		if fillStruct {
 			has, _ = loadByID(engine, id, entity, true, lazy, references...)
 		}
-		if !has {
-			id = 0
-		}
-		return has, id
+		return has
 	}
-	return false, id
+	return false
 }
 
 func getCacheKeySearch(tableSchema *tableSchema, indexName string, parameters ...interface{}) string {
