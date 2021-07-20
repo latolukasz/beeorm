@@ -582,7 +582,8 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
-	query.QueryRaw("(@Bool:{true}) | (@Ref:[32 32])")
+	query.QueryRaw("(@Bool:{true})")
+	query.AppendQueryRaw(" | (@Ref:[32 32])")
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
 	assert.Equal(t, uint64(13), total)
 	assert.Len(t, ids, 13)
