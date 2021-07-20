@@ -318,7 +318,7 @@ func (orm *ORM) SetEntityLogMeta(key string, value interface{}) {
 }
 
 func (orm *ORM) IsDirty(engine *Engine) bool {
-	if !orm.loaded {
+	if !orm.inDB {
 		return true
 	}
 	_, is := orm.GetDirtyBind(engine)
@@ -350,7 +350,7 @@ func (orm *ORM) getDirtyBind(engine *Engine) (bind, current Bind, updateBind map
 	}
 	engine.getSerializer().Reset(orm.binary)
 	orm.buildBind(id, engine, bind, current, updateBind, orm.tableSchema, orm.tableSchema.fields, orm.elem, "", -1)
-	has = orm.delete || len(bind) > 0
+	has = !orm.inDB || orm.delete || len(bind) > 0
 	return bind, current, updateBind, has
 }
 

@@ -20,6 +20,11 @@ type loadByIDRedisEntity struct {
 	ID  uint
 }
 
+type loadByIDLocalEntity struct {
+	ORM `orm:"localCache"`
+	ID  uint
+}
+
 type loadByIDNoCacheEntity struct {
 	ORM
 	ID   uint
@@ -60,17 +65,18 @@ type loadByIDBenchmarkEntity struct {
 func TestLoadById(t *testing.T) {
 	var entity *loadByIDEntity
 	var entityRedis *loadByIDRedisEntity
+	var entityLocal *loadByIDLocalEntity
 	var entityNoCache *loadByIDNoCacheEntity
 	var reference *loadByIDReference
 	var subReference *loadByIDSubReference
 	var subReference2 *loadByIDSubReference2
-	engine := PrepareTables(t, &Registry{}, 5, entity, entityRedis, entityNoCache, reference, subReference, subReference2)
+	engine := PrepareTables(t, &Registry{}, 5, entity, entityRedis, entityLocal, entityNoCache, reference, subReference, subReference2)
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
 	engine.FlushMany(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
-		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"})
+		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{})
 
 	engine.FlushMany(&loadByIDReference{Name: "rm1", ID: 100}, &loadByIDReference{Name: "rm2", ID: 101}, &loadByIDReference{Name: "rm3", ID: 102})
 	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReference{{ID: 100}, {ID: 101}, {ID: 102}}})
@@ -210,6 +216,10 @@ func TestLoadById(t *testing.T) {
 	assert.Equal(t, "rm1", entity.ReferenceMany[0].Name)
 	entity.ReferenceMany[0].Fill(engine)
 	assert.False(t, entity.ReferenceMany[0].IsLazy())
+
+	entityLocalCache := &loadByIDLocalEntity{}
+	found = engine.LoadByID(1, entityLocalCache)
+	assert.True(t, found)
 
 	engine = PrepareTables(t, &Registry{}, 5)
 	entity = &loadByIDEntity{}

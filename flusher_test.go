@@ -307,25 +307,34 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint(1), entity2.ID)
 	assert.Equal(t, 40, entity2.Age)
+	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, "Tom", entity.Name)
 	assert.Equal(t, 40, entity.Age)
+	assert.Equal(t, uint(1), entity.ID)
 
 	entity2 = &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(1), entity2.ID)
+	entity = &flushEntity{}
+	engine.LoadByID(1, entity)
+	assert.Equal(t, uint(1), entity.ID)
 
 	entity2 = &flushEntity{Name: "Arthur", Age: 18, EnumNotNull: "a"}
 	entity2.ReferenceTwo = reference
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(6), entity2.ID)
+	entity = &flushEntity{}
+	engine.LoadByID(6, entity)
+	assert.Equal(t, uint(6), entity.ID)
+	engine.LoadByID(1, entity)
 
 	entity2 = &flushEntity{Name: "Adam", Age: 20, ID: 10, EnumNotNull: "a"}
 	engine.Flush(entity2)
@@ -612,10 +621,21 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	}
 
 	entity = &flushEntity{}
-	engine.LoadByID(6, entity)
-	engine.EnableQueryDebug(true, true, true)
+	found = engine.LoadByID(6, entity)
 	entity.FlushStructPtr = &flushStruct{Name: `okddlk"nokddlkno'kddlkn f;mf	jg`}
 	engine.Flush(entity)
+
+	flusher.Clear()
+	flusher.ForceDelete(entity)
+	flusher.Flush()
+	found = engine.LoadByID(6, entity)
+	assert.False(t, found)
+
+	flusher.Clear()
+	engine.LoadByIDLazy(10, entity)
+	assert.PanicsWithError(t, "lazy entity can't be flushed: beeorm.flushEntity [10]", func() {
+		flusher.Track(entity).Flush()
+	})
 }
 
 // 17 allocs/op - 6 for Exec

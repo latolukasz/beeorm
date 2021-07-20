@@ -191,7 +191,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	for _, entity := range entities {
 		initIfNeeded(f.engine.registry, entity)
 		if entity.IsLazy() {
-			panic(fmt.Errorf("lazy entity and can't be flushed: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
+			panic(fmt.Errorf("lazy entity can't be flushed: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
 		}
 		schema := entity.getORM().tableSchema
 		if !transaction && schema.GetMysql(f.engine).inTransaction {
@@ -290,11 +290,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				affected := result.RowsAffected()
 				if affected > 0 {
 					lastID := result.LastInsertId()
-					orm.serialize(f.engine.getSerializer())
 					orm.inDB = true
 					orm.loaded = true
 					orm := entity.getORM()
 					orm.idElem.SetUint(lastID)
+					orm.serialize(f.engine.getSerializer())
 					if affected == 1 {
 						f.updateCacheForInserted(entity, lazy, lastID, bind)
 					} else {
