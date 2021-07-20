@@ -122,7 +122,7 @@ func testRedis(t *testing.T, engine *Engine) {
 
 	assert.True(t, r.Expire("test_map", time.Second*1))
 	assert.Equal(t, int64(1), r.Exists("test_map"))
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 1200)
 	assert.Equal(t, int64(0), r.Exists("test_map"))
 
 	added := r.ZAdd("test_z", &redis.Z{Member: "a", Score: 10}, &redis.Z{Member: "b", Score: 20})
