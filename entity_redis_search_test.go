@@ -748,8 +748,9 @@ func TestEntityRedisSearch(t *testing.T) {
 	}
 	registry = NewRegistry()
 	registry.RegisterEntity(&redisSearchEntity2{})
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
 	_, err := registry.Validate(context.Background())
-	assert.EqualError(t, err, "mysql pool 'default' not found")
+	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
 		engine.Flush(&redisSearchEntity{Age: math.MaxInt32 + 1})
@@ -762,4 +763,18 @@ func TestEntityRedisSearch(t *testing.T) {
 		v := int64(math.MaxInt32 + 1)
 		engine.Flush(&redisSearchEntity{BalanceNullable: &v})
 	})
+
+	type redisSearchEntity3 struct {
+		ORM
+		ID uint
+	}
+	registry = NewRegistry()
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
+	registry.RegisterEntity(&redisSearchEntity3{})
+	vRegistry, err := registry.Validate(context.Background())
+	assert.NoError(t, err)
+	schema = vRegistry.GetTableSchemaForEntity(&redisSearchEntity3{})
+	entitySearch, has = schema.GetRedisSearch(engine)
+	assert.Nil(t, entitySearch)
+	assert.False(t, has)
 }
