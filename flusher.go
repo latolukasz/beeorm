@@ -231,11 +231,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 
 		orm := entity.getORM()
-		bind, current, updateBind, isDirty := orm.getDirtyBind(f.engine)
+		builder, isDirty := orm.getDirtyBind(f.engine)
 		if !isDirty {
 			continue
 		}
-		bindLength := len(bind)
+		bindLength := len(builder.bind)
 
 		t := orm.tableSchema.t
 		currentID := entity.GetID()
@@ -257,14 +257,14 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					panic(fmt.Errorf("lazy flush on duplicate key is not supported"))
 				}
 				if currentID > 0 {
-					bind["ID"] = currentID
+					builder.bind["ID"] = currentID
 					bindLength++
 				}
 				values := make([]string, bindLength)
 				columns := make([]string, bindLength)
 				bindRow := make([]interface{}, bindLength)
 				i := 0
-				for key, val := range bind {
+				for key, val := range builder.bind {
 					columns[i] = "`" + key + "`"
 					values[i] = "?"
 					bindRow[i] = val
@@ -296,7 +296,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					orm.idElem.SetUint(lastID)
 					orm.serialize(f.engine.getSerializer())
 					if affected == 1 {
-						f.updateCacheForInserted(entity, lazy, lastID, bind)
+						f.updateCacheForInserted(entity, lazy, lastID, builder.bind)
 					} else {
 						for k, v := range onUpdate {
 							err := entity.SetField(k, v)
@@ -304,7 +304,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 						}
 						bind, _ := orm.GetDirtyBind(f.engine)
 						_, _ = loadByID(f.engine, lastID, entity, false, lazy)
-						f.updateCacheAfterUpdate(entity, bind, current, schema, lastID, false)
+						f.updateCacheAfterUpdate(entity, bind, builder.current, schema, lastID, false)
 					}
 				} else {
 				OUTER:
@@ -312,11 +312,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 						fields := make([]string, 0)
 						binds := make([]interface{}, 0)
 						for _, column := range index {
-							if bind[column] == nil {
+							if builder.bind[column] == nil {
 								continue OUTER
 							}
 							fields = append(fields, "`"+column+"` = ?")
-							binds = append(binds, bind[column])
+							binds = append(binds, builder.bind[column])
 						}
 						findWhere := NewWhere(strings.Join(fields, " AND "), binds)
 						f.engine.SearchOne(findWhere, entity)
@@ -326,7 +326,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				continue
 			}
 			if currentID > 0 {
-				bind["ID"] = currentID
+				builder.bind["ID"] = currentID
 				bindLength++
 			}
 			if insertKeys == nil {
@@ -335,7 +335,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			if insertKeys[t] == nil {
 				fields := make([]string, bindLength)
 				i := 0
-				for key := range bind {
+				for key := range builder.bind {
 					fields[i] = key
 					i++
 				}
@@ -346,10 +346,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				insertBinds[t] = make([]Bind, 0)
 			}
 			for _, key := range insertKeys[t] {
-				insertArguments[t] = append(insertArguments[t], bind[key])
+				insertArguments[t] = append(insertArguments[t], builder.bind[key])
 			}
 			insertReflectValues[t] = append(insertReflectValues[t], entity)
-			insertBinds[t] = append(insertBinds[t], bind)
+			insertBinds[t] = append(insertBinds[t], builder.bind)
 		} else {
 			if !entity.IsLoaded() {
 				panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
@@ -357,7 +357,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			/* #nosec */
 			sql := "UPDATE " + schema.GetTableName() + " SET "
 			first := true
-			for key, value := range updateBind {
+			for key, value := range builder.updateBind {
 				if !first {
 					sql += ","
 				}
@@ -372,7 +372,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				serializer := f.engine.getSerializer()
 				serializer.buffer.Reset()
 				entity.getORM().serialize(serializer)
-				logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, bind, current, schema, currentID, true)
+				logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, true)
 				if logEvent != nil {
 					logEvents = append(logEvents, logEvent)
 				}
@@ -388,7 +388,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				serializer := f.engine.getSerializer()
 				serializer.buffer.Reset()
 				entity.getORM().serialize(serializer)
-				f.updateCacheAfterUpdate(entity, bind, current, schema, currentID, false)
+				f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, false)
 			}
 		}
 	}
@@ -560,23 +560,23 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}
 			for id, entity := range deleteBinds {
 				orm := entity.getORM()
-				bind, current, _, _ := orm.getDirtyBind(f.engine)
+				builder, _ := orm.getDirtyBind(f.engine)
 				if !lazy {
-					f.addDirtyQueues(current, schema, id, "d", lazy)
-					f.addToLogQueue(schema, id, current, nil, entity.getORM().logMeta, lazy)
+					f.addDirtyQueues(builder.current, schema, id, "d", lazy)
+					f.addToLogQueue(schema, id, builder.current, nil, entity.getORM().logMeta, lazy)
 				} else {
-					logEvent := f.addToLogQueue(schema, id, current, nil, orm.logMeta, lazy)
+					logEvent := f.addToLogQueue(schema, id, builder.current, nil, orm.logMeta, lazy)
 					if logEvent != nil {
 						logEvents = append(logEvents, logEvent)
 					}
-					dirtyEvent := f.addDirtyQueues(current, schema, id, "d", lazy)
+					dirtyEvent := f.addDirtyQueues(builder.current, schema, id, "d", lazy)
 					if dirtyEvent != nil {
 						dirtyEvents = append(dirtyEvents, dirtyEvent)
 					}
 				}
 				if hasLocalCache || hasRedis {
 					cacheKey := schema.getCacheKey(id)
-					keys := f.getCacheQueriesKeys(schema, bind, current, true, true)
+					keys := f.getCacheQueriesKeys(schema, builder.bind, builder.current, true, true)
 					if hasLocalCache {
 						f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cacheNilValue)
 						f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
