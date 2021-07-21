@@ -34,7 +34,6 @@ type dirtyQueueValue struct {
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	logLogger    func(log *LogQueueValue)
 	redisFlusher *redisFlusher
 }
 
@@ -45,10 +44,6 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	c.limit = 1
 	c.blockTime = time.Second * 30
 	return c
-}
-
-func (r *BackgroundConsumer) SetLogLogger(logger func(log *LogQueueValue)) {
-	r.logLogger = logger
 }
 
 func (r *BackgroundConsumer) Digest() {
@@ -90,16 +85,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 		changes, _ = jsoniter.ConfigFastest.Marshal(value.Changes)
 	}
 	func() {
-		if r.logLogger != nil {
-			poolDB.Begin()
-		}
-		defer poolDB.Rollback()
-		res := poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
-		if r.logLogger != nil {
-			value.LogID = res.LastInsertId()
-			r.logLogger(value)
-			poolDB.Commit()
-		}
+		poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 	}()
 }
 

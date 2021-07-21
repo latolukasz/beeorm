@@ -84,6 +84,7 @@ type TableSchema interface {
 	GetMysql(engine *Engine) *DB
 	GetLocalCache(engine *Engine) (cache *LocalCache, has bool)
 	GetRedisCache(engine *Engine) (cache *RedisCache, has bool)
+	GetRedisSearch(engine *Engine) (search *RedisSearch, has bool)
 	GetReferences() []string
 	GetColumns() []string
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
@@ -288,41 +289,20 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	if !has {
 		table = entityType.Name()
 	}
-	localCache := ""
-	redisCache := ""
-	redisSearch := ""
-	userValue, has := tags["ORM"]["localCache"]
-	if has {
-		if userValue == "true" {
-			userValue = "default"
-		}
-		localCache = userValue
-	}
+	localCache := getTagValue(tags, "localCache")
+	redisCache := getTagValue(tags, "redisCache")
+	redisSearch := getTagValue(tags, "redisSearch")
 	if localCache != "" {
 		_, has = registry.localCachePools[localCache]
 		if !has {
 			return nil, fmt.Errorf("local cache pool '%s' not found", localCache)
 		}
 	}
-	userValue, has = tags["ORM"]["redisCache"]
-	if has {
-		if userValue == "true" {
-			userValue = "default"
-		}
-		redisCache = userValue
-	}
 	if redisCache != "" {
 		_, has = registry.mysqlPools[redisCache]
 		if !has {
 			return nil, fmt.Errorf("redis pool '%s' not found", redisCache)
 		}
-	}
-	userValue, has = tags["ORM"]["redisSearch"]
-	if has {
-		if userValue == "true" {
-			userValue = "default"
-		}
-		redisSearch = userValue
 	}
 	if redisSearch != "" {
 		_, has = registry.redisPools[redisSearch]
@@ -705,6 +685,17 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	return tableSchema, nil
 }
 
+func getTagValue(tags map[string]map[string]string, key string) string {
+	userValue, has := tags["ORM"][key]
+	if has {
+		if userValue == "true" {
+			return "default"
+		}
+		return userValue
+	}
+	return ""
+}
+
 func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchIndex,
 	mapBindToRedisSearch mapBindToRedisSearch, mapBindToScanPointer mapBindToScanPointer, mapPointerToValue mapPointerToValue,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
@@ -771,7 +762,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
 						if val == nil {
 							return RedisSearchNullNumber
-						} else if *val.(*uint64) > math.MaxInt32 {
+						} else if val.(uint64) > math.MaxInt32 {
 							panic(errors.New("integer too high for redis search sort field"))
 						}
 						return val
@@ -832,7 +823,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 					mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
 						if val == nil {
 							return RedisSearchNullNumber
-						} else if *val.(*int64) > math.MaxInt32 {
+						} else if val.(int64) > math.MaxInt32 {
 							panic(errors.New("integer too high for redis search sort field"))
 						}
 						return val

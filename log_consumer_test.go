@@ -41,12 +41,7 @@ func TestLogReceiver(t *testing.T) {
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
 	engine.Flush(e2)
 
-	valid := false
-	consumer.SetLogLogger(func(log *LogQueueValue) {
-		valid = true
-	})
 	consumer.Digest()
-	assert.True(t, valid)
 
 	var entityID int
 	var meta sql.NullString

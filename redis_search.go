@@ -694,6 +694,10 @@ func (r *RedisSearch) SearchKeys(index string, query *RedisSearchQuery, pager *P
 	return total, keys
 }
 
+func (r *RedisSearch) GetPoolConfig() RedisPoolConfig {
+	return r.redis.config
+}
+
 func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager, noContent bool) (total uint64, rows []interface{}) {
 	args := []interface{}{"FT.SEARCH", index}
 	q := query.query
