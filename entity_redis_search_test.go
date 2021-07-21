@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"math"
 	"strconv"
 	"testing"
@@ -15,8 +16,8 @@ type redisSearchEntity struct {
 	Age             uint64             `orm:"searchable;sortable"`
 	Balance         int64              `orm:"sortable"`
 	Weight          float64            `orm:"searchable"`
-	AgeNullable     *uint64            `orm:"searchable"`
-	BalanceNullable *int64             `orm:"searchable"`
+	AgeNullable     *uint64            `orm:"searchable;sortable"`
+	BalanceNullable *int64             `orm:"searchable;sortable"`
 	Enum            string             `orm:"enum=beeorm.TestEnum;required;searchable"`
 	EnumNullable    string             `orm:"enum=beeorm.TestEnum;searchable"`
 	Name            string             `orm:"searchable"`
@@ -34,6 +35,7 @@ type redisSearchEntity struct {
 	AnotherNumeric  int64
 	AnotherTag      bool
 	FakeDelete      bool
+	Balance32       int32 `orm:"sortable"`
 }
 
 func TestEntityRedisSearch(t *testing.T) {
@@ -42,7 +44,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	engine := PrepareTables(t, registry, 5, entity)
 
-	assert.Equal(t, []string{"beeorm.redisSearchEntity"}, engine.GetRedisSearch().ListIndices())
+	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -115,7 +117,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
 	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
-	assert.Len(t, info.Fields, 19)
+	assert.Len(t, info.Fields, 20)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
 	assert.True(t, info.Fields[0].Sortable)
@@ -134,11 +136,11 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.False(t, info.Fields[3].NoIndex)
 	assert.Equal(t, "AgeNullable", info.Fields[4].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[4].Type)
-	assert.False(t, info.Fields[4].Sortable)
+	assert.True(t, info.Fields[4].Sortable)
 	assert.False(t, info.Fields[4].NoIndex)
 	assert.Equal(t, "BalanceNullable", info.Fields[5].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[5].Type)
-	assert.False(t, info.Fields[5].Sortable)
+	assert.True(t, info.Fields[5].Sortable)
 	assert.False(t, info.Fields[5].NoIndex)
 	assert.Equal(t, "Enum", info.Fields[6].Name)
 	assert.Equal(t, "TAG", info.Fields[6].Type)
@@ -196,6 +198,10 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, "NUMERIC", info.Fields[18].Type)
 	assert.False(t, info.Fields[18].Sortable)
 	assert.False(t, info.Fields[18].NoIndex)
+	assert.Equal(t, "Balance32", info.Fields[19].Name)
+	assert.Equal(t, "NUMERIC", info.Fields[19].Type)
+	assert.True(t, info.Fields[19].Sortable)
+	assert.True(t, info.Fields[19].NoIndex)
 
 	query := NewRedisSearchQuery()
 	query.Sort("Age", false)
@@ -721,5 +727,39 @@ func TestEntityRedisSearch(t *testing.T) {
 		engine.LoadByID(9, entity)
 		entity.Balance = math.MaxInt64
 		engine.Flush(entity)
+	})
+
+	engine.Flush(&redisSearchEntity{Age: 133})
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema.ReindexRedisSearchIndex(engine)
+	indexer.Digest()
+	query = NewRedisSearchQuery()
+	query.FilterInt("Age", 133)
+	found := engine.RedisSearchOne(entity, query)
+	assert.True(t, found)
+
+	entitySearch, has := schema.GetRedisSearch(engine)
+	assert.True(t, has)
+	assert.Equal(t, "search", entitySearch.GetPoolConfig().GetCode())
+
+	type redisSearchEntity2 struct {
+		ORM `orm:"redisSearch=invalid"`
+		ID  uint `orm:"searchable;sortable"`
+	}
+	registry = NewRegistry()
+	registry.RegisterEntity(&redisSearchEntity2{})
+	_, err := registry.Validate(context.Background())
+	assert.EqualError(t, err, "mysql pool 'default' not found")
+
+	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
+		engine.Flush(&redisSearchEntity{Age: math.MaxInt32 + 1})
+	})
+	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
+		v := uint64(math.MaxInt32 + 1)
+		engine.Flush(&redisSearchEntity{AgeNullable: &v})
+	})
+	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
+		v := int64(math.MaxInt32 + 1)
+		engine.Flush(&redisSearchEntity{BalanceNullable: &v})
 	})
 }
