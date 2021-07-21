@@ -11,31 +11,33 @@ import (
 )
 
 type redisSearchEntity struct {
-	ORM             `orm:"redisSearch=search"`
-	ID              uint               `orm:"searchable;sortable"`
-	Age             uint64             `orm:"searchable;sortable"`
-	Balance         int64              `orm:"sortable"`
-	Weight          float64            `orm:"searchable"`
-	AgeNullable     *uint64            `orm:"searchable;sortable"`
-	BalanceNullable *int64             `orm:"searchable;sortable"`
-	Enum            string             `orm:"enum=beeorm.TestEnum;required;searchable"`
-	EnumNullable    string             `orm:"enum=beeorm.TestEnum;searchable"`
-	Name            string             `orm:"searchable"`
-	NameStem        string             `orm:"searchable;stem"`
-	Set             []string           `orm:"set=beeorm.TestEnum;required;searchable"`
-	SetNullable     []string           `orm:"set=beeorm.TestEnum;searchable"`
-	Bool            bool               `orm:"searchable;sortable"`
-	BoolNullable    *bool              `orm:"searchable"`
-	WeightNullable  *float64           `orm:"searchable"`
-	Date            time.Time          `orm:"searchable"`
-	DateTime        time.Time          `orm:"time;searchable"`
-	DateNullable    *time.Time         `orm:"searchable"`
-	Ref             *redisSearchEntity `orm:"searchable"`
-	Another         string
-	AnotherNumeric  int64
-	AnotherTag      bool
-	FakeDelete      bool
-	Balance32       int32 `orm:"sortable"`
+	ORM               `orm:"redisSearch=search"`
+	ID                uint               `orm:"searchable;sortable"`
+	Age               uint64             `orm:"searchable;sortable"`
+	Balance           int64              `orm:"sortable"`
+	Weight            float64            `orm:"searchable"`
+	AgeNullable       *uint64            `orm:"searchable;sortable"`
+	BalanceNullable   *int64             `orm:"searchable;sortable"`
+	Enum              string             `orm:"enum=beeorm.TestEnum;required;searchable"`
+	EnumNullable      string             `orm:"enum=beeorm.TestEnum;searchable"`
+	Name              string             `orm:"searchable"`
+	NameStem          string             `orm:"searchable;stem"`
+	Set               []string           `orm:"set=beeorm.TestEnum;required;searchable"`
+	SetNullable       []string           `orm:"set=beeorm.TestEnum;searchable"`
+	Bool              bool               `orm:"searchable;sortable"`
+	BoolNullable      *bool              `orm:"searchable"`
+	WeightNullable    *float64           `orm:"searchable"`
+	Date              time.Time          `orm:"searchable"`
+	DateTime          time.Time          `orm:"time;searchable"`
+	DateNullable      *time.Time         `orm:"searchable"`
+	Ref               *redisSearchEntity `orm:"searchable"`
+	Another           string
+	AnotherNumeric    int64
+	AnotherTag        bool
+	FakeDelete        bool
+	Balance32         int32   `orm:"sortable"`
+	AgeNullable32     *uint32 `orm:"searchable;sortable"`
+	BalanceNullable32 *int32  `orm:"sortable"`
 }
 
 func TestEntityRedisSearch(t *testing.T) {
@@ -117,7 +119,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
 	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
-	assert.Len(t, info.Fields, 20)
+	assert.Len(t, info.Fields, 22)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
 	assert.True(t, info.Fields[0].Sortable)
@@ -202,6 +204,14 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, "NUMERIC", info.Fields[19].Type)
 	assert.True(t, info.Fields[19].Sortable)
 	assert.True(t, info.Fields[19].NoIndex)
+	assert.Equal(t, "AgeNullable32", info.Fields[20].Name)
+	assert.Equal(t, "NUMERIC", info.Fields[20].Type)
+	assert.True(t, info.Fields[20].Sortable)
+	assert.False(t, info.Fields[20].NoIndex)
+	assert.Equal(t, "BalanceNullable32", info.Fields[21].Name)
+	assert.Equal(t, "NUMERIC", info.Fields[21].Type)
+	assert.True(t, info.Fields[21].Sortable)
+	assert.True(t, info.Fields[21].NoIndex)
 
 	query := NewRedisSearchQuery()
 	query.Sort("Age", false)
