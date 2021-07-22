@@ -40,11 +40,16 @@ type redisSearchEntity struct {
 	BalanceNullable32 *int32  `orm:"sortable"`
 }
 
+type redisNoSearchEntity struct {
+	ORM
+	ID uint
+}
+
 func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine := PrepareTables(t, registry, 5, entity)
+	engine := PrepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
@@ -737,6 +742,16 @@ func TestEntityRedisSearch(t *testing.T) {
 		engine.LoadByID(9, entity)
 		entity.Balance = math.MaxInt64
 		engine.Flush(entity)
+	})
+
+	assert.PanicsWithError(t, "entity 'string' is not registered", func() {
+		query = &RedisSearchQuery{}
+		engine.RedisSearch(&[]*string{}, query, NewPager(1, 100))
+	})
+
+	assert.PanicsWithError(t, "entity beeorm.redisNoSearchEntity is not searchable", func() {
+		query = &RedisSearchQuery{}
+		engine.RedisSearch(&[]*redisNoSearchEntity{}, query, NewPager(1, 100))
 	})
 
 	engine.Flush(&redisSearchEntity{Age: 133})
