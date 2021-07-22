@@ -51,9 +51,12 @@ func TestDB(t *testing.T) {
 	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
 
+	assert.False(t, db.IsInTransaction())
 	db.Begin()
+	assert.True(t, db.IsInTransaction())
 	db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
 	db.Rollback()
+	assert.False(t, db.IsInTransaction())
 	db.Rollback()
 	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
@@ -67,6 +70,7 @@ func TestDB(t *testing.T) {
 	assert.True(t, rows.Next())
 	def()
 	db.Commit()
+	assert.False(t, db.IsInTransaction())
 
 	rows, def = db.Query("SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
 	assert.Equal(t, []string{"ID", "Name"}, rows.Columns())
@@ -82,6 +86,9 @@ func TestDB(t *testing.T) {
 
 	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
 	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())
+
+	value := []byte{0, '\n', '\r', '\\', '\'', '"', '\032'}
+	assert.Equal(t, "'\\0\\n\\r\\\\\\'\\\"\\Z'", escapeSQLParam(string(value)))
 }
 
 func TestDBErrors(t *testing.T) {
