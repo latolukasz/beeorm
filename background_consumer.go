@@ -14,6 +14,7 @@ import (
 const lazyChannelName = "orm-lazy-channel"
 const logChannelName = "orm-log-channel"
 const redisSearchIndexerChannelName = "orm-redis-search-channel"
+const redisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
 const asyncConsumerGroupName = "orm-async-consumer"
 
 type LogQueueValue struct {
@@ -34,7 +35,8 @@ type dirtyQueueValue struct {
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	redisFlusher *redisFlusher
+	redisFlusher         *redisFlusher
+	garbageCollectorSha1 string
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
@@ -58,6 +60,8 @@ func (r *BackgroundConsumer) Digest() {
 				r.handleLogEvent(event)
 			case redisSearchIndexerChannelName:
 				r.handleRedisIndexerEvent(event)
+			case redisStreamGarbageCollectorChannelName:
+				r.handleRedisChannelGarbageCollector(event)
 			}
 		}
 	})
@@ -266,4 +270,121 @@ func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 		}
 		id = nextID
 	}
+}
+
+func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
+	garbageEvent := &garbageCollectorEvent{}
+	event.Unserialize(garbageEvent)
+	engine := r.engine
+	redisGarbage := engine.GetRedis(garbageEvent.Pool)
+	if redisGarbage == nil {
+		event.delete()
+		return
+	}
+	streams := engine.registry.getRedisStreamsForGroup(garbageEvent.Group)
+	if len(streams) == 0 {
+		event.delete()
+		return
+	}
+	if r.limit > 1 {
+		if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
+			event.delete()
+			return
+		}
+	}
+	def := engine.registry.redisStreamGroups[redisGarbage.config.GetCode()]
+	for _, stream := range streams {
+		info := redisGarbage.XInfoGroups(stream)
+		ids := make(map[string][]int64)
+		for name := range def[stream] {
+			ids[name] = []int64{0, 0}
+		}
+		inPending := false
+		for _, group := range info {
+			_, has := ids[group.Name]
+			if !has {
+				continue
+			}
+			if group.LastDeliveredID == "" {
+				continue
+			}
+			lastDelivered := group.LastDeliveredID
+			pending := redisGarbage.XPending(stream, group.Name)
+			if pending.Lower != "" {
+				lastDelivered = pending.Lower
+				inPending = true
+			}
+			s := strings.Split(lastDelivered, "-")
+			id, _ := strconv.ParseInt(s[0], 10, 64)
+			ids[group.Name][0] = id
+			counter, _ := strconv.ParseInt(s[1], 10, 64)
+			ids[group.Name][1] = counter
+		}
+		minID := []int64{-1, 0}
+		for _, id := range ids {
+			if id[0] == 0 {
+				minID[0] = 0
+				minID[1] = 0
+			} else if minID[0] == -1 || id[0] < minID[0] || (id[0] == minID[0] && id[1] < minID[1]) {
+				minID[0] = id[0]
+				minID[1] = id[1]
+			}
+		}
+		if minID[0] == 0 {
+			continue
+		}
+		// TODO check of redis 6.2 and use trim with minid
+		var end string
+		if inPending {
+			if minID[1] > 0 {
+				end = strconv.FormatInt(minID[0], 10) + "-" + strconv.FormatInt(minID[1]-1, 10)
+			} else {
+				end = strconv.FormatInt(minID[0]-1, 10)
+			}
+		} else {
+			end = strconv.FormatInt(minID[0], 10) + "-" + strconv.FormatInt(minID[1], 10)
+		}
+
+		if r.garbageCollectorSha1 == "" {
+			sha1, has := redisGarbage.Get("_orm_gc_sha1")
+			if !has {
+				script := `
+						local count = 0
+						local all = 0
+						while(true)
+						do
+							local T = redis.call('XRANGE', KEYS[1], "-", ARGV[1], "COUNT", 1000)
+							local ids = {}
+							for _, v in pairs(T) do
+								table.insert(ids, v[1])
+								count = count + 1
+							end
+							if table.getn(ids) > 0 then
+								redis.call('XDEL', KEYS[1], unpack(ids))
+							end
+							if table.getn(ids) < 1000 then
+								all = 1
+								break
+							end
+							if count >= 100000 then
+								break
+							end
+						end
+						return all
+						`
+				r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
+				redisGarbage.Set("_orm_gc_sha1", r.garbageCollectorSha1, 604800)
+			} else {
+				r.garbageCollectorSha1 = sha1
+			}
+		}
+
+		for {
+			res := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{stream}, end)
+			if res == int64(1) {
+				break
+			}
+		}
+	}
+	event.delete()
 }

@@ -24,7 +24,7 @@ func TestDirtyConsumer(t *testing.T) {
 
 	channels := engine.GetRegistry().GetRedisStreams()
 	assert.Len(t, channels, 1)
-	assert.Len(t, channels["default"], 3)
+	assert.Len(t, channels["default"], 4)
 
 	consumer := engine.GetEventBroker().Consumer("test-group-1")
 	consumer.DisableLoop()

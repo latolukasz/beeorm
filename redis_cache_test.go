@@ -73,6 +73,13 @@ func testRedis(t *testing.T, engine *Engine) {
 	val, has = r.Get("test_get")
 	assert.True(t, has)
 	assert.Equal(t, "hello", val)
+	isSet := r.SetNX("test_get_nx", "hello nx", 1)
+	assert.True(t, isSet)
+	val, has = r.Get("test_get_nx")
+	assert.True(t, has)
+	assert.Equal(t, "hello nx", val)
+	isSet = r.SetNX("test_get_nx", "hello nx", 1)
+	assert.False(t, isSet)
 
 	r.LPush("test_list", "a")
 	assert.Equal(t, int64(1), r.LLen("test_list"))

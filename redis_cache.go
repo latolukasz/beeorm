@@ -134,6 +134,17 @@ func (r *RedisCache) Set(key string, value interface{}, ttlSeconds int) {
 	checkError(err)
 }
 
+func (r *RedisCache) SetNX(key string, value interface{}, ttlSeconds int) bool {
+	start := getNow(r.engine.hasRedisLogger)
+	isSet, err := r.client.SetNX(r.ctx, key, value, time.Duration(ttlSeconds)*time.Second).Result()
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("SET NX %s %v %d", key, value, ttlSeconds)
+		r.fillLogFields("SETNX", message, start, err)
+	}
+	checkError(err)
+	return isSet
+}
+
 func (r *RedisCache) LPush(key string, values ...interface{}) int64 {
 	start := getNow(r.engine.hasRedisLogger)
 	val, err := r.client.LPush(r.ctx, key, values...).Result()

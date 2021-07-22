@@ -70,6 +70,19 @@ func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {
 	return res
 }
 
+func (r *validatedRegistry) getRedisStreamsForGroup(group string) []string {
+	streams := make([]string, 0)
+	for _, row := range r.redisStreamGroups {
+		for stream, groups := range row {
+			_, has := groups[group]
+			if has {
+				streams = append(streams, stream)
+			}
+		}
+	}
+	return streams
+}
+
 func (r *validatedRegistry) GetMySQLPools() map[string]MySQLPoolConfig {
 	return r.mySQLServers
 }

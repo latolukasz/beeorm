@@ -31,11 +31,9 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 
 	consumer1 := broker.Consumer("test-group-1")
 	consumer1.(*eventsConsumer).blockTime = time.Millisecond
-	consumer1.(*eventsConsumer).garbageTick = time.Millisecond * 15
 	consumer1.DisableLoop()
 	consumer2 := broker.Consumer("test-group-2")
 	consumer2.(*eventsConsumer).blockTime = time.Millisecond
-	consumer2.(*eventsConsumer).garbageTick = time.Millisecond * 15
 	consumer2.DisableLoop()
 
 	consumer1.Consume(1, func(events []Event) {})
@@ -44,7 +42,12 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 
 	consumer2.Consume(1, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
-	consumer2.(*eventsConsumer).garbageCollector(engine)
+	consumer2.(*eventsConsumer).garbage()
+
+	backgroundConsumer := NewBackgroundConsumer(engine)
+	backgroundConsumer.DisableLoop()
+	backgroundConsumer.blockTime = time.Millisecond
+	backgroundConsumer.Digest()
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 }
 
@@ -61,7 +64,6 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 
 	consumer := broker.Consumer("test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
-	consumer.(*eventsConsumer).garbageTick = time.Millisecond * 15
 	consumer.DisableLoop()
 
 	type testEvent struct {
@@ -106,7 +108,11 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 		panic(fmt.Errorf("test err %v", e.Name))
 	})
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine)
+	consumer.(*eventsConsumer).garbage()
+	backgroundConsumer := NewBackgroundConsumer(engine)
+	backgroundConsumer.DisableLoop()
+	backgroundConsumer.blockTime = time.Millisecond
+	backgroundConsumer.Digest()
 	assert.Equal(t, 20, i)
 	assert.Equal(t, 10, j)
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
@@ -145,7 +151,8 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	assert.Equal(t, 11, i)
 	assert.Equal(t, 10, j)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine)
+	consumer.(*eventsConsumer).garbage()
+	backgroundConsumer.Digest()
 	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 
@@ -287,7 +294,11 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.Equal(t, 2, iterations)
 	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbageCollector(engine)
+	consumer.(*eventsConsumer).garbage()
+	backgroundConsumer := NewBackgroundConsumer(engine)
+	backgroundConsumer.DisableLoop()
+	backgroundConsumer.blockTime = time.Millisecond
+	backgroundConsumer.Digest()
 	time.Sleep(time.Second)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(0), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)

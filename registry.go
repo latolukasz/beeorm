@@ -175,6 +175,12 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 			r.RegisterRedisStream(redisSearchIndexerChannelName, "default", []string{asyncConsumerGroupName})
 		}
 	}
+	if len(r.redisStreamGroups) > 0 {
+		_, has = r.redisStreamPools[redisStreamGarbageCollectorChannelName]
+		if !has {
+			r.RegisterRedisStream(redisStreamGarbageCollectorChannelName, "default", []string{asyncConsumerGroupName})
+		}
+	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
