@@ -197,35 +197,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		if !transaction && schema.GetMysql(f.engine).inTransaction {
 			transaction = true
 		}
-		for _, refName := range schema.refOne {
-			refValue := entity.getORM().elem.FieldByName(refName)
-			if refValue.IsValid() && !refValue.IsNil() {
-				refEntity := refValue.Interface().(Entity)
-				initIfNeeded(f.engine.registry, refEntity)
-				if refEntity.GetID() == 0 {
-					if referencesToFlash == nil {
-						referencesToFlash = make(map[Entity]Entity)
-					}
-					referencesToFlash[refEntity] = refEntity
-				}
-			}
-		}
-		for _, refName := range schema.refMany {
-			refValue := entity.getORM().elem.FieldByName(refName)
-			if refValue.IsValid() && !refValue.IsNil() {
-				length := refValue.Len()
-				for i := 0; i < length; i++ {
-					refEntity := refValue.Index(i).Interface().(Entity)
-					initIfNeeded(f.engine.registry, refEntity)
-					if refEntity.GetID() == 0 {
-						if referencesToFlash == nil {
-							referencesToFlash = make(map[Entity]Entity)
-						}
-						referencesToFlash[refEntity] = refEntity
-					}
-				}
-			}
-		}
+		referencesToFlash = f.checkReferences(schema, entity, referencesToFlash)
 		if referencesToFlash != nil {
 			continue
 		}
@@ -235,7 +207,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		if !isDirty {
 			continue
 		}
-		bindLength := len(builder.bind)
 
 		t := orm.tableSchema.t
 		currentID := entity.GetID()
@@ -252,88 +223,18 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			f.deleteBinds[t][currentID] = entity
 		} else if !orm.inDB {
 			onUpdate := entity.getORM().onDuplicateKeyUpdate
-			if onUpdate != nil {
-				if lazy {
-					panic(fmt.Errorf("lazy flush on duplicate key is not supported"))
-				}
-				if currentID > 0 {
-					builder.bind["ID"] = currentID
-					bindLength++
-				}
-				values := make([]string, bindLength)
-				columns := make([]string, bindLength)
-				bindRow := make([]interface{}, bindLength)
-				i := 0
-				for key, val := range builder.bind {
-					columns[i] = "`" + key + "`"
-					values[i] = "?"
-					bindRow[i] = val
-					i++
-				}
-				/* #nosec */
-				sql := "INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ")"
-				sql += " ON DUPLICATE KEY UPDATE "
-				first := true
-				for k, v := range onUpdate {
-					if !first {
-						sql += ", "
-					}
-					sql += "`" + k + "` = ?"
-					bindRow = append(bindRow, v)
-					first = false
-				}
-				if len(onUpdate) == 0 {
-					sql += "`Id` = `Id`"
-				}
-				db := schema.GetMysql(f.engine)
-				result := db.Exec(sql, bindRow...)
-				affected := result.RowsAffected()
-				if affected > 0 {
-					lastID := result.LastInsertId()
-					orm.inDB = true
-					orm.loaded = true
-					orm := entity.getORM()
-					orm.idElem.SetUint(lastID)
-					orm.serialize(f.engine.getSerializer())
-					if affected == 1 {
-						f.updateCacheForInserted(entity, lazy, lastID, builder.bind)
-					} else {
-						for k, v := range onUpdate {
-							err := entity.SetField(k, v)
-							checkError(err)
-						}
-						bind, _ := orm.GetDirtyBind(f.engine)
-						_, _ = loadByID(f.engine, lastID, entity, false, lazy)
-						f.updateCacheAfterUpdate(entity, bind, builder.current, schema, lastID, false)
-					}
-				} else {
-				OUTER:
-					for _, index := range schema.uniqueIndices {
-						fields := make([]string, 0)
-						binds := make([]interface{}, 0)
-						for _, column := range index {
-							if builder.bind[column] == nil {
-								continue OUTER
-							}
-							fields = append(fields, "`"+column+"` = ?")
-							binds = append(binds, builder.bind[column])
-						}
-						findWhere := NewWhere(strings.Join(fields, " AND "), binds)
-						f.engine.SearchOne(findWhere, entity)
-						break
-					}
-				}
-				continue
-			}
 			if currentID > 0 {
 				builder.bind["ID"] = currentID
-				bindLength++
+			}
+			if onUpdate != nil {
+				f.flushOnDuplicateKey(lazy, builder, schema, onUpdate, entity)
+				continue
 			}
 			if insertKeys == nil {
 				insertKeys = make(map[reflect.Type][]string)
 			}
 			if insertKeys[t] == nil {
-				fields := make([]string, bindLength)
+				fields := make([]string, len(builder.bind))
 				i := 0
 				for key := range builder.bind {
 					fields[i] = key
@@ -351,45 +252,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			insertReflectValues[t] = append(insertReflectValues[t], entity)
 			insertBinds[t] = append(insertBinds[t], builder.bind)
 		} else {
-			if !entity.IsLoaded() {
-				panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
-			}
-			/* #nosec */
-			sql := "UPDATE " + schema.GetTableName() + " SET "
-			first := true
-			for key, value := range builder.updateBind {
-				if !first {
-					sql += ","
-				}
-				first = false
-				sql += "`" + key + "`=" + value
-			}
-			sql += " WHERE `ID` = " + strconv.FormatUint(currentID, 10)
-			db := schema.GetMysql(f.engine)
-			if lazy {
-				var logEvents []*LogQueueValue
-				var dirtyEvents []*dirtyQueueValue
-				serializer := f.engine.getSerializer()
-				serializer.buffer.Reset()
-				entity.getORM().serialize(serializer)
-				logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, true)
-				if logEvent != nil {
-					logEvents = append(logEvents, logEvent)
-				}
-				if dirtyEvent != nil {
-					dirtyEvents = append(dirtyEvents, dirtyEvent)
-				}
-				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, nil, logEvents, dirtyEvents)
-			} else {
-				if f.updateSQLs == nil {
-					f.updateSQLs = make(map[string][]string)
-				}
-				f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
-				serializer := f.engine.getSerializer()
-				serializer.buffer.Reset()
-				entity.getORM().serialize(serializer)
-				f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, false)
-			}
+			f.flushUpdate(entity, currentID, schema, builder, lazy)
 		}
 	}
 
@@ -639,6 +502,151 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	if f.redisFlusher != nil && !transaction && root {
 		f.redisFlusher.Flush()
 	}
+}
+
+func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSchema, builder *bindBuilder, lazy bool) {
+	if !entity.IsLoaded() {
+		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
+	}
+	/* #nosec */
+	sql := "UPDATE " + schema.GetTableName() + " SET "
+	first := true
+	for key, value := range builder.updateBind {
+		if !first {
+			sql += ","
+		}
+		first = false
+		sql += "`" + key + "`=" + value
+	}
+	sql += " WHERE `ID` = " + strconv.FormatUint(currentID, 10)
+	db := schema.GetMysql(f.engine)
+	if lazy {
+		var logEvents []*LogQueueValue
+		var dirtyEvents []*dirtyQueueValue
+		serializer := f.engine.getSerializer()
+		serializer.buffer.Reset()
+		entity.getORM().serialize(serializer)
+		logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, true)
+		if logEvent != nil {
+			logEvents = append(logEvents, logEvent)
+		}
+		if dirtyEvent != nil {
+			dirtyEvents = append(dirtyEvents, dirtyEvent)
+		}
+		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, nil, logEvents, dirtyEvents)
+	} else {
+		if f.updateSQLs == nil {
+			f.updateSQLs = make(map[string][]string)
+		}
+		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
+		serializer := f.engine.getSerializer()
+		serializer.buffer.Reset()
+		entity.getORM().serialize(serializer)
+		f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, false)
+	}
+}
+
+func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *tableSchema, onUpdate map[string]interface{}, entity Entity) {
+	if lazy {
+		panic(fmt.Errorf("lazy flush on duplicate key is not supported"))
+	}
+	bindLength := len(builder.bind)
+	values := make([]string, bindLength)
+	columns := make([]string, bindLength)
+	bindRow := make([]interface{}, bindLength)
+	i := 0
+	for key, val := range builder.bind {
+		columns[i] = "`" + key + "`"
+		values[i] = "?"
+		bindRow[i] = val
+		i++
+	}
+	/* #nosec */
+	sql := "INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ")"
+	sql += " ON DUPLICATE KEY UPDATE "
+	first := true
+	for k, v := range onUpdate {
+		if !first {
+			sql += ", "
+		}
+		sql += "`" + k + "` = ?"
+		bindRow = append(bindRow, v)
+		first = false
+	}
+	if len(onUpdate) == 0 {
+		sql += "`Id` = `Id`"
+	}
+	db := schema.GetMysql(f.engine)
+	result := db.Exec(sql, bindRow...)
+	affected := result.RowsAffected()
+	if affected > 0 {
+		orm := entity.getORM()
+		lastID := result.LastInsertId()
+		orm.inDB = true
+		orm.loaded = true
+		orm.idElem.SetUint(lastID)
+		orm.serialize(f.engine.getSerializer())
+		if affected == 1 {
+			f.updateCacheForInserted(entity, lazy, lastID, builder.bind)
+		} else {
+			for k, v := range onUpdate {
+				err := entity.SetField(k, v)
+				checkError(err)
+			}
+			bind, _ := orm.GetDirtyBind(f.engine)
+			_, _ = loadByID(f.engine, lastID, entity, false, lazy)
+			f.updateCacheAfterUpdate(entity, bind, builder.current, schema, lastID, false)
+		}
+	} else {
+	OUTER:
+		for _, index := range schema.uniqueIndices {
+			fields := make([]string, 0)
+			binds := make([]interface{}, 0)
+			for _, column := range index {
+				if builder.bind[column] == nil {
+					continue OUTER
+				}
+				fields = append(fields, "`"+column+"` = ?")
+				binds = append(binds, builder.bind[column])
+			}
+			findWhere := NewWhere(strings.Join(fields, " AND "), binds)
+			f.engine.SearchOne(findWhere, entity)
+			break
+		}
+	}
+}
+
+func (f *flusher) checkReferences(schema *tableSchema, entity Entity, referencesToFlash map[Entity]Entity) map[Entity]Entity {
+	for _, refName := range schema.refOne {
+		refValue := entity.getORM().elem.FieldByName(refName)
+		if refValue.IsValid() && !refValue.IsNil() {
+			refEntity := refValue.Interface().(Entity)
+			initIfNeeded(f.engine.registry, refEntity)
+			if refEntity.GetID() == 0 {
+				if referencesToFlash == nil {
+					referencesToFlash = make(map[Entity]Entity)
+				}
+				referencesToFlash[refEntity] = refEntity
+			}
+		}
+	}
+	for _, refName := range schema.refMany {
+		refValue := entity.getORM().elem.FieldByName(refName)
+		if refValue.IsValid() && !refValue.IsNil() {
+			length := refValue.Len()
+			for i := 0; i < length; i++ {
+				refEntity := refValue.Index(i).Interface().(Entity)
+				initIfNeeded(f.engine.registry, refEntity)
+				if refEntity.GetID() == 0 {
+					if referencesToFlash == nil {
+						referencesToFlash = make(map[Entity]Entity)
+					}
+					referencesToFlash[refEntity] = refEntity
+				}
+			}
+		}
+	}
+	return referencesToFlash
 }
 
 func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bind Bind) (*LogQueueValue, *dirtyQueueValue) {
