@@ -43,7 +43,6 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine}}
 	c.engine = engine
 	c.loop = true
-	c.limit = 1
 	c.blockTime = time.Second * 30
 	return c
 }
@@ -286,11 +285,9 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 		event.delete()
 		return
 	}
-	if r.limit > 1 {
-		if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
-			event.delete()
-			return
-		}
+	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
+		event.delete()
+		return
 	}
 	def := engine.registry.redisStreamGroups[redisGarbage.config.GetCode()]
 	for _, stream := range streams {
