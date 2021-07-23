@@ -521,7 +521,17 @@ func TestRedisSearch(t *testing.T) {
 	})
 
 	query = &RedisSearchQuery{}
-	query.FilterString("title", "/")
+	query.FilterString("title", "/`")
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(0), total)
+
+	query = &RedisSearchQuery{}
+	query.FilterString("title", "`")
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(0), total)
+
+	query = &RedisSearchQuery{}
+	query.FilterString("title", "_")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(0), total)
 }
