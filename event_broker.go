@@ -231,6 +231,10 @@ type eventConsumerBase struct {
 type eventsConsumer struct {
 	eventConsumerBase
 	redis                  *RedisCache
+	streams                []string
+	group                  string
+	lockTTL                time.Duration
+	lockTick               time.Duration
 	speedPrefixKey         string
 	speedEvents            int
 	speedDBQueries         int
@@ -240,11 +244,6 @@ type eventsConsumer struct {
 	speedLogger            *speedHandler
 	speedTimeMicroseconds  int64
 	speedLimit             int
-	streams                []string
-	group                  string
-	lockTTL                time.Duration
-	lockTick               time.Duration
-	garbageCollectorSha1   string
 }
 
 func (b *eventConsumerBase) DisableLoop() {

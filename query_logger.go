@@ -80,7 +80,11 @@ func (e *Engine) RegisterQueryLogger(handler LogHandler, mysql, redis, local boo
 	}
 }
 
-func (e *Engine) EnableQueryDebug(mysql, redis, local bool) {
+func (e *Engine) EnableQueryDebug() {
+	e.EnableQueryDebugCustom(true, true, true)
+}
+
+func (e *Engine) EnableQueryDebugCustom(mysql, redis, local bool) {
 	e.RegisterQueryLogger(e.registry.defaultQueryLogger, mysql, redis, local)
 }
 

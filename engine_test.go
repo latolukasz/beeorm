@@ -21,14 +21,14 @@ func TestEngine(t *testing.T) {
 		engine.GetRedis("test")
 	})
 
-	engine.EnableQueryDebug(true, true, false)
+	engine.EnableQueryDebug()
 	assert.Len(t, engine.queryLoggersRedis, 2)
 	assert.Len(t, engine.queryLoggersDB, 2)
-	assert.Len(t, engine.queryLoggersLocalCache, 0)
-	engine.EnableQueryDebug(true, true, false)
+	assert.Len(t, engine.queryLoggersLocalCache, 1)
+	engine.EnableQueryDebugCustom(true, true, false)
 	assert.Len(t, engine.queryLoggersRedis, 2)
 	assert.Len(t, engine.queryLoggersDB, 2)
-	assert.Len(t, engine.queryLoggersLocalCache, 0)
+	assert.Len(t, engine.queryLoggersLocalCache, 1)
 }
 
 func BenchmarkEngine(b *testing.B) {

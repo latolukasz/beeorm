@@ -144,9 +144,7 @@ func tryByIDs(engine *Engine, ids []uint64, entities reflect.Value, references [
 			val := newSlice.Index(list[0])
 			if val.IsNil() {
 				newVal := newSlice.Index(k)
-				if !newVal.IsNil() {
-					newVal.Set(reflect.Zero(schema.t))
-				}
+				newVal.Set(reflect.Zero(reflect.PtrTo(schema.t)))
 			} else {
 				newSlice.Index(k).Set(val.Interface().(Entity).getORM().value)
 			}
@@ -363,11 +361,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		}
 		values := make([]interface{}, 0)
 		for cacheKey, refs := range v {
-			if refs[0].IsLoaded() {
-				values = append(values, cacheKey, refs[0].getORM().binary)
-			} else {
-				values = append(values, cacheKey, cacheNilValue)
-			}
+			values = append(values, cacheKey, refs[0].getORM().binary)
 		}
 		engine.GetRedis(pool).MSet(values...)
 	}
@@ -377,11 +371,7 @@ func warmUpReferences(engine *Engine, schema *tableSchema, rows reflect.Value, r
 		}
 		values := make([]interface{}, 0)
 		for cacheKey, refs := range v {
-			if refs[0].IsLoaded() {
-				values = append(values, cacheKey, refs[0].getORM().binary)
-			} else {
-				values = append(values, cacheKey, cacheNilValue)
-			}
+			values = append(values, cacheKey, refs[0].getORM().binary)
 		}
 		engine.GetLocalCache(pool).MSet(values...)
 	}

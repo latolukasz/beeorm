@@ -49,19 +49,37 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var subReference *loadByIdsSubReference
 	engine := PrepareTables(t, &Registry{}, 5, entity, reference, subReference)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference).(*tableSchema)
+	schema3 := engine.GetRegistry().GetTableSchemaForEntity(subReference).(*tableSchema)
 	if local {
 		schema.localCacheName = "default"
 		schema.hasLocalCache = true
+		schema2.localCacheName = "default"
+		schema2.hasLocalCache = true
+		schema3.localCacheName = "default"
+		schema3.hasLocalCache = true
 	} else {
 		schema.localCacheName = ""
 		schema.hasLocalCache = false
+		schema2.localCacheName = ""
+		schema2.hasLocalCache = false
+		schema3.localCacheName = ""
+		schema3.hasLocalCache = false
 	}
 	if redis {
 		schema.redisCacheName = "default"
 		schema.hasRedisCache = true
+		schema2.redisCacheName = "default"
+		schema2.hasRedisCache = true
+		schema3.redisCacheName = "default"
+		schema3.hasRedisCache = true
 	} else {
 		schema.redisCacheName = ""
 		schema.hasRedisCache = false
+		schema2.redisCacheName = ""
+		schema2.hasRedisCache = false
+		schema3.redisCacheName = ""
+		schema3.hasRedisCache = false
 	}
 
 	engine.FlushMany(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}},
@@ -188,11 +206,14 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	engine.GetRedis().FlushDB()
 	engine.LoadByIDs([]uint64{1}, &rows)
 	rows = make([]*loadByIdsEntity, 0)
-	engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
+	engine.LoadByIDs([]uint64{1, 2, 3}, &rows, "ReferenceOne")
 	assert.Len(t, rows, 3)
 	assert.Equal(t, uint(1), rows[0].ID)
 	assert.Equal(t, uint(2), rows[1].ID)
 	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, "a", rows[0].Name)
+	assert.Equal(t, "b", rows[1].Name)
+	assert.Equal(t, "c", rows[2].Name)
 
 	rows = make([]*loadByIdsEntity, 0)
 	engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
@@ -238,6 +259,19 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, "a", rows[1].Name)
 	assert.NotNil(t, rows[2])
 	assert.Equal(t, "a", rows[2].Name)
+
+	if local && redis {
+		engine.GetLocalCache().Clear()
+		rows = make([]*loadByIdsEntity, 0)
+		engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
+		engine.GetLocalCache().Clear()
+		rows = make([]*loadByIdsEntity, 0)
+		engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
+		assert.Len(t, rows, 3)
+		assert.Equal(t, uint(1), rows[0].ID)
+		assert.Equal(t, uint(2), rows[1].ID)
+		assert.Equal(t, uint(3), rows[2].ID)
+	}
 
 	engine = PrepareTables(t, &Registry{}, 5)
 	assert.PanicsWithError(t, "entity 'beeorm.loadByIdsEntity' is not registered", func() {
