@@ -49,7 +49,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine := PrepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
+	engine := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 

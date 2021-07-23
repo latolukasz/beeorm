@@ -113,7 +113,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine := PrepareTables(t, registry, 5, entity, reference, referenceCascade)
+	engine := prepareTables(t, registry, 5, entity, reference, referenceCascade)
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
 	schema2 := engine.registry.GetTableSchemaForEntity(reference).(*tableSchema)
@@ -648,7 +648,7 @@ func benchmarkFlusher(b *testing.B, useLocaCache, useRedisCache bool) {
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine := PrepareTables(nil, registry, 5, entity)
+	engine := prepareTables(nil, registry, 5, entity)
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
 	if !useLocaCache {

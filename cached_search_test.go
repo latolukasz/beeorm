@@ -47,7 +47,7 @@ func TestCachedSearchLocalRedis(t *testing.T) {
 func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
-	engine := PrepareTables(t, &Registry{}, 5, entityRef, entity)
+	engine := prepareTables(t, &Registry{}, 5, entityRef, entity)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	if localCache {
 		schema.localCacheName = "default"
@@ -291,7 +291,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 }
 
 func TestCachedSearchErrors(t *testing.T) {
-	engine := PrepareTables(t, &Registry{}, 5)
+	engine := prepareTables(t, &Registry{}, 5)
 	var rows []*cachedSearchEntity
 	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_ = engine.CachedSearch(&rows, "IndexAge", nil, 10)
@@ -303,7 +303,7 @@ func TestCachedSearchErrors(t *testing.T) {
 
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
-	engine = PrepareTables(t, &Registry{}, 5, entity, entityRef)
+	engine = prepareTables(t, &Registry{}, 5, entity, entityRef)
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
 		_ = engine.CachedSearch(&rows, "InvalidIndex", nil, 10)
 	})
@@ -334,7 +334,7 @@ func BenchmarkCachedSearch(b *testing.B) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
-	engine := PrepareTables(nil, registry, 5, entity, ref)
+	engine := prepareTables(nil, registry, 5, entity, ref)
 	flusher := engine.NewFlusher()
 	for i := 0; i < 1000; i++ {
 		e := &schemaEntity{}

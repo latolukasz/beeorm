@@ -22,7 +22,7 @@ func (h *testLogHandler) clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) *Engine {
+func prepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) *Engine {
 	if version == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")

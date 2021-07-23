@@ -38,7 +38,7 @@ func TestRedisSearch(t *testing.T) {
 	defaultIndex.AddTextField("text_field", 0.12, true, false, false)
 	defaultIndex.AddTagField("tag_field", true, false, ",")
 	registry.RegisterRedisSearchIndex(defaultIndex)
-	engine := PrepareTables(t, registry, 5)
+	engine := prepareTables(t, registry, 5)
 
 	testLog := &testLogHandler{}
 	engine.RegisterQueryLogger(testLog, false, true, false)

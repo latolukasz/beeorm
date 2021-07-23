@@ -27,7 +27,7 @@ func TestLogReceiver(t *testing.T) {
 	var entity1 *logReceiverEntity1
 	var entity2 *logReceiverEntity2
 	registry := &Registry{}
-	engine := PrepareTables(t, registry, 5, entity1, entity2)
+	engine := prepareTables(t, registry, 5, entity1, entity2)
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetRedis().FlushDB()
