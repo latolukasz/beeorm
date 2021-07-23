@@ -33,10 +33,6 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 		return
 	}
 	commands.diffs[commandDelete] = true
-	if commands.deletes == nil {
-		commands.deletes = keys
-		return
-	}
 	commands.deletes = append(commands.deletes, keys...)
 }
 
@@ -81,7 +77,7 @@ func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
 		commands.hSets = map[string][]interface{}{key: values}
 		return
 	}
-	commands.hSets[key] = values
+	commands.hSets[key] = append(commands.hSets[key], values...)
 }
 
 func (f *redisFlusher) Flush() {
