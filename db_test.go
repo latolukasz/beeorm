@@ -34,7 +34,7 @@ func TestDB(t *testing.T) {
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
 	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
-	engine.RegisterQueryLogger(testQueryLog, false, true, false)
+	engine.RegisterQueryLogger(testQueryLog, true, false, false)
 
 	db := engine.GetMysql()
 	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")

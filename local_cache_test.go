@@ -19,7 +19,7 @@ func TestLocalCache(t *testing.T) {
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, false, true)
 	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
-	engine.RegisterQueryLogger(testQueryLog, false, true, false)
+	engine.RegisterQueryLogger(testQueryLog, false, false, true)
 
 	c := engine.GetLocalCache()
 	assert.Equal(t, "default", c.GetPoolConfig().GetCode())
