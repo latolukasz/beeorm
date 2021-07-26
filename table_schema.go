@@ -987,8 +987,12 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 			k := f.Type.Kind().String()
 			if k == "struct" {
 				fields.structs = append(fields.structs, i)
+				subPrefix := ""
+				if !f.Anonymous {
+					subPrefix = f.Name
+				}
 				subFields := buildTableFields(f.Type, registry, index, mapBindToRedisSearch,
-					mapBindToScanPointer, mapPointerToValue, 0, f.Name, schemaTags)
+					mapBindToScanPointer, mapPointerToValue, 0, subPrefix, schemaTags)
 				fields.structsFields = append(fields.structsFields, subFields)
 			} else if k == "ptr" {
 				modelType := reflect.TypeOf((*Entity)(nil)).Elem()

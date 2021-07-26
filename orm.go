@@ -506,7 +506,7 @@ func deserializeStructFromDB(engine *Engine, serializer *serializer, index int, 
 		index++
 	}
 	for _, subField := range fields.structsFields {
-		index += deserializeStructFromDB(engine, serializer, index, subField, pointers)
+		index = deserializeStructFromDB(engine, serializer, index, subField, pointers)
 	}
 	return index
 }

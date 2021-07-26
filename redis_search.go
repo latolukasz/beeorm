@@ -31,9 +31,19 @@ type RedisSearch struct {
 var redisSearchStringReplacer = strings.NewReplacer(",", "\\,", ".", "\\.", "<", "\\<", ">", "\\>", "{", "\\{",
 	"}", "\\}", "[", "\\[", "]", "\\]", "\"", "\\\"", "'", "\\'", ":", "\\:", ";", "\\;", "!", "\\!", "@", "\\@",
 	"#", "\\#", "$", "\\$", "%", "\\%", "^", "\\^", "&", "\\&", "*", "\\*", "(", "\\(", ")", "\\)", "-", "\\-",
-	"+", "\\+", "=", "\\=", "~", "\\~", `/`, `\/`, "`", "\\`", `_`, `\_`)
+	"+", "\\+", "=", "\\=", "~", "\\~", `/`, `\/`, "`", "\\`")
 
 var redisSearchStringReplacerBack = strings.NewReplacer("\\,", ",", "\\.", ".", "<", "<", "\\>", ">", "\\{", "{",
+	"\\}", "}", "\\[", "[", "\\]", "]", "\\\"", "\"", "\\'", "'", "\\:", ":", "\\;", ";", "\\!", "!", "\\@", "@",
+	"\\#", "#", "\\$", "$", "\\%", "%", "\\^", "^", "\\&", "&", "\\*", "*", "\\(", "(", "\\)", ")", "\\-", "-",
+	"\\+", "+", "\\=", "=", "\\~", "~", `\/`, `/`, "\\`", "`")
+
+var redisSearchStringReplacerOne = strings.NewReplacer(",", "\\,", ".", "\\.", "<", "\\<", ">", "\\>", "{", "\\{",
+	"}", "\\}", "[", "\\[", "]", "\\]", "\"", "\\\"", "'", "\\'", ":", "\\:", ";", "\\;", "!", "\\!", "@", "\\@",
+	"#", "\\#", "$", "\\$", "%", "\\%", "^", "\\^", "&", "\\&", "*", "\\*", "(", "\\(", ")", "\\)", "-", "\\-",
+	"+", "\\+", "=", "\\=", "~", "\\~", `/`, `\/`, "`", "\\`", `_`, `\_`)
+
+var redisSearchStringReplacerBackOne = strings.NewReplacer("\\,", ",", "\\.", ".", "<", "<", "\\>", ">", "\\{", "{",
 	"\\}", "}", "\\[", "[", "\\]", "]", "\\\"", "\"", "\\'", "'", "\\:", ":", "\\;", ";", "\\!", "!", "\\@", "@",
 	"\\#", "#", "\\$", "$", "\\%", "%", "\\^", "^", "\\&", "&", "\\*", "*", "\\(", "(", "\\)", ")", "\\-", "-",
 	"\\+", "+", "\\=", "=", "\\~", "~", `\/`, `/`, "\\`", "`", `\_`, `_`)
@@ -228,6 +238,9 @@ func (r *RedisSearchResult) Value(field string) interface{} {
 			val := r.Fields[i+1]
 			asString, is := val.(string)
 			if is {
+				if len(asString) == 1 {
+					return redisSearchStringReplacerBackOne.Replace(asString)
+				}
 				return redisSearchStringReplacerBack.Replace(asString)
 			}
 			return r.Fields[i+1]
@@ -1148,6 +1161,9 @@ func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
 }
 
 func EscapeRedisSearchString(val string) string {
+	if len(val) == 1 {
+		return redisSearchStringReplacerOne.Replace(val)
+	}
 	return redisSearchStringReplacer.Replace(val)
 }
 

@@ -19,6 +19,11 @@ type flushStruct struct {
 	Age  int
 }
 
+type flushStructAnonymous struct {
+	SubName string
+	SubAge  int
+}
+
 type flushEntity struct {
 	ORM                  `orm:"localCache;redisCache;dirty=entity_changed"`
 	ID                   uint
@@ -67,6 +72,7 @@ type flushEntity struct {
 	Uint32Nullable       *uint32
 	Uint64Nullable       *uint64
 	Images               []obj
+	flushStructAnonymous
 }
 
 type flushEntityReference struct {
@@ -145,6 +151,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.Decimal = 6.15
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
+	entity.flushStructAnonymous = flushStructAnonymous{"Adam", 39}
 	assert.True(t, entity.IsDirty(engine))
 	assert.True(t, entity.ReferenceOne.IsDirty(engine))
 	flusher := engine.NewFlusher().Track(entity)
@@ -204,7 +211,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Uint16Nullable)
 	assert.Nil(t, entity.Uint32Nullable)
 	assert.Nil(t, entity.Uint64Nullable)
-
+	assert.Equal(t, "Adam", entity.SubName)
+	assert.Equal(t, 39, entity.SubAge)
 	assert.NotNil(t, entity.ReferenceMany)
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
