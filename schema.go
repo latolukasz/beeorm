@@ -185,7 +185,7 @@ func getAllTables(db sqlClient) []string {
 func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alters []Alter) {
 	indexes := make(map[string]*index)
 	foreignKeys := make(map[string]*foreignIndex)
-	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, "")
+	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, nil)
 	var newIndexes []string
 	var newForeignKeys []string
 	pool := engine.GetMysql(tableSchema.mysqlPoolName)
@@ -725,7 +725,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	default:
 		kind := field.Type.Kind().String()
 		if kind == "struct" {
-			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field.Name)
+			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field)
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
@@ -945,12 +945,12 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 }
 
 func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, indexes map[string]*index,
-	foreignKeys map[string]*foreignIndex, prefix string) ([][2]string, error) {
+	foreignKeys map[string]*foreignIndex, subField *reflect.StructField) ([][2]string, error) {
 	columns := make([][2]string, 0, t.NumField())
 	max := t.NumField() - 1
 	for i := 0; i <= max; i++ {
 		field := t.Field(i)
-		if i == 0 && prefix == "" {
+		if i == 0 && subField == nil {
 			for k, v := range tableSchema.uniqueIndicesGlobal {
 				current := &index{Unique: true, Columns: map[int]string{}}
 				for i, l := range v {
@@ -960,6 +960,10 @@ func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, index
 			}
 			continue
 		}
+		prefix := ""
+		if subField != nil && !subField.Anonymous {
+			prefix = subField.Name
+		}
 		fieldColumns, err := checkColumn(engine, tableSchema, &field, indexes, foreignKeys, prefix)
 		if err != nil {
 			return nil, err
@@ -968,7 +972,7 @@ func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, index
 			columns = append(columns, fieldColumns...)
 		}
 	}
-	if tableSchema.hasFakeDelete && prefix == "" {
+	if tableSchema.hasFakeDelete && subField == nil {
 		def := fmt.Sprintf("`FakeDelete` %s unsigned NOT NULL DEFAULT '0'", strings.Split(columns[0][1], " ")[1])
 		columns = append(columns, [2]string{"FakeDelete", def})
 	}

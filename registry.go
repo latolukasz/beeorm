@@ -186,7 +186,7 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	engine := registry.CreateEngine(ctx)
 	for _, schema := range registry.tableSchemas {
-		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), "")
+		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
