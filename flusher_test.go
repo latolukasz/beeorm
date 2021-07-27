@@ -347,15 +347,17 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(1, entity)
 
 	entity.Bool = false
-	now = now.Add(time.Minute)
-	entity.Time = now
-	entity.Name = "Bob"
+	now = now.Add(time.Hour * 40)
+	entity.TimeWithTime = now
+	entity.Name = ""
+	entity.IntNullable = nil
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
-	assert.Equal(t, now.Format(dateformat), entity.Time.Format(dateformat))
-	assert.Equal(t, "Bob", entity.Name)
+	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
+	assert.Equal(t, "", entity.Name)
+	assert.Nil(t, entity.IntNullable)
 
 	entity2 = &flushEntity{Name: "Adam", Age: 20, ID: 10, EnumNotNull: "a"}
 	engine.Flush(entity2)
