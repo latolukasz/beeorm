@@ -339,7 +339,7 @@ func (orm *ORM) getDirtyBind(engine *Engine) (builder *bindBuilder, has bool) {
 	id := orm.GetID()
 	engine.getSerializer().Reset(orm.binary)
 	builder = newBindBuilder(engine, id, orm)
-	builder.build(orm.tableSchema.fields, orm.elem, "")
+	builder.build(orm.tableSchema.fields, orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.bind) > 0
 	return builder, has
 }

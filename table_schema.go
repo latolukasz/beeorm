@@ -1102,7 +1102,11 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	} else if field.Type.Kind().String() == "struct" {
 		t := field.Type.String()
 		if t != "beeorm.ORM" && t != "time.Time" {
-			return extractTags(registry, field.Type, field.Name)
+			prefix := ""
+			if !field.Anonymous {
+				prefix = field.Name
+			}
+			return extractTags(registry, field.Type, prefix)
 		}
 	}
 	return make(map[string]map[string]string)

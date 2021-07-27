@@ -15,13 +15,13 @@ type obj struct {
 }
 
 type flushStruct struct {
-	Name string
-	Age  int
+	Name2 string
+	Age   int
 }
 
 type flushStructAnonymous struct {
 	SubName string
-	SubAge  int
+	SubAge  float32 `orm:"decimal=9,5;unsigned=false"`
 }
 
 type flushEntity struct {
@@ -146,12 +146,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.SetNotNull = []string{"a", "b"}
 	entity.FlushStructPtr = &flushStruct{"A", 12}
 	entity.EnumNotNull = "a"
+	entity.FlushStruct.Name2 = "Ita"
 	entity.TimeWithTime = now
 	entity.Float64 = 2.12
 	entity.Decimal = 6.15
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
-	entity.flushStructAnonymous = flushStructAnonymous{"Adam", 39}
+	entity.flushStructAnonymous = flushStructAnonymous{"Adam", 39.123}
 	assert.True(t, entity.IsDirty(engine))
 	assert.True(t, entity.ReferenceOne.IsDirty(engine))
 	flusher := engine.NewFlusher().Track(entity)
@@ -190,7 +191,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
 	assert.NotNil(t, entity.FlushStructPtr)
-	assert.Equal(t, "A", entity.FlushStructPtr.Name)
+	assert.Equal(t, "A", entity.FlushStructPtr.Name2)
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
@@ -212,15 +213,15 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Uint32Nullable)
 	assert.Nil(t, entity.Uint64Nullable)
 	assert.Equal(t, "Adam", entity.SubName)
-	assert.Equal(t, 39, entity.SubAge)
+	assert.Equal(t, float32(39.123), entity.SubAge)
 	assert.NotNil(t, entity.ReferenceMany)
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
 
-	entity.ReferenceOne.Name = "John 2"
-	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
-		engine.Flush(entity.ReferenceOne)
-	})
+	//entity.ReferenceOne.Name = "John 2"
+	//assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
+	//	engine.Flush(entity.ReferenceOne)
+	//})
 
 	i := 42
 	i2 := uint(42)
@@ -290,6 +291,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 134.345, entity.Float64)
 	assert.Equal(t, 134.35, entity.Decimal)
 	assert.Equal(t, 134.35, *entity.DecimalNullable)
+	assert.Equal(t, float32(39.123), entity.SubAge)
 	assert.Nil(t, entity.ReferenceMany)
 	assert.False(t, entity.IsDirty(engine))
 	assert.False(t, reference.IsDirty(engine))
@@ -630,7 +632,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{}
 	found = engine.LoadByID(6, entity)
-	entity.FlushStructPtr = &flushStruct{Name: `okddlk"nokddlkno'kddlkn f;mf	jg`}
+	entity.FlushStructPtr = &flushStruct{Name2: `okddlk"nokddlkno'kddlkn f;mf	jg`}
 	engine.Flush(entity)
 
 	flusher.Clear()

@@ -49,9 +49,9 @@ func newBindBuilder(engine *Engine, id uint64, orm *ORM) *bindBuilder {
 	return b
 }
 
-func (b *bindBuilder) build(fields *tableFields, value reflect.Value, prefix string) {
+func (b *bindBuilder) build(fields *tableFields, value reflect.Value, root bool) {
 	b.buildRefs(fields, value)
-	b.buildUIntegers(fields, value, prefix)
+	b.buildUIntegers(fields, value, root)
 	b.buildIntegers(fields, value)
 	b.buildBooleans(fields, value)
 	b.buildFloats(fields, value)
@@ -71,7 +71,7 @@ func (b *bindBuilder) build(fields *tableFields, value reflect.Value, prefix str
 	b.buildJSONs(fields, value)
 	b.buildRefsMany(fields, value)
 	for k, i := range fields.structs {
-		b.build(fields.structsFields[k], value.Field(i), fields.fields[i].Name)
+		b.build(fields.structsFields[k], value.Field(i), false)
 	}
 }
 
@@ -111,11 +111,11 @@ func (b *bindBuilder) buildRefs(fields *tableFields, value reflect.Value) {
 	}
 }
 
-func (b *bindBuilder) buildUIntegers(fields *tableFields, value reflect.Value, prefix string) {
+func (b *bindBuilder) buildUIntegers(fields *tableFields, value reflect.Value, root bool) {
 	for _, i := range fields.uintegers {
 		b.index++
 		val := value.Field(i).Uint()
-		if i == 1 && prefix == "" {
+		if i == 1 && root {
 			b.serializer.GetUInteger()
 			continue
 		}
@@ -868,6 +868,10 @@ func (b *bindBuilder) buildRefsMany(fields *tableFields, value reflect.Value) {
 				}
 				if old == val {
 					continue
+				}
+			} else {
+				for j := 0; j < l; j++ {
+					b.serializer.GetUInteger()
 				}
 			}
 		}
