@@ -74,10 +74,19 @@ func TestRedisFlusher(t *testing.T) {
 	flusher.Del("second", "my_key_2")
 	flusher.Flush()
 	assert.Len(t, testLogger.Logs, 2)
-	assert.Equal(t, "default", testLogger.Logs[0]["pool"])
-	assert.Equal(t, "DEL", testLogger.Logs[0]["operation"])
-	assert.Equal(t, "DEL my_key", testLogger.Logs[0]["query"])
-	assert.Equal(t, "second", testLogger.Logs[1]["pool"])
-	assert.Equal(t, "DEL", testLogger.Logs[1]["operation"])
-	assert.Equal(t, "DEL my_key_2", testLogger.Logs[1]["query"])
+	if testLogger.Logs[0]["pool"] == "default" {
+		assert.Equal(t, "default", testLogger.Logs[0]["pool"])
+		assert.Equal(t, "DEL", testLogger.Logs[0]["operation"])
+		assert.Equal(t, "DEL my_key", testLogger.Logs[0]["query"])
+		assert.Equal(t, "second", testLogger.Logs[1]["pool"])
+		assert.Equal(t, "DEL", testLogger.Logs[1]["operation"])
+		assert.Equal(t, "DEL my_key_2", testLogger.Logs[1]["query"])
+	} else {
+		assert.Equal(t, "default", testLogger.Logs[1]["pool"])
+		assert.Equal(t, "DEL", testLogger.Logs[1]["operation"])
+		assert.Equal(t, "DEL my_key", testLogger.Logs[1]["query"])
+		assert.Equal(t, "second", testLogger.Logs[0]["pool"])
+		assert.Equal(t, "DEL", testLogger.Logs[0]["operation"])
+		assert.Equal(t, "DEL my_key_2", testLogger.Logs[0]["query"])
+	}
 }
