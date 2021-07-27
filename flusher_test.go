@@ -297,6 +297,17 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, reference.IsDirty(engine))
 	assert.True(t, reference.IsLoaded())
 
+	entity.Bool = false
+	now = now.Add(time.Minute)
+	entity.Time = now
+	entity.Name = "Bob"
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(uint64(refOneID), reference)
+	assert.Equal(t, false, entity.Bool)
+	assert.Equal(t, now.Unix(), entity.Time.Unix())
+	assert.Equal(t, "Bob", entity.Name)
+
 	entity.ReferenceMany = []*flushEntityReference{}
 	assert.False(t, entity.IsDirty(engine))
 	engine.Flush(entity)
