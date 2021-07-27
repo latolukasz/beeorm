@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -428,13 +429,7 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 			old := b.serializer.GetUInteger()
 			if b.hasCurrent {
 				if old == 0 {
-					attributes := b.orm.tableSchema.tags[name]
-					required, hasRequired := attributes["required"]
-					if hasRequired && required == "true" {
-						b.current[name] = ""
-					} else {
-						b.current[name] = nil
-					}
+					b.current[name] = nil
 				} else {
 					b.current[name] = enum.GetFields()[old-1]
 				}
@@ -455,10 +450,10 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				b.bind[name] = enum.GetDefault()
-				if b.hasUpdate {
-					b.updateBind[name] = "'" + enum.GetDefault() + "'"
+				if b.hasOld {
+					panic(fmt.Errorf("empty enum value for %s", name))
 				}
+				b.bind[name] = enum.GetDefault()
 			} else {
 				b.bind[name] = nil
 				if b.hasUpdate {

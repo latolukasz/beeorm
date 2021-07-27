@@ -218,10 +218,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
 
-	//entity.ReferenceOne.Name = "John 2"
-	//assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
-	//	engine.Flush(entity.ReferenceOne)
-	//})
+	entity.ReferenceOne.Name = "John 2"
+	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
+		engine.Flush(entity.ReferenceOne)
+	})
 
 	i := 42
 	i2 := uint(42)
@@ -313,7 +313,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.ReferenceOne = &flushEntityReference{ID: 3}
 	assert.PanicsWithError(t, "foreign key error in key `test:flushEntity:ReferenceOne`", func() {
 		engine.Flush(entity2)
-	}, "")
+	})
 
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
@@ -351,13 +351,33 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeWithTime = now
 	entity.Name = ""
 	entity.IntNullable = nil
+	entity.EnumNullable = "b"
+	entity.Blob = nil
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
 	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
 	assert.Equal(t, "", entity.Name)
+	assert.Equal(t, "b", entity.EnumNullable)
 	assert.Nil(t, entity.IntNullable)
+	assert.Nil(t, entity.Blob)
+	entity.EnumNullable = ""
+	entity.Blob = []uint8("Tom has a house")
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(1, entity)
+	assert.Equal(t, "", entity.EnumNullable)
+
+	assert.PanicsWithError(t, "empty enum value for EnumNotNull", func() {
+		entity.EnumNotNull = ""
+		engine.Flush(entity)
+	})
+	entity = &flushEntity{Name: "Cat"}
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(1, entity)
+	assert.Equal(t, "a", entity.EnumNotNull)
 
 	entity2 = &flushEntity{Name: "Adam", Age: 20, ID: 10, EnumNotNull: "a"}
 	engine.Flush(entity2)
