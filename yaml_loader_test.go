@@ -62,4 +62,28 @@ func TestYamlLoader(t *testing.T) {
 	assert.PanicsWithError(t, "orm value for default: test is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)
 	})
+
+	invalidYaml = make(map[string]interface{})
+	invalidYaml["default"] = map[string]interface{}{"streams": map[interface{}]interface{}{"test": "wrong"}}
+	assert.PanicsWithError(t, "streams 'wrong' is not valid", func() {
+		NewRegistry().InitByYaml(invalidYaml)
+	})
+
+	invalidYaml = make(map[string]interface{})
+	invalidYaml["default"] = map[string]interface{}{"sentinel": map[interface{}]interface{}{"test": "wrong"}}
+	assert.PanicsWithError(t, "sentinel 'map[test:wrong]' is not valid", func() {
+		NewRegistry().InitByYaml(invalidYaml)
+	})
+
+	invalidYaml = make(map[string]interface{})
+	invalidYaml["default"] = map[string]interface{}{"sentinel": map[interface{}]interface{}{"master:wrong": []interface{}{}}}
+	assert.PanicsWithError(t, "sentinel db 'map[master:wrong:[]]' is not valid", func() {
+		NewRegistry().InitByYaml(invalidYaml)
+	})
+
+	invalidYaml = make(map[string]interface{})
+	invalidYaml["default"] = map[string]interface{}{"mysqlEncoding": 23}
+	assert.PanicsWithError(t, "orm value for default: 23 is not valid", func() {
+		NewRegistry().InitByYaml(invalidYaml)
+	})
 }
