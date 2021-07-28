@@ -12,7 +12,8 @@ type loadByIDEntity struct {
 	Name            string `orm:"max=100"`
 	ReferenceOne    *loadByIDReference
 	ReferenceSecond *loadByIDReference
-	ReferenceMany   []*loadByIDReference
+	ReferenceThird  *loadByIDReference2
+	ReferenceMany   []*loadByIDReferenceMany
 }
 
 type loadByIDRedisEntity struct {
@@ -37,6 +38,20 @@ type loadByIDReference struct {
 	Name           string
 	ReferenceTwo   *loadByIDSubReference
 	ReferenceThree *loadByIDSubReference2
+}
+
+type loadByIDReferenceMany struct {
+	ORM            `orm:"localCache;redisCache"`
+	ID             uint
+	Name           string
+	ReferenceTwo   *loadByIDSubReference
+	ReferenceThree *loadByIDSubReference2
+}
+
+type loadByIDReference2 struct {
+	ORM  `orm:"localCache;redisCache"`
+	ID   uint
+	Name string
 }
 
 type loadByIDSubReference struct {
@@ -68,18 +83,23 @@ func TestLoadById(t *testing.T) {
 	var entityLocal *loadByIDLocalEntity
 	var entityNoCache *loadByIDNoCacheEntity
 	var reference *loadByIDReference
-	var subReference *loadByIDSubReference
+	var reference2 *loadByIDReference2
 	var subReference2 *loadByIDSubReference2
-	engine := prepareTables(t, &Registry{}, 5, entity, entityRedis, entityLocal, entityNoCache, reference, subReference, subReference2)
+	var subReference *loadByIDSubReference
+	var refMany *loadByIDReferenceMany
+	engine := prepareTables(t, &Registry{}, 5, entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
+		subReference2, reference2, refMany)
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
+	e.ReferenceThird = &loadByIDReference2{Name: "r2A"}
+	e.ReferenceMany = []*loadByIDReferenceMany{{Name: "John"}}
 	engine.FlushMany(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{})
 
-	engine.FlushMany(&loadByIDReference{Name: "rm1", ID: 100}, &loadByIDReference{Name: "rm2", ID: 101}, &loadByIDReference{Name: "rm3", ID: 102})
-	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReference{{ID: 100}, {ID: 101}, {ID: 102}}})
+	engine.FlushMany(&loadByIDReferenceMany{Name: "rm1", ID: 100}, &loadByIDReferenceMany{Name: "rm2", ID: 101}, &loadByIDReferenceMany{Name: "rm3", ID: 102})
+	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReferenceMany{{ID: 100}, {ID: 101}, {ID: 102}}})
 
 	entity = &loadByIDEntity{}
 	localLogger := &testLogHandler{}
@@ -102,6 +122,15 @@ func TestLoadById(t *testing.T) {
 	assert.False(t, entity.ReferenceSecond.ReferenceThree.IsLazy())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 	assert.False(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLazy())
+
+	entity = &loadByIDEntity{}
+	found = engine.LoadByID(1, entity, "ReferenceThird", "ReferenceOne", "ReferenceMany")
+	assert.True(t, found)
+	assert.Equal(t, "a", entity.Name)
+	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
+	assert.Equal(t, "r1", entity.ReferenceOne.Name)
+	assert.Len(t, entity.ReferenceMany, 1)
+	assert.Equal(t, "John", entity.ReferenceMany[0].Name)
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByIDLazy(1, entity, "ReferenceOne/ReferenceTwo",

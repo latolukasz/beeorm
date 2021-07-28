@@ -1014,7 +1014,7 @@ func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchInde
 					t := f.Type.Elem()
 					if t.Implements(modelType) {
 						fields.refsMany = append(fields.refsMany, i)
-						fields.refsManyTypes = append(fields.refsManyTypes, t)
+						fields.refsManyTypes = append(fields.refsManyTypes, t.Elem())
 						continue
 					}
 				}

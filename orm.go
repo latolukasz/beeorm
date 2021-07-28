@@ -881,9 +881,9 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		f := elem.Field(i)
 		refType := fields.refsManyTypes[k]
 		if l > 0 {
-			slice := reflect.MakeSlice(reflect.SliceOf(refType), l, l)
+			slice := reflect.MakeSlice(reflect.SliceOf(reflect.PtrTo(refType)), l, l)
 			for j := 0; j < l; j++ {
-				e := getTableSchema(engine.registry, fields.refsTypes[k]).NewEntity()
+				e := getTableSchema(engine.registry, fields.refsManyTypes[k]).NewEntity()
 				o := e.getORM()
 				o.idElem.SetUint(serializer.GetUInteger())
 				o.inDB = true
