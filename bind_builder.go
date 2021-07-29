@@ -22,9 +22,9 @@ type bindBuilder struct {
 	bind       Bind
 	current    Bind
 	serializer *serializer
-	updateBind map[string]string
+	sqlBind    map[string]string
 	index      int
-	hasUpdate  bool
+	buildSQL   bool
 	hasCurrent bool
 	hasOld     bool
 }
@@ -39,9 +39,9 @@ func newBindBuilder(engine *Engine, id uint64, orm *ORM) *bindBuilder {
 		index:      -1,
 		serializer: engine.getSerializer(),
 	}
-	if !orm.delete && orm.inDB {
-		b.hasUpdate = true
-		b.updateBind = make(map[string]string)
+	if !orm.delete {
+		b.buildSQL = true
+		b.sqlBind = make(map[string]string)
 	}
 	if orm.delete || orm.tableSchema.hasLog || len(orm.tableSchema.cachedIndexesAll) > 0 {
 		b.hasCurrent = true
@@ -100,13 +100,13 @@ func (b *bindBuilder) buildRefs(fields *tableFields, value reflect.Value) {
 		name := b.orm.tableSchema.columnNames[b.index]
 		if val == 0 {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = strconv.FormatUint(val, 10)
+			if b.buildSQL {
+				b.sqlBind[name] = strconv.FormatUint(val, 10)
 			}
 		}
 	}
@@ -131,8 +131,8 @@ func (b *bindBuilder) buildUIntegers(fields *tableFields, value reflect.Value, r
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		b.bind[name] = val
-		if b.hasUpdate {
-			b.updateBind[name] = strconv.FormatUint(val, 10)
+		if b.buildSQL {
+			b.sqlBind[name] = strconv.FormatUint(val, 10)
 		}
 	}
 }
@@ -153,8 +153,8 @@ func (b *bindBuilder) buildIntegers(fields *tableFields, value reflect.Value) {
 
 		name := b.orm.tableSchema.columnNames[b.index]
 		b.bind[name] = val
-		if b.hasUpdate {
-			b.updateBind[name] = strconv.FormatInt(val, 10)
+		if b.buildSQL {
+			b.sqlBind[name] = strconv.FormatInt(val, 10)
 		}
 	}
 }
@@ -175,11 +175,11 @@ func (b *bindBuilder) buildBooleans(fields *tableFields, value reflect.Value) {
 
 		name := b.orm.tableSchema.columnNames[b.index]
 		b.bind[name] = val
-		if b.hasUpdate {
+		if b.buildSQL {
 			if val {
-				b.updateBind[name] = "1"
+				b.sqlBind[name] = "1"
 			} else {
-				b.updateBind[name] = "0"
+				b.sqlBind[name] = "0"
 			}
 		}
 	}
@@ -201,8 +201,8 @@ func (b *bindBuilder) buildFloats(fields *tableFields, value reflect.Value) {
 
 		name := b.orm.tableSchema.columnNames[b.index]
 		b.bind[name] = val
-		if b.hasUpdate {
-			b.updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+		if b.buildSQL {
+			b.sqlBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
 		}
 	}
 }
@@ -224,8 +224,8 @@ func (b *bindBuilder) buildTimes(fields *tableFields, value reflect.Value) {
 		name := b.orm.tableSchema.columnNames[b.index]
 		asString := t.Format(timeFormat)
 		b.bind[name] = asString
-		if b.hasUpdate {
-			b.updateBind[name] = "'" + asString + "'"
+		if b.buildSQL {
+			b.sqlBind[name] = "'" + asString + "'"
 		}
 	}
 }
@@ -247,8 +247,8 @@ func (b *bindBuilder) buildDates(fields *tableFields, value reflect.Value) {
 		name := b.orm.tableSchema.columnNames[b.index]
 		asString := t.Format(dateformat)
 		b.bind[name] = asString
-		if b.hasUpdate {
-			b.updateBind[name] = "'" + asString + "'"
+		if b.buildSQL {
+			b.sqlBind[name] = "'" + asString + "'"
 		}
 	}
 }
@@ -281,8 +281,8 @@ func (b *bindBuilder) buildFakeDelete(fields *tableFields, value reflect.Value) 
 		if add {
 			name := b.orm.tableSchema.columnNames[b.index]
 			b.bind[name] = fakeID
-			if b.hasUpdate {
-				b.updateBind[name] = strconv.FormatUint(fakeID, 10)
+			if b.buildSQL {
+				b.sqlBind[name] = strconv.FormatUint(fakeID, 10)
 			}
 		}
 	}
@@ -314,21 +314,21 @@ func (b *bindBuilder) buildStrings(fields *tableFields, value reflect.Value) {
 		}
 		if val != "" {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = escapeSQLParam(val)
+			if b.buildSQL {
+				b.sqlBind[name] = escapeSQLString(val)
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
 				b.bind[name] = ""
-				if b.hasUpdate {
-					b.updateBind[name] = "''"
+				if b.buildSQL {
+					b.sqlBind[name] = "''"
 				}
 			} else {
 				b.bind[name] = nil
-				if b.hasUpdate {
-					b.updateBind[name] = "NULL"
+				if b.buildSQL {
+					b.sqlBind[name] = "NULL"
 				}
 			}
 		}
@@ -364,13 +364,13 @@ func (b *bindBuilder) buildUIntegersNullable(fields *tableFields, value reflect.
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = strconv.FormatUint(val, 10)
+			if b.buildSQL {
+				b.sqlBind[name] = strconv.FormatUint(val, 10)
 			}
 		}
 	}
@@ -405,13 +405,13 @@ func (b *bindBuilder) buildIntegersNullable(fields *tableFields, value reflect.V
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = strconv.FormatInt(val, 10)
+			if b.buildSQL {
+				b.sqlBind[name] = strconv.FormatInt(val, 10)
 			}
 		}
 	}
@@ -443,8 +443,8 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 				panic(errors.New("unknown enum value for " + name + " - " + val))
 			}
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = "'" + val + "'"
+			if b.buildSQL {
+				b.sqlBind[name] = "'" + val + "'"
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
@@ -454,10 +454,13 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 					panic(fmt.Errorf("empty enum value for %s", name))
 				}
 				b.bind[name] = enum.GetDefault()
+				if b.buildSQL {
+					b.sqlBind[name] = "'" + enum.GetDefault() + "'"
+				}
 			} else {
 				b.bind[name] = nil
-				if b.hasUpdate {
-					b.updateBind[name] = "NULL"
+				if b.buildSQL {
+					b.sqlBind[name] = "NULL"
 				}
 			}
 		}
@@ -484,13 +487,13 @@ func (b *bindBuilder) buildBytes(fields *tableFields, value reflect.Value) {
 		name := b.orm.tableSchema.columnNames[b.index]
 		if val != "" {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = escapeSQLParam(val)
+			if b.buildSQL {
+				b.sqlBind[name] = escapeSQLString(val)
 			}
 		} else {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		}
 	}
@@ -556,21 +559,21 @@ func (b *bindBuilder) buildSets(fields *tableFields, value reflect.Value) {
 		if l > 0 {
 			valAsString := strings.Join(val, ",")
 			b.bind[name] = valAsString
-			if b.hasUpdate {
-				b.updateBind[name] = "'" + valAsString + "'"
+			if b.buildSQL {
+				b.sqlBind[name] = "'" + valAsString + "'"
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
 				b.bind[name] = ""
-				if b.hasUpdate {
-					b.updateBind[name] = "''"
+				if b.buildSQL {
+					b.sqlBind[name] = "''"
 				}
 			} else {
 				b.bind[name] = nil
-				if b.hasUpdate {
-					b.updateBind[name] = "NULL"
+				if b.buildSQL {
+					b.sqlBind[name] = "NULL"
 				}
 			}
 		}
@@ -606,16 +609,16 @@ func (b *bindBuilder) buildBooleansNullable(fields *tableFields, value reflect.V
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			b.bind[name] = val
-			if b.hasUpdate {
+			if b.buildSQL {
 				if val {
-					b.updateBind[name] = "1"
+					b.sqlBind[name] = "1"
 				} else {
-					b.updateBind[name] = "0"
+					b.sqlBind[name] = "0"
 				}
 			}
 		}
@@ -651,13 +654,13 @@ func (b *bindBuilder) buildFloatsNullable(fields *tableFields, value reflect.Val
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+			if b.buildSQL {
+				b.sqlBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
 			}
 		}
 	}
@@ -682,7 +685,7 @@ func (b *bindBuilder) buildTimesNullable(fields *tableFields, value reflect.Valu
 				if b.hasCurrent {
 					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(timeFormat)
 				}
-				if oldVal == val.Unix() && !isNil {
+				if !isNil && val != nil && oldVal == val.Unix() {
 					continue
 				}
 			} else if isNil {
@@ -690,16 +693,16 @@ func (b *bindBuilder) buildTimesNullable(fields *tableFields, value reflect.Valu
 			}
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
+		if val == nil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			asString := val.Format(timeFormat)
 			b.bind[name] = asString
-			if b.hasUpdate {
-				b.updateBind[name] = "'" + asString + "'"
+			if b.buildSQL {
+				b.sqlBind[name] = "'" + asString + "'"
 			}
 		}
 	}
@@ -735,14 +738,14 @@ func (b *bindBuilder) buildDatesNullable(fields *tableFields, value reflect.Valu
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
 			b.bind[name] = nil
-			if b.hasUpdate {
-				b.updateBind[name] = "NULL"
+			if b.buildSQL {
+				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			asString := val.Format(dateformat)
 			b.bind[name] = asString
-			if b.hasUpdate {
-				b.updateBind[name] = "'" + asString + "'"
+			if b.buildSQL {
+				b.sqlBind[name] = "'" + asString + "'"
 			}
 		}
 	}
@@ -798,21 +801,21 @@ func (b *bindBuilder) buildJSONs(fields *tableFields, value reflect.Value) {
 				asString = string(v)
 			}
 			b.bind[name] = asString
-			if b.hasUpdate {
-				b.updateBind[name] = escapeSQLParam(asString)
+			if b.buildSQL {
+				b.sqlBind[name] = escapeSQLString(asString)
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
 				b.bind[name] = ""
-				if b.hasUpdate {
-					b.updateBind[name] = "''"
+				if b.buildSQL {
+					b.sqlBind[name] = "''"
 				}
 			} else {
 				b.bind[name] = nil
-				if b.hasUpdate {
-					b.updateBind[name] = "NULL"
+				if b.buildSQL {
+					b.sqlBind[name] = "NULL"
 				}
 			}
 		}
@@ -872,21 +875,21 @@ func (b *bindBuilder) buildRefsMany(fields *tableFields, value reflect.Value) {
 		}
 		if val != "" {
 			b.bind[name] = val
-			if b.hasUpdate {
-				b.updateBind[name] = "'" + val + "'"
+			if b.buildSQL {
+				b.sqlBind[name] = "'" + val + "'"
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
 				b.bind[name] = ""
-				if b.hasUpdate {
-					b.updateBind[name] = ""
+				if b.buildSQL {
+					b.sqlBind[name] = ""
 				}
 			} else {
 				b.bind[name] = nil
-				if b.hasUpdate {
-					b.updateBind[name] = "NULL"
+				if b.buildSQL {
+					b.sqlBind[name] = "NULL"
 				}
 			}
 		}

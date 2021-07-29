@@ -374,7 +374,7 @@ func (db *DB) convertToError(err error) error {
 	return err
 }
 
-func escapeSQLParam(val string) string {
+func escapeSQLString(val string) string {
 	dest := make([]byte, 0, 2*len(val))
 	var escape byte
 	for i := 0; i < len(val); i++ {
@@ -403,4 +403,15 @@ func escapeSQLParam(val string) string {
 		}
 	}
 	return "'" + string(dest) + "'"
+}
+
+func escapeSQLValue(val interface{}) string {
+	if val == nil {
+		return "NULL"
+	}
+	asString, is := val.(string)
+	if is {
+		return asString
+	}
+	return fmt.Sprintf("%v", val)
 }

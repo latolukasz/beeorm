@@ -182,8 +182,8 @@ func (f *flusher) flushWithCheck(transaction bool) error {
 
 func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Entity) {
 	var insertKeys map[reflect.Type][]string
-	insertArguments := make(map[reflect.Type][]interface{})
 	insertBinds := make(map[reflect.Type][]Bind)
+	insertSQLBinds := make(map[reflect.Type][]map[string]string)
 	insertReflectValues := make(map[reflect.Type][]Entity)
 
 	var referencesToFlash map[Entity]Entity
@@ -225,6 +225,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			onUpdate := entity.getORM().onDuplicateKeyUpdate
 			if currentID > 0 {
 				builder.bind["ID"] = currentID
+				if builder.buildSQL {
+					builder.sqlBind["ID"] = strconv.FormatUint(currentID, 10)
+				}
 			}
 			if onUpdate != nil {
 				f.flushOnDuplicateKey(lazy, builder, schema, onUpdate, entity)
@@ -245,12 +248,11 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			_, has := insertBinds[t]
 			if !has {
 				insertBinds[t] = make([]Bind, 0)
-			}
-			for _, key := range insertKeys[t] {
-				insertArguments[t] = append(insertArguments[t], builder.bind[key])
+				insertSQLBinds[t] = make([]map[string]string, 0)
 			}
 			insertReflectValues[t] = append(insertReflectValues[t], entity)
 			insertBinds[t] = append(insertBinds[t], builder.bind)
+			insertSQLBinds[t] = append(insertSQLBinds[t], builder.sqlBind)
 		} else {
 			f.flushUpdate(entity, currentID, schema, builder, lazy)
 		}
@@ -281,38 +283,37 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	}
 	for typeOf, values := range insertKeys {
 		schema := getTableSchema(f.engine.registry, typeOf)
+		f.engine.startBuffer()
 		/* #nosec */
-		sql := "INSERT INTO " + schema.tableName
+		f.engine.writeBufferString("INSERT INTO " + schema.tableName)
 		l := len(values)
 		if l > 0 {
-			sql += "("
+			f.engine.writeBufferString("(")
 		}
 		first := true
 		for _, val := range values {
 			if !first {
-				sql += ","
+				f.engine.writeBufferString(",")
 			}
 			first = false
-			sql += "`" + val + "`"
+			f.engine.writeBufferString("`" + val + "`")
 		}
 		if l > 0 {
-			sql += ")"
+			f.engine.writeBufferString(")")
 		}
-		sql += " VALUES "
-		bindPart := "("
-		if l > 0 {
-			bindPart += "?"
-		}
-		for i := 1; i < l; i++ {
-			bindPart += ",?"
-		}
-		bindPart += ")"
-		l = len(insertBinds[typeOf])
-		for i := 0; i < l; i++ {
+		f.engine.writeBufferString(" VALUES ")
+		for i, row := range insertSQLBinds[typeOf] {
 			if i > 0 {
-				sql += ","
+				f.engine.writeBufferString(",")
 			}
-			sql += bindPart
+			f.engine.writeBufferString("(")
+			for j, val := range values {
+				if j > 0 {
+					f.engine.writeBufferString(",")
+				}
+				f.engine.writeBufferString(row[val])
+			}
+			f.engine.writeBufferString(")")
 		}
 		db := schema.GetMysql(f.engine)
 		if lazy {
@@ -327,9 +328,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
 			}
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, insertArguments[typeOf], logEvents, dirtyEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
 		} else {
-			res := db.Exec(sql, insertArguments[typeOf]...)
+			res := db.Exec(f.engine.stopBufferToString())
 			id := res.LastInsertId()
 			for key, entity := range insertReflectValues[typeOf] {
 				bind := insertBinds[typeOf][key]
@@ -370,51 +371,23 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 		for typeOf, deleteBinds := range f.deleteBinds {
 			schema := getTableSchema(f.engine.registry, typeOf)
-			ids := make([]interface{}, len(deleteBinds))
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
 			i := 0
+			/* #nosec */
+			f.engine.startBuffer()
+			f.engine.writeBufferString("DELETE FROM `").
+				writeBufferString(schema.tableName).
+				writeBufferString("` WHERE `ID` IN (")
 			for id := range deleteBinds {
-				ids[i] = id
+				if i > 0 {
+					f.engine.writeBufferString(",")
+				}
+				f.engine.writeBufferUint(id)
 				i++
 			}
-			/* #nosec */
-			sql := "DELETE FROM `" + schema.tableName + "` WHERE " + NewWhere("`ID` IN ?", ids).String()
+			f.engine.writeBufferString(")")
 			db := schema.GetMysql(f.engine)
-			if !lazy {
-				usage := schema.GetUsage(f.engine.registry)
-				if len(usage) > 0 {
-					for refT, refColumns := range usage {
-						for _, refColumn := range refColumns {
-							refSchema := getTableSchema(f.engine.registry, refT)
-							_, isCascade := refSchema.tags[refColumn]["cascade"]
-							if isCascade {
-								subValue := reflect.New(reflect.SliceOf(reflect.PtrTo(refT)))
-								subElem := subValue.Elem()
-								sub := subValue.Interface()
-								pager := NewPager(1, 1000)
-								where := NewWhere("`"+refColumn+"` IN ?", ids)
-								for {
-									f.engine.Search(where, pager, sub)
-									total := subElem.Len()
-									if total == 0 {
-										break
-									}
-									toDeleteAll := make([]Entity, total)
-									for i := 0; i < total; i++ {
-										toDeleteValue := subElem.Index(i).Interface().(Entity)
-										toDeleteValue.markToDelete()
-										toDeleteAll[i] = toDeleteValue
-									}
-									f.flush(true, transaction, lazy, toDeleteAll...)
-								}
-							}
-						}
-					}
-				}
-				_ = db.Exec(sql, ids...)
-			}
-
 			localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 			redisCache, hasRedis := schema.GetRedisCache(f.engine)
 			if !hasLocalCache && f.engine.hasRequestCache {
@@ -425,6 +398,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				orm := entity.getORM()
 				builder, _ := orm.getDirtyBind(f.engine)
 				if !lazy {
+					_ = db.Exec(f.engine.stopBufferToString())
 					f.addDirtyQueues(builder.current, schema, id, "d", lazy)
 					f.addToLogQueue(schema, id, builder.current, nil, entity.getORM().logMeta, lazy)
 				} else {
@@ -455,7 +429,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				}
 			}
 			if lazy {
-				f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, ids, logEvents, dirtyEvents)
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
 			}
 		}
 		if f.localCacheDeletes != nil {
@@ -509,16 +483,17 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
 	}
 	/* #nosec */
-	sql := "UPDATE " + schema.GetTableName() + " SET "
+	f.engine.startBuffer()
+	f.engine.writeBufferString("UPDATE ").writeBufferString(schema.GetTableName()).writeBufferString(" SET ")
 	first := true
-	for key, value := range builder.updateBind {
+	for key, value := range builder.sqlBind {
 		if !first {
-			sql += ","
+			f.engine.writeBufferString(",")
 		}
 		first = false
-		sql += "`" + key + "`=" + value
+		f.engine.writeBufferString("`" + key + "`=" + value)
 	}
-	sql += " WHERE `ID` = " + strconv.FormatUint(currentID, 10)
+	f.engine.writeBufferString(" WHERE `ID` = ").writeBufferUint(currentID)
 	db := schema.GetMysql(f.engine)
 	if lazy {
 		var logEvents []*LogQueueValue
@@ -533,12 +508,12 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 		if dirtyEvent != nil {
 			dirtyEvents = append(dirtyEvents, dirtyEvent)
 		}
-		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, nil, logEvents, dirtyEvents)
+		f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
 	} else {
 		if f.updateSQLs == nil {
 			f.updateSQLs = make(map[string][]string)
 		}
-		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
+		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], f.engine.stopBufferToString())
 		serializer := f.engine.getSerializer()
 		serializer.buffer.Reset()
 		entity.getORM().serialize(serializer)
@@ -553,31 +528,32 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *t
 	bindLength := len(builder.bind)
 	values := make([]string, bindLength)
 	columns := make([]string, bindLength)
-	bindRow := make([]interface{}, bindLength)
 	i := 0
-	for key, val := range builder.bind {
+
+	for key, val := range builder.sqlBind {
 		columns[i] = "`" + key + "`"
-		values[i] = "?"
-		bindRow[i] = val
+		values[i] = val
 		i++
 	}
+	f.engine.startBuffer()
+	f.engine.writeBufferString("INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ","))
+	f.engine.writeBufferString(") VALUES (" + strings.Join(values, ",") + ")")
 	/* #nosec */
-	sql := "INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ",") + ") VALUES (" + strings.Join(values, ",") + ")"
-	sql += " ON DUPLICATE KEY UPDATE "
+	f.engine.writeBufferString(" ON DUPLICATE KEY UPDATE ")
 	first := true
 	for k, v := range onUpdate {
 		if !first {
-			sql += ", "
+			f.engine.writeBufferString(",")
 		}
-		sql += "`" + k + "` = ?"
-		bindRow = append(bindRow, v)
+		f.engine.writeBufferString("`" + k + "` = ")
+		f.engine.writeBufferString(escapeSQLValue(v))
 		first = false
 	}
 	if len(onUpdate) == 0 {
-		sql += "`Id` = `Id`"
+		f.engine.writeBufferString("ID = ID")
 	}
 	db := schema.GetMysql(f.engine)
-	result := db.Exec(sql, bindRow...)
+	result := db.Exec(f.engine.stopBufferToString())
 	affected := result.RowsAffected()
 	if affected > 0 {
 		orm := entity.getORM()
@@ -860,7 +836,7 @@ func (f *flusher) addLocalCacheDeletes(cacheCode string, keys ...string) {
 	f.localCacheDeletes[cacheCode] = append(f.localCacheDeletes[cacheCode], keys...)
 }
 
-func (f *flusher) fillLazyQuery(dbCode string, sql string, values []interface{}, logEvent []*LogQueueValue, dirtyData []*dirtyQueueValue) {
+func (f *flusher) fillLazyQuery(dbCode string, sql string, logEvent []*LogQueueValue, dirtyData []*dirtyQueueValue) {
 	lazyMap := f.getLazyMap()
 	updatesMap := lazyMap["q"]
 	if updatesMap == nil {
@@ -870,7 +846,6 @@ func (f *flusher) fillLazyQuery(dbCode string, sql string, values []interface{},
 	lazyValue := make([]interface{}, 3)
 	lazyValue[0] = dbCode
 	lazyValue[1] = sql
-	lazyValue[2] = values
 	lazyMap["q"] = append(updatesMap.([]interface{}), lazyValue)
 	if len(logEvent) > 0 {
 		lazyMap["l"] = logEvent

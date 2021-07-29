@@ -1,9 +1,11 @@
 package beeorm
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
+	"strconv"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -27,6 +29,7 @@ type Engine struct {
 	afterCommitRedisFlusher   *redisFlusher
 	eventBroker               *eventBroker
 	serializer                *serializer
+	buffer                    *bytes.Buffer
 }
 
 func (e *Engine) GetContext() context.Context {
@@ -361,4 +364,31 @@ func (e *Engine) getSerializer() *serializer {
 		e.serializer = newSerializer()
 	}
 	return e.serializer
+}
+
+func (e *Engine) startBuffer() {
+	if e.buffer == nil {
+		e.buffer = &bytes.Buffer{}
+	} else {
+		e.buffer.Reset()
+	}
+}
+
+func (e *Engine) writeBuffer(p []byte) *Engine {
+	e.buffer.Write(p)
+	return e
+}
+
+func (e *Engine) writeBufferString(p string) *Engine {
+	e.buffer.WriteString(p)
+	return e
+}
+
+func (e *Engine) writeBufferUint(p uint64) *Engine {
+	e.buffer.WriteString(strconv.FormatUint(p, 10))
+	return e
+}
+
+func (e *Engine) stopBufferToString() string {
+	return e.buffer.String()
 }

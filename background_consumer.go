@@ -112,13 +112,7 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 		code := validInsert[0].(string)
 		db := engine.GetMysql(code)
 		sql := validInsert[1].(string)
-		attributes := validInsert[2]
-		var res ExecResult
-		if attributes == nil {
-			res = db.Exec(sql)
-		} else {
-			res = db.Exec(sql, attributes.([]interface{})...)
-		}
+		res := db.Exec(sql)
 		if sql[0:11] == "INSERT INTO" {
 			id := res.LastInsertId()
 			ids[i] = res.LastInsertId()

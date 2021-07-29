@@ -82,13 +82,6 @@ type flushEntityReference struct {
 	Age  int
 }
 
-type flushEntityReferenceCascade struct {
-	ORM
-	ID           uint
-	ReferenceOne *flushEntity
-	ReferenceTwo *flushEntity `orm:"cascade"`
-}
-
 type flushEntityBenchmark struct {
 	ORM  `orm:"localCache;redisCache"`
 	ID   uint
@@ -115,11 +108,10 @@ func TestFlushRedis(t *testing.T) {
 func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
 	var reference *flushEntityReference
-	var referenceCascade *flushEntityReferenceCascade
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine := prepareTables(t, registry, 5, entity, reference, referenceCascade)
+	engine := prepareTables(t, registry, 5, entity, reference)
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
 	schema2 := engine.registry.GetTableSchemaForEntity(reference).(*tableSchema)
@@ -158,6 +150,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Flush()
 	flusher.Flush()
+
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.False(t, entity.IsDirty(engine))
@@ -428,29 +421,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.True(t, entity2.FakeDelete)
 
-	referenceCascade = &flushEntityReferenceCascade{ReferenceOne: entity}
-	engine.Flush(referenceCascade)
-	assert.PanicsWithError(t, "foreign key error in key `test:flushEntityReferenceCascade:ReferenceOne`", func() {
-		engine.ForceDelete(entity)
-	})
-	referenceCascade.ReferenceOne = nil
-	referenceCascade.ReferenceTwo = entity
-	engine.Flush(referenceCascade)
-	engine.LoadByID(1, referenceCascade)
-	assert.Nil(t, referenceCascade.ReferenceOne)
-	assert.NotNil(t, referenceCascade.ReferenceTwo)
-	assert.Equal(t, uint(1), referenceCascade.ReferenceTwo.ID)
-	engine.Delete(entity)
-	found = engine.LoadByID(1, referenceCascade)
-	assert.False(t, found)
-
 	engine.Flush(&flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982, EnumNotNull: "a"})
 	entity3 := &flushEntity{}
 	found = engine.LoadByID(11, entity3)
 	assert.True(t, found)
 	assert.Nil(t, entity3.NameTranslated)
 
-	engine.Flush(&flushEntity{SetNullable: []string{}, EnumNotNull: "a"})
+	engine.Flush(&flushEntity{Name: "Eva", SetNullable: []string{}, EnumNotNull: "a"})
 	entity4 := &flushEntity{}
 	found = engine.LoadByID(12, entity4)
 	assert.True(t, found)
@@ -522,7 +499,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	})
 
 	flusher.Clear()
-	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
+	entity2 = &flushEntity{ID: 100, Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 2})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(12), entity2.ID)
@@ -587,26 +564,15 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(102, entity)
 	assert.Nil(t, entity.ReferenceMany)
 
-	flusher = engine.NewFlusher()
-	entity = &flushEntity{Name: "Irena", EnumNotNull: "a"}
-	flusher.Track(entity)
-	ref1 := &flushEntityReferenceCascade{ReferenceOne: entity}
-	ref2 := &flushEntityReferenceCascade{ReferenceOne: entity}
-	flusher.Track(ref1, ref2)
-
-	flusher.Flush()
-	assert.Equal(t, uint(103), entity.ID)
-	assert.Equal(t, uint(103), ref1.ReferenceOne.ID)
-	assert.Equal(t, uint(103), ref2.ReferenceOne.ID)
-	assert.Equal(t, uint(2), ref1.ID)
-	assert.Equal(t, uint(3), ref2.ID)
-
 	entity1 = &flushEntity{}
 	engine.LoadByID(13, entity1)
 	entity2 = &flushEntity{}
 	engine.LoadByID(14, entity2)
 	entity3 = &flushEntity{}
 	engine.LoadByID(15, entity3)
+
+	engine.LoadByID(1, entity)
+	engine.ForceDelete(entity)
 
 	flusher = engine.NewFlusher()
 	entity1.ReferenceOne = &flushEntityReference{ID: 1}
