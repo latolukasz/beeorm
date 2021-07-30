@@ -47,10 +47,10 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	return c
 }
 
-func (r *BackgroundConsumer) Digest() {
+func (r *BackgroundConsumer) Digest() bool {
 	consumer := r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
 	consumer.eventConsumerBase = r.eventConsumerBase
-	consumer.Consume(100, func(events []Event) {
+	return consumer.Consume(100, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
