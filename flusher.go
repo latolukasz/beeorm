@@ -203,7 +203,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		}
 
 		orm := entity.getORM()
-		builder, isDirty := orm.getDirtyBind(f.engine)
+		isDirty := orm.buildDirtyBind(f.engine)
 		if !isDirty {
 			continue
 		}
@@ -224,22 +224,22 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		} else if !orm.inDB {
 			onUpdate := entity.getORM().onDuplicateKeyUpdate
 			if currentID > 0 {
-				builder.bind["ID"] = currentID
-				if builder.buildSQL {
-					builder.sqlBind["ID"] = strconv.FormatUint(currentID, 10)
+				f.engine.bindBuilder.bind["ID"] = currentID
+				if f.engine.bindBuilder.buildSQL {
+					f.engine.bindBuilder.sqlBind["ID"] = strconv.FormatUint(currentID, 10)
 				}
 			}
 			if onUpdate != nil {
-				f.flushOnDuplicateKey(lazy, builder, schema, onUpdate, entity)
+				f.flushOnDuplicateKey(lazy, schema, onUpdate, entity)
 				continue
 			}
 			if insertKeys == nil {
 				insertKeys = make(map[reflect.Type][]string)
 			}
 			if insertKeys[t] == nil {
-				fields := make([]string, len(builder.bind))
+				fields := make([]string, len(f.engine.bindBuilder.bind))
 				i := 0
-				for key := range builder.bind {
+				for key := range f.engine.bindBuilder.bind {
 					fields[i] = key
 					i++
 				}
@@ -251,10 +251,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				insertSQLBinds[t] = make([]map[string]string, 0)
 			}
 			insertReflectValues[t] = append(insertReflectValues[t], entity)
-			insertBinds[t] = append(insertBinds[t], builder.bind)
-			insertSQLBinds[t] = append(insertSQLBinds[t], builder.sqlBind)
+			insertBinds[t] = append(insertBinds[t], f.engine.bindBuilder.bind)
+			insertSQLBinds[t] = append(insertSQLBinds[t], f.engine.bindBuilder.sqlBind)
 		} else {
-			f.flushUpdate(entity, currentID, schema, builder, lazy)
+			f.flushUpdate(entity, currentID, schema, lazy)
 		}
 	}
 
@@ -369,6 +369,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}()
 		}
 		for typeOf, deleteBinds := range f.deleteBinds {
+			queryExecuted := false
 			schema := getTableSchema(f.engine.registry, typeOf)
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
@@ -392,24 +393,27 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			}
 			for id, entity := range deleteBinds {
 				orm := entity.getORM()
-				builder, _ := orm.getDirtyBind(f.engine)
+				_ = orm.buildDirtyBind(f.engine)
 				if !lazy {
-					_ = db.Exec(deleteSQL) // TODO why in loop?
-					f.addDirtyQueues(builder.current, schema, id, "d", lazy)
-					f.addToLogQueue(schema, id, builder.current, nil, entity.getORM().logMeta, lazy)
+					if !queryExecuted {
+						_ = db.Exec(deleteSQL)
+						queryExecuted = true
+					}
+					f.addDirtyQueues(f.engine.bindBuilder.current, schema, id, "d", lazy)
+					f.addToLogQueue(schema, id, f.engine.bindBuilder.current, nil, entity.getORM().logMeta, lazy)
 				} else {
-					logEvent := f.addToLogQueue(schema, id, builder.current, nil, orm.logMeta, lazy)
+					logEvent := f.addToLogQueue(schema, id, f.engine.bindBuilder.current, nil, orm.logMeta, lazy)
 					if logEvent != nil {
 						logEvents = append(logEvents, logEvent)
 					}
-					dirtyEvent := f.addDirtyQueues(builder.current, schema, id, "d", lazy)
+					dirtyEvent := f.addDirtyQueues(f.engine.bindBuilder.current, schema, id, "d", lazy)
 					if dirtyEvent != nil {
 						dirtyEvents = append(dirtyEvents, dirtyEvent)
 					}
 				}
 				if hasLocalCache || hasRedis {
 					cacheKey := schema.getCacheKey(id)
-					keys := f.getCacheQueriesKeys(schema, builder.bind, builder.current, true, true)
+					keys := f.getCacheQueriesKeys(schema, f.engine.bindBuilder.bind, f.engine.bindBuilder.current, true, true)
 					if hasLocalCache {
 						f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cacheNilValue)
 						f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
@@ -474,13 +478,13 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	}
 }
 
-func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSchema, builder *bindBuilder, lazy bool) {
+func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSchema, lazy bool) {
 	if !entity.IsLoaded() {
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
 	}
 	f.engine.bufferInitString("UPDATE " + schema.GetTableName() + " SET ")
 	first := true
-	for key, value := range builder.sqlBind {
+	for key, value := range f.engine.bindBuilder.sqlBind {
 		if !first {
 			f.engine.bufferWriteString(",")
 		}
@@ -494,7 +498,7 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 		var logEvents []*LogQueueValue
 		var dirtyEvents []*dirtyQueueValue
 		entity.getORM().serialize(f.engine)
-		logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, true)
+		logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, f.engine.bindBuilder.bind, f.engine.bindBuilder.current, schema, currentID, true)
 		if logEvent != nil {
 			logEvents = append(logEvents, logEvent)
 		}
@@ -508,20 +512,20 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 		}
 		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
 		entity.getORM().serialize(f.engine)
-		f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, false)
+		f.updateCacheAfterUpdate(entity, f.engine.bindBuilder.bind, f.engine.bindBuilder.current, schema, currentID, false)
 	}
 }
 
-func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *tableSchema, onUpdate map[string]interface{}, entity Entity) {
+func (f *flusher) flushOnDuplicateKey(lazy bool, schema *tableSchema, onUpdate map[string]interface{}, entity Entity) {
 	if lazy {
 		panic(fmt.Errorf("lazy flush on duplicate key is not supported"))
 	}
-	bindLength := len(builder.bind)
+	bindLength := len(f.engine.bindBuilder.bind)
 	values := make([]string, bindLength)
 	columns := make([]string, bindLength)
 	i := 0
 
-	for key, val := range builder.sqlBind {
+	for key, val := range f.engine.bindBuilder.sqlBind {
 		columns[i] = "`" + key + "`"
 		values[i] = val
 		i++
@@ -554,15 +558,15 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *t
 		orm.idElem.SetUint(lastID)
 		orm.serialize(f.engine)
 		if affected == 1 {
-			f.updateCacheForInserted(entity, lazy, lastID, builder.bind)
+			f.updateCacheForInserted(entity, lazy, lastID, f.engine.bindBuilder.bind)
 		} else {
 			for k, v := range onUpdate {
 				err := entity.SetField(k, v)
 				checkError(err)
 			}
-			bind, _ := orm.GetDirtyBind(f.engine)
+			_, _ = orm.GetDirtyBind(f.engine)
 			_, _ = loadByID(f.engine, lastID, entity, false, lazy)
-			f.updateCacheAfterUpdate(entity, bind, builder.current, schema, lastID, false)
+			f.updateCacheAfterUpdate(entity, f.engine.bindBuilder.bind, f.engine.bindBuilder.current, schema, lastID, false)
 		}
 	} else {
 	OUTER:
@@ -570,11 +574,11 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *t
 			fields := make([]string, 0)
 			binds := make([]interface{}, 0)
 			for _, column := range index {
-				if builder.bind[column] == nil {
+				if f.engine.bindBuilder.bind[column] == nil {
 					continue OUTER
 				}
 				fields = append(fields, "`"+column+"` = ?")
-				binds = append(binds, builder.bind[column])
+				binds = append(binds, f.engine.bindBuilder.bind[column])
 			}
 			findWhere := NewWhere(strings.Join(fields, " AND "), binds)
 			f.engine.SearchOne(findWhere, entity)

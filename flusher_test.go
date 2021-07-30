@@ -636,8 +636,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	flusher.Clear()
 	flusher.ForceDelete(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(7, entity)
+	flusher.ForceDelete(entity)
 	flusher.Flush()
 	found = engine.LoadByID(6, entity)
+	assert.False(t, found)
+	found = engine.LoadByID(7, entity)
 	assert.False(t, found)
 
 	flusher.Clear()

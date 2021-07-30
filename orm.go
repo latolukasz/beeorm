@@ -322,11 +322,11 @@ func (orm *ORM) IsDirty(engine *Engine) bool {
 }
 
 func (orm *ORM) GetDirtyBind(engine *Engine) (bind Bind, has bool) {
-	builder, has := orm.getDirtyBind(engine)
-	return builder.bind, has
+	has = orm.buildDirtyBind(engine)
+	return engine.bindBuilder.bind, has
 }
 
-func (orm *ORM) getDirtyBind(engine *Engine) (builder *bindBuilder, has bool) {
+func (orm *ORM) buildDirtyBind(engine *Engine) (has bool) {
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -336,10 +336,9 @@ func (orm *ORM) getDirtyBind(engine *Engine) (builder *bindBuilder, has bool) {
 	}
 	id := orm.GetID()
 	engine.bufferInit(orm.binary)
-	builder = newBindBuilder(engine, id, orm)
-	builder.build(orm.tableSchema.fields, orm.elem, true)
-	has = !orm.inDB || orm.delete || len(builder.bind) > 0
-	return builder, has
+	engine.initBindBuilder(id, orm).build(orm.tableSchema.fields, orm.elem, true)
+	has = !orm.inDB || orm.delete || len(engine.bindBuilder.bind) > 0
+	return has
 }
 
 func (orm *ORM) serialize(engine *Engine) {

@@ -25,27 +25,36 @@ type bindBuilder struct {
 	index      int
 	buildSQL   bool
 	hasCurrent bool
-	hasOld     bool
 }
 
-func newBindBuilder(engine *Engine, id uint64, orm *ORM) *bindBuilder {
-	b := &bindBuilder{
-		id:     id,
-		orm:    orm,
-		engine: engine,
-		bind:   Bind{},
-		hasOld: orm.inDB,
-		index:  -1,
+func (e *Engine) initBindBuilder(id uint64, orm *ORM) *bindBuilder {
+	if e.bindBuilder == nil {
+		e.bindBuilder = &bindBuilder{
+			engine: e,
+			bind:   Bind{},
+			index:  -1,
+		}
+	} else {
+		e.bindBuilder.bind = Bind{}
+		e.bindBuilder.index = -1
 	}
-	if !orm.delete {
-		b.buildSQL = true
-		b.sqlBind = make(map[string]string)
+	e.bindBuilder.id = id
+	e.bindBuilder.orm = orm
+	e.bindBuilder.buildSQL = !orm.delete
+
+	if orm.delete {
+		e.bindBuilder.sqlBind = nil
+	} else {
+		e.bindBuilder.sqlBind = make(map[string]string)
 	}
 	if orm.delete || orm.tableSchema.hasLog || len(orm.tableSchema.cachedIndexesAll) > 0 {
-		b.hasCurrent = true
-		b.current = Bind{}
+		e.bindBuilder.hasCurrent = true
+		e.bindBuilder.current = Bind{}
+	} else {
+		e.bindBuilder.hasCurrent = false
+		e.bindBuilder.current = nil
 	}
-	return b
+	return e.bindBuilder
 }
 
 func (b *bindBuilder) build(fields *tableFields, value reflect.Value, root bool) {
@@ -82,7 +91,7 @@ func (b *bindBuilder) buildRefs(fields *tableFields, value reflect.Value) {
 		if !f.IsNil() {
 			val = f.Elem().Field(1).Uint()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeUInteger()
 			if b.hasCurrent {
 				if old == 0 {
@@ -118,7 +127,7 @@ func (b *bindBuilder) buildUIntegers(fields *tableFields, value reflect.Value, r
 			b.engine.deserializeUInteger()
 			continue
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeUInteger()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = old
@@ -139,7 +148,7 @@ func (b *bindBuilder) buildIntegers(fields *tableFields, value reflect.Value) {
 	for _, i := range fields.integers {
 		b.index++
 		val := value.Field(i).Int()
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeInteger()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = old
@@ -161,7 +170,7 @@ func (b *bindBuilder) buildBooleans(fields *tableFields, value reflect.Value) {
 	for _, i := range fields.booleans {
 		b.index++
 		val := value.Field(i).Bool()
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = old
@@ -187,7 +196,7 @@ func (b *bindBuilder) buildFloats(fields *tableFields, value reflect.Value) {
 	for k, i := range fields.floats {
 		b.index++
 		val := value.Field(i).Float()
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeFloat()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = old
@@ -210,7 +219,7 @@ func (b *bindBuilder) buildTimes(fields *tableFields, value reflect.Value) {
 		b.index++
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeInteger()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
@@ -233,7 +242,7 @@ func (b *bindBuilder) buildDates(fields *tableFields, value reflect.Value) {
 		b.index++
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeInteger()
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
@@ -259,11 +268,11 @@ func (b *bindBuilder) buildFakeDelete(fields *tableFields, value reflect.Value) 
 		if val {
 			fakeID = b.id
 		}
-		if b.hasCurrent && b.hasOld {
+		if b.hasCurrent && b.orm.inDB {
 			b.current[b.orm.tableSchema.columnNames[b.index]] = fakeID
 		}
 		add := true
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if b.hasCurrent {
 				if old {
@@ -291,7 +300,7 @@ func (b *bindBuilder) buildStrings(fields *tableFields, value reflect.Value) {
 		b.index++
 		val := value.Field(i).String()
 		name := b.orm.tableSchema.columnNames[b.index]
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeString()
 			if b.hasCurrent {
 				if old == "" {
@@ -342,7 +351,7 @@ func (b *bindBuilder) buildUIntegersNullable(fields *tableFields, value reflect.
 		if !isNil {
 			val = f.Elem().Uint()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -383,7 +392,7 @@ func (b *bindBuilder) buildIntegersNullable(fields *tableFields, value reflect.V
 		if !isNil {
 			val = f.Elem().Int()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -423,7 +432,7 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 		enum := fields.enums[k]
 		name := b.orm.tableSchema.columnNames[b.index]
 		k++
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeUInteger()
 			if b.hasCurrent {
 				if old == 0 {
@@ -448,7 +457,7 @@ func (b *bindBuilder) buildEnums(fields *tableFields, value reflect.Value) {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				if b.hasOld {
+				if b.orm.inDB {
 					panic(fmt.Errorf("empty enum value for %s", name))
 				}
 				b.bind[name] = enum.GetDefault()
@@ -469,7 +478,7 @@ func (b *bindBuilder) buildBytes(fields *tableFields, value reflect.Value) {
 	for _, i := range fields.bytes {
 		b.index++
 		val := string(value.Field(i).Bytes())
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeString()
 			if b.hasCurrent {
 				if old != "" {
@@ -506,7 +515,7 @@ func (b *bindBuilder) buildSets(fields *tableFields, value reflect.Value) {
 		l := len(val)
 		k++
 		name := b.orm.tableSchema.columnNames[b.index]
-		if b.hasOld {
+		if b.orm.inDB {
 			old := int(b.engine.deserializeUInteger())
 			if b.hasCurrent {
 				attributes := b.orm.tableSchema.tags[name]
@@ -587,7 +596,7 @@ func (b *bindBuilder) buildBooleansNullable(fields *tableFields, value reflect.V
 		if !isNil {
 			val = f.Elem().Bool()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -632,7 +641,7 @@ func (b *bindBuilder) buildFloatsNullable(fields *tableFields, value reflect.Val
 		if !isNil {
 			val = f.Elem().Float()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -673,7 +682,7 @@ func (b *bindBuilder) buildTimesNullable(fields *tableFields, value reflect.Valu
 		if !isNil {
 			val = f.Interface().(*time.Time)
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -716,7 +725,7 @@ func (b *bindBuilder) buildDatesNullable(fields *tableFields, value reflect.Valu
 			val = *f.Interface().(*time.Time)
 			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -761,7 +770,7 @@ func (b *bindBuilder) buildJSONs(fields *tableFields, value reflect.Value) {
 		if !isNil {
 			val = f.Interface()
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			old := b.engine.deserializeBytes()
 			if len(old) == 0 {
 				if b.hasCurrent {
@@ -838,7 +847,7 @@ func (b *bindBuilder) buildRefsMany(fields *tableFields, value reflect.Value) {
 				val = string(encoded)
 			}
 		}
-		if b.hasOld {
+		if b.orm.inDB {
 			l := int(b.engine.deserializeUInteger())
 			if l == 0 {
 				if b.hasCurrent {

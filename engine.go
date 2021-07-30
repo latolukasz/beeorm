@@ -30,6 +30,7 @@ type Engine struct {
 	eventBroker               *eventBroker
 	scratch                   [binary.MaxVarintLen64]byte
 	buffer                    *bytes.Buffer
+	bindBuilder               *bindBuilder
 }
 
 func (e *Engine) GetContext() context.Context {
