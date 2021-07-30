@@ -55,6 +55,7 @@ type flushEntity struct {
 	Float64              float64  `orm:"precision=10"`
 	Decimal              float64  `orm:"decimal=5,2"`
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
+	Float64Default       float64
 	CachedQuery          *CachedQuery
 	Time                 time.Time
 	TimeWithTime         time.Time `orm:"time"`
@@ -644,6 +645,21 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, found)
 	found = engine.LoadByID(7, entity)
 	assert.False(t, found)
+
+	entity = &flushEntity{}
+	engine.LoadByID(102, entity)
+	entity.Float64Default = 0.3
+	assert.True(t, entity.IsDirty(engine))
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(102, entity)
+	assert.Equal(t, 0.3, entity.Float64Default)
+	entity.Float64Default = 0.4
+	assert.True(t, entity.IsDirty(engine))
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(102, entity)
+	assert.Equal(t, 0.4, entity.Float64Default)
 
 	flusher.Clear()
 	engine.LoadByIDLazy(10, entity)

@@ -201,7 +201,7 @@ func (b *bindBuilder) buildFloats(fields *tableFields, value reflect.Value) {
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = old
 			}
-			if math.Abs(val-old) < (1 / float64(fields.floatsPrecision[k])) {
+			if math.Abs(val-old) < (1 / math.Pow10(fields.floatsPrecision[k])) {
 				continue
 			}
 		}
@@ -651,7 +651,7 @@ func (b *bindBuilder) buildFloatsNullable(fields *tableFields, value reflect.Val
 				if b.hasCurrent {
 					b.current[b.orm.tableSchema.columnNames[b.index]] = v
 				}
-				if !isNil && math.Abs(val-v) < (1/float64(fields.floatsNullablePrecision[k])) {
+				if !isNil && math.Abs(val-v) < (1/math.Pow10(fields.floatsNullablePrecision[k])) {
 					continue
 				}
 			} else if isNil {
