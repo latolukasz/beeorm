@@ -264,7 +264,6 @@ func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, laz
 	orm.lazy = lazy
 	orm.binary = binary
 	if !lazy {
-		engine.getSerializer().Reset(binary)
 		orm.deserialize(engine)
 	} else {
 		orm.idElem.SetUint(id)

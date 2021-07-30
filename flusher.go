@@ -283,38 +283,37 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	}
 	for typeOf, values := range insertKeys {
 		schema := getTableSchema(f.engine.registry, typeOf)
-		f.engine.startBuffer()
-		/* #nosec */
-		f.engine.writeBufferString("INSERT INTO " + schema.tableName)
+		f.engine.bufferInitString("INSERT INTO " + schema.tableName)
 		l := len(values)
 		if l > 0 {
-			f.engine.writeBufferString("(")
+			f.engine.bufferWriteString("(")
 		}
 		first := true
 		for _, val := range values {
 			if !first {
-				f.engine.writeBufferString(",")
+				f.engine.bufferWriteString(",")
 			}
 			first = false
-			f.engine.writeBufferString("`" + val + "`")
+			f.engine.bufferWriteString("`" + val + "`")
 		}
 		if l > 0 {
-			f.engine.writeBufferString(")")
+			f.engine.bufferWriteString(")")
 		}
-		f.engine.writeBufferString(" VALUES ")
+		f.engine.bufferWriteString(" VALUES ")
 		for i, row := range insertSQLBinds[typeOf] {
 			if i > 0 {
-				f.engine.writeBufferString(",")
+				f.engine.bufferWriteString(",")
 			}
-			f.engine.writeBufferString("(")
+			f.engine.bufferWriteString("(")
 			for j, val := range values {
 				if j > 0 {
-					f.engine.writeBufferString(",")
+					f.engine.bufferWriteString(",")
 				}
-				f.engine.writeBufferString(row[val])
+				f.engine.bufferWriteString(row[val])
 			}
-			f.engine.writeBufferString(")")
+			f.engine.bufferWriteString(")")
 		}
+		sql := f.engine.bufferReadString()
 		db := schema.GetMysql(f.engine)
 		if lazy {
 			var logEvents []*LogQueueValue
@@ -328,9 +327,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
 			}
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, logEvents, dirtyEvents)
 		} else {
-			res := db.Exec(f.engine.stopBufferToString())
+			res := db.Exec(sql)
 			id := res.LastInsertId()
 			for key, entity := range insertReflectValues[typeOf] {
 				bind := insertBinds[typeOf][key]
@@ -343,7 +342,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					insertedID = id
 					id = id + db.GetPoolConfig().getAutoincrement()
 				}
-				orm.serialize(f.engine.getSerializer())
+				orm.serialize(f.engine)
 				f.updateCacheForInserted(entity, lazy, insertedID, bind)
 			}
 		}
@@ -374,19 +373,16 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
 			i := 0
-			/* #nosec */
-			f.engine.startBuffer()
-			f.engine.writeBufferString("DELETE FROM `").
-				writeBufferString(schema.tableName).
-				writeBufferString("` WHERE `ID` IN (")
+			f.engine.bufferInitString("DELETE FROM `" + schema.tableName + "` WHERE `ID` IN (")
 			for id := range deleteBinds {
 				if i > 0 {
-					f.engine.writeBufferString(",")
+					f.engine.bufferWriteString(",")
 				}
-				f.engine.writeBufferUint(id)
+				f.engine.bufferWriteUint(id)
 				i++
 			}
-			f.engine.writeBufferString(")")
+			f.engine.bufferWriteString(")")
+			deleteSQL := f.engine.bufferReadString()
 			db := schema.GetMysql(f.engine)
 			localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 			redisCache, hasRedis := schema.GetRedisCache(f.engine)
@@ -398,7 +394,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				orm := entity.getORM()
 				builder, _ := orm.getDirtyBind(f.engine)
 				if !lazy {
-					_ = db.Exec(f.engine.stopBufferToString())
+					_ = db.Exec(deleteSQL) // TODO why in loop?
 					f.addDirtyQueues(builder.current, schema, id, "d", lazy)
 					f.addToLogQueue(schema, id, builder.current, nil, entity.getORM().logMeta, lazy)
 				} else {
@@ -429,7 +425,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 				}
 			}
 			if lazy {
-				f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQL, logEvents, dirtyEvents)
 			}
 		}
 		if f.localCacheDeletes != nil {
@@ -482,25 +478,22 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 	if !entity.IsLoaded() {
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
 	}
-	/* #nosec */
-	f.engine.startBuffer()
-	f.engine.writeBufferString("UPDATE ").writeBufferString(schema.GetTableName()).writeBufferString(" SET ")
+	f.engine.bufferInitString("UPDATE " + schema.GetTableName() + " SET ")
 	first := true
 	for key, value := range builder.sqlBind {
 		if !first {
-			f.engine.writeBufferString(",")
+			f.engine.bufferWriteString(",")
 		}
 		first = false
-		f.engine.writeBufferString("`" + key + "`=" + value)
+		f.engine.bufferWriteString("`" + key + "`=" + value)
 	}
-	f.engine.writeBufferString(" WHERE `ID` = ").writeBufferUint(currentID)
+	f.engine.bufferWriteString(" WHERE `ID` = ").bufferWriteUint(currentID)
+	sql := f.engine.bufferReadString()
 	db := schema.GetMysql(f.engine)
 	if lazy {
 		var logEvents []*LogQueueValue
 		var dirtyEvents []*dirtyQueueValue
-		serializer := f.engine.getSerializer()
-		serializer.buffer.Reset()
-		entity.getORM().serialize(serializer)
+		entity.getORM().serialize(f.engine)
 		logEvent, dirtyEvent := f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, true)
 		if logEvent != nil {
 			logEvents = append(logEvents, logEvent)
@@ -508,15 +501,13 @@ func (f *flusher) flushUpdate(entity Entity, currentID uint64, schema *tableSche
 		if dirtyEvent != nil {
 			dirtyEvents = append(dirtyEvents, dirtyEvent)
 		}
-		f.fillLazyQuery(db.GetPoolConfig().GetCode(), f.engine.stopBufferToString(), logEvents, dirtyEvents)
+		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, logEvents, dirtyEvents)
 	} else {
 		if f.updateSQLs == nil {
 			f.updateSQLs = make(map[string][]string)
 		}
-		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], f.engine.stopBufferToString())
-		serializer := f.engine.getSerializer()
-		serializer.buffer.Reset()
-		entity.getORM().serialize(serializer)
+		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
+		entity.getORM().serialize(f.engine)
 		f.updateCacheAfterUpdate(entity, builder.bind, builder.current, schema, currentID, false)
 	}
 }
@@ -535,25 +526,25 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *t
 		values[i] = val
 		i++
 	}
-	f.engine.startBuffer()
-	f.engine.writeBufferString("INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ","))
-	f.engine.writeBufferString(") VALUES (" + strings.Join(values, ",") + ")")
+	f.engine.bufferInitString("INSERT INTO " + schema.tableName + "(" + strings.Join(columns, ","))
+	f.engine.bufferWriteString(") VALUES (" + strings.Join(values, ",") + ")")
 	/* #nosec */
-	f.engine.writeBufferString(" ON DUPLICATE KEY UPDATE ")
+	f.engine.bufferWriteString(" ON DUPLICATE KEY UPDATE ")
 	first := true
 	for k, v := range onUpdate {
 		if !first {
-			f.engine.writeBufferString(",")
+			f.engine.bufferWriteString(",")
 		}
-		f.engine.writeBufferString("`" + k + "` = ")
-		f.engine.writeBufferString(escapeSQLValue(v))
+		f.engine.bufferWriteString("`" + k + "` = ")
+		f.engine.bufferWriteString(escapeSQLValue(v))
 		first = false
 	}
 	if len(onUpdate) == 0 {
-		f.engine.writeBufferString("ID = ID")
+		f.engine.bufferWriteString("ID = ID")
 	}
+	sql := f.engine.bufferReadString()
 	db := schema.GetMysql(f.engine)
-	result := db.Exec(f.engine.stopBufferToString())
+	result := db.Exec(sql)
 	affected := result.RowsAffected()
 	if affected > 0 {
 		orm := entity.getORM()
@@ -561,7 +552,7 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, builder *bindBuilder, schema *t
 		orm.inDB = true
 		orm.loaded = true
 		orm.idElem.SetUint(lastID)
-		orm.serialize(f.engine.getSerializer())
+		orm.serialize(f.engine)
 		if affected == 1 {
 			f.updateCacheForInserted(entity, lazy, lastID, builder.bind)
 		} else {
