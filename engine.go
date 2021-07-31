@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"sync"
 
 	"github.com/golang/groupcache/lru"
 )
@@ -26,6 +27,7 @@ type Engine struct {
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
 	eventBroker               *eventBroker
+	sync.Mutex
 }
 
 func (e *Engine) GetContext() context.Context {
@@ -41,6 +43,8 @@ func (e *Engine) GetMysql(code ...string) *DB {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	db, has := e.dbs[dbCode]
 	if !has {
 		config, has := e.registry.mySQLServers[dbCode]
@@ -62,6 +66,8 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	cache, has := e.localCache[dbCode]
 	if !has {
 		config, has := e.registry.localCacheServers[dbCode]
@@ -92,6 +98,8 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	cache, has := e.redis[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -117,6 +125,8 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	cache, has := e.redisSearch[dbCode]
 	if !has {
 		config, has := e.registry.redisServers[dbCode]
@@ -139,6 +149,8 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 }
 
 func (e *Engine) SetLogMetaData(key string, value interface{}) {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	if e.logMetaData == nil {
 		e.logMetaData = make(Bind)
 	}
