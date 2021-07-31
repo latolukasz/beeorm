@@ -87,7 +87,6 @@ type TableSchema interface {
 	GetRedisSearch(engine *Engine) (search *RedisSearch, has bool)
 	GetReferences() []string
 	GetColumns() []string
-	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
 	GetSchemaChanges(engine *Engine) (has bool, alters []Alter)
 }
 
@@ -245,26 +244,6 @@ func (tableSchema *tableSchema) GetReferences() []string {
 
 func (tableSchema *tableSchema) GetColumns() []string {
 	return tableSchema.columnNames
-}
-
-func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {
-	vRegistry := registry.(*validatedRegistry)
-	results := make(map[reflect.Type][]string)
-	if vRegistry.entities != nil {
-		for _, t := range vRegistry.entities {
-			schema := getTableSchema(vRegistry, t)
-			for _, columnName := range schema.refOne {
-				ref, has := schema.tags[columnName]["ref"]
-				if has && ref == tableSchema.t.String() {
-					if results[t] == nil {
-						results[t] = make([]string, 0)
-					}
-					results[t] = append(results[t], columnName)
-				}
-			}
-		}
-	}
-	return results
 }
 
 func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alters []Alter) {
