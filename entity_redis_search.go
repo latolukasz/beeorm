@@ -14,11 +14,11 @@ func (e *Engine) RedisSearchIds(entity Entity, query *RedisSearchQuery, pager *P
 }
 
 func (e *Engine) RedisSearch(entities interface{}, query *RedisSearchQuery, pager *Pager, references ...string) (totalRows uint64) {
-	return e.redisSearchBase(entities, query, pager, false, references...)
+	return e.redisSearchBase(newSerializer(nil), entities, query, pager, false, references...)
 }
 
 func (e *Engine) RedisSearchLazy(entities interface{}, query *RedisSearchQuery, pager *Pager, references ...string) (totalRows uint64) {
-	return e.redisSearchBase(entities, query, pager, true, references...)
+	return e.redisSearchBase(newSerializer(nil), entities, query, pager, true, references...)
 }
 
 func (e *Engine) RedisSearchCount(entity Entity, query *RedisSearchQuery) (totalRows uint64) {
@@ -27,7 +27,7 @@ func (e *Engine) RedisSearchCount(entity Entity, query *RedisSearchQuery) (total
 	return totalRows
 }
 
-func (e *Engine) redisSearchBase(entities interface{}, query *RedisSearchQuery, pager *Pager, lazy bool, references ...string) (totalRows uint64) {
+func (e *Engine) redisSearchBase(serializer *serializer, entities interface{}, query *RedisSearchQuery, pager *Pager, lazy bool, references ...string) (totalRows uint64) {
 	elem := reflect.ValueOf(entities).Elem()
 	_, has, name := getEntityTypeForSlice(e.registry, elem.Type(), true)
 	if !has {
@@ -36,7 +36,7 @@ func (e *Engine) redisSearchBase(entities interface{}, query *RedisSearchQuery, 
 	schema := e.GetRegistry().GetTableSchema(name).(*tableSchema)
 	ids, total := redisSearch(e, schema, query, pager)
 	if total > 0 {
-		tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, lazy)
+		tryByIDs(serializer, e, ids, reflect.ValueOf(entities).Elem(), references, lazy)
 	}
 	return total
 }
@@ -55,7 +55,7 @@ func (e *Engine) redisSearchOne(entity Entity, query *RedisSearchQuery, lazy boo
 	if total == 0 {
 		return false
 	}
-	found, _ = loadByID(e, ids[0], entity, true, lazy, references...)
+	found, _ = loadByID(newSerializer(nil), e, ids[0], entity, true, lazy, references...)
 	return found
 }
 

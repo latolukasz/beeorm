@@ -1,9 +1,7 @@
 package beeorm
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"reflect"
 
@@ -28,9 +26,6 @@ type Engine struct {
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
 	eventBroker               *eventBroker
-	scratch                   [binary.MaxVarintLen64]byte
-	buffer                    *bytes.Buffer
-	bindBuilder               *bindBuilder
 }
 
 func (e *Engine) GetContext() context.Context {
@@ -224,19 +219,19 @@ func (e *Engine) GetRegistry() ValidatedRegistry {
 }
 
 func (e *Engine) SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	return search(true, e, where, pager, true, false, true, reflect.ValueOf(entities).Elem(), references...)
+	return search(newSerializer(nil), true, e, where, pager, true, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *Engine) SearchWithCountLazy(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	return search(true, e, where, pager, true, true, true, reflect.ValueOf(entities).Elem(), references...)
+	return search(newSerializer(nil), true, e, where, pager, true, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *Engine) Search(where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(true, e, where, pager, false, false, true, reflect.ValueOf(entities).Elem(), references...)
+	search(newSerializer(nil), true, e, where, pager, false, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *Engine) SearchLazy(where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(true, e, where, pager, false, true, true, reflect.ValueOf(entities).Elem(), references...)
+	search(newSerializer(nil), true, e, where, pager, false, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *Engine) SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int) {
@@ -249,59 +244,59 @@ func (e *Engine) SearchIDs(where *Where, pager *Pager, entity Entity) []uint64 {
 }
 
 func (e *Engine) SearchOne(where *Where, entity Entity, references ...string) (found bool) {
-	found, _, _ = searchOne(true, e, where, entity, false, references)
+	found, _, _ = searchOne(newSerializer(nil), true, e, where, entity, false, references)
 	return found
 }
 
 func (e *Engine) SearchOneLazy(where *Where, entity Entity, references ...string) (found bool) {
-	found, _, _ = searchOne(true, e, where, entity, true, references)
+	found, _, _ = searchOne(newSerializer(nil), true, e, where, entity, true, references)
 	return found
 }
 
 func (e *Engine) CachedSearchOne(entity Entity, indexName string, arguments ...interface{}) (found bool) {
-	return cachedSearchOne(e, entity, indexName, true, false, arguments, nil)
+	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, false, arguments, nil)
 }
 
 func (e *Engine) CachedSearchOneLazy(entity Entity, indexName string, arguments ...interface{}) (found bool) {
-	return cachedSearchOne(e, entity, indexName, true, true, arguments, nil)
+	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, true, arguments, nil)
 }
 
 func (e *Engine) CachedSearchOneWithReferences(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
-	return cachedSearchOne(e, entity, indexName, true, false, arguments, references)
+	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, false, arguments, references)
 }
 
 func (e *Engine) CachedSearchOneWithReferencesLazy(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
-	return cachedSearchOne(e, entity, indexName, true, true, arguments, references)
+	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, true, arguments, references)
 }
 
 func (e *Engine) CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
-	total, _ := cachedSearch(e, entities, indexName, pager, arguments, false, true, nil)
+	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, false, true, nil)
 	return total
 }
 
 func (e *Engine) CachedSearchLazy(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
-	total, _ := cachedSearch(e, entities, indexName, pager, arguments, true, true, nil)
+	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, true, true, nil)
 	return total
 }
 
 func (e *Engine) CachedSearchIDs(entity Entity, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64) {
-	return cachedSearch(e, entity, indexName, pager, arguments, false, false, nil)
+	return cachedSearch(newSerializer(nil), e, entity, indexName, pager, arguments, false, false, nil)
 }
 
 func (e *Engine) CachedSearchCount(entity Entity, indexName string, arguments ...interface{}) int {
-	total, _ := cachedSearch(e, entity, indexName, NewPager(1, 1), arguments, false, false, nil)
+	total, _ := cachedSearch(newSerializer(nil), e, entity, indexName, NewPager(1, 1), arguments, false, false, nil)
 	return total
 }
 
 func (e *Engine) CachedSearchWithReferences(entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int) {
-	total, _ := cachedSearch(e, entities, indexName, pager, arguments, false, true, references)
+	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, false, true, references)
 	return total
 }
 
 func (e *Engine) CachedSearchWithReferencesLazy(entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int) {
-	total, _ := cachedSearch(e, entities, indexName, pager, arguments, true, true, references)
+	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, true, true, references)
 	return total
 }
 
@@ -310,28 +305,28 @@ func (e *Engine) ClearCacheByIDs(entity Entity, ids ...uint64) {
 }
 
 func (e *Engine) LoadByID(id uint64, entity Entity, references ...string) (found bool) {
-	found, _ = loadByID(e, id, entity, true, false, references...)
+	found, _ = loadByID(newSerializer(nil), e, id, entity, true, false, references...)
 	return found
 }
 
 func (e *Engine) LoadByIDLazy(id uint64, entity Entity, references ...string) (found bool) {
-	found, _ = loadByID(e, id, entity, true, true, references...)
+	found, _ = loadByID(newSerializer(nil), e, id, entity, true, true, references...)
 	return found
 }
 
 func (e *Engine) Load(entity Entity, references ...string) (found bool) {
-	return e.load(entity, false, references...)
+	return e.load(newSerializer(nil), entity, false, references...)
 }
 
 func (e *Engine) LoadLazy(entity Entity, references ...string) {
-	e.load(entity, true, references...)
+	e.load(newSerializer(nil), entity, true, references...)
 }
 
-func (e *Engine) load(entity Entity, lazy bool, references ...string) bool {
+func (e *Engine) load(serializer *serializer, entity Entity, lazy bool, references ...string) bool {
 	if entity.IsLoaded() {
 		if len(references) > 0 {
 			orm := entity.getORM()
-			warmUpReferences(e, orm.tableSchema, orm.elem, references, false, lazy)
+			warmUpReferences(serializer, e, orm.tableSchema, orm.elem, references, false, lazy)
 		}
 		return true
 	}
@@ -339,17 +334,17 @@ func (e *Engine) load(entity Entity, lazy bool, references ...string) bool {
 	id := orm.GetID()
 	found := false
 	if id > 0 {
-		found, _ = loadByID(e, id, entity, true, lazy, references...)
+		found, _ = loadByID(serializer, e, id, entity, true, lazy, references...)
 	}
 	return found
 }
 
 func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) {
-	tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, false)
+	tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references, false)
 }
 
 func (e *Engine) LoadByIDsLazy(ids []uint64, entities interface{}, references ...string) {
-	tryByIDs(e, ids, reflect.ValueOf(entities).Elem(), references, true)
+	tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references, true)
 }
 
 func (e *Engine) GetAlters() (alters []Alter) {

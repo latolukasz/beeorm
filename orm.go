@@ -24,13 +24,13 @@ type Entity interface {
 	forceMarkToDelete()
 	IsLoaded() bool
 	IsLazy() bool
-	Fill(engine *Engine)
-	IsDirty(engine *Engine) bool
-	GetDirtyBind(engine *Engine) (bind Bind, has bool)
+	Fill()
+	IsDirty() bool
+	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
-	GetFieldLazy(engine *Engine, field string) interface{}
+	GetFieldLazy(field string) interface{}
 }
 
 type ORM struct {
@@ -60,11 +60,11 @@ func (orm *ORM) GetID() uint64 {
 	return orm.idElem.Uint()
 }
 
-func (orm *ORM) GetFieldLazy(engine *Engine, field string) interface{} {
+func (orm *ORM) GetFieldLazy(field string) interface{} {
 	if !orm.lazy {
 		panic(fmt.Errorf("entity is not lazy"))
 	}
-	return getFieldByName(engine, orm.tableSchema, orm.binary, field)
+	return getFieldByName(orm.tableSchema, orm.binary, field)
 }
 
 func (orm *ORM) copyBinary() []byte {
@@ -73,38 +73,32 @@ func (orm *ORM) copyBinary() []byte {
 	return b
 }
 
-func getFieldByName(engine *Engine, tableSchema *tableSchema, binary []byte, field string) interface{} {
+func getFieldByName(tableSchema *tableSchema, binary []byte, field string) interface{} {
 	index, has := tableSchema.columnMapping[field]
 	if !has {
 		panic(fmt.Errorf("uknown field " + field))
 	}
-	return getField(engine, tableSchema, binary, index)
-}
-
-func getField(engine *Engine, tableSchema *tableSchema, binary []byte, index int) interface{} {
-	fields := tableSchema.fields
-	engine.bufferInit(binary)
-	v, _, _ := getFieldForStruct(fields, engine, index, 0)
+	v, _, _ := getFieldForStruct(tableSchema.fields, newSerializer(binary), index, 0)
 	return v
 }
 
-func getFieldForStruct(fields *tableFields, engine *Engine, index, i int) (interface{}, bool, int) {
+func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int) (interface{}, bool, int) {
 	for range fields.refs {
-		v := engine.deserializeUInteger()
+		v := serializer.DeserializeUInteger()
 		if i == index {
 			return v, true, i
 		}
 		i++
 	}
 	for range fields.uintegers {
-		v := engine.deserializeUInteger()
+		v := serializer.DeserializeUInteger()
 		if i == index {
 			return v, true, i
 		}
 		i++
 	}
 	for range fields.integers {
-		v := engine.deserializeInteger()
+		v := serializer.DeserializeInteger()
 		if i == index {
 			return v, true, i
 		}
@@ -112,27 +106,27 @@ func getFieldForStruct(fields *tableFields, engine *Engine, index, i int) (inter
 	}
 	for range fields.booleans {
 		if i == index {
-			return engine.deserializeBool(), true, i
+			return serializer.DeserializeBool(), true, i
 		}
-		engine.buffer.Next(1)
+		serializer.buffer.Next(1)
 		i++
 	}
 	for range fields.floats {
-		v := engine.deserializeFloat()
+		v := serializer.DeserializeFloat()
 		if i == index {
 			return v, true, i
 		}
 		i++
 	}
 	for range fields.times {
-		v := engine.deserializeInteger()
+		v := serializer.DeserializeInteger()
 		if i == index {
 			return v, true, i
 		}
 		i++
 	}
 	for range fields.dates {
-		v := engine.deserializeInteger()
+		v := serializer.DeserializeInteger()
 		if i == index {
 			return v, true, i
 		}
@@ -140,44 +134,44 @@ func getFieldForStruct(fields *tableFields, engine *Engine, index, i int) (inter
 	}
 	if fields.fakeDelete > 0 {
 		if i == index {
-			return engine.deserializeBool(), true, i
+			return serializer.DeserializeBool(), true, i
 		}
-		engine.buffer.Next(1)
+		serializer.buffer.Next(1)
 		i++
 	}
 	for range fields.strings {
 		if i == index {
-			return engine.deserializeString(), true, i
+			return serializer.DeserializeString(), true, i
 		}
-		if l := engine.deserializeUInteger(); l > 0 {
-			engine.buffer.Next(int(l))
+		if l := serializer.DeserializeUInteger(); l > 0 {
+			serializer.buffer.Next(int(l))
 		}
 		i++
 	}
 	for range fields.uintegersNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeUInteger(), true, i
+			return serializer.DeserializeUInteger(), true, i
 		}
-		engine.deserializeUInteger()
+		serializer.DeserializeUInteger()
 		i++
 	}
 	for range fields.integersNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeInteger(), true, i
+			return serializer.DeserializeInteger(), true, i
 		}
-		engine.deserializeInteger()
+		serializer.DeserializeInteger()
 		i++
 	}
 	for range fields.stringsEnums {
-		v := engine.deserializeUInteger()
+		v := serializer.DeserializeUInteger()
 		if i == index {
 			return int(v), true, i
 		}
@@ -185,92 +179,92 @@ func getFieldForStruct(fields *tableFields, engine *Engine, index, i int) (inter
 	}
 	for range fields.bytes {
 		if i == index {
-			return engine.deserializeBytes(), true, i
+			return serializer.DeserializeBytes(), true, i
 		}
-		if l := engine.deserializeUInteger(); l > 0 {
-			engine.buffer.Next(int(l))
+		if l := serializer.DeserializeUInteger(); l > 0 {
+			serializer.buffer.Next(int(l))
 		}
 		i++
 	}
 	for range fields.sliceStringsSets {
-		l := int(engine.deserializeUInteger())
+		l := int(serializer.DeserializeUInteger())
 		if i == index {
 			val := make([]int, l)
 			for k := 0; k < l; k++ {
-				val[k] = int(engine.deserializeUInteger())
+				val[k] = int(serializer.DeserializeUInteger())
 			}
 			return val, true, i
 		}
-		engine.buffer.Next(l)
+		serializer.buffer.Next(l)
 		i++
 	}
 	for range fields.booleansNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeBool(), true, i
+			return serializer.DeserializeBool(), true, i
 		}
-		engine.deserializeBool()
+		serializer.DeserializeBool()
 		i++
 	}
 	for range fields.floatsNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeFloat(), true, i
+			return serializer.DeserializeFloat(), true, i
 		}
-		engine.deserializeFloat()
+		serializer.DeserializeFloat()
 		i++
 	}
 	for range fields.timesNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeInteger(), true, i
+			return serializer.DeserializeInteger(), true, i
 		}
-		engine.deserializeInteger()
+		serializer.DeserializeInteger()
 		i++
 	}
 	for range fields.datesNullable {
-		isNil := engine.deserializeBool()
+		isNil := serializer.DeserializeBool()
 		if i == index {
 			if isNil {
 				return nil, true, i
 			}
-			return engine.deserializeInteger(), true, i
+			return serializer.DeserializeInteger(), true, i
 		}
-		engine.deserializeInteger()
+		serializer.DeserializeInteger()
 		i++
 	}
 	for range fields.jsons {
 		if i == index {
-			return engine.deserializeBytes(), true, i
+			return serializer.DeserializeBytes(), true, i
 		}
-		if l := engine.deserializeUInteger(); l > 0 {
-			engine.buffer.Next(int(l))
+		if l := serializer.DeserializeUInteger(); l > 0 {
+			serializer.buffer.Next(int(l))
 		}
 		i++
 	}
 	for range fields.refsMany {
-		l := int(engine.deserializeUInteger())
+		l := int(serializer.DeserializeUInteger())
 		if i == index {
 			val := make([]uint64, l)
 			for k := 0; k < l; k++ {
-				val[k] = engine.deserializeUInteger()
+				val[k] = serializer.DeserializeUInteger()
 			}
 			return val, true, i
 		}
-		engine.buffer.Next(l)
+		serializer.buffer.Next(l)
 		i++
 	}
 	for _, subFields := range fields.structsFields {
-		v, has, j := getFieldForStruct(subFields, engine, index, i)
+		v, has, j := getFieldForStruct(subFields, serializer, index, i)
 		if has {
 			return v, true, j
 		}
@@ -295,9 +289,9 @@ func (orm *ORM) IsLazy() bool {
 	return orm.lazy
 }
 
-func (orm *ORM) Fill(engine *Engine) {
+func (orm *ORM) Fill() {
 	if orm.lazy && orm.loaded {
-		orm.deserialize(engine)
+		orm.deserialize(newSerializer(orm.binary))
 		orm.lazy = false
 	}
 }
@@ -313,20 +307,20 @@ func (orm *ORM) SetEntityLogMeta(key string, value interface{}) {
 	orm.logMeta[key] = value
 }
 
-func (orm *ORM) IsDirty(engine *Engine) bool {
+func (orm *ORM) IsDirty() bool {
 	if !orm.inDB {
 		return true
 	}
-	_, is := orm.GetDirtyBind(engine)
+	_, is := orm.GetDirtyBind()
 	return is
 }
 
-func (orm *ORM) GetDirtyBind(engine *Engine) (bind Bind, has bool) {
-	has = orm.buildDirtyBind(engine)
-	return engine.bindBuilder.bind, has
+func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
+	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil))
+	return bindBuilder.bind, has
 }
 
-func (orm *ORM) buildDirtyBind(engine *Engine) (has bool) {
+func (orm *ORM) buildDirtyBind(serializer *serializer) (bindBuilder *bindBuilder, has bool) {
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -335,83 +329,82 @@ func (orm *ORM) buildDirtyBind(engine *Engine) (has bool) {
 		}
 	}
 	id := orm.GetID()
-	engine.bufferInit(orm.binary)
-	engine.initBindBuilder(id, orm).build(orm.tableSchema.fields, orm.elem, true)
-	has = !orm.inDB || orm.delete || len(engine.bindBuilder.bind) > 0
-	return has
+	serializer.Reset(orm.binary)
+	bindBuilder = newBindBuilder(id, orm)
+	bindBuilder.build(serializer, orm.tableSchema.fields, orm.elem, true)
+	has = !orm.inDB || orm.delete || len(bindBuilder.bind) > 0
+	return bindBuilder, has
 }
 
-func (orm *ORM) serialize(engine *Engine) {
-	engine.bufferInit(nil)
-	orm.serializeFields(engine, orm.tableSchema.fields, orm.elem)
-	orm.binary = engine.bufferRead()
+func (orm *ORM) serialize(serializer *serializer) {
+	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem)
+	orm.binary = serializer.Read()
 }
 
-func (orm *ORM) deserializeFromDB(engine *Engine, pointers []interface{}) {
-	engine.bufferInit(nil)
-	deserializeStructFromDB(engine, 0, orm.tableSchema.fields, pointers)
-	orm.binary = engine.bufferRead()
+func (orm *ORM) deserializeFromDB(serializer *serializer, pointers []interface{}) {
+	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
+	orm.binary = serializer.Read()
 }
 
-func deserializeStructFromDB(engine *Engine, index int, fields *tableFields, pointers []interface{}) int {
+func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
 	for range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
-		engine.serializeUInteger(uint64(v.Int64))
+		serializer.SerializeUInteger(uint64(v.Int64))
 		index++
 	}
 	for range fields.uintegers {
-		engine.serializeUInteger(*pointers[index].(*uint64))
+		serializer.SerializeUInteger(*pointers[index].(*uint64))
 		index++
 	}
 	for range fields.integers {
-		engine.serializeInteger(*pointers[index].(*int64))
+		serializer.SerializeInteger(*pointers[index].(*int64))
 		index++
 	}
 	for range fields.booleans {
-		engine.serializeBool(*pointers[index].(*bool))
+		serializer.SerializeBool(*pointers[index].(*bool))
 		index++
 	}
 	for range fields.floats {
-		engine.serializeFloat(*pointers[index].(*float64))
+		serializer.SerializeFloat(*pointers[index].(*float64))
 		index++
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
 		if unix != 0 {
-			unix -= engine.registry.timeOffset
+			unix -= orm.tableSchema.registry.timeOffset
 		}
-		engine.serializeInteger(unix)
+		serializer.SerializeInteger(unix)
 		index++
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
 		if unix != 0 {
-			unix -= engine.registry.timeOffset
+			unix -= orm.tableSchema.registry.timeOffset
 		}
-		engine.serializeInteger(unix)
+		serializer.SerializeInteger(unix)
 		index++
 	}
 	if fields.fakeDelete > 0 {
-		engine.serializeBool(*pointers[index].(*uint64) > 0)
+		serializer.SerializeBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
 	for range fields.strings {
-		engine.serializeString(pointers[index].(*sql.NullString).String)
+		serializer.SerializeString(pointers[index].(*sql.NullString).String)
 		index++
 	}
 	for range fields.uintegersNullable {
 		v := pointers[index].(*sql.NullInt64)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeUInteger(uint64(v.Int64))
+			serializer.SerializeUInteger(uint64(v.Int64))
 		}
 		index++
 	}
 	for range fields.integersNullable {
 		v := pointers[index].(*sql.NullInt64)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeInteger(v.Int64)
+			serializer.SerializeInteger(v.Int64)
 		}
 		index++
 	}
@@ -419,15 +412,15 @@ func deserializeStructFromDB(engine *Engine, index int, fields *tableFields, poi
 	for range fields.stringsEnums {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			engine.serializeUInteger(uint64(fields.enums[k].Index(v.String)))
+			serializer.SerializeUInteger(uint64(fields.enums[k].Index(v.String)))
 		} else {
-			engine.serializeUInteger(0)
+			serializer.SerializeUInteger(0)
 		}
 		index++
 		k++
 	}
 	for range fields.bytes {
-		engine.serializeBytes([]byte(pointers[index].(*sql.NullString).String))
+		serializer.SerializeBytes([]byte(pointers[index].(*sql.NullString).String))
 		index++
 	}
 	k = 0
@@ -435,55 +428,55 @@ func deserializeStructFromDB(engine *Engine, index int, fields *tableFields, poi
 		v := pointers[index].(*sql.NullString)
 		if v.Valid && v.String != "" {
 			values := strings.Split(v.String, ",")
-			engine.serializeUInteger(uint64(len(values)))
+			serializer.SerializeUInteger(uint64(len(values)))
 			enum := fields.enums[k]
 			for _, set := range values {
-				engine.serializeUInteger(uint64(enum.Index(set)))
+				serializer.SerializeUInteger(uint64(enum.Index(set)))
 			}
 		} else {
-			engine.serializeUInteger(0)
+			serializer.SerializeUInteger(0)
 		}
 		k++
 		index++
 	}
 	for range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeBool(v.Bool)
+			serializer.SerializeBool(v.Bool)
 		}
 		index++
 	}
 	for range fields.floatsNullable {
 		v := pointers[index].(*sql.NullFloat64)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeFloat(v.Float64)
+			serializer.SerializeFloat(v.Float64)
 		}
 		index++
 	}
 	for range fields.timesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeInteger(v.Int64 - engine.registry.timeOffset)
+			serializer.SerializeInteger(v.Int64 - orm.tableSchema.registry.timeOffset)
 		}
 		index++
 	}
 	for range fields.datesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		engine.serializeBool(v.Valid)
+		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			engine.serializeInteger(v.Int64 - engine.registry.timeOffset)
+			serializer.SerializeInteger(v.Int64 - orm.tableSchema.registry.timeOffset)
 		}
 		index++
 	}
 	for range fields.jsons {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			engine.serializeBytes([]byte(v.String))
+			serializer.SerializeBytes([]byte(v.String))
 		} else {
-			engine.serializeBytes(nil)
+			serializer.SerializeBytes(nil)
 		}
 		index++
 	}
@@ -492,107 +485,107 @@ func deserializeStructFromDB(engine *Engine, index int, fields *tableFields, poi
 		if v.Valid {
 			var slice []uint8
 			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
-			engine.serializeUInteger(uint64(len(slice)))
+			serializer.SerializeUInteger(uint64(len(slice)))
 			for _, i := range slice {
-				engine.serializeUInteger(uint64(i))
+				serializer.SerializeUInteger(uint64(i))
 			}
 		} else {
-			engine.serializeUInteger(0)
+			serializer.SerializeUInteger(0)
 		}
 		index++
 	}
 	for _, subField := range fields.structsFields {
-		index = deserializeStructFromDB(engine, index, subField, pointers)
+		index = orm.deserializeStructFromDB(serializer, index, subField, pointers)
 	}
 	return index
 }
 
-func (orm *ORM) serializeFields(engine *Engine, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.refs {
 		f := elem.Field(i)
 		id := uint64(0)
 		if !f.IsNil() {
 			id = f.Elem().Field(1).Uint()
 		}
-		engine.serializeUInteger(id)
+		serialized.SerializeUInteger(id)
 	}
 	for _, i := range fields.uintegers {
-		engine.serializeUInteger(elem.Field(i).Uint())
+		serialized.SerializeUInteger(elem.Field(i).Uint())
 	}
 	for _, i := range fields.integers {
-		engine.serializeInteger(elem.Field(i).Int())
+		serialized.SerializeInteger(elem.Field(i).Int())
 	}
 	for _, i := range fields.booleans {
-		engine.serializeBool(elem.Field(i).Bool())
+		serialized.SerializeBool(elem.Field(i).Bool())
 	}
 	for k, i := range fields.floats {
 		f := elem.Field(i).Float()
 		p := math.Pow10(fields.floatsPrecision[k])
-		engine.serializeFloat(math.Round(f*p) / p)
+		serialized.SerializeFloat(math.Round(f*p) / p)
 	}
 	for _, i := range fields.times {
 		t := elem.Field(i).Interface().(time.Time)
 		if t.IsZero() {
-			engine.serializeInteger(0)
+			serialized.SerializeInteger(0)
 		} else {
-			engine.serializeInteger(t.Unix())
+			serialized.SerializeInteger(t.Unix())
 		}
 	}
 	for _, i := range fields.dates {
 		t := elem.Field(i).Interface().(time.Time)
 		if t.IsZero() {
-			engine.serializeInteger(0)
+			serialized.SerializeInteger(0)
 		} else {
-			engine.serializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+			serialized.SerializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
 		}
 	}
 	if fields.fakeDelete > 0 {
-		engine.serializeBool(elem.Field(fields.fakeDelete).Bool())
+		serialized.SerializeBool(elem.Field(fields.fakeDelete).Bool())
 	}
 	for _, i := range fields.strings {
-		engine.serializeString(elem.Field(i).String())
+		serialized.SerializeString(elem.Field(i).String())
 	}
 	for _, i := range fields.uintegersNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
-			engine.serializeUInteger(f.Elem().Uint())
+			serialized.SerializeBool(true)
+			serialized.SerializeUInteger(f.Elem().Uint())
 		}
 	}
 	for _, i := range fields.integersNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
-			engine.serializeInteger(f.Elem().Int())
+			serialized.SerializeBool(true)
+			serialized.SerializeInteger(f.Elem().Int())
 		}
 	}
 	k := 0
 	for _, i := range fields.stringsEnums {
 		val := elem.Field(i).String()
 		if val == "" {
-			engine.serializeUInteger(0)
+			serialized.SerializeUInteger(0)
 		} else {
-			engine.serializeUInteger(uint64(fields.enums[k].Index(val)))
+			serialized.SerializeUInteger(uint64(fields.enums[k].Index(val)))
 		}
 		k++
 	}
 	for _, i := range fields.bytes {
-		engine.serializeBytes(elem.Field(i).Bytes())
+		serialized.SerializeBytes(elem.Field(i).Bytes())
 	}
 	k = 0
 	for _, i := range fields.sliceStringsSets {
 		f := elem.Field(i)
 		values := f.Interface().([]string)
 		l := len(values)
-		engine.serializeUInteger(uint64(l))
+		serialized.SerializeUInteger(uint64(l))
 		if l > 0 {
 			set := fields.sets[k]
 			for _, val := range values {
-				engine.serializeUInteger(uint64(set.Index(val)))
+				serialized.SerializeUInteger(uint64(set.Index(val)))
 			}
 		}
 		k++
@@ -600,83 +593,83 @@ func (orm *ORM) serializeFields(engine *Engine, fields *tableFields, elem reflec
 	for _, i := range fields.booleansNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
-			engine.serializeBool(f.Elem().Bool())
+			serialized.SerializeBool(true)
+			serialized.SerializeBool(f.Elem().Bool())
 		}
 	}
 	for k, i := range fields.floatsNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
+			serialized.SerializeBool(true)
 			val := f.Elem().Float()
 			p := math.Pow10(fields.floatsNullablePrecision[k])
-			engine.serializeFloat(math.Round(val*p) / p)
+			serialized.SerializeFloat(math.Round(val*p) / p)
 		}
 	}
 	for _, i := range fields.timesNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
-			engine.serializeInteger(f.Interface().(*time.Time).Unix())
+			serialized.SerializeBool(true)
+			serialized.SerializeInteger(f.Interface().(*time.Time).Unix())
 		}
 	}
 	for _, i := range fields.datesNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBool(false)
+			serialized.SerializeBool(false)
 		} else {
-			engine.serializeBool(true)
+			serialized.SerializeBool(true)
 			t := f.Interface().(*time.Time)
-			engine.serializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+			serialized.SerializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
 		}
 	}
 	for _, i := range fields.jsons {
 		f := elem.Field(i)
 		if f.IsNil() {
-			engine.serializeBytes(nil)
+			serialized.SerializeBytes(nil)
 		} else {
 			encoded, _ := jsoniter.ConfigFastest.Marshal(f.Interface())
-			engine.serializeBytes(encoded)
+			serialized.SerializeBytes(encoded)
 		}
 	}
 	for _, i := range fields.refsMany {
 		e := elem.Field(i)
 		if e.IsNil() {
-			engine.serializeUInteger(0)
+			serialized.SerializeUInteger(0)
 		} else {
 			l := e.Len()
-			engine.serializeUInteger(uint64(l))
+			serialized.SerializeUInteger(uint64(l))
 			for k := 0; k < l; k++ {
-				engine.serializeUInteger(e.Index(k).Elem().Field(1).Uint())
+				serialized.SerializeUInteger(e.Index(k).Elem().Field(1).Uint())
 			}
 		}
 	}
 	for k, i := range fields.structs {
-		orm.serializeFields(engine, fields.structsFields[k], elem.Field(i))
+		orm.serializeFields(serialized, fields.structsFields[k], elem.Field(i))
 	}
 }
 
-func (orm *ORM) deserialize(engine *Engine) {
-	engine.bufferInit(orm.binary)
-	orm.deserializeFields(engine, orm.tableSchema.fields, orm.elem)
+func (orm *ORM) deserialize(serializer *serializer) {
+	serializer.Reset(orm.binary)
+	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
 	orm.loaded = true
 }
 
-func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
 	k := 0
 	for _, i := range fields.refs {
-		id := engine.deserializeUInteger()
+		id := serializer.DeserializeUInteger()
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
 			if isNil {
-				e := getTableSchema(engine.registry, fields.refsTypes[k]).NewEntity()
+				e := getTableSchema(orm.tableSchema.registry, fields.refsTypes[k]).NewEntity()
 				o := e.getORM()
 				o.idElem.SetUint(id)
 				o.inDB = true
@@ -688,20 +681,20 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		k++
 	}
 	for _, i := range fields.uintegers {
-		elem.Field(i).SetUint(engine.deserializeUInteger())
+		elem.Field(i).SetUint(serializer.DeserializeUInteger())
 	}
 	for _, i := range fields.integers {
-		elem.Field(i).SetInt(engine.deserializeInteger())
+		elem.Field(i).SetInt(serializer.DeserializeInteger())
 	}
 	for _, i := range fields.booleans {
-		elem.Field(i).SetBool(engine.deserializeBool())
+		elem.Field(i).SetBool(serializer.DeserializeBool())
 	}
 	for _, i := range fields.floats {
-		elem.Field(i).SetFloat(engine.deserializeFloat())
+		elem.Field(i).SetFloat(serializer.DeserializeFloat())
 	}
 	for _, i := range fields.times {
 		f := elem.Field(i)
-		unix := engine.deserializeInteger()
+		unix := serializer.DeserializeInteger()
 		if unix == 0 {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
@@ -710,7 +703,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	}
 	for _, i := range fields.dates {
 		f := elem.Field(i)
-		unix := engine.deserializeInteger()
+		unix := serializer.DeserializeInteger()
 		if unix == 0 {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
@@ -718,14 +711,14 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	if fields.fakeDelete > 0 {
-		elem.Field(fields.fakeDelete).SetBool(engine.deserializeBool())
+		elem.Field(fields.fakeDelete).SetBool(serializer.DeserializeBool())
 	}
 	for _, i := range fields.strings {
-		elem.Field(i).SetString(engine.deserializeString())
+		elem.Field(i).SetString(serializer.DeserializeString())
 	}
 	for k, i := range fields.uintegersNullable {
-		if engine.deserializeBool() {
-			v := engine.deserializeUInteger()
+		if serializer.DeserializeBool() {
+			v := serializer.DeserializeUInteger()
 			switch fields.uintegersNullableSize[k] {
 			case 0:
 				val := uint(v)
@@ -750,8 +743,8 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for k, i := range fields.integersNullable {
-		if engine.deserializeBool() {
-			v := engine.deserializeInteger()
+		if serializer.DeserializeBool() {
+			v := serializer.DeserializeInteger()
 			switch fields.integersNullableSize[k] {
 			case 0:
 				val := int(v)
@@ -775,22 +768,20 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			elem.Field(i).Set(reflect.Zero(f.Type()))
 		}
 	}
-	k = 0
-	for _, i := range fields.stringsEnums {
-		index := engine.deserializeUInteger()
+	for z, i := range fields.stringsEnums {
+		index := serializer.DeserializeUInteger()
 		if index == 0 {
 			elem.Field(i).SetString("")
 		} else {
-			elem.Field(i).SetString(fields.enums[k].GetFields()[index-1])
+			elem.Field(i).SetString(fields.enums[z].GetFields()[index-1])
 		}
-		k++
 	}
 	for _, i := range fields.bytes {
-		elem.Field(i).SetBytes(engine.deserializeBytes())
+		elem.Field(i).SetBytes(serializer.DeserializeBytes())
 	}
 	k = 0
 	for _, i := range fields.sliceStringsSets {
-		l := int(engine.deserializeUInteger())
+		l := int(serializer.DeserializeUInteger())
 		f := elem.Field(i)
 		if l == 0 {
 			if !f.IsNil() {
@@ -800,15 +791,15 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 			enum := fields.enums[k]
 			v := make([]string, l)
 			for j := 0; j < l; j++ {
-				v[j] = enum.GetFields()[engine.deserializeUInteger()-1]
+				v[j] = enum.GetFields()[serializer.DeserializeUInteger()-1]
 			}
 			f.Set(reflect.ValueOf(v))
 		}
 		k++
 	}
 	for _, i := range fields.booleansNullable {
-		if engine.deserializeBool() {
-			v := engine.deserializeBool()
+		if serializer.DeserializeBool() {
+			v := serializer.DeserializeBool()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -819,8 +810,8 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for k, i := range fields.floatsNullable {
-		if engine.deserializeBool() {
-			v := engine.deserializeFloat()
+		if serializer.DeserializeBool() {
+			v := serializer.DeserializeFloat()
 			if fields.floatsNullableSize[k] == 32 {
 				val := float32(v)
 				elem.Field(i).Set(reflect.ValueOf(&val))
@@ -835,8 +826,8 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for _, i := range fields.timesNullable {
-		if engine.deserializeBool() {
-			v := time.Unix(engine.deserializeInteger(), 0)
+		if serializer.DeserializeBool() {
+			v := time.Unix(serializer.DeserializeInteger(), 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -847,8 +838,8 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for _, i := range fields.datesNullable {
-		if engine.deserializeBool() {
-			v := time.Unix(engine.deserializeInteger(), 0)
+		if serializer.DeserializeBool() {
+			v := time.Unix(serializer.DeserializeInteger(), 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -859,7 +850,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		}
 	}
 	for _, i := range fields.jsons {
-		bytes := engine.deserializeBytes()
+		bytes := serializer.DeserializeBytes()
 		f := elem.Field(i)
 		if bytes != nil {
 			v := reflect.New(f.Type()).Interface()
@@ -873,15 +864,15 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 	}
 	k = 0
 	for _, i := range fields.refsMany {
-		l := int(engine.deserializeUInteger())
+		l := int(serializer.DeserializeUInteger())
 		f := elem.Field(i)
 		refType := fields.refsManyTypes[k]
 		if l > 0 {
 			slice := reflect.MakeSlice(reflect.SliceOf(reflect.PtrTo(refType)), l, l)
 			for j := 0; j < l; j++ {
-				e := getTableSchema(engine.registry, fields.refsManyTypes[k]).NewEntity()
+				e := getTableSchema(orm.tableSchema.registry, fields.refsManyTypes[k]).NewEntity()
 				o := e.getORM()
-				o.idElem.SetUint(engine.deserializeUInteger())
+				o.idElem.SetUint(serializer.DeserializeUInteger())
 				o.inDB = true
 				slice.Index(j).Set(o.value)
 			}
@@ -894,7 +885,7 @@ func (orm *ORM) deserializeFields(engine *Engine, fields *tableFields, elem refl
 		k++
 	}
 	for k, i := range fields.structs {
-		orm.deserializeFields(engine, fields.structsFields[k], elem.Field(i))
+		orm.deserializeFields(serializer, fields.structsFields[k], elem.Field(i))
 	}
 }
 

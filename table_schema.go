@@ -96,6 +96,7 @@ type tableSchema struct {
 	mysqlPoolName        string
 	t                    reflect.Type
 	fields               *tableFields
+	registry             *validatedRegistry
 	fieldsQuery          string
 	tags                 map[string]map[string]string
 	cachedIndexes        map[string]*cachedQueryDefinition

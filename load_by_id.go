@@ -7,7 +7,7 @@ import (
 
 const cacheNilValue = ""
 
-func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool, references ...string) (found bool, schema *tableSchema) {
+func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, useCache bool, lazy bool, references ...string) (found bool, schema *tableSchema) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema = orm.tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
@@ -27,9 +27,9 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 					return false, schema
 				}
 				data := e.([]byte)
-				fillFromBinary(id, engine, data, entity, lazy)
+				fillFromBinary(serializer, id, engine.registry, data, entity, lazy)
 				if len(references) > 0 {
-					warmUpReferences(engine, schema, orm.value, references, false, lazy)
+					warmUpReferences(serializer, engine, schema, orm.value, references, false, lazy)
 				}
 				return true, schema
 			}
@@ -41,16 +41,16 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 				if row == cacheNilValue {
 					return false, schema
 				}
-				fillFromBinary(id, engine, []byte(row), entity, lazy)
+				fillFromBinary(serializer, id, engine.registry, []byte(row), entity, lazy)
 				if len(references) > 0 {
-					warmUpReferences(engine, schema, orm.value, references, false, lazy)
+					warmUpReferences(serializer, engine, schema, orm.value, references, false, lazy)
 				}
 				return true, schema
 			}
 		}
 	}
 
-	found, _, data := searchRow(false, engine, NewWhere("`ID` = ?", id), entity, lazy, nil)
+	found, _, data := searchRow(serializer, false, engine, NewWhere("`ID` = ?", id), entity, lazy, nil)
 	if !found {
 		if localCache != nil {
 			localCache.Set(cacheKey, cacheNilValue)
@@ -70,7 +70,7 @@ func loadByID(engine *Engine, id uint64, entity Entity, useCache bool, lazy bool
 	}
 
 	if len(references) > 0 {
-		warmUpReferences(engine, schema, orm.elem, references, false, lazy)
+		warmUpReferences(serializer, engine, schema, orm.elem, references, false, lazy)
 	} else {
 		data[0] = id
 	}

@@ -217,7 +217,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.True(t, has)
 	assert.Equal(t, uint(4), row.ID)
 	assert.NotNil(t, row.ReferenceOne)
-	assert.Equal(t, "Name 4", row.ReferenceOne.GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "Name 4", row.ReferenceOne.GetFieldLazy("Name"))
 	assert.True(t, row.IsLazy())
 
 	has = engine.CachedSearchOne(&row, "IndexName", "Name 99")
@@ -243,9 +243,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	totalRows = engine.CachedSearchWithReferencesLazy(&rows, "IndexAge", nil, []interface{}{10}, []string{"ReferenceOne"})
 	assert.Equal(t, 3, totalRows)
-	assert.Equal(t, "Name 3", rows[0].ReferenceOne.GetFieldLazy(engine, "Name"))
-	assert.Equal(t, "Name 4", rows[1].ReferenceOne.GetFieldLazy(engine, "Name"))
-	assert.Equal(t, "Name 5", rows[2].ReferenceOne.GetFieldLazy(engine, "Name"))
+	assert.Equal(t, "Name 3", rows[0].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "Name 4", rows[1].ReferenceOne.GetFieldLazy("Name"))
+	assert.Equal(t, "Name 5", rows[2].ReferenceOne.GetFieldLazy("Name"))
 	assert.True(t, rows[0].IsLazy())
 
 	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {

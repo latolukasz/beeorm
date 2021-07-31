@@ -190,6 +190,7 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
+		schema.registry = registry
 	}
 	return registry, nil
 }

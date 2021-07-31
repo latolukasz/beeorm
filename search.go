@@ -125,7 +125,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.tableSchema
 	whereQuery := where.String()
@@ -145,14 +145,14 @@ func searchRow(skipFakeDelete bool, engine *Engine, where *Where, entity Entity,
 	results.Scan(pointers...)
 	def()
 	id := *pointers[schema.idIndex].(*uint64)
-	fillFromDBRow(id, engine, pointers, entity, lazy)
+	fillFromDBRow(serializer, id, engine.registry, pointers, entity, lazy)
 	if len(references) > 0 {
-		warmUpReferences(engine, schema, entity.getORM().value, references, false, lazy)
+		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false, lazy)
 	}
 	return true, schema, pointers
 }
 
-func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, lazy, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, lazy, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -182,21 +182,21 @@ func search(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, wit
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
 		id := *pointers[schema.idIndex].(*uint64)
-		fillFromDBRow(id, engine, pointers, value.Interface().(Entity), lazy)
+		fillFromDBRow(serializer, id, engine.registry, pointers, value.Interface().(Entity), lazy)
 		val = reflect.Append(val, value)
 		i++
 	}
 	def()
 	totalRows = getTotalRows(engine, withCount, pager, where, schema, i)
 	if len(references) > 0 && i > 0 {
-		warmUpReferences(engine, schema, val, references, true, lazy)
+		warmUpReferences(serializer, engine, schema, val, references, true, lazy)
 	}
 	valOrigin.Set(val)
 	return totalRows
 }
 
-func searchOne(skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
-	return searchRow(skipFakeDelete, engine, where, entity, lazy, references)
+func searchOne(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
+	return searchRow(serializer, skipFakeDelete, engine, where, entity, lazy, references)
 }
 
 func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
@@ -245,26 +245,26 @@ func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, sc
 	return totalRows
 }
 
-func fillFromDBRow(id uint64, engine *Engine, pointers []interface{}, entity Entity, lazy bool) {
-	orm := initIfNeeded(engine.registry, entity)
+func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistry, pointers []interface{}, entity Entity, lazy bool) {
+	orm := initIfNeeded(registry, entity)
 	orm.idElem.SetUint(id)
 	orm.inDB = true
 	orm.loaded = true
 	orm.lazy = lazy
-	orm.deserializeFromDB(engine, pointers)
+	orm.deserializeFromDB(serializer, pointers)
 	if !lazy {
-		orm.deserialize(engine)
+		orm.deserialize(serializer)
 	}
 }
 
-func fillFromBinary(id uint64, engine *Engine, binary []byte, entity Entity, lazy bool) {
-	orm := initIfNeeded(engine.registry, entity)
+func fillFromBinary(serializer *serializer, id uint64, registry *validatedRegistry, binary []byte, entity Entity, lazy bool) {
+	orm := initIfNeeded(registry, entity)
 	orm.inDB = true
 	orm.loaded = true
 	orm.lazy = lazy
 	orm.binary = binary
 	if !lazy {
-		orm.deserialize(engine)
+		orm.deserialize(serializer)
 	} else {
 		orm.idElem.SetUint(id)
 	}
