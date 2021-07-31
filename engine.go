@@ -32,13 +32,6 @@ func (e *Engine) GetContext() context.Context {
 	return e.context
 }
 
-func (e *Engine) Clone() *Engine {
-	newEngine := &Engine{}
-	newEngine.registry = e.registry
-	newEngine.context = e.context
-	return newEngine
-}
-
 func (e *Engine) EnableRequestCache() {
 	e.hasRequestCache = true
 }
