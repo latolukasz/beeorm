@@ -23,14 +23,11 @@ type Entity interface {
 	markToDelete()
 	forceMarkToDelete()
 	IsLoaded() bool
-	IsLazy() bool
-	Fill()
 	IsDirty() bool
 	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
-	GetFieldLazy(field string) interface{}
 }
 
 type ORM struct {
@@ -39,7 +36,6 @@ type ORM struct {
 	onDuplicateKeyUpdate map[string]interface{}
 	initialised          bool
 	loaded               bool
-	lazy                 bool
 	inDB                 bool
 	delete               bool
 	fakeDelete           bool
@@ -60,217 +56,10 @@ func (orm *ORM) GetID() uint64 {
 	return orm.idElem.Uint()
 }
 
-func (orm *ORM) GetFieldLazy(field string) interface{} {
-	if !orm.lazy {
-		panic(fmt.Errorf("entity is not lazy"))
-	}
-	return getFieldByName(orm.tableSchema, orm.binary, field)
-}
-
 func (orm *ORM) copyBinary() []byte {
 	b := make([]byte, len(orm.binary))
 	copy(b, orm.binary)
 	return b
-}
-
-func getFieldByName(tableSchema *tableSchema, binary []byte, field string) interface{} {
-	index, has := tableSchema.columnMapping[field]
-	if !has {
-		panic(fmt.Errorf("uknown field " + field))
-	}
-	v, _, _ := getFieldForStruct(tableSchema.fields, newSerializer(binary), index, 0)
-	return v
-}
-
-func getFieldForStruct(fields *tableFields, serializer *serializer, index, i int) (interface{}, bool, int) {
-	for range fields.refs {
-		v := serializer.DeserializeUInteger()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	for range fields.uintegers {
-		v := serializer.DeserializeUInteger()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	for range fields.integers {
-		v := serializer.DeserializeInteger()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	for range fields.booleans {
-		if i == index {
-			return serializer.DeserializeBool(), true, i
-		}
-		serializer.buffer.Next(1)
-		i++
-	}
-	for range fields.floats {
-		v := serializer.DeserializeFloat()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	for range fields.times {
-		v := serializer.DeserializeInteger()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	for range fields.dates {
-		v := serializer.DeserializeInteger()
-		if i == index {
-			return v, true, i
-		}
-		i++
-	}
-	if fields.fakeDelete > 0 {
-		if i == index {
-			return serializer.DeserializeBool(), true, i
-		}
-		serializer.buffer.Next(1)
-		i++
-	}
-	for range fields.strings {
-		if i == index {
-			return serializer.DeserializeString(), true, i
-		}
-		if l := serializer.DeserializeUInteger(); l > 0 {
-			serializer.buffer.Next(int(l))
-		}
-		i++
-	}
-	for range fields.uintegersNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeUInteger(), true, i
-		}
-		serializer.DeserializeUInteger()
-		i++
-	}
-	for range fields.integersNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeInteger(), true, i
-		}
-		serializer.DeserializeInteger()
-		i++
-	}
-	for range fields.stringsEnums {
-		v := serializer.DeserializeUInteger()
-		if i == index {
-			return int(v), true, i
-		}
-		i++
-	}
-	for range fields.bytes {
-		if i == index {
-			return serializer.DeserializeBytes(), true, i
-		}
-		if l := serializer.DeserializeUInteger(); l > 0 {
-			serializer.buffer.Next(int(l))
-		}
-		i++
-	}
-	for range fields.sliceStringsSets {
-		l := int(serializer.DeserializeUInteger())
-		if i == index {
-			val := make([]int, l)
-			for k := 0; k < l; k++ {
-				val[k] = int(serializer.DeserializeUInteger())
-			}
-			return val, true, i
-		}
-		serializer.buffer.Next(l)
-		i++
-	}
-	for range fields.booleansNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeBool(), true, i
-		}
-		serializer.DeserializeBool()
-		i++
-	}
-	for range fields.floatsNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeFloat(), true, i
-		}
-		serializer.DeserializeFloat()
-		i++
-	}
-	for range fields.timesNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeInteger(), true, i
-		}
-		serializer.DeserializeInteger()
-		i++
-	}
-	for range fields.datesNullable {
-		isNil := serializer.DeserializeBool()
-		if i == index {
-			if isNil {
-				return nil, true, i
-			}
-			return serializer.DeserializeInteger(), true, i
-		}
-		serializer.DeserializeInteger()
-		i++
-	}
-	for range fields.jsons {
-		if i == index {
-			return serializer.DeserializeBytes(), true, i
-		}
-		if l := serializer.DeserializeUInteger(); l > 0 {
-			serializer.buffer.Next(int(l))
-		}
-		i++
-	}
-	for range fields.refsMany {
-		l := int(serializer.DeserializeUInteger())
-		if i == index {
-			val := make([]uint64, l)
-			for k := 0; k < l; k++ {
-				val[k] = serializer.DeserializeUInteger()
-			}
-			return val, true, i
-		}
-		serializer.buffer.Next(l)
-		i++
-	}
-	for _, subFields := range fields.structsFields {
-		v, has, j := getFieldForStruct(subFields, serializer, index, i)
-		if has {
-			return v, true, j
-		}
-		i = j
-	}
-	return nil, false, 0
 }
 
 func (orm *ORM) markToDelete() {
@@ -283,17 +72,6 @@ func (orm *ORM) forceMarkToDelete() {
 
 func (orm *ORM) IsLoaded() bool {
 	return orm.loaded
-}
-
-func (orm *ORM) IsLazy() bool {
-	return orm.lazy
-}
-
-func (orm *ORM) Fill() {
-	if orm.lazy && orm.loaded {
-		orm.deserialize(newSerializer(orm.binary))
-		orm.lazy = false
-	}
 }
 
 func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {

@@ -125,7 +125,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.tableSchema
 	whereQuery := where.String()
@@ -145,14 +145,14 @@ func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, wher
 	results.Scan(pointers...)
 	def()
 	id := *pointers[schema.idIndex].(*uint64)
-	fillFromDBRow(serializer, id, engine.registry, pointers, entity, lazy)
+	fillFromDBRow(serializer, id, engine.registry, pointers, entity)
 	if len(references) > 0 {
-		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false, lazy)
+		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 	}
 	return true, schema, pointers
 }
 
-func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, lazy, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -182,21 +182,21 @@ func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
 		id := *pointers[schema.idIndex].(*uint64)
-		fillFromDBRow(serializer, id, engine.registry, pointers, value.Interface().(Entity), lazy)
+		fillFromDBRow(serializer, id, engine.registry, pointers, value.Interface().(Entity))
 		val = reflect.Append(val, value)
 		i++
 	}
 	def()
 	totalRows = getTotalRows(engine, withCount, pager, where, schema, i)
 	if len(references) > 0 && i > 0 {
-		warmUpReferences(serializer, engine, schema, val, references, true, lazy)
+		warmUpReferences(serializer, engine, schema, val, references, true)
 	}
 	valOrigin.Set(val)
 	return totalRows
 }
 
-func searchOne(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, lazy bool, references []string) (bool, *tableSchema, []interface{}) {
-	return searchRow(serializer, skipFakeDelete, engine, where, entity, lazy, references)
+func searchOne(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+	return searchRow(serializer, skipFakeDelete, engine, where, entity, references)
 }
 
 func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
@@ -245,29 +245,21 @@ func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, sc
 	return totalRows
 }
 
-func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistry, pointers []interface{}, entity Entity, lazy bool) {
+func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistry, pointers []interface{}, entity Entity) {
 	orm := initIfNeeded(registry, entity)
 	orm.idElem.SetUint(id)
 	orm.inDB = true
 	orm.loaded = true
-	orm.lazy = lazy
 	orm.deserializeFromDB(serializer, pointers)
-	if !lazy {
-		orm.deserialize(serializer)
-	}
+	orm.deserialize(serializer)
 }
 
-func fillFromBinary(serializer *serializer, id uint64, registry *validatedRegistry, binary []byte, entity Entity, lazy bool) {
+func fillFromBinary(serializer *serializer, registry *validatedRegistry, binary []byte, entity Entity) {
 	orm := initIfNeeded(registry, entity)
 	orm.inDB = true
 	orm.loaded = true
-	orm.lazy = lazy
 	orm.binary = binary
-	if !lazy {
-		orm.deserialize(serializer)
-	} else {
-		orm.idElem.SetUint(id)
-	}
+	orm.deserialize(serializer)
 }
 
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {

@@ -7,7 +7,7 @@ import (
 
 const cacheNilValue = ""
 
-func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, useCache bool, lazy bool, references ...string) (found bool, schema *tableSchema) {
+func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *tableSchema) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema = orm.tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
@@ -27,9 +27,9 @@ func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, 
 					return false, schema
 				}
 				data := e.([]byte)
-				fillFromBinary(serializer, id, engine.registry, data, entity, lazy)
+				fillFromBinary(serializer, engine.registry, data, entity)
 				if len(references) > 0 {
-					warmUpReferences(serializer, engine, schema, orm.value, references, false, lazy)
+					warmUpReferences(serializer, engine, schema, orm.value, references, false)
 				}
 				return true, schema
 			}
@@ -41,16 +41,16 @@ func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, 
 				if row == cacheNilValue {
 					return false, schema
 				}
-				fillFromBinary(serializer, id, engine.registry, []byte(row), entity, lazy)
+				fillFromBinary(serializer, engine.registry, []byte(row), entity)
 				if len(references) > 0 {
-					warmUpReferences(serializer, engine, schema, orm.value, references, false, lazy)
+					warmUpReferences(serializer, engine, schema, orm.value, references, false)
 				}
 				return true, schema
 			}
 		}
 	}
 
-	found, _, data := searchRow(serializer, false, engine, NewWhere("`ID` = ?", id), entity, lazy, nil)
+	found, _, data := searchRow(serializer, false, engine, NewWhere("`ID` = ?", id), entity, nil)
 	if !found {
 		if localCache != nil {
 			localCache.Set(cacheKey, cacheNilValue)
@@ -70,7 +70,7 @@ func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, 
 	}
 
 	if len(references) > 0 {
-		warmUpReferences(serializer, engine, schema, orm.elem, references, false, lazy)
+		warmUpReferences(serializer, engine, schema, orm.elem, references, false)
 	} else {
 		data[0] = id
 	}

@@ -660,12 +660,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(102, entity)
 	assert.Equal(t, 0.4, entity.Float64Default)
-
-	flusher.Clear()
-	engine.LoadByIDLazy(10, entity)
-	assert.PanicsWithError(t, "lazy entity can't be flushed: beeorm.flushEntity [10]", func() {
-		flusher.Track(entity).Flush()
-	})
 }
 
 // 17 allocs/op - 6 for Exec

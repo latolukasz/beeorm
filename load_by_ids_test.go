@@ -137,28 +137,6 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint(1), rows[3].ID)
 	assert.Equal(t, uint(1), rows[4].ID)
 
-	engine.LoadByIDsLazy([]uint64{1, 2, 3, 4}, &rows, "*")
-	assert.Len(t, rows, 4)
-	assert.Equal(t, "", rows[0].Name)
-	assert.True(t, rows[0].IsLazy())
-	assert.True(t, rows[1].IsLazy())
-	assert.True(t, rows[2].IsLazy())
-	assert.Nil(t, rows[3])
-	assert.Equal(t, "a", rows[0].GetFieldLazy("Name"))
-	assert.Equal(t, "", rows[0].ReferenceOne.Name)
-	assert.Equal(t, "r1", rows[0].ReferenceOne.GetFieldLazy("Name"))
-	assert.Equal(t, "", rows[1].Name)
-	assert.Equal(t, "b", rows[1].GetFieldLazy("Name"))
-	assert.Equal(t, "", rows[1].ReferenceOne.Name)
-	assert.Equal(t, "r2", rows[1].ReferenceOne.GetFieldLazy("Name"))
-	assert.Equal(t, "", rows[2].Name)
-	assert.Equal(t, "c", rows[2].GetFieldLazy("Name"))
-	engine.LoadByIDsLazy([]uint64{1, 2, 4, 3}, &rows, "*")
-	assert.NotNil(t, rows[0])
-	assert.NotNil(t, rows[1])
-	assert.Nil(t, rows[2])
-	assert.NotNil(t, rows[3])
-
 	engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "ReferenceOne/ReferenceTwo")
 	assert.Len(t, rows, 4)
 	assert.Equal(t, "a", rows[0].Name)
@@ -281,15 +259,10 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 
 // BenchmarkLoadByIDsdLocalCache-12    	  505929	      2110 ns/op	     952 B/op	      10 allocs/op
 func BenchmarkLoadByIDsdLocalCache(b *testing.B) {
-	benchmarkLoadByIDsLocalCache(b, false)
+	benchmarkLoadByIDsLocalCache(b)
 }
 
-// BenchmarkLoadByIDsLocalCacheLazy-12    	 1360686	       856.5 ns/op	     712 B/op	       6 allocs/op
-func BenchmarkLoadByIDsLocalCacheLazy(b *testing.B) {
-	benchmarkLoadByIDsLocalCache(b, true)
-}
-
-func benchmarkLoadByIDsLocalCache(b *testing.B, lazy bool) {
+func benchmarkLoadByIDsLocalCache(b *testing.B) {
 	entity := &schemaEntity{}
 	ref := &schemaEntityRef{}
 	registry := &Registry{}
@@ -315,10 +288,6 @@ func benchmarkLoadByIDsLocalCache(b *testing.B, lazy bool) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		if lazy {
-			engine.LoadByIDsLazy(ids, &rows)
-		} else {
-			engine.LoadByIDs(ids, &rows)
-		}
+		engine.LoadByIDs(ids, &rows)
 	}
 }

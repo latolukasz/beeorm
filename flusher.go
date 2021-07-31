@@ -199,9 +199,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 	for _, entity := range entities {
 		initIfNeeded(f.engine.registry, entity)
-		if entity.IsLazy() {
-			panic(fmt.Errorf("lazy entity can't be flushed: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
-		}
 		schema := entity.getORM().tableSchema
 		if !transaction && schema.GetMysql(f.engine).inTransaction {
 			transaction = true
@@ -591,7 +588,7 @@ func (f *flusher) flushOnDuplicateKey(serializer *serializer, lazy bool, bindBui
 				checkError(err)
 			}
 			bindBuilderNew, _ := orm.buildDirtyBind(f.getSerializer())
-			_, _ = loadByID(serializer, f.engine, lastID, entity, false, lazy)
+			_, _ = loadByID(serializer, f.engine, lastID, entity, false)
 			f.updateCacheAfterUpdate(entity, bindBuilderNew.bind, bindBuilderNew.current, schema, lastID, false)
 		}
 	} else {

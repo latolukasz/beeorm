@@ -13,7 +13,7 @@ import (
 const idsOnCachePage = 100
 
 func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, indexName string, pager *Pager,
-	arguments []interface{}, lazy, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {
+	arguments []interface{}, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)
 	entityType, has, name := getEntityTypeForSlice(engine.registry, value.Type(), checkIsSlice)
 	if !has {
@@ -173,12 +173,12 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 	idsToReturn := resultsIDs[sliceStart:sliceEnd]
 	_, is := entities.(Entity)
 	if !is {
-		tryByIDs(serializer, engine, idsToReturn, value.Elem(), references, lazy)
+		tryByIDs(serializer, engine, idsToReturn, value.Elem(), references)
 	}
 	return totalRows, idsToReturn
 }
 
-func cachedSearchOne(serializer *serializer, engine *Engine, entity Entity, indexName string, fillStruct, lazy bool, arguments []interface{}, references []string) (has bool) {
+func cachedSearchOne(serializer *serializer, engine *Engine, entity Entity, indexName string, fillStruct bool, arguments []interface{}, references []string) (has bool) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
 	schema := getTableSchema(engine.registry, entityType)
@@ -231,7 +231,7 @@ func cachedSearchOne(serializer *serializer, engine *Engine, entity Entity, inde
 	if id > 0 {
 		has = true
 		if fillStruct {
-			has, _ = loadByID(serializer, engine, id, entity, true, lazy, references...)
+			has, _ = loadByID(serializer, engine, id, entity, true, references...)
 		}
 		return has
 	}

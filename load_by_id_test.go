@@ -109,19 +109,12 @@ func TestLoadById(t *testing.T) {
 	assert.True(t, found)
 	assert.Len(t, localLogger.Logs, 5)
 	assert.True(t, entity.IsLoaded())
-	assert.False(t, entity.IsLazy())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.False(t, entity.ReferenceOne.IsLazy())
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-	assert.False(t, entity.ReferenceOne.ReferenceTwo.IsLazy())
 	assert.True(t, entity.ReferenceSecond.IsLoaded())
-	assert.False(t, entity.ReferenceSecond.IsLazy())
 	assert.True(t, entity.ReferenceSecond.ReferenceTwo.IsLoaded())
-	assert.False(t, entity.ReferenceSecond.ReferenceTwo.IsLazy())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
-	assert.False(t, entity.ReferenceSecond.ReferenceThree.IsLazy())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
-	assert.False(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLazy())
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceThird", "ReferenceOne", "ReferenceMany")
@@ -131,34 +124,6 @@ func TestLoadById(t *testing.T) {
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, "John", entity.ReferenceMany[0].Name)
-
-	entity = &loadByIDEntity{}
-	found = engine.LoadByIDLazy(1, entity, "ReferenceOne/ReferenceTwo",
-		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
-	assert.True(t, found)
-	assert.True(t, entity.IsLoaded())
-	assert.True(t, entity.IsLazy())
-	assert.Equal(t, "", entity.Name)
-	assert.Equal(t, "a", entity.GetFieldLazy("Name"))
-	entity.Fill()
-	assert.Equal(t, "a", entity.Name)
-	assert.IsType(t, reference, entity.ReferenceOne)
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.True(t, entity.ReferenceOne.IsLazy())
-	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-	assert.True(t, entity.ReferenceSecond.IsLoaded())
-	assert.True(t, entity.ReferenceSecond.IsLoaded())
-	assert.Equal(t, "r11", entity.ReferenceSecond.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceSecond.ReferenceTwo.IsLoaded())
-	assert.True(t, entity.ReferenceSecond.ReferenceTwo.IsLazy())
-	assert.Equal(t, "s1", entity.ReferenceSecond.ReferenceTwo.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
-	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLazy())
-	assert.Equal(t, "s11", entity.ReferenceSecond.ReferenceThree.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
-	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLazy())
-	assert.Equal(t, "hello", entity.ReferenceSecond.ReferenceThree.ReferenceTwo.GetFieldLazy("Name"))
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo")
@@ -173,24 +138,10 @@ func TestLoadById(t *testing.T) {
 	entity = &loadByIDEntity{ID: 1}
 	engine.Load(entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
-	assert.False(t, entity.IsLazy())
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	assert.False(t, entity.ReferenceOne.IsLazy())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-
-	entity = &loadByIDEntity{ID: 1}
-	engine.LoadLazy(entity, "ReferenceOne/ReferenceTwo")
-	assert.Equal(t, "", entity.Name)
-	assert.Equal(t, "a", entity.GetFieldLazy("Name"))
-	assert.True(t, entity.IsLazy())
-	assert.Equal(t, "r1", entity.ReferenceOne.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceOne.IsLazy())
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.GetFieldLazy("Name"))
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLazy())
 
 	entityNoCache = &loadByIDNoCacheEntity{}
 	found = engine.LoadByID(1, entityNoCache, "*")
@@ -222,30 +173,6 @@ func TestLoadById(t *testing.T) {
 	assert.True(t, entity.ReferenceMany[1].IsLoaded())
 	assert.True(t, entity.ReferenceMany[2].IsLoaded())
 
-	entity = &loadByIDEntity{}
-	found = engine.LoadByIDLazy(200, entity, "ReferenceMany")
-	assert.True(t, found)
-	assert.Len(t, entity.ReferenceMany, 3)
-	assert.Equal(t, uint(100), entity.ReferenceMany[0].ID)
-	assert.Equal(t, uint(101), entity.ReferenceMany[1].ID)
-	assert.Equal(t, uint(102), entity.ReferenceMany[2].ID)
-	assert.Equal(t, "", entity.ReferenceMany[0].Name)
-	assert.Equal(t, "", entity.ReferenceMany[1].Name)
-	assert.Equal(t, "", entity.ReferenceMany[2].Name)
-	assert.True(t, entity.ReferenceMany[0].IsLazy())
-	assert.True(t, entity.ReferenceMany[1].IsLazy())
-	assert.True(t, entity.ReferenceMany[2].IsLazy())
-	assert.True(t, entity.ReferenceMany[0].IsLoaded())
-	assert.True(t, entity.ReferenceMany[1].IsLoaded())
-	assert.True(t, entity.ReferenceMany[2].IsLoaded())
-	assert.Equal(t, "rm1", entity.ReferenceMany[0].GetFieldLazy("Name"))
-	assert.Equal(t, "rm2", entity.ReferenceMany[1].GetFieldLazy("Name"))
-	assert.Equal(t, "rm3", entity.ReferenceMany[2].GetFieldLazy("Name"))
-	entity.ReferenceMany[0].Fill()
-	assert.Equal(t, "rm1", entity.ReferenceMany[0].Name)
-	entity.ReferenceMany[0].Fill()
-	assert.False(t, entity.ReferenceMany[0].IsLazy())
-
 	entityLocalCache := &loadByIDLocalEntity{}
 	found = engine.LoadByID(1, entityLocalCache)
 	assert.True(t, found)
@@ -259,19 +186,10 @@ func TestLoadById(t *testing.T) {
 
 // BenchmarkLoadByIDdLocalCache-12    	 5869000	       203.3 ns/op	       8 B/op	       1 allocs/op
 func BenchmarkLoadByIDdLocalCache(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, false, true, false)
+	benchmarkLoadByIDLocalCache(b, true, false)
 }
 
-// BenchmarkLoadByIDLocalCacheLazy-12    	 9291440	       132.9 ns/op	       8 B/op	       1 allocs/op
-func BenchmarkLoadByIDLocalCacheLazy(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, true, true, false)
-}
-
-func BenchmarkLoadByIDRedisCacheLazy(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, true, false, true)
-}
-
-func benchmarkLoadByIDLocalCache(b *testing.B, lazy, local, redis bool) {
+func benchmarkLoadByIDLocalCache(b *testing.B, local, redis bool) {
 	entity := &loadByIDBenchmarkEntity{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
@@ -302,10 +220,6 @@ func benchmarkLoadByIDLocalCache(b *testing.B, lazy, local, redis bool) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		if lazy {
-			_ = engine.LoadByIDLazy(1, entity)
-		} else {
-			_ = engine.LoadByID(1, entity)
-		}
+		_ = engine.LoadByID(1, entity)
 	}
 }
