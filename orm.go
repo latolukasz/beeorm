@@ -207,7 +207,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid && v.String != "" {
 			values := strings.Split(v.String, ",")
 			serializer.SerializeUInteger(uint64(len(values)))
-			enum := fields.enums[k]
+			enum := fields.sets[k]
 			for _, set := range values {
 				serializer.SerializeUInteger(uint64(enum.Index(set)))
 			}
@@ -566,7 +566,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 				f.Set(reflect.Zero(f.Type()))
 			}
 		} else {
-			enum := fields.enums[k]
+			enum := fields.sets[k]
 			v := make([]string, l)
 			for j := 0; j < l; j++ {
 				v[j] = enum.GetFields()[serializer.DeserializeUInteger()-1]

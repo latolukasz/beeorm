@@ -523,7 +523,7 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 				if b.hasCurrent {
 					b.current[name] = ""
 				}
-				for j := range val {
+				for j := 0; j < old; j++ {
 					oldValues[j] = int(serializer.DeserializeUInteger())
 					if b.hasCurrent {
 						b.current[name] = b.current[name].(string) + "," + set.GetFields()[oldValues[j]-1]
@@ -549,6 +549,10 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 				}
 				if valid {
 					continue
+				}
+			} else {
+				for j := 0; j < old; j++ {
+					serializer.DeserializeUInteger()
 				}
 			}
 		}

@@ -3,6 +3,7 @@ module github.com/latolukasz/beeorm
 go 1.16
 
 require (
+	github.com/BurntSushi/toml v0.4.0 // indirect
 	github.com/bsm/redislock v0.7.1
 	github.com/go-redis/redis/v8 v8.11.0
 	github.com/go-redis/redis_rate/v9 v9.1.1

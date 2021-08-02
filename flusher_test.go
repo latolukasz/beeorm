@@ -24,6 +24,16 @@ type flushStructAnonymous struct {
 	SubAge  float32 `orm:"decimal=9,5;unsigned=false"`
 }
 
+var TestSet = struct {
+	D string
+	E string
+	F string
+}{
+	D: "d",
+	E: "e",
+	F: "f",
+}
+
 type flushEntity struct {
 	ORM                  `orm:"localCache;redisCache;dirty=entity_changed"`
 	ID                   uint
@@ -44,8 +54,8 @@ type flushEntity struct {
 	ReferenceMany        []*flushEntityReference
 	StringSlice          []string
 	StringSliceNotNull   []string `orm:"required"`
-	SetNullable          []string `orm:"set=beeorm.TestEnum"`
-	SetNotNull           []string `orm:"set=beeorm.TestEnum;required"`
+	SetNullable          []string `orm:"set=beeorm.TestSet"`
+	SetNotNull           []string `orm:"set=beeorm.TestSet;required"`
 	EnumNullable         string   `orm:"enum=beeorm.TestEnum"`
 	EnumNotNull          string   `orm:"enum=beeorm.TestEnum;required"`
 	Ignored              []string `orm:"ignore"`
@@ -111,7 +121,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	var reference *flushEntityReference
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
-	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
+	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
+	registry.RegisterEnumStruct("beeorm.TestSet", TestSet)
 	engine := prepareTables(t, registry, 5, entity, reference)
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
@@ -136,7 +147,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.ReferenceMany = []*flushEntityReference{{Name: "Adam", Age: 18}}
 	entity.StringSlice = []string{"a", "b"}
 	entity.StringSliceNotNull = []string{"c", "d"}
-	entity.SetNotNull = []string{"a", "b"}
+	entity.SetNotNull = []string{"d", "e"}
 	entity.FlushStructPtr = &flushStruct{"A", 12}
 	entity.EnumNotNull = "a"
 	entity.FlushStruct.Name2 = "Ita"
@@ -252,6 +263,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.BoolNullable = &i6
 	entity.Float64 = 134.345
 	entity.Decimal = 134.345
+	entity.StringSlice = []string{"a"}
 	entity.DecimalNullable = &entity.Decimal
 	entity.Interface = map[string]int{"test": 12}
 	entity.ReferenceMany = nil
@@ -280,6 +292,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, entity.Bool)
 	assert.Equal(t, 134.345, *entity.FloatNullable)
 	assert.Equal(t, float32(134.345), *entity.Float32Nullable)
+	assert.Equal(t, []string{"a"}, entity.StringSlice)
 	assert.Equal(t, "New York", entity.City)
 	assert.Equal(t, []uint8("Tom has a house"), entity.Blob)
 	assert.Equal(t, 134.345, entity.Float64)
@@ -434,11 +447,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Nil(t, entity4.SetNotNull)
 	assert.Nil(t, entity4.SetNullable)
-	entity4.SetNullable = []string{"a", "c"}
+	entity4.SetNullable = []string{"d", "e"}
 	engine.Flush(entity4)
 	entity4 = &flushEntity{}
 	engine.LoadByID(12, entity4)
-	assert.Equal(t, []string{"a", "c"}, entity4.SetNullable)
+	assert.Equal(t, []string{"d", "e"}, entity4.SetNullable)
 
 	engine.GetMysql().Begin()
 	entity5 := &flushEntity{Name: "test_transaction", EnumNotNull: "a"}
@@ -660,6 +673,17 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(102, entity)
 	assert.Equal(t, 0.4, entity.Float64Default)
+
+	entity.SetNullable = []string{}
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(102, entity)
+	assert.Nil(t, nil, entity.SetNullable)
+	entity.SetNullable = []string{"d"}
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(102, entity)
+	assert.Equal(t, []string{"d"}, entity.SetNullable)
 }
 
 // 17 allocs/op - 6 for Exec
