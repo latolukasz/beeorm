@@ -411,7 +411,7 @@ func escapeSQLValue(val interface{}) string {
 	}
 	asString, is := val.(string)
 	if is {
-		return asString
+		return escapeSQLString(asString)
 	}
 	return fmt.Sprintf("%v", val)
 }
