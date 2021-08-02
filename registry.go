@@ -54,34 +54,24 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 			maxPoolLen = len(k)
 		}
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
-		if err != nil {
-			return nil, err
-		}
+		checkError(err)
 		var version string
 		err = db.QueryRow("SELECT VERSION()").Scan(&version)
-		if err != nil {
-			return nil, err
-		}
+		checkError(err)
 		v.(*mySQLPoolConfig).version, _ = strconv.Atoi(strings.Split(version, ".")[0])
 
 		var autoincrement uint64
 		var maxConnections int
 		var skip string
 		err = db.QueryRow("SHOW VARIABLES LIKE 'auto_increment_increment'").Scan(&skip, &autoincrement)
-		if err != nil {
-			return nil, err
-		}
+		checkError(err)
 		v.(*mySQLPoolConfig).autoincrement = autoincrement
 
 		err = db.QueryRow("SHOW VARIABLES LIKE 'max_connections'").Scan(&skip, &maxConnections)
-		if err != nil {
-			return nil, err
-		}
+		checkError(err)
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
-		if err != nil {
-			return nil, err
-		}
+		checkError(err)
 		maxConnections = int(math.Floor(float64(maxConnections) * 0.9))
 		if maxConnections == 0 {
 			maxConnections = 1
