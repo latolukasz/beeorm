@@ -729,6 +729,22 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			q += "[" + v[0] + " " + v[1] + "]"
 		}
 	}
+	for field, in := range query.filtersTags {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "@" + field + ":{ " + strings.Join(v, " | ") + " }"
+		}
+	}
+	for field, in := range query.filtersString {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "@" + field + ":( " + strings.Join(v, " | ") + " )"
+		}
+	}
 	for field, in := range query.filtersNotNumeric {
 		if q != "" {
 			q += " "
@@ -740,28 +756,12 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			q += "-@" + field + ":" + v
 		}
 	}
-	for field, in := range query.filtersTags {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "@" + field + ":{ " + strings.Join(v, " | ") + " }"
-		}
-	}
 	for field, in := range query.filtersNotTags {
 		for _, v := range in {
 			if q != "" {
 				q += " "
 			}
 			q += "-@" + field + ":{ " + strings.Join(v, " | ") + " }"
-		}
-	}
-	for field, in := range query.filtersString {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "@" + field + ":( " + strings.Join(v, " | ") + " )"
 		}
 	}
 	for field, in := range query.filtersNotString {
@@ -785,6 +785,7 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 	for field, data := range query.filtersGeo {
 		args = append(args, "GEOFILTER", field, data[0], data[1], data[2], data[3])
 	}
+
 	if noContent {
 		args = append(args, "NOCONTENT")
 	}
@@ -861,9 +862,14 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 		}
 	}
 	if pager != nil {
+		if pager.PageSize > 10000 {
+			panic(fmt.Errorf("pager size exceeded limit 10000"))
+		}
 		args = append(args, "LIMIT")
 		args = append(args, (pager.CurrentPage-1)*pager.PageSize)
 		args = append(args, pager.PageSize)
+	} else {
+		panic(fmt.Errorf("missing pager in redis search query"))
 	}
 	cmd := redis.NewSliceCmd(r.ctx, args...)
 	start := getNow(r.engine.hasRedisLogger)

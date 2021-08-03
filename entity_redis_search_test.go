@@ -749,6 +749,15 @@ func TestEntityRedisSearch(t *testing.T) {
 	found := engine.RedisSearchOne(entity, query)
 	assert.True(t, found)
 
+	engine.LoadByID(6, entity)
+	entity.Enum = "b"
+	engine.Flush(entity)
+	query = NewRedisSearchQuery()
+	query.QueryField("Name", "dog")
+	query.FilterNotTag("Enum", "b")
+	total = engine.RedisSearch(&[]*redisSearchEntity{}, query, NewPager(1, 100))
+	assert.Equal(t, uint64(18), total)
+
 	entitySearch, has := schema.GetRedisSearch(engine)
 	assert.True(t, has)
 	assert.Equal(t, "search", entitySearch.GetPoolConfig().GetCode())
