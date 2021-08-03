@@ -72,20 +72,13 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
 		checkError(err)
-		maxConnections = int(math.Floor(float64(maxConnections) * 0.9))
-		if maxConnections == 0 {
-			maxConnections = 1
-		}
+		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.9), 1))
 		maxLimit := v.getMaxConnections()
 		if maxLimit == 0 {
 			maxLimit = 100
 		}
-		if maxConnections < maxLimit {
-			maxLimit = maxConnections
-		}
-		if waitTimeout == 0 {
-			waitTimeout = 180
-		}
+		maxLimit = int(math.Min(float64(maxConnections), float64(maxLimit)))
+		waitTimeout = int(math.Max(float64(waitTimeout), 180))
 		waitTimeout = int(math.Min(float64(waitTimeout), 180))
 		db.SetMaxOpenConns(maxLimit)
 		db.SetMaxIdleConns(maxLimit)
@@ -124,7 +117,6 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 			registry.redisSearchIndexes[k][k2] = v2
 		}
 	}
-	cachePrefixes := make(map[string]*tableSchema)
 	hasLog := false
 	for name, entityType := range r.entities {
 		tableSchema, err := initTableSchema(r, entityType)
@@ -132,11 +124,6 @@ func (r *Registry) Validate(ctx context.Context) (ValidatedRegistry, error) {
 			return nil, err
 		}
 		registry.tableSchemas[entityType] = tableSchema
-		duplicated, has := cachePrefixes[tableSchema.cachePrefix]
-		if has {
-			return nil, fmt.Errorf("duplicated table cache prefix %s and %s", tableSchema.tableName, duplicated.tableName)
-		}
-		cachePrefixes[tableSchema.cachePrefix] = tableSchema
 		registry.entities[name] = entityType
 		if tableSchema.redisSearchIndex != nil {
 			index := tableSchema.redisSearchIndex
