@@ -274,7 +274,7 @@ func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []s
 	}
 	_, has := r.redisStreamPools[name]
 	if has {
-		panic(fmt.Errorf("stream with name %s aleady exists", name))
+		panic(fmt.Errorf("stream with name %s already exists", name))
 	}
 	r.redisStreamPools[name] = redisPool
 	if r.redisStreamGroups[redisPool] == nil {

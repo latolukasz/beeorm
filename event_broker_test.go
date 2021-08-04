@@ -299,6 +299,9 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group", "test-group-multi"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group", "test-group-multi"})
+	assert.PanicsWithError(t, "stream with name test-stream already exists", func() {
+		registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
+	})
 	ctx, cancel := context.WithCancel(context.Background())
 	validatedRegistry, def, err := registry.Validate(ctx)
 	assert.NoError(t, err)
