@@ -13,8 +13,9 @@ func TestLocalCache(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterLocalCache(100)
 	ctx := context.Background()
-	validatedRegistry, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate(ctx)
 	assert.Nil(t, err)
+	defer def()
 	engine := validatedRegistry.CreateEngine(ctx)
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, false, true)

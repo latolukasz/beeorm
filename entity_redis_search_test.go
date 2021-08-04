@@ -49,7 +49,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
@@ -769,7 +769,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry = NewRegistry()
 	registry.RegisterEntity(&redisSearchEntity2{})
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
-	_, err := registry.Validate(context.Background())
+	_, _, err := registry.Validate(context.Background())
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
@@ -791,7 +791,9 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry = NewRegistry()
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
 	registry.RegisterEntity(&redisSearchEntity3{})
-	vRegistry, err := registry.Validate(context.Background())
+	def()
+	vRegistry, def, err := registry.Validate(context.Background())
+	defer def()
 	assert.NoError(t, err)
 	schema = vRegistry.GetTableSchemaForEntity(&redisSearchEntity3{})
 	entitySearch, has = schema.GetRedisSearch(engine)

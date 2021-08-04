@@ -22,7 +22,7 @@ func (h *testLogHandler) clear() {
 	h.Logs = nil
 }
 
-func prepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) *Engine {
+func prepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) (engine *Engine, def func()) {
 	if version == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -37,16 +37,16 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 
 	registry.RegisterEntity(entities...)
 	ctx := context.Background()
-	vRegistry, err := registry.Validate(ctx)
+	vRegistry, def, err := registry.Validate(ctx)
 	if err != nil {
 		if t != nil {
 			assert.NoError(t, err)
-			return nil
+			return nil, def
 		}
 		panic(err)
 	}
 
-	engine := vRegistry.CreateEngine(ctx)
+	engine = vRegistry.CreateEngine(ctx)
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}
@@ -87,7 +87,7 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	indexer.blockTime = time.Millisecond
 	indexer.Digest()
 
-	return engine
+	return engine, def
 }
 
 type mockDBClient struct {

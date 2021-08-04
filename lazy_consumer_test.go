@@ -29,7 +29,8 @@ func TestLazyReceiver(t *testing.T) {
 
 	registry := &Registry{}
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine := prepareTables(t, registry, 5, entity, ref)
+	engine, def := prepareTables(t, registry, 5, entity, ref)
+	defer def()
 	engine.GetRedis().FlushDB()
 
 	receiver := NewBackgroundConsumer(engine)

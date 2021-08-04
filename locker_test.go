@@ -12,8 +12,9 @@ func TestLocker(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	ctx := context.Background()
-	validatedRegistry, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate(ctx)
 	assert.Nil(t, err)
+	defer def()
 	engine := validatedRegistry.CreateEngine(ctx)
 	engine.GetRedis().FlushDB()
 	testLogger := &testLogHandler{}
@@ -67,8 +68,9 @@ func TestLocker(t *testing.T) {
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6389", 15)
-	validatedRegistry, err = registry.Validate(ctx)
+	validatedRegistry, def, err = registry.Validate(ctx)
 	assert.NoError(t, err)
+	defer def()
 	engine = validatedRegistry.CreateEngine(ctx)
 	testLogger = &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)

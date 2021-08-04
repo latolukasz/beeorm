@@ -8,7 +8,8 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	engine := prepareTables(t, &Registry{}, 5)
+	engine, def := prepareTables(t, &Registry{}, 5)
+	defer def()
 	source := engine.GetRegistry().GetSourceRegistry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
@@ -34,7 +35,8 @@ func TestEngine(t *testing.T) {
 func BenchmarkEngine(b *testing.B) {
 	registry := &Registry{}
 	ctx := context.Background()
-	validatedRegistry, _ := registry.Validate(ctx)
+	validatedRegistry, def, _ := registry.Validate(ctx)
+	defer def()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {

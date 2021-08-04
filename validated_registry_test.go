@@ -27,7 +27,7 @@ func TestValidatedRegistry(t *testing.T) {
 	entity := &validatedRegistryEntity{}
 	registry.RegisterEntity(entity)
 	ctx := context.Background()
-	validated, err := registry.Validate(ctx)
+	validated, def, err := registry.Validate(ctx)
 	assert.NoError(t, err)
 	source := validated.GetSourceRegistry()
 	assert.NotNil(t, source)
@@ -43,8 +43,10 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.False(t, enum.Has("c"))
 
 	registry.RegisterEnum("enum_map", []string{"a", "b"})
-	validated, err = registry.Validate(ctx)
+	def()
+	validated, def, err = registry.Validate(ctx)
 	assert.NoError(t, err)
+	defer def()
 	enum = validated.GetEnum("enum_map")
 	assert.Equal(t, []string{"a", "b"}, enum.GetFields())
 	assert.Equal(t, "a", enum.GetDefault())
