@@ -148,7 +148,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
-		if unix != 0 {
+		if unix > orm.tableSchema.registry.timeOffset {
 			unix -= orm.tableSchema.registry.timeOffset
 		}
 		serializer.SerializeInteger(unix)
@@ -156,7 +156,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
-		if unix != 0 {
+		if unix > orm.tableSchema.registry.timeOffset {
 			unix -= orm.tableSchema.registry.timeOffset
 		}
 		serializer.SerializeInteger(unix)
@@ -237,7 +237,11 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeInteger(v.Int64 - orm.tableSchema.registry.timeOffset)
+			unix := v.Int64
+			if unix > orm.tableSchema.registry.timeOffset {
+				unix -= orm.tableSchema.registry.timeOffset
+			}
+			serializer.SerializeInteger(unix)
 		}
 		index++
 	}
@@ -245,7 +249,11 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeInteger(v.Int64 - orm.tableSchema.registry.timeOffset)
+			unix := v.Int64
+			if unix > orm.tableSchema.registry.timeOffset {
+				unix -= orm.tableSchema.registry.timeOffset
+			}
+			serializer.SerializeInteger(unix)
 		}
 		index++
 	}

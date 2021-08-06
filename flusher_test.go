@@ -732,6 +732,15 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Len(t, entity.ReferenceManyRequired, 0)
 	assert.False(t, entity.IsDirty())
 	engine.ForceDelete(entity)
+
+	now = time.Unix(1, 0).UTC()
+	entity = &flushEntity{}
+	engine.LoadByID(11, entity)
+	entity.TimeWithTime = now
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(11, entity)
+	assert.Equal(t, now, entity.TimeWithTime.UTC())
 }
 
 // 17 allocs/op - 6 for Exec
