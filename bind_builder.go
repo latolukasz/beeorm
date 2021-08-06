@@ -536,9 +536,6 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 			MAIN:
 				for _, v := range val {
 					enumIndex := set.Index(v)
-					if enumIndex == 0 {
-						panic(errors.New("unknown set value for " + b.orm.tableSchema.columnNames[b.index] + " - " + v))
-					}
 					for _, o := range oldValues {
 						if o == enumIndex {
 							continue MAIN
@@ -884,7 +881,7 @@ func (b *bindBuilder) buildRefsMany(serializer *serializer, fields *tableFields,
 			if hasRequired && required == "true" {
 				b.bind[name] = ""
 				if b.buildSQL {
-					b.sqlBind[name] = ""
+					b.sqlBind[name] = "'[]'"
 				}
 			} else {
 				b.bind[name] = nil
