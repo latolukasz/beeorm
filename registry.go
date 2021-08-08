@@ -249,12 +249,22 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 }
 
 func (r *Registry) RegisterRedis(address string, db int, code ...string) {
-	client := redis.NewClient(&redis.Options{
-		Addr:       address,
-		DB:         db,
-		MaxConnAge: time.Minute * 2,
-	})
-	r.registerRedis(client, code, address, db)
+	if strings.HasSuffix(address, ".sock") {
+		client := redis.NewClient(&redis.Options{
+			Network:    "unix",
+			Addr:       address,
+			DB:         db,
+			MaxConnAge: time.Minute * 2,
+		})
+		r.registerRedis(client, code, address, db)
+	} else {
+		client := redis.NewClient(&redis.Options{
+			Addr:       address,
+			DB:         db,
+			MaxConnAge: time.Minute * 2,
+		})
+		r.registerRedis(client, code, address, db)
+	}
 }
 
 func (r *Registry) RegisterRedisSentinel(masterName string, db int, sentinels []string, code ...string) {

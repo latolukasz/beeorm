@@ -20,3 +20,5 @@ another:
         - test-group-1
 default_queue:
   redis: localhost:6382:1
+sockets:
+  redis: /var/redis.sock:1

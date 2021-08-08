@@ -59,14 +59,22 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
 	elements := strings.Split(asString, ":")
-	if len(elements) != 3 {
+	dbNumber := ""
+	uri := ""
+	l := len(elements)
+	if l == 2 {
+		dbNumber = elements[1]
+		uri = elements[0]
+	} else if l == 3 {
+		dbNumber = elements[2]
+		uri = elements[0] + ":" + elements[1]
+	} else {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
-	db, err := strconv.ParseUint(elements[2], 10, 64)
+	db, err := strconv.ParseUint(dbNumber, 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
-	uri := fmt.Sprintf("%s:%s", elements[0], elements[1])
 	registry.RegisterRedis(uri, int(db), key)
 }
 
