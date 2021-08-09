@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -127,9 +128,5 @@ func idToSince(id string, now time.Time) (time.Duration, time.Time) {
 	}
 	unixInt, _ := strconv.ParseInt(strings.Split(id, "-")[0], 10, 64)
 	unix := time.Unix(0, unixInt*1000000)
-	s := now.Sub(unix)
-	if s < 0 {
-		return 0, time.Now()
-	}
-	return s, unix
+	return time.Duration(int64(math.Max(float64(now.Sub(unix).Nanoseconds()), 0))), unix
 }

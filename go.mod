@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v0.4.1 // indirect
 	github.com/BurntSushi/toml-test v0.1.1-0.20210723065233-facb9eccd4da // indirect
 	github.com/bsm/redislock v0.7.1
-	github.com/go-redis/redis/v8 v8.11.0
+	github.com/go-redis/redis/v8 v8.11.2
 	github.com/go-redis/redis_rate/v9 v9.1.1
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da

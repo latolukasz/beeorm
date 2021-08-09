@@ -95,4 +95,22 @@ func TestRedisStreamsStatus(t *testing.T) {
 		}
 	}
 	assert.True(t, valid)
+
+	flusher.Publish("test-stream", testEvent{"a"})
+	flusher.Flush()
+	assert.Panics(t, func() {
+		consumer.Consume(10, func(events []orm.Event) {
+			panic("stop")
+		})
+	})
+	time.Sleep(time.Millisecond * 10)
+	stats = GetRedisStreamsStatistics(engine)
+	valid = false
+	for _, stream := range stats {
+		if stream.Stream == "test-stream" {
+			assert.Equal(t, uint64(1), stream.Groups[0].Pending)
+			valid = true
+		}
+	}
+	assert.True(t, valid)
 }
