@@ -237,6 +237,7 @@ type eventConsumerBase struct {
 	loop         bool
 	errorHandler ConsumerErrorHandler
 	blockTime    time.Duration
+	isRunning    atomicBool
 }
 
 type eventsConsumer struct {
@@ -255,7 +256,6 @@ type eventsConsumer struct {
 	speedLogger            *speedHandler
 	speedTimeMicroseconds  int64
 	speedLimit             int
-	isRunning              atomicBool
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -499,7 +499,7 @@ func (r *eventsConsumer) Claim(from, to int) {
 	}
 }
 
-func (r *eventsConsumer) Shutdown(timeout time.Duration) {
+func (b *eventConsumerBase) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	pollIntervalBase := time.Millisecond
@@ -514,7 +514,7 @@ func (r *eventsConsumer) Shutdown(timeout time.Duration) {
 	timer := time.NewTimer(nextPollInterval())
 	defer timer.Stop()
 	for {
-		if !r.isRunning.isSet() {
+		if !b.isRunning.isSet() {
 			return
 		}
 		select {
