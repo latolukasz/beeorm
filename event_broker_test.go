@@ -497,4 +497,29 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		assert.Equal(t, "val3", events[1].Tag("tag3"))
 	})
 	assert.True(t, valid)
+
+	ctxCancel, stop := context.WithCancel(context.Background())
+	defer stop()
+	engine = validatedRegistry.CreateEngine(ctxCancel)
+	engine.GetRedis().FlushDB()
+	eventFlusher = engine.GetEventBroker().NewFlusher()
+	for i := 0; i < 100; i++ {
+		eventFlusher.Publish("test-stream", "a")
+	}
+	eventFlusher.Flush()
+	broker = engine.GetEventBroker()
+	consumer = broker.Consumer("test-group")
+	incr := 0
+	start := time.Now()
+	go func() {
+		consumer.ConsumeMany(1, 1, func(events []Event) {
+			incr++
+			time.Sleep(time.Millisecond * 50)
+		})
+	}()
+	time.Sleep(time.Millisecond * 200)
+	stop()
+	consumer.Shutdown(time.Second)
+	assert.Equal(t, 4, incr)
+	assert.Less(t, time.Since(start).Milliseconds(), int64(300))
 }

@@ -1,9 +1,12 @@
 package beeorm
 
 import (
+	"context"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/shamaton/msgpack"
@@ -12,6 +15,7 @@ import (
 )
 
 const speedHSetKey = "_orm_ss"
+const shutdownPollIntervalMax = 500 * time.Millisecond
 
 type Event interface {
 	Ack()
@@ -21,6 +25,12 @@ type Event interface {
 	Unserialize(val interface{})
 	delete()
 }
+
+type atomicBool int32
+
+func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
+func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
+func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type event struct {
 	consumer *eventsConsumer
@@ -166,6 +176,7 @@ type EventsConsumer interface {
 	Claim(from, to int)
 	DisableLoop()
 	SetErrorHandler(handler ConsumerErrorHandler)
+	Shutdown(timeout time.Duration)
 }
 
 type speedHandler struct {
@@ -244,6 +255,7 @@ type eventsConsumer struct {
 	speedLogger            *speedHandler
 	speedTimeMicroseconds  int64
 	speedLimit             int
+	isRunning              atomicBool
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -279,12 +291,14 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	if !has {
 		return false, false
 	}
+	r.isRunning.setTrue()
 	ticker := time.NewTicker(r.lockTick)
 	done := make(chan bool)
 
 	defer func() {
 		lock.Release()
 		ticker.Stop()
+		r.isRunning.setFalse()
 		close(done)
 	}()
 	hasLock := true
@@ -481,6 +495,33 @@ func (r *eventsConsumer) Claim(from, to int) {
 			if l < 100 {
 				break
 			}
+		}
+	}
+}
+
+func (r *eventsConsumer) Shutdown(timeout time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	pollIntervalBase := time.Millisecond
+	nextPollInterval := func() time.Duration {
+		interval := pollIntervalBase + time.Duration(rand.Intn(int(pollIntervalBase/10)))
+		pollIntervalBase *= 2
+		if pollIntervalBase > shutdownPollIntervalMax {
+			pollIntervalBase = shutdownPollIntervalMax
+		}
+		return interval
+	}
+	timer := time.NewTimer(nextPollInterval())
+	defer timer.Stop()
+	for {
+		if !r.isRunning.isSet() {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+			timer.Reset(nextPollInterval())
 		}
 	}
 }
