@@ -591,8 +591,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *bool
-			f.Set(reflect.ValueOf(&v))
+			f.Set(reflect.Zero(f.Type()))
 		}
 	}
 	for k, i := range fields.floatsNullable {
@@ -619,8 +618,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *time.Time
-			f.Set(reflect.ValueOf(v))
+			f.Set(reflect.Zero(f.Type()))
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -631,8 +629,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			var v *time.Time
-			f.Set(reflect.ValueOf(&v))
+			f.Set(reflect.Zero(f.Type()))
 		}
 	}
 	for _, i := range fields.jsons {
@@ -642,10 +639,8 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 			v := reflect.New(f.Type()).Interface()
 			_ = jsoniter.ConfigFastest.Unmarshal(bytes, v)
 			f.Set(reflect.ValueOf(v).Elem())
-		} else {
-			if !f.IsNil() {
-				f.Set(reflect.Zero(f.Type()))
-			}
+		} else if !f.IsNil() {
+			f.Set(reflect.Zero(f.Type()))
 		}
 	}
 	k = 0
@@ -663,10 +658,8 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 				slice.Index(j).Set(o.value)
 			}
 			f.Set(slice)
-		} else {
-			if !f.IsNil() {
-				f.Set(reflect.Zero(reflect.SliceOf(refType)))
-			}
+		} else if !f.IsNil() {
+			f.Set(reflect.Zero(f.Type()))
 		}
 		k++
 	}

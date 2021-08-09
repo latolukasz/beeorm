@@ -739,8 +739,29 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeWithTime = now
 	engine.Flush(entity)
 	entity = &flushEntity{}
+	i2 = 13
+	i7 = 3
+	i4 = true
+	i5 = 12.33
+	n = time.Now()
+	entity.UintNullable = &i2
+	entity.Int8Nullable = &i7
+	entity.BoolNullable = &i4
+	entity.FloatNullable = &i5
+	entity.TimeNullable = &n
+	entity.TimeWithTimeNullable = &n
+	entity.Interface = "ss"
+	entity.ReferenceMany = []*flushEntityReference{}
 	engine.LoadByID(11, entity)
 	assert.Equal(t, now, entity.TimeWithTime.UTC())
+	assert.Nil(t, entity.UintNullable)
+	assert.Nil(t, entity.Int8Nullable)
+	assert.Nil(t, entity.BoolNullable)
+	assert.Nil(t, entity.FloatNullable)
+	assert.Nil(t, entity.TimeNullable)
+	assert.Nil(t, entity.TimeWithTimeNullable)
+	assert.Nil(t, entity.Interface)
+	assert.Nil(t, entity.ReferenceMany)
 }
 
 // 17 allocs/op - 6 for Exec

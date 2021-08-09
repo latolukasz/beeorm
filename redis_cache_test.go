@@ -26,7 +26,7 @@ func TestRedis(t *testing.T) {
 	def()
 
 	registry = &Registry{}
-	registry.RegisterRedis("localhost:6389", 15)
+	registry.RegisterRedis("localhost:6399", 15)
 	validatedRegistry, def, err = registry.Validate(ctx)
 	assert.NoError(t, err)
 	defer def()
