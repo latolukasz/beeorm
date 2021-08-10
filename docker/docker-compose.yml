@@ -4,7 +4,6 @@ services:
     image: percona:5.7.25
     volumes:
       - orm_data_mysql:/var/lib/mysql
-      - orm_logs_mysql:/var/log/mysql
     ports:
       - ${LOCAL_IP}:${MYSQL_PORT}:3306
     environment:
@@ -18,13 +17,9 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
   redis_orm:
-    image: redislabs/redisearch:2.2.0
-    volumes:
-      - orm_data_redis:/data
+    image: redislabs/redisearch:2.0.10
     ports:
       - ${LOCAL_IP}:${REDIS_PORT}:6379
 volumes:
   orm_data_mysql: {}
-  orm_logs_mysql: {}
   orm_data_mysql8: {}
-  orm_data_redis: {}
