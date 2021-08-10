@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis_search:
-        image: redislabs/redisearch:2.0.10
+        image: redislabs/redisearch:2.2.0
         ports:
           - 6382:6379
       mysql:

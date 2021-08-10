@@ -18,7 +18,7 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
   redis_orm:
-    image: redislabs/redisearch:2.0.10
+    image: redislabs/redisearch:2.2.0
     volumes:
       - orm_data_redis:/data
     ports:
