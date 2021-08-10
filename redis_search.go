@@ -354,18 +354,22 @@ func (q *RedisSearchQuery) FilterUintLess(field string, value uint64) *RedisSear
 }
 
 func (q *RedisSearchQuery) FilterString(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, true, false, value...)
+	return q.filterString(field, true, false, false, value...)
+}
+
+func (q *RedisSearchQuery) FilterStringStartsWith(field string, value ...string) *RedisSearchQuery {
+	return q.filterString(field, true, false, true, value...)
 }
 
 func (q *RedisSearchQuery) FilterNotString(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, true, true, value...)
+	return q.filterString(field, true, true, false, value...)
 }
 
 func (q *RedisSearchQuery) QueryField(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, false, false, value...)
+	return q.filterString(field, false, false, false, value...)
 }
 
-func (q *RedisSearchQuery) filterString(field string, exactPhrase, not bool, value ...string) *RedisSearchQuery {
+func (q *RedisSearchQuery) filterString(field string, exactPhrase, not, starts bool, value ...string) *RedisSearchQuery {
 	if len(value) == 0 {
 		return q
 	}
@@ -384,7 +388,12 @@ func (q *RedisSearchQuery) filterString(field string, exactPhrase, not bool, val
 		if v == "" {
 			valueEscaped[i] = "\"NULL\""
 		} else {
-			if exactPhrase {
+			if starts {
+				if len(v) < 2 {
+					panic(fmt.Errorf("search starts with require min 2 characters"))
+				}
+				valueEscaped[i] = EscapeRedisSearchString(v) + "*"
+			} else if exactPhrase {
 				valueEscaped[i] = "\"" + EscapeRedisSearchString(v) + "\""
 			} else {
 				valueEscaped[i] = EscapeRedisSearchString(v)
