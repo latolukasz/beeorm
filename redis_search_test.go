@@ -1,12 +1,77 @@
 package beeorm
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 )
+
+func TestRedisSearchIndexer(t *testing.T) {
+	registry := &Registry{}
+	testIndex := NewRedisSearchIndex("test", "search", []string{"doc:"})
+	testIndex.AddTextField("title", 1, true, false, false)
+	iteration := 0
+	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
+		iteration++
+		if iteration == 1 {
+			assert.Equal(t, uint64(0), lastID)
+			return 7, true
+		}
+		assert.Equal(t, uint64(7), lastID)
+		return 10, false
+	}
+	registry.RegisterRedisSearchIndex(testIndex)
+	engine, def := prepareTables(t, registry, 5)
+	defer def()
+
+	indexer := NewBackgroundConsumer(engine)
+	indexer.DisableLoop()
+	indexer.blockTime = time.Millisecond
+	indexer.Digest()
+	assert.Equal(t, 2, iteration)
+
+	iteration = 0
+	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
+		iteration++
+		if iteration == 1 {
+			assert.Equal(t, uint64(0), lastID)
+			return 7, true
+		}
+		panic(fmt.Errorf("stop"))
+	}
+	engine.GetRedisSearch("search").ForceReindex("test")
+	assert.PanicsWithError(t, "stop", func() {
+		indexer.Digest()
+	})
+	assert.Equal(t, 2, iteration)
+	iteration = 0
+	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
+		iteration++
+		assert.Equal(t, uint64(7), lastID)
+		return 10, false
+	}
+	indexer.Digest()
+	assert.Equal(t, 1, iteration)
+	iteration = 0
+	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
+		iteration++
+		assert.Equal(t, uint64(0), lastID)
+		return 0, false
+	}
+	engine.GetRedisSearch("search").ForceReindex("test")
+	indexer.Digest()
+	assert.Equal(t, 1, iteration)
+	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
+		return 10, true
+	}
+	engine.GetRedisSearch("search").ForceReindex("test")
+	assert.PanicsWithError(t, "loop detected in indxer for index test in pool search", func() {
+		indexer.Digest()
+	})
+}
 
 func TestRedisSearch(t *testing.T) {
 	registry := &Registry{}
@@ -535,4 +600,8 @@ func TestRedisSearch(t *testing.T) {
 	query.FilterString("title", "_")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(0), total)
+
+	engine.GetRedisSearch("search").ForceReindex("test2")
+	delete(engine.registry.redisSearchIndexes["search"], "test2")
+	indexer.Digest()
 }

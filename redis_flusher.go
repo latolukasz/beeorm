@@ -82,7 +82,7 @@ func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
 
 func (f *redisFlusher) Flush() {
 	for poolCode, commands := range f.pipelines {
-		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1
+		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1 || len(commands.hSets) > 1
 		if usePool {
 			p := f.engine.GetRedis(poolCode).PipeLine()
 			if commands.deletes != nil {

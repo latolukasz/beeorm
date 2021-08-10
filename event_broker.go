@@ -256,6 +256,7 @@ type eventsConsumer struct {
 	speedLogger            *speedHandler
 	speedTimeMicroseconds  int64
 	speedLimit             int
+	garbageLastTick        int64
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -292,9 +293,9 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 		return false, false
 	}
 	r.isRunning.setTrue()
+	r.garbage()
 	ticker := time.NewTicker(r.lockTick)
 	done := make(chan bool)
-
 	defer func() {
 		lock.Release()
 		ticker.Stop()
@@ -537,6 +538,10 @@ func (r *eventsConsumer) incrementID(id string) string {
 }
 
 func (r *eventsConsumer) garbage() {
-	garbageEvent := garbageCollectorEvent{Group: r.group, Pool: r.redis.config.GetCode()}
-	r.engine.GetEventBroker().Publish(redisStreamGarbageCollectorChannelName, garbageEvent)
+	now := time.Now().Unix()
+	if (now - r.garbageLastTick) >= 10 {
+		garbageEvent := garbageCollectorEvent{Group: r.group, Pool: r.redis.config.GetCode()}
+		r.engine.GetEventBroker().Publish(redisStreamGarbageCollectorChannelName, garbageEvent)
+		r.garbageLastTick = now
+	}
 }

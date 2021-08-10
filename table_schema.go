@@ -14,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+const entityIndexerPage = 5000
+
 type CachedQuery struct{}
 
 type cachedQueryDefinition struct {
@@ -498,7 +500,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		if hasFakeDelete {
 			indexQuery += " AND FakeDelete = 0"
 		}
-		indexQuery += " ORDER BY `ID` LIMIT 5000"
+		indexQuery += " ORDER BY `ID` LIMIT " + strconv.Itoa(entityIndexerPage)
 		redisSearchIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
 			results, def := engine.GetMysql(mysql).Query(indexQuery, lastID)
 			defer def()
@@ -520,7 +522,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 				pusher.PushDocument()
 				total++
 			}
-			return lastID, total == 5000
+			return lastID, total == entityIndexerPage
 		}
 	} else {
 		redisSearchIndex = nil

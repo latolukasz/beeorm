@@ -50,6 +50,40 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	backgroundConsumer.blockTime = time.Millisecond
 	backgroundConsumer.Digest()
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
+
+	for i := 1; i <= 10; i++ {
+		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+	}
+	eventFlusher.Flush()
+	consumer1.Consume(100, func(events []Event) {})
+	consumer2.Consume(100, func(events []Event) {})
+	time.Sleep(time.Millisecond * 200)
+	consumer2.(*eventsConsumer).garbageLastTick = 0
+	consumer2.(*eventsConsumer).garbage()
+	engine.GetRedis().Del("test-group-2_gc")
+	backgroundConsumer = NewBackgroundConsumer(engine)
+	backgroundConsumer.DisableLoop()
+	backgroundConsumer.blockTime = time.Millisecond
+	backgroundConsumer.Digest()
+	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
+	consumer2.(*eventsConsumer).garbage()
+
+	for i := 1; i <= 10; i++ {
+		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+	}
+	eventFlusher.Flush()
+	assert.Panics(t, func() {
+		consumer2.Consume(10, func(events []Event) {
+			events[0].Ack()
+			panic("stop")
+		})
+	})
+	consumer1.Consume(100, func(events []Event) {})
+	consumer2.(*eventsConsumer).garbageLastTick = 0
+	consumer2.(*eventsConsumer).garbage()
+	engine.GetRedis().Del("test-group-2_gc")
+	backgroundConsumer.Digest()
+	assert.Equal(t, int64(9), engine.GetRedis().XLen("test-stream"))
 }
 
 func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {

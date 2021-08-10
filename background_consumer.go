@@ -102,9 +102,6 @@ func (r *BackgroundConsumer) handleLazy(event Event) {
 
 func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]interface{}) []uint64 {
 	queries := validMap["q"]
-	if queries == nil {
-		return nil
-	}
 	validQueries := queries.([]interface{})
 	ids := make([]uint64, len(validQueries))
 	for i, query := range validQueries {
@@ -270,15 +267,7 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 	event.Unserialize(garbageEvent)
 	engine := r.engine
 	redisGarbage := engine.GetRedis(garbageEvent.Pool)
-	if redisGarbage == nil {
-		event.delete()
-		return
-	}
 	streams := engine.registry.getRedisStreamsForGroup(garbageEvent.Group)
-	if len(streams) == 0 {
-		event.delete()
-		return
-	}
 	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
 		event.delete()
 		return
@@ -293,23 +282,19 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 		inPending := false
 		for _, group := range info {
 			_, has := ids[group.Name]
-			if !has {
-				continue
+			if has && group.LastDeliveredID != "" {
+				lastDelivered := group.LastDeliveredID
+				pending := redisGarbage.XPending(stream, group.Name)
+				if pending.Lower != "" {
+					lastDelivered = pending.Lower
+					inPending = true
+				}
+				s := strings.Split(lastDelivered, "-")
+				id, _ := strconv.ParseInt(s[0], 10, 64)
+				ids[group.Name][0] = id
+				counter, _ := strconv.ParseInt(s[1], 10, 64)
+				ids[group.Name][1] = counter
 			}
-			if group.LastDeliveredID == "" {
-				continue
-			}
-			lastDelivered := group.LastDeliveredID
-			pending := redisGarbage.XPending(stream, group.Name)
-			if pending.Lower != "" {
-				lastDelivered = pending.Lower
-				inPending = true
-			}
-			s := strings.Split(lastDelivered, "-")
-			id, _ := strconv.ParseInt(s[0], 10, 64)
-			ids[group.Name][0] = id
-			counter, _ := strconv.ParseInt(s[1], 10, 64)
-			ids[group.Name][1] = counter
 		}
 		minID := []int64{-1, 0}
 		for _, id := range ids {

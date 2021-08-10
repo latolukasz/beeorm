@@ -45,6 +45,27 @@ type redisNoSearchEntity struct {
 	ID uint
 }
 
+func TestEntityRedisSearchIndexer(t *testing.T) {
+	var entity *redisSearchEntity
+	registry := &Registry{}
+	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
+	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
+	defer def()
+	indexer := NewBackgroundConsumer(engine)
+	indexer.DisableLoop()
+	indexer.blockTime = time.Millisecond
+	flusher := engine.NewFlusher()
+	for i := 1; i <= entityIndexerPage+100; i++ {
+		e := &redisSearchEntity{Age: uint64(i)}
+		flusher.Track(e)
+	}
+	flusher.Flush()
+	assert.True(t, indexer.Digest())
+	query := NewRedisSearchQuery()
+	total := engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+100), total)
+}
+
 func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
