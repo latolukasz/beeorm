@@ -30,10 +30,6 @@ type Engine struct {
 	sync.Mutex
 }
 
-func (e *Engine) GetContext() context.Context {
-	return e.context
-}
-
 func (e *Engine) EnableRequestCache() {
 	e.hasRequestCache = true
 }
@@ -85,10 +81,9 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 		}
 		cache = &LocalCache{engine: e, config: config.(*localCachePoolConfig), lru: lru.New(config.GetLimit())}
 		if e.localCache == nil {
-			e.localCache = map[string]*LocalCache{dbCode: cache}
-		} else {
-			e.localCache[dbCode] = cache
+			e.localCache = make(map[string]*LocalCache)
 		}
+		e.localCache[dbCode] = cache
 	}
 	return cache
 }

@@ -762,6 +762,20 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.TimeWithTimeNullable)
 	assert.Nil(t, entity.Interface)
 	assert.Nil(t, entity.ReferenceMany)
+
+	entity = &flushEntity{}
+	engine.LoadByID(101, entity)
+	engine.DeleteMany(entity)
+	entity = &flushEntity{}
+	engine.GetLocalCache().Clear()
+	engine.GetRedis().FlushDB()
+	assert.True(t, engine.LoadByID(101, entity))
+	assert.True(t, entity.FakeDelete)
+	assert.False(t, entity.IsDirty())
+	engine.ForceDeleteMany(entity)
+	engine.GetLocalCache().Clear()
+	engine.GetRedis().FlushDB()
+	assert.False(t, engine.LoadByID(101, entity))
 }
 
 // 17 allocs/op - 6 for Exec

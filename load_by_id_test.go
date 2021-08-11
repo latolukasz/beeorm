@@ -143,6 +143,12 @@ func TestLoadById(t *testing.T) {
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
+	engine.Load(entity, "ReferenceOne/ReferenceTwo")
+	assert.Equal(t, "a", entity.Name)
+	assert.Equal(t, "r1", entity.ReferenceOne.Name)
+	assert.True(t, entity.ReferenceOne.IsLoaded())
+	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
+	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
 	entityNoCache = &loadByIDNoCacheEntity{}
 	found = engine.LoadByID(1, entityNoCache, "*")

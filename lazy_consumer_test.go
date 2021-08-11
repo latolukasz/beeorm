@@ -90,4 +90,14 @@ func TestLazyReceiver(t *testing.T) {
 	receiver.Digest()
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
+
+	e = &lazyReceiverEntity{ID: 100}
+	engine.Flush(e)
+	engine.DeleteLazy(e)
+	e = &lazyReceiverEntity{}
+	receiver.Digest()
+	engine.GetLocalCache().Clear()
+	engine.GetRedis().FlushDB()
+	assert.False(t, engine.LoadByID(100, e))
+
 }

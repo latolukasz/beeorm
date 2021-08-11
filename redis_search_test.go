@@ -615,4 +615,8 @@ func TestRedisSearch(t *testing.T) {
 	engine.GetRedisSearch("search").ForceReindex("test2")
 	delete(engine.registry.redisSearchIndexes["search"], "test2")
 	indexer.Digest()
+
+	assert.PanicsWithError(t, "unregistered redis cache pool 'invalid'", func() {
+		engine.GetRedisSearch("invalid")
+	})
 }
