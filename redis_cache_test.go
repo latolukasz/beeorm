@@ -119,6 +119,9 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, map[string]string{"last": "Summer", "name": "Tom"}, r.HGetAll("test_map"))
 	assert.Equal(t, int64(2), r.HLen("test_map"))
 
+	assert.True(t, r.HSetNx("test_map_nx", "key", "value"))
+	assert.False(t, r.HSetNx("test_map_nx", "key", "value"))
+
 	val = r.HIncrBy("test_inc", "a", 2)
 	assert.Equal(t, int64(2), val)
 	val = r.HIncrBy("test_inc", "a", 3)

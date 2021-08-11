@@ -276,6 +276,17 @@ func (r *RedisCache) HSet(key string, values ...interface{}) {
 	checkError(err)
 }
 
+func (r *RedisCache) HSetNx(key, field string, value interface{}) bool {
+	start := getNow(r.engine.hasRedisLogger)
+	res, err := r.client.HSetNX(r.ctx, key, field, value).Result()
+	if r.engine.hasRedisLogger {
+		message := "HSETNX " + key + " " + field + " " + fmt.Sprintf(" %v", value)
+		r.fillLogFields("HSETNX", message, start, err)
+	}
+	checkError(err)
+	return res
+}
+
 func (r *RedisCache) HDel(key string, fields ...string) {
 	start := getNow(r.engine.hasRedisLogger)
 	_, err := r.client.HDel(r.ctx, key, fields...).Result()
