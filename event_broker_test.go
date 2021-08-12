@@ -132,6 +132,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	j := 0
 	consumer.SetErrorHandler(func(err error, event Event) {
 		j++
+		assert.Equal(t, fmt.Sprintf("test err a%d", j), err.Error())
 	})
 	i = 0
 	for i := 1; i <= 10; i++ {
@@ -141,7 +142,7 @@ func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
 	consumer.Consume(1, func(events []Event) {
 		i++
 		events[0].Unserialize(e)
-		panic(fmt.Errorf("test err %v", e.Name))
+		panic(fmt.Sprintf("test err %v", e.Name))
 	})
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbage()
@@ -283,6 +284,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 		consumed1 = consumer.ConsumeMany(1, 5, func(events []Event) {
 			iterations1 = true
 			time.Sleep(time.Millisecond * 100)
+			assert.NotEmpty(t, events[0].ID())
 		})
 	}()
 	time.Sleep(time.Millisecond)
@@ -321,6 +323,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	pending = engine.GetRedis().XPending("test-stream", "test-group")
 	assert.Len(t, pending.Consumers, 1)
 	assert.Equal(t, int64(3), pending.Consumers["consumer-2"])
+	consumer.Claim(7, 2)
 
 	consumer = broker.Consumer("test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
@@ -358,6 +361,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	iterations := 0
+	speedLimitBefore := consumer.(*eventsConsumer).speedLimit
+	consumer.(*eventsConsumer).speedLimit = 10
 	consumer.Consume(5, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
@@ -385,6 +390,11 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			assert.Equal(t, "a10", e.Name)
 		}
 	})
+	consumer.(*eventsConsumer).speedLimit = speedLimitBefore
+	today := time.Now().Format("01-02-06")
+	statsEvents, hasStats := engine.GetRedis().HGet(speedHSetKey+today, "test-group_defaulte")
+	assert.True(t, hasStats)
+	assert.Equal(t, "10", statsEvents)
 	assert.Equal(t, 2, iterations)
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbage()
@@ -555,5 +565,62 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	stop()
 	consumer.Shutdown(time.Second)
 	assert.Equal(t, 4, incr)
+	assert.Less(t, time.Since(start).Milliseconds(), int64(500))
+
+	ctxCancel, stop = context.WithCancel(context.Background())
+	defer stop()
+	engine = validatedRegistry.CreateEngine(ctxCancel)
+	engine.GetRedis().FlushDB()
+	eventFlusher = engine.GetEventBroker().NewFlusher()
+	eventFlusher.Publish("test-stream", "a")
+	eventFlusher.Flush()
+	broker = engine.GetEventBroker()
+	consumer = broker.Consumer("test-group")
+	incr = 0
+	start = time.Now()
+	go func() {
+		consumer.ConsumeMany(1, 1, func(events []Event) {
+			incr++
+			time.Sleep(time.Millisecond * 300)
+		})
+	}()
+	time.Sleep(time.Millisecond * 100)
+	stop()
+	consumer.Shutdown(time.Millisecond * 20)
+	assert.Equal(t, 1, incr)
 	assert.Less(t, time.Since(start).Milliseconds(), int64(300))
+
+	eventFlusher.Publish("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
+	assert.PanicsWithError(t, "unregistered stream test-stream-invalid", func() {
+		eventFlusher.Flush()
+	})
+	assert.PanicsWithError(t, "unregistered streams for group test-group-invalid", func() {
+		broker.Consumer("test-group-invalid")
+	})
+
+	ctxWithTimeout, cancel2 := context.WithTimeout(context.Background(), time.Millisecond*300)
+	defer cancel2()
+	engine = validatedRegistry.CreateEngine(ctxWithTimeout)
+	consumer = engine.GetEventBroker().Consumer("test-group")
+	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
+	consumer.(*eventsConsumer).lockTick = time.Millisecond * 10
+	start = time.Now()
+	res := consumer.Consume(5, func(events []Event) {})
+	assert.False(t, res)
+
+	ctxWithTimeout2, cancel3 := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel3()
+	engine = validatedRegistry.CreateEngine(ctxWithTimeout2)
+	consumer = engine.GetEventBroker().Consumer("test-group")
+	consumer.(*eventsConsumer).blockTime = time.Millisecond * 100
+	consumer.(*eventsConsumer).lockTick = time.Millisecond * 100
+	start = time.Now()
+	go func() {
+		time.Sleep(time.Millisecond * 200)
+		engine.GetRedis().Del("test-group_consumer-1")
+	}()
+	now := time.Now()
+	res = consumer.Consume(5, func(events []Event) {})
+	assert.False(t, res)
+	assert.LessOrEqual(t, time.Since(now).Milliseconds(), int64(1000))
 }

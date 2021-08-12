@@ -3,7 +3,6 @@ package beeorm
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -15,7 +14,6 @@ import (
 )
 
 const speedHSetKey = "_orm_ss"
-const shutdownPollIntervalMax = 500 * time.Millisecond
 
 type Event interface {
 	Ack()
@@ -103,9 +101,7 @@ func createEventSlice(body interface{}, meta []string) []string {
 		return meta
 	}
 	asString, err := msgpack.Marshal(body)
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 	values := make([]string, len(meta)+2)
 	values[0] = "s"
 	values[1] = string(asString)
@@ -126,11 +122,7 @@ func (ef *eventFlusher) Flush() {
 		if grouped[r] == nil {
 			grouped[r] = make(map[string][][]string)
 		}
-		if grouped[r][stream] == nil {
-			grouped[r][stream] = events
-		} else {
-			grouped[r][stream] = append(grouped[r][stream], events...)
-		}
+		grouped[r][stream] = events
 	}
 	for r, events := range grouped {
 		p := r.PipeLine()
@@ -208,15 +200,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	if len(streams) == 0 {
 		panic(fmt.Errorf("unregistered streams for group %s", group))
 	}
-	redisPool := ""
-	for _, stream := range streams {
-		pool := eb.engine.registry.redisStreamPools[stream]
-		if redisPool == "" {
-			redisPool = pool
-		} else if redisPool != pool {
-			panic(fmt.Errorf("reading from different redis pool not allowed"))
-		}
-	}
+	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
 	speedPrefixKey := group + "_" + redisPool
 	speedLogger := &speedHandler{}
 	eb.engine.RegisterQueryLogger(speedLogger, true, true, false)
@@ -272,25 +256,15 @@ func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) bool {
 }
 
 func (r *eventsConsumer) ConsumeMany(nr, count int, handler EventConsumerHandler) bool {
-	name := r.getName(nr)
-	for {
-		golLock, canceled := r.consume(name, count, handler)
-		if !golLock {
-			return false
-		}
-		if canceled || !r.loop {
-			return true
-		}
-		time.Sleep(time.Second * 10)
-	}
+	return r.consume(r.getName(nr), count, handler)
 }
 
-func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHandler) (gotLock, canceled bool) {
+func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHandler) (finished bool) {
 	lockKey := r.group + "_" + name
 	locker := r.redis.GetLocker()
 	lock, has := locker.Obtain(lockKey, r.lockTTL, 0)
 	if !has {
-		return false, false
+		return false
 	}
 	r.isRunning.setTrue()
 	r.garbage()
@@ -304,6 +278,7 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	}()
 	hasLock := true
 	lockAcquired := time.Now()
+	canceled := false
 	go func() {
 		for {
 			select {
@@ -343,10 +318,10 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 			}
 			for {
 				if canceled {
-					return true, canceled
+					return false
 				}
 				if !hasLock || time.Since(lockAcquired) > r.lockTTL {
-					return false, false
+					return false
 				}
 
 				i := 0
@@ -365,7 +340,7 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 				a := &redis.XReadGroupArgs{Consumer: name, Group: r.group, Streams: streams, Count: int64(count), Block: b}
 				results := r.redis.XReadGroup(a)
 				if canceled {
-					return true, canceled
+					return false
 				}
 				totalMessages := 0
 				for _, row := range results {
@@ -473,7 +448,7 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 			break
 		}
 	}
-	return true, false
+	return true
 }
 
 func (r *eventsConsumer) Claim(from, to int) {
@@ -503,16 +478,7 @@ func (r *eventsConsumer) Claim(from, to int) {
 func (b *eventConsumerBase) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
-	pollIntervalBase := time.Millisecond
-	nextPollInterval := func() time.Duration {
-		interval := pollIntervalBase + time.Duration(rand.Intn(int(pollIntervalBase/10)))
-		pollIntervalBase *= 2
-		if pollIntervalBase > shutdownPollIntervalMax {
-			pollIntervalBase = shutdownPollIntervalMax
-		}
-		return interval
-	}
-	timer := time.NewTimer(nextPollInterval())
+	timer := time.NewTimer(time.Millisecond * 10)
 	defer timer.Stop()
 	for {
 		if !b.isRunning.isSet() {
@@ -522,7 +488,7 @@ func (b *eventConsumerBase) Shutdown(timeout time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			timer.Reset(nextPollInterval())
+			timer.Reset(time.Millisecond * 100)
 		}
 	}
 }
