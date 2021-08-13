@@ -622,6 +622,61 @@ func TestRedisSearch(t *testing.T) {
 	total, rows = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(999), total)
 
+	query = &RedisSearchQuery{}
+	query.Sort("id", false)
+	query.FilterUintMinMax("id", 298, 300)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(3), total)
+	assert.Equal(t, "test2:298", rows[0].Key)
+	assert.Equal(t, "test2:299", rows[1].Key)
+	assert.Equal(t, "test2:300", rows[2].Key)
+
+	query = &RedisSearchQuery{}
+	query.FilterUint("id", 300)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, "test2:300", rows[0].Key)
+
+	query = &RedisSearchQuery{}
+	query.FilterUintNull("number_signed")
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, "test2:300", rows[0].Key)
+
+	query = &RedisSearchQuery{}
+	query.Sort("id", false)
+	query.FilterUintGreaterEqual("id", 998)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(3), total)
+	assert.Equal(t, "test2:998", rows[0].Key)
+	assert.Equal(t, "test2:999", rows[1].Key)
+	assert.Equal(t, "test2:1000", rows[2].Key)
+
+	query = &RedisSearchQuery{}
+	query.Sort("id", false)
+	query.FilterUintGreater("id", 998)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(2), total)
+	assert.Equal(t, "test2:999", rows[0].Key)
+	assert.Equal(t, "test2:1000", rows[1].Key)
+
+	query = &RedisSearchQuery{}
+	query.Sort("id", false)
+	query.FilterUintLessEqual("id", 3)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(3), total)
+	assert.Equal(t, "test2:1", rows[0].Key)
+	assert.Equal(t, "test2:2", rows[1].Key)
+	assert.Equal(t, "test2:3", rows[2].Key)
+
+	query = &RedisSearchQuery{}
+	query.Sort("id", false)
+	query.FilterUintLess("id", 3)
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(2), total)
+	assert.Equal(t, "test2:1", rows[0].Key)
+	assert.Equal(t, "test2:2", rows[1].Key)
+
 	engine.GetRedisSearch("search").ForceReindex("test2")
 	delete(engine.registry.redisSearchIndexes["search"], "test2")
 	indexer.Digest()
