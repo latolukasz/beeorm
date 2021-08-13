@@ -15,11 +15,11 @@ clean: ## Remove all artifacts from ./bin/ and ./resources
 	@rm -rf ./bin/*
 
 format: ## Format go code with goimports
-	@go install golang.org/x/tools/cmd/goimports
+	@go get -d golang.org/x/tools/cmd/goimports
 	@goimports -l -w .
 
 format-check: ## Check if the code is formatted
-	@go install golang.org/x/tools/cmd/goimports
+	@go get -d golang.org/x/tools/cmd/goimports
 	@for i in $$(goimports -l .); do echo "[ERROR] Code is not formated run 'make format'" && exit 1; done
 
 test: ## Run tests
@@ -34,11 +34,11 @@ check: format-check cyclo ## Linting and static analysis
 		exit 1; \
 	fi
 
-	@go install github.com/mgechev/revive
+	@go get -d github.com/mgechev/revive
 	@revive -config revive.toml -formatter friendly
 
 cyclo: ## Cyclomatic complexities analysis
-	@go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@go get -d github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	@gocyclo -over 100 .
 
 help: ## Show help
@@ -47,7 +47,7 @@ help: ## Show help
 cover: ## Run tests with coverage and creates cover.out profile
 	@mkdir -p ./resources/cover
 	@rm -f ./resources/cover/tmp-cover.log;
-	@go install github.com/ory/go-acc
+	@go get -d github.com/ory/go-acc@latest
 	@${GOPATH}/bin/go-acc ./... --output=resources/cover/cover.out --covermode=atomic
 
 git-tag-patch: ## Push new tag to repository with patch number incremented
