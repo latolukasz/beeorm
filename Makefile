@@ -15,11 +15,11 @@ clean: ## Remove all artifacts from ./bin/ and ./resources
 	@rm -rf ./bin/*
 
 format: ## Format go code with goimports
-	@go get -d golang.org/x/tools/cmd/goimports
+	@go get golang.org/x/tools/cmd/goimports
 	@goimports -l -w .
 
 format-check: ## Check if the code is formatted
-	@go get -d golang.org/x/tools/cmd/goimports
+	@go get golang.org/x/tools/cmd/goimports
 	@for i in $$(goimports -l .); do echo "[ERROR] Code is not formated run 'make format'" && exit 1; done
 
 test: ## Run tests
@@ -34,11 +34,11 @@ check: format-check cyclo ## Linting and static analysis
 		exit 1; \
 	fi
 
-	@go get -d github.com/mgechev/revive
+	@go get -u github.com/mgechev/revive
 	@revive -config revive.toml -formatter friendly
 
 cyclo: ## Cyclomatic complexities analysis
-	@go get -d github.com/fzipp/gocyclo/cmd/gocyclo@latest
+	@go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
 	@gocyclo -over 100 .
 
 help: ## Show help
@@ -47,7 +47,8 @@ help: ## Show help
 cover: ## Run tests with coverage and creates cover.out profile
 	@mkdir -p ./resources/cover
 	@rm -f ./resources/cover/tmp-cover.log;
-	@go test ./... -covermode=atomic -coverprofile resources/cover/cover.out
+	@go get github.com/ory/go-acc
+	@${GOPATH}/bin/go-acc ./... --output=resources/cover/cover.out --covermode=atomic
 
 git-tag-patch: ## Push new tag to repository with patch number incremented
 	$(eval NEW_VERSION=$(shell git describe --tags --abbrev=0 | awk -F'[a-z.]' '{$$4++;print "v" $$2 "." $$3 "." $$4}'))
