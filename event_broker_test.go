@@ -567,8 +567,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, 4, incr)
 	assert.Less(t, time.Since(start).Milliseconds(), int64(500))
 
-	ctxCancel, stop = context.WithCancel(context.Background())
-	defer stop()
+	ctxCancel, stop2 := context.WithCancel(context.Background())
+	defer stop2()
 	engine = validatedRegistry.CreateEngine(ctxCancel)
 	engine.GetRedis().FlushDB()
 	eventFlusher = engine.GetEventBroker().NewFlusher()
@@ -613,7 +613,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	engine = validatedRegistry.CreateEngine(ctxWithTimeout2)
 	consumer = engine.GetEventBroker().Consumer("test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 100
-	consumer.(*eventsConsumer).lockTick = time.Millisecond * 100
+	consumer.(*eventsConsumer).lockTick = time.Millisecond * 500
 	start = time.Now()
 	go func() {
 		time.Sleep(time.Millisecond * 200)
