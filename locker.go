@@ -128,7 +128,7 @@ func (l *Lock) Refresh(ttl time.Duration) bool {
 		return false
 	}
 	start := getNow(l.engine.hasRedisLogger)
-	err := l.lock.Refresh(l.engine.context, ttl, nil)
+	err := l.lock.Refresh(context.Background(), ttl, nil)
 	has := true
 	if err == redislock.ErrNotObtained {
 		has = false
