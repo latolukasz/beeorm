@@ -242,6 +242,7 @@ func TestRedisSearch(t *testing.T) {
 	_, rows := search.Search("test2", query, NewPager(1, 2))
 	assert.Len(t, rows, 2)
 	assert.Equal(t, "test2:34", rows[0].Key)
+	assert.Nil(t, rows[0].Value("missing"))
 	assert.Equal(t, "hello 34", rows[0].Value("title"))
 	assert.Equal(t, "34", rows[0].Value("id"))
 	assert.Equal(t, "10", rows[0].Value("number_signed"))
@@ -261,7 +262,6 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, "hello 34", rows[0].Value("title"))
 	assert.Equal(t, "hello 35", rows[1].Value("title"))
 
-	//engine.EnableQueryDebug()
 	query = &RedisSearchQuery{}
 	query.FilterInt("id", 34, 37)
 	query.Sort("id", false)
@@ -611,6 +611,16 @@ func TestRedisSearch(t *testing.T) {
 	query.FilterString("title", "_")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(0), total)
+
+	pusher.NewDocument("test2:300")
+	pusher.SetInt("id", 300)
+	pusher.SetIntNil("number_signed")
+	pusher.PushDocument()
+	pusher.Flush()
+	query = &RedisSearchQuery{}
+	query.FilterNotIntNull("number_signed")
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(999), total)
 
 	engine.GetRedisSearch("search").ForceReindex("test2")
 	delete(engine.registry.redisSearchIndexes["search"], "test2")

@@ -236,14 +236,11 @@ func (r *RedisSearchResult) Value(field string) interface{} {
 	for i := 0; i < len(r.Fields); i += 2 {
 		if r.Fields[i] == field {
 			val := r.Fields[i+1]
-			asString, is := val.(string)
-			if is {
-				if len(asString) == 1 {
-					return redisSearchStringReplacerBackOne.Replace(asString)
-				}
-				return redisSearchStringReplacerBack.Replace(asString)
+			asString := val.(string)
+			if len(asString) == 1 {
+				return redisSearchStringReplacerBackOne.Replace(asString)
 			}
-			return r.Fields[i+1]
+			return redisSearchStringReplacerBack.Replace(asString)
 		}
 	}
 	return nil

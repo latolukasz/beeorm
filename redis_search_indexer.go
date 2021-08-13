@@ -16,6 +16,7 @@ type RedisSearchIndexPusher interface {
 	SetTag(key string, tag ...string)
 	SetUint(key string, value uint64)
 	SetInt(key string, value int64)
+	SetIntNil(key string)
 	SetFloat(key string, value float64)
 	SetGeo(key string, lon float64, lat float64)
 	PushDocument()
@@ -68,6 +69,10 @@ func (p *redisSearchIndexPusher) SetUint(key string, value uint64) {
 
 func (p *redisSearchIndexPusher) SetInt(key string, value int64) {
 	p.fields = append(p.fields, key, value)
+}
+
+func (p *redisSearchIndexPusher) SetIntNil(key string) {
+	p.fields = append(p.fields, key, RedisSearchNullNumber)
 }
 
 func (p *redisSearchIndexPusher) SetFloat(key string, value float64) {
