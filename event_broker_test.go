@@ -72,10 +72,10 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	eventFlusher.Flush()
-	assert.Panics(t, func() {
+	assert.PanicsWithError(t, "stop", func() {
 		consumer2.Consume(10, func(events []Event) {
 			events[0].Ack()
-			panic("stop")
+			panic(fmt.Errorf("stop"))
 		})
 	})
 	consumer1.Consume(100, func(events []Event) {})
@@ -84,129 +84,6 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	engine.GetRedis().Del("test-group-2_gc")
 	backgroundConsumer.Digest()
 	assert.Equal(t, int64(9), engine.GetRedis().XLen("test-stream"))
-}
-
-func TestRedisStreamGroupConsumerErrorHandler(t *testing.T) {
-	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", 15)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
-	assert.NoError(t, err)
-	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
-	engine.GetRedis().FlushDB()
-	broker := engine.GetEventBroker()
-
-	consumer := broker.Consumer("test-group")
-	consumer.(*eventsConsumer).blockTime = time.Millisecond
-	consumer.DisableLoop()
-
-	type testEvent struct {
-		Name string
-	}
-	e := &testEvent{}
-
-	eventFlusher := engine.GetEventBroker().NewFlusher()
-	for i := 1; i <= 10; i++ {
-		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
-	}
-	eventFlusher.Flush()
-	assert.PanicsWithError(t, "test err a1", func() {
-		consumer.Consume(1, func(events []Event) {
-			events[0].Unserialize(e)
-			panic(fmt.Errorf("test err %v", e.Name))
-		})
-	})
-	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
-	assert.Equal(t, int64(1), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
-	i := 0
-	consumer.Consume(1, func(events []Event) {
-		i++
-		events[0].Unserialize(e)
-		assert.Equal(t, fmt.Sprintf("a%d", i), e.Name)
-	})
-	assert.Equal(t, 10, i)
-	assert.Equal(t, int64(0), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
-
-	j := 0
-	consumer.SetErrorHandler(func(err error, event Event) {
-		j++
-		assert.Equal(t, fmt.Sprintf("test err a%d", j), err.Error())
-	})
-	i = 0
-	for i := 1; i <= 10; i++ {
-		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
-	}
-	eventFlusher.Flush()
-	consumer.Consume(1, func(events []Event) {
-		i++
-		events[0].Unserialize(e)
-		panic(fmt.Sprintf("test err %v", e.Name))
-	})
-	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbage()
-	backgroundConsumer := NewBackgroundConsumer(engine)
-	backgroundConsumer.DisableLoop()
-	backgroundConsumer.blockTime = time.Millisecond
-	backgroundConsumer.Digest()
-	assert.Equal(t, 20, i)
-	assert.Equal(t, 10, j)
-	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
-	assert.Equal(t, int64(10), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
-
-	j = 0
-	consumer.SetErrorHandler(func(err error, event Event) {
-		j++
-		if j == 4 {
-			j++
-		}
-		event.Unserialize(e)
-		assert.Equal(t, fmt.Sprintf("a%d", j), e.Name)
-	})
-	i = 0
-	consumer.Consume(10, func(events []Event) {
-		i++
-		if i == 1 {
-			for k, ev := range events {
-				if k == 3 {
-					ev.Ack()
-				}
-			}
-			events[0].Unserialize(e)
-			panic(fmt.Errorf("test err %v", e.Name))
-		} else {
-			assert.Len(t, events, 1)
-			if i == 5 {
-				i++
-			}
-			events[0].Unserialize(e)
-			assert.Equal(t, fmt.Sprintf("a%d", i-1), e.Name)
-			panic(fmt.Errorf("test err %v", e.Name))
-		}
-	})
-	assert.Equal(t, 11, i)
-	assert.Equal(t, 10, j)
-	time.Sleep(time.Millisecond * 20)
-	consumer.(*eventsConsumer).garbage()
-	backgroundConsumer.Digest()
-	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
-	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
-
-	j = 0
-	consumer.SetErrorHandler(func(err error, event Event) {
-		j++
-		panic(fmt.Errorf("strange error: %v", err))
-	})
-	assert.PanicsWithError(t, "strange error: test err a1", func() {
-		consumer.Consume(1, func(events []Event) {
-			events[0].Unserialize(e)
-			panic(fmt.Errorf("test err %v", e.Name))
-		})
-	})
-	assert.Equal(t, 1, j)
-	assert.Equal(t, int64(10), engine.GetRedis().XLen("test-stream"))
-	assert.Equal(t, int64(9), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)
 }
 
 func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
@@ -310,7 +187,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	consumer = broker.Consumer("test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	consumer.DisableLoop()
-	assert.PanicsWithValue(t, "stop", func() {
+	assert.PanicsWithError(t, "stop", func() {
 		consumed2 = consumer.ConsumeMany(1, 3, func(events []Event) {
 			panic("stop")
 		})
@@ -614,7 +491,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer = engine.GetEventBroker().Consumer("test-group")
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 200
 	consumer.(*eventsConsumer).lockTick = time.Millisecond * 100
-	start = time.Now()
 	go func() {
 		time.Sleep(time.Millisecond * 200)
 		engine.GetRedis().Del("test-group_consumer-1")

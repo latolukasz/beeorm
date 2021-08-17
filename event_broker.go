@@ -160,14 +160,12 @@ func getRedisForStream(engine *Engine, stream string) *RedisCache {
 }
 
 type EventConsumerHandler func([]Event)
-type ConsumerErrorHandler func(err error, event Event)
 
 type EventsConsumer interface {
 	Consume(count int, handler EventConsumerHandler) bool
 	ConsumeMany(nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
 	DisableLoop()
-	SetErrorHandler(handler ConsumerErrorHandler)
 	Shutdown(timeout time.Duration)
 }
 
@@ -217,11 +215,10 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	engine       *Engine
-	loop         bool
-	errorHandler ConsumerErrorHandler
-	blockTime    time.Duration
-	isRunning    atomicBool
+	engine    *Engine
+	loop      bool
+	blockTime time.Duration
+	isRunning atomicBool
 }
 
 type eventsConsumer struct {
@@ -247,10 +244,6 @@ func (b *eventConsumerBase) DisableLoop() {
 	b.loop = false
 }
 
-func (b *eventConsumerBase) SetErrorHandler(handler ConsumerErrorHandler) {
-	b.errorHandler = handler
-}
-
 func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) bool {
 	return r.ConsumeMany(1, count, handler)
 }
@@ -266,189 +259,184 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	if !has {
 		return false
 	}
-	r.isRunning.setTrue()
 	r.garbage()
-	ticker := time.NewTicker(r.lockTick)
-	done := make(chan bool)
+	r.isRunning.setTrue()
+	timer := time.NewTimer(r.lockTick)
 	defer func() {
 		lock.Release()
-		ticker.Stop()
+		timer.Stop()
 		r.isRunning.setFalse()
-		close(done)
 	}()
-	hasLock := true
-	lockAcquired := time.Now()
-	canceled := false
-	go func() {
-		for {
-			select {
-			case <-r.engine.context.Done():
-				canceled = true
-				return
-			case <-done:
-				return
-			case <-ticker.C:
-				if !lock.Refresh(r.lockTTL) {
-					hasLock = false
-					return
-				}
-				now := time.Now()
-				lockAcquired = now
+	done := make(chan error)
+	stop := make(chan bool)
+	go r.digest(done, stop, name, count, handler)
+	for {
+		select {
+		case <-r.engine.context.Done():
+			stop <- true
+			<-done
+			return true
+		case <-timer.C:
+			if !lock.Refresh(r.lockTTL) {
+				stop <- true
+				<-done
+				return false
 			}
+			timer.Reset(r.lockTick)
+		case err := <-done:
+			if err != nil {
+				panic(err)
+			}
+			return true
+		}
+	}
+}
+
+type consumeAttributes struct {
+	Pending   bool
+	BlockTime time.Duration
+	Stop      chan bool
+	Name      string
+	Count     int
+	Handler   EventConsumerHandler
+	LastIDs   map[string]string
+	Streams   []string
+}
+
+func (r *eventsConsumer) digest(done chan<- error, stop chan bool, name string, count int, handler EventConsumerHandler) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			asErr, isError := rec.(error)
+			if !isError {
+				asErr = fmt.Errorf("%v", rec)
+			}
+			done <- asErr
 		}
 	}()
-	lastIDs := make(map[string]string)
 	for _, stream := range r.streams {
 		r.redis.XGroupCreateMkStream(stream, r.group, "0")
 	}
-	keys := []string{"0", ">"}
-	streams := make([]string, len(r.streams)*2)
-	b := r.blockTime
-	if !r.loop {
-		b = -1
+	attributes := &consumeAttributes{
+		Pending:   true,
+		BlockTime: -1,
+		Stop:      stop,
+		Name:      name,
+		Count:     count,
+		Handler:   handler,
+		LastIDs:   make(map[string]string),
+		Streams:   make([]string, len(r.streams)*2),
+	}
+	for _, stream := range r.streams {
+		attributes.LastIDs[stream] = "0"
 	}
 	for {
-	KEYS:
-		for _, key := range keys {
-			invalidCheck := key == "0"
-			if invalidCheck {
-				for _, stream := range r.streams {
-					lastIDs[stream] = "0"
-				}
+		select {
+		case <-stop:
+			close(done)
+			return
+		default:
+			finished := r.digestKeys(attributes)
+			if !r.loop && finished {
+				close(done)
+				return
 			}
-			for {
-				if canceled {
-					return false
-				}
-				if !hasLock || time.Since(lockAcquired) > r.lockTTL {
-					return false
-				}
-
-				i := 0
-				for _, stream := range r.streams {
-					streams[i] = stream
-					i++
-				}
-				for _, stream := range r.streams {
-					if invalidCheck {
-						streams[i] = lastIDs[stream]
-					} else {
-						streams[i] = ">"
-					}
-					i++
-				}
-				a := &redis.XReadGroupArgs{Consumer: name, Group: r.group, Streams: streams, Count: int64(count), Block: b}
-				results := r.redis.XReadGroup(a)
-				if canceled {
-					return false
-				}
-				totalMessages := 0
-				for _, row := range results {
-					l := len(row.Messages)
-					if l > 0 {
-						totalMessages += l
-						if invalidCheck {
-							lastIDs[row.Stream] = row.Messages[l-1].ID
-						}
-					}
-				}
-				if totalMessages == 0 {
-					continue KEYS
-				}
-				events := make([]Event, totalMessages)
-				i = 0
-				for _, row := range results {
-					for _, message := range row.Messages {
-						events[i] = &event{stream: row.Stream, message: message, consumer: r}
-						i++
-					}
-				}
-				r.speedEvents += totalMessages
-				r.speedLogger.Clear()
-				start := getNow(r.engine.hasRedisLogger)
-				func() {
-					defer func() {
-						if rec := recover(); rec != nil {
-							if r.errorHandler != nil {
-								finalEvents := make([]Event, 0)
-								for _, row := range events {
-									e := row.(*event)
-									if !e.ack {
-										finalEvents = append(finalEvents, row)
-									}
-								}
-								for _, e := range finalEvents {
-									func() {
-										defer func() {
-											if rec := recover(); rec != nil {
-												asErr, isError := rec.(error)
-												if !isError {
-													asErr = fmt.Errorf("%v", rec)
-												}
-												r.errorHandler(asErr, e)
-											}
-										}()
-										handler([]Event{e})
-									}()
-								}
-								events = make([]Event, 0)
-								return
-							}
-							panic(rec)
-						}
-					}()
-					handler(events)
-				}()
-				r.speedTimeMicroseconds += time.Since(*start).Microseconds()
-				r.speedDBQueries += r.speedLogger.DBQueries
-				r.speedRedisQueries += r.speedLogger.RedisQueries
-				r.speedDBMicroseconds += r.speedLogger.DBMicroseconds
-				r.speedRedisMicroseconds += r.speedLogger.RedisMicroseconds
-				var toAck map[string][]string
-				allDeleted := true
-				for _, ev := range events {
-					ev := ev.(*event)
-					if !ev.ack {
-						if toAck == nil {
-							toAck = make(map[string][]string)
-						}
-						toAck[ev.stream] = append(toAck[ev.stream], ev.message.ID)
-					} else if !ev.deleted {
-						allDeleted = false
-					}
-				}
-				if !allDeleted {
-					r.garbage()
-				}
-				for stream, ids := range toAck {
-					r.redis.XAck(stream, r.group, ids...)
-				}
-				if r.speedEvents >= r.speedLimit {
-					today := time.Now().Format("01-02-06")
-					key := speedHSetKey + today
-					pipeline := r.redis.PipeLine()
-					pipeline.Expire(key, time.Hour*216)
-					pipeline.HIncrBy(key, r.speedPrefixKey+"e", int64(r.speedEvents))
-					pipeline.HIncrBy(key, r.speedPrefixKey+"t", r.speedTimeMicroseconds)
-					pipeline.HIncrBy(key, r.speedPrefixKey+"d", int64(r.speedDBQueries))
-					pipeline.HIncrBy(key, r.speedPrefixKey+"dt", r.speedDBMicroseconds)
-					pipeline.HIncrBy(key, r.speedPrefixKey+"r", int64(r.speedRedisQueries))
-					pipeline.HIncrBy(key, r.speedPrefixKey+"rt", r.speedRedisMicroseconds)
-					pipeline.Exec()
-					r.speedEvents = 0
-					r.speedDBQueries = 0
-					r.speedRedisQueries = 0
-					r.speedTimeMicroseconds = 0
-					r.speedDBMicroseconds = 0
-					r.speedRedisMicroseconds = 0
-				}
-			}
-		}
-		if !r.loop {
-			break
 		}
 	}
-	return true
+}
+
+func (r *eventsConsumer) digestKeys(attributes *consumeAttributes) (finished bool) {
+	i := 0
+	for _, stream := range r.streams {
+		attributes.Streams[i] = stream
+		i++
+	}
+	for _, stream := range r.streams {
+		if attributes.Pending {
+			attributes.Streams[i] = attributes.LastIDs[stream]
+		} else {
+			attributes.Streams[i] = ">"
+		}
+		i++
+	}
+	a := &redis.XReadGroupArgs{Consumer: attributes.Name, Group: r.group, Streams: attributes.Streams,
+		Count: int64(attributes.Count), Block: attributes.BlockTime}
+	results := r.redis.XReadGroup(a)
+	totalMessages := 0
+	for _, row := range results {
+		l := len(row.Messages)
+		if l > 0 {
+			totalMessages += l
+			if attributes.Pending {
+				attributes.LastIDs[row.Stream] = row.Messages[l-1].ID
+			}
+		}
+	}
+	if totalMessages == 0 {
+		if attributes.Pending {
+			attributes.Pending = false
+			if r.loop {
+				attributes.BlockTime = r.blockTime
+			}
+			return false
+		}
+		return true
+	}
+	events := make([]Event, totalMessages)
+	i = 0
+	for _, row := range results {
+		for _, message := range row.Messages {
+			events[i] = &event{stream: row.Stream, message: message, consumer: r}
+			i++
+		}
+	}
+	r.speedEvents += totalMessages
+	r.speedLogger.Clear()
+	start := getNow(r.engine.hasRedisLogger)
+	attributes.Handler(events)
+	r.speedTimeMicroseconds += time.Since(*start).Microseconds()
+	r.speedDBQueries += r.speedLogger.DBQueries
+	r.speedRedisQueries += r.speedLogger.RedisQueries
+	r.speedDBMicroseconds += r.speedLogger.DBMicroseconds
+	r.speedRedisMicroseconds += r.speedLogger.RedisMicroseconds
+	var toAck map[string][]string
+	allDeleted := true
+	for _, ev := range events {
+		ev := ev.(*event)
+		if !ev.ack {
+			if toAck == nil {
+				toAck = make(map[string][]string)
+			}
+			toAck[ev.stream] = append(toAck[ev.stream], ev.message.ID)
+		} else if !ev.deleted {
+			allDeleted = false
+		}
+	}
+	if !allDeleted {
+		r.garbage()
+	}
+	for stream, ids := range toAck {
+		r.redis.XAck(stream, r.group, ids...)
+	}
+	if r.speedEvents >= r.speedLimit {
+		today := time.Now().Format("01-02-06")
+		key := speedHSetKey + today
+		pipeline := r.redis.PipeLine()
+		pipeline.Expire(key, time.Hour*216)
+		pipeline.HIncrBy(key, r.speedPrefixKey+"e", int64(r.speedEvents))
+		pipeline.HIncrBy(key, r.speedPrefixKey+"t", r.speedTimeMicroseconds)
+		pipeline.HIncrBy(key, r.speedPrefixKey+"d", int64(r.speedDBQueries))
+		pipeline.HIncrBy(key, r.speedPrefixKey+"dt", r.speedDBMicroseconds)
+		pipeline.HIncrBy(key, r.speedPrefixKey+"r", int64(r.speedRedisQueries))
+		pipeline.HIncrBy(key, r.speedPrefixKey+"rt", r.speedRedisMicroseconds)
+		pipeline.Exec()
+		r.speedEvents = 0
+		r.speedDBQueries = 0
+		r.speedRedisQueries = 0
+		r.speedTimeMicroseconds = 0
+		r.speedDBMicroseconds = 0
+		r.speedRedisMicroseconds = 0
+	}
+	return false
 }
 
 func (r *eventsConsumer) Claim(from, to int) {
