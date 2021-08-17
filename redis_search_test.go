@@ -532,6 +532,11 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(1), total)
 	assert.Equal(t, "luna", rows[0].Value("title"))
 
+	query = &RedisSearchQuery{}
+	query.FilterNotString("title", "luna")
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(999), total)
+
 	pusher.NewDocument("test2:101")
 	pusher.SetString("title", "adam@gmail.com")
 	pusher.SetInt("id", 101)
