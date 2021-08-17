@@ -593,6 +593,11 @@ func TestRedisSearch(t *testing.T) {
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 
+	query = &RedisSearchQuery{}
+	query.FilterStringStartsWith("title", "has house ")
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+
 	assert.PanicsWithError(t, "unknown index invalid in pool search", func() {
 		search.ForceReindex("invalid")
 	})

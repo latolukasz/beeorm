@@ -389,7 +389,7 @@ func (q *RedisSearchQuery) filterString(field string, exactPhrase, not, starts b
 				if len(v) < 2 {
 					panic(fmt.Errorf("search starts with require min 2 characters"))
 				}
-				valueEscaped[i] = EscapeRedisSearchString(v) + "*"
+				valueEscaped[i] = EscapeRedisSearchString(strings.Trim(v, " ")) + "*"
 			} else if exactPhrase {
 				valueEscaped[i] = "\"" + EscapeRedisSearchString(v) + "\""
 			} else {
