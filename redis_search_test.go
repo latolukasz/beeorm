@@ -528,6 +528,7 @@ func TestRedisSearch(t *testing.T) {
 	pusher.Flush()
 	query = &RedisSearchQuery{}
 	query.FilterString("title", "luna")
+	query.FilterString("title")
 	total, rows = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 	assert.Equal(t, "luna", rows[0].Value("title"))
