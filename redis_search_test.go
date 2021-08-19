@@ -607,20 +607,21 @@ func TestRedisSearch(t *testing.T) {
 		search.ForceReindex("invalid")
 	})
 
-	query = &RedisSearchQuery{}
-	query.FilterString("title", "/`")
-	total, _ = search.Search("test2", query, NewPager(1, 10))
-	assert.Equal(t, uint64(0), total)
-
-	query = &RedisSearchQuery{}
-	query.FilterString("title", "`")
-	total, _ = search.Search("test2", query, NewPager(1, 10))
-	assert.Equal(t, uint64(0), total)
-
-	query = &RedisSearchQuery{}
-	query.FilterString("title", "_")
-	total, _ = search.Search("test2", query, NewPager(1, 10))
-	assert.Equal(t, uint64(0), total)
+	characters := `!@#$%^&*()_-+={[}]:;"'|\<,>.?/~'"` + "`"
+	for i := 0; i < len(characters); i++ {
+		query = &RedisSearchQuery{}
+		query.FilterString("title", string(characters[i]))
+		total, _ = search.Search("test2", query, NewPager(1, 10))
+		assert.Equal(t, uint64(0), total)
+		query = &RedisSearchQuery{}
+		query.FilterString("title", "aa"+string(characters[i]))
+		total, _ = search.Search("test2", query, NewPager(1, 10))
+		assert.Equal(t, uint64(0), total)
+		query = &RedisSearchQuery{}
+		query.FilterString("title", "aa "+string(characters[i]))
+		total, _ = search.Search("test2", query, NewPager(1, 10))
+		assert.Equal(t, uint64(0), total)
+	}
 
 	pusher.NewDocument("test2:300")
 	pusher.SetInt("id", 300)

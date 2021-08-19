@@ -45,6 +45,11 @@ type redisNoSearchEntity struct {
 	ID uint
 }
 
+type redisSearchOnlySortPKEntity struct {
+	ORM `orm:"redisSearch=search"`
+	ID  uint `orm:"sortable"`
+}
+
 func TestEntityRedisSearchIndexer(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
@@ -820,4 +825,51 @@ func TestEntityRedisSearch(t *testing.T) {
 	entitySearch, has = schema.GetRedisSearch(engine)
 	assert.Nil(t, entitySearch)
 	assert.False(t, has)
+}
+
+func TestEntityOnlySortPKRedisSearch(t *testing.T) {
+	var entity *redisSearchOnlySortPKEntity
+	registry := &Registry{}
+	engine, def := prepareTables(t, registry, 5, entity)
+	defer def()
+	flusher := engine.NewFlusher()
+	for i := 1; i <= 50; i++ {
+		e := &redisSearchOnlySortPKEntity{}
+		flusher.Track(e)
+	}
+	flusher.Flush()
+
+	query := &RedisSearchQuery{}
+	query.Sort("ID", false)
+	ids, total := engine.RedisSearchIds(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(50), total)
+	assert.Len(t, ids, 50)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(30), ids[29])
+	assert.Equal(t, uint64(50), ids[49])
+
+	e := &redisSearchOnlySortPKEntity{}
+	e.SetOnDuplicateKeyUpdate(Bind{"ID": 60})
+	engine.Flush(e)
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", true)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(51), total)
+	assert.Len(t, ids, 51)
+	assert.Equal(t, uint64(51), ids[0])
+	assert.Equal(t, uint64(1), ids[50])
+
+	e = &redisSearchOnlySortPKEntity{}
+	engine.LoadByID(2, e)
+	engine.Delete(e)
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 3))
+	assert.Equal(t, uint64(50), total)
+	assert.Len(t, ids, 3)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(3), ids[1])
+	assert.Equal(t, uint64(4), ids[2])
 }

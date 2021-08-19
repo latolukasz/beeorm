@@ -482,6 +482,16 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		mapPointerToValue, 1, "", tags)
 	searchPrefix := ""
 	if len(redisSearchIndex.Fields) > 0 {
+		hasSearchable := false
+		for _, field := range redisSearchIndex.Fields {
+			if !field.NoIndex {
+				hasSearchable = true
+				break
+			}
+		}
+		if !hasSearchable {
+			redisSearchIndex.Fields[0].NoIndex = false
+		}
 		redisSearchIndex.Name = entityType.String()
 		redisSearchIndex.RedisPool = redisSearch
 		searchPrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(entityType.String())))
