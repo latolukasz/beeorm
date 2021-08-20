@@ -632,7 +632,7 @@ func TestRedisSearch(t *testing.T) {
 	query = &RedisSearchQuery{}
 	query.FilterNotIntNull("number_signed")
 	total, rows = search.Search("test2", query, NewPager(1, 10))
-	assert.Equal(t, uint64(999), total)
+	assert.Equal(t, uint64(3), total)
 
 	query = &RedisSearchQuery{}
 	query.Sort("id", false)

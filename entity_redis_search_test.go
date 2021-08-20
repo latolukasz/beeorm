@@ -597,16 +597,23 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(21), ids[0])
 	assert.Equal(t, uint64(50), ids[29])
 
-	//query = &RedisSearchQuery{}
-	//query.Sort("Age", false)
-	//query.FilterNotDate("Date", newNow)
-	//ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
-	//fmt.Printf("%d\n", total)
-	//assert.Equal(t, uint64(30), total)
-	//assert.Len(t, ids, 30)
-	//assert.Equal(t, uint64(21), ids[0])
-	//assert.Equal(t, uint64(50), ids[29])
-	//return
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterNotDate("Date", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(30), total)
+	assert.Len(t, ids, 30)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(50), ids[29])
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.FilterNotDateNull("DateNullable")
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(30), total)
+	assert.Len(t, ids, 30)
+	assert.Equal(t, uint64(21), ids[0])
+	assert.Equal(t, uint64(50), ids[29])
 
 	newNow = now.Add(time.Microsecond * 3)
 	query = &RedisSearchQuery{}

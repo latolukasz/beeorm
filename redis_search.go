@@ -760,7 +760,7 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			if i > 0 {
 				q += "|"
 			}
-			q += "-@" + field + ":" + v
+			q += "(@" + field + ":[-inf (" + v + "] | @" + field + ":[(" + v + " +inf])"
 		}
 	}
 	for field, in := range query.filtersNotTags {
