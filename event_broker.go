@@ -259,14 +259,15 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	if !has {
 		return false
 	}
-	r.garbage()
 	r.isRunning.setTrue()
 	timer := time.NewTimer(r.lockTick)
 	defer func() {
+		fmt.Printf("DEFER\n")
 		lock.Release()
 		timer.Stop()
 		r.isRunning.setFalse()
 	}()
+	r.garbage()
 	done := make(chan error)
 	stop := make(chan bool)
 	go r.digest(done, stop, name, count, handler)
@@ -470,12 +471,15 @@ func (b *eventConsumerBase) Shutdown(timeout time.Duration) {
 	defer timer.Stop()
 	for {
 		if !b.isRunning.isSet() {
+			fmt.Printf("STOPA\n")
 			return
 		}
 		select {
 		case <-ctx.Done():
+			fmt.Printf("STOPB\n")
 			return
 		case <-timer.C:
+			fmt.Printf("SLEEPC\n")
 			timer.Reset(time.Millisecond * 100)
 		}
 	}
