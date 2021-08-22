@@ -330,9 +330,7 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 		}
 
 		if r.garbageCollectorSha1 == "" {
-			sha1, has := redisGarbage.Get("_orm_gc_sha1")
-			if !has {
-				script := `
+			script := `
 						local count = 0
 						local all = 0
 						while(true)
@@ -356,11 +354,7 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 						end
 						return all
 						`
-				r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
-				redisGarbage.Set("_orm_gc_sha1", r.garbageCollectorSha1, 604800)
-			} else {
-				r.garbageCollectorSha1 = sha1
-			}
+			r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
 		}
 
 		for {
