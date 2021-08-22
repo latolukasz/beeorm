@@ -274,6 +274,7 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	for {
 		select {
 		case <-r.engine.context.Done():
+			fmt.Printf("STOPPING!!\n")
 			stop <- true
 			<-done
 			return true
