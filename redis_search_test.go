@@ -588,7 +588,13 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, "test2:202", rows[0].Key)
 
 	query = &RedisSearchQuery{}
-	assert.PanicsWithError(t, "search starts with require min 2 characters", func() {
+	query.FilterStringStartsWith("title", "sm to")
+	total, rows = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, "test2:202", rows[0].Key)
+
+	query = &RedisSearchQuery{}
+	assert.PanicsWithError(t, "search start with requires min one word with 2 characters", func() {
 		query.FilterStringStartsWith("title", "s")
 	})
 

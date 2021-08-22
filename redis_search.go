@@ -386,11 +386,22 @@ func (q *RedisSearchQuery) filterString(field string, exactPhrase, not, starts b
 			valueEscaped[i] = "\"NULL\""
 		} else {
 			if starts {
-				v := strings.Trim(v, " ")
-				if len(v) < 2 {
-					panic(fmt.Errorf("search starts with require min 2 characters"))
+				values := strings.Split(strings.Trim(v, " "), " ")
+				escaped := ""
+				k := 0
+				for _, val := range values {
+					if len(val) >= 2 {
+						if k > 0 {
+							escaped += " "
+						}
+						escaped += EscapeRedisSearchString(val) + "*"
+						k++
+					}
 				}
-				valueEscaped[i] = EscapeRedisSearchString(strings.Trim(v, " ")) + "*"
+				if k == 0 {
+					panic(fmt.Errorf("search start with requires min one word with 2 characters"))
+				}
+				valueEscaped[i] = escaped
 			} else if exactPhrase {
 				valueEscaped[i] = "\"" + EscapeRedisSearchString(v) + "\""
 			} else {
