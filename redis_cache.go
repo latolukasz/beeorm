@@ -702,11 +702,16 @@ func (r *RedisCache) XGroupDelConsumer(stream, group, consumer string) int64 {
 
 func (r *RedisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (streams []redis.XStream) {
 	start := getNow(r.engine.hasRedisLogger)
+	if r.engine.hasRedisLogger && a.Block >= 0 {
+		message := fmt.Sprintf("XREADGROUP %s %s STREAMS %s", a.Group, a.Consumer, strings.Join(a.Streams, " "))
+		message += fmt.Sprintf(" COUNT %d BLOCK %s NOACK %v", a.Count, a.Block.String(), a.NoAck)
+		r.fillLogFields("XREADGROUP", message, start, nil)
+	}
 	streams, err := r.client.XReadGroup(ctx, a).Result()
 	if err == redis.Nil {
 		err = nil
 	}
-	if r.engine.hasRedisLogger {
+	if r.engine.hasRedisLogger && a.Block < 0 {
 		message := fmt.Sprintf("XREADGROUP %s %s STREAMS %s", a.Group, a.Consumer, strings.Join(a.Streams, " "))
 		message += fmt.Sprintf(" COUNT %d BLOCK %s NOACK %v", a.Count, a.Block.String(), a.NoAck)
 		r.fillLogFields("XREADGROUP", message, start, err)
