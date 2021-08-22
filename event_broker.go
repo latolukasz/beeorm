@@ -218,7 +218,6 @@ type eventConsumerBase struct {
 	engine    *Engine
 	loop      bool
 	blockTime time.Duration
-	isRunning atomicBool
 }
 
 type eventsConsumer struct {
@@ -238,6 +237,7 @@ type eventsConsumer struct {
 	speedTimeMicroseconds  int64
 	speedLimit             int
 	garbageLastTick        int64
+	isRunning              atomicBool
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -464,7 +464,7 @@ func (r *eventsConsumer) Claim(from, to int) {
 	}
 }
 
-func (b *eventConsumerBase) Shutdown(timeout time.Duration) {
+func (b *eventsConsumer) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	timer := time.NewTimer(time.Millisecond * 10)
