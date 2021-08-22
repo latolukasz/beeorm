@@ -464,13 +464,13 @@ func (r *eventsConsumer) Claim(from, to int) {
 	}
 }
 
-func (b *eventsConsumer) Shutdown(timeout time.Duration) {
+func (r *eventsConsumer) Shutdown(timeout time.Duration) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	timer := time.NewTimer(time.Millisecond * 10)
 	defer timer.Stop()
 	for {
-		if !b.isRunning.isSet() {
+		if !r.isRunning.isSet() {
 			fmt.Printf("STOPA\n")
 			return
 		}

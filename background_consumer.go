@@ -37,6 +37,7 @@ type BackgroundConsumer struct {
 	eventConsumerBase
 	redisFlusher         *redisFlusher
 	garbageCollectorSha1 string
+	consumer             *eventsConsumer
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
@@ -48,9 +49,9 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 }
 
 func (r *BackgroundConsumer) Digest() bool {
-	consumer := r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
-	consumer.eventConsumerBase = r.eventConsumerBase
-	return consumer.Consume(100, func(events []Event) {
+	r.consumer = r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
+	r.consumer.eventConsumerBase = r.eventConsumerBase
+	return r.consumer.Consume(100, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
@@ -64,6 +65,12 @@ func (r *BackgroundConsumer) Digest() bool {
 			}
 		}
 	})
+}
+
+func (r *BackgroundConsumer) Shutdown(timeout time.Duration) {
+	if r.consumer != nil {
+		r.consumer.Shutdown(timeout)
+	}
 }
 
 func (r *BackgroundConsumer) handleLogEvent(event Event) {
