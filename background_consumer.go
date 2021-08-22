@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -48,10 +49,10 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	return c
 }
 
-func (r *BackgroundConsumer) Digest() bool {
+func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	r.consumer = r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
-	return r.consumer.Consume(100, func(events []Event) {
+	return r.consumer.Consume(ctx, 100, func(events []Event) {
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:

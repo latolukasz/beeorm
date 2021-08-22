@@ -1,13 +1,12 @@
 package beeorm
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 )
 
 type ValidatedRegistry interface {
-	CreateEngine(ctx context.Context) *Engine
+	CreateEngine() *Engine
 	GetTableSchema(entityName string) TableSchema
 	GetTableSchemaForEntity(entity Entity) TableSchema
 	GetSourceRegistry() *Registry
@@ -95,8 +94,8 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 	return r.redisServers
 }
 
-func (r *validatedRegistry) CreateEngine(ctx context.Context) *Engine {
-	return &Engine{registry: r, context: ctx}
+func (r *validatedRegistry) CreateEngine() *Engine {
+	return &Engine{registry: r}
 }
 
 func (r *validatedRegistry) GetTableSchema(entityName string) TableSchema {

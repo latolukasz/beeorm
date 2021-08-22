@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,12 +33,11 @@ func TestEngine(t *testing.T) {
 
 func BenchmarkEngine(b *testing.B) {
 	registry := &Registry{}
-	ctx := context.Background()
-	validatedRegistry, def, _ := registry.Validate(ctx)
+	validatedRegistry, def, _ := registry.Validate()
 	defer def()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		validatedRegistry.CreateEngine(ctx)
+		validatedRegistry.CreateEngine()
 	}
 }

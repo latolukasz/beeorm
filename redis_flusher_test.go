@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,11 +12,10 @@ func TestRedisFlusher(t *testing.T) {
 	registry.RegisterRedis("localhost:6382", 15, "second")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-2", "default", []string{"test-group-2"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
 

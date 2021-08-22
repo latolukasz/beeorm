@@ -18,19 +18,18 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	testRedis(t, engine)
 	def()
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6399", 15)
-	validatedRegistry, def, err = registry.Validate(ctx)
+	validatedRegistry, def, err = registry.Validate()
 	assert.NoError(t, err)
 	defer def()
-	engine = validatedRegistry.CreateEngine(ctx)
+	engine = validatedRegistry.CreateEngine()
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {

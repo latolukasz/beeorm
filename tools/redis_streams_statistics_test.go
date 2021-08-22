@@ -14,11 +14,10 @@ func TestRedisStreamsStatus(t *testing.T) {
 	registry.RegisterRedis("localhost:6382", 11)
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
 
@@ -63,7 +62,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 
 	consumer := engine.GetEventBroker().Consumer("test-group")
 	consumer.DisableLoop()
-	consumer.Consume(11000, func(events []orm.Event) {
+	consumer.Consume(context.Background(), 11000, func(events []orm.Event) {
 		engine.GetRedis().Get("hello")
 		engine.GetRedis().Get("hello2")
 		engine.GetMysql().Query("SELECT 1")
@@ -99,7 +98,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	flusher.Publish("test-stream", testEvent{"a"})
 	flusher.Flush()
 	assert.Panics(t, func() {
-		consumer.Consume(10, func(events []orm.Event) {
+		consumer.Consume(context.Background(), 10, func(events []orm.Event) {
 			panic("stop")
 		})
 	})

@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -562,7 +563,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity1, entity2, entity3)
 	flusher.Flush()
 
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	if local {
 		assert.Len(t, testLogger.Logs, 3)
 		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])

@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -13,11 +12,10 @@ func TestRedisPipeline(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
 	pipeLine := r.PipeLine()

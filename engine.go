@@ -11,7 +11,6 @@ import (
 
 type Engine struct {
 	registry                  *validatedRegistry
-	context                   context.Context
 	dbs                       map[string]*DB
 	localCache                map[string]*LocalCache
 	redis                     map[string]*RedisCache
@@ -102,10 +101,7 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
 		}
 		client := config.getClient()
-		if client != nil {
-			client = client.WithContext(e.context)
-		}
-		cache = &RedisCache{engine: e, config: config, client: client, ctx: context.Background()}
+		cache = &RedisCache{engine: e, config: config, client: client}
 		if e.redis == nil {
 			e.redis = map[string]*RedisCache{dbCode: cache}
 		} else {
@@ -129,10 +125,7 @@ func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
 			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
 		}
 		client := config.getClient()
-		if client != nil {
-			client = client.WithContext(e.context)
-		}
-		redisClient := &RedisCache{engine: e, config: config, client: client, ctx: context.Background()}
+		redisClient := &RedisCache{engine: e, config: config, client: client}
 		cache = &RedisSearch{engine: e, redis: redisClient, ctx: context.Background()}
 		if e.redisSearch == nil {
 			e.redisSearch = map[string]*RedisSearch{dbCode: cache}

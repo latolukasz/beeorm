@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -30,7 +31,7 @@ func TestRedisSearchIndexer(t *testing.T) {
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	assert.Equal(t, 2, iteration)
 
 	iteration = 0
@@ -44,7 +45,7 @@ func TestRedisSearchIndexer(t *testing.T) {
 	}
 	engine.GetRedisSearch("search").ForceReindex("test")
 	assert.PanicsWithError(t, "stop", func() {
-		indexer.Digest()
+		indexer.Digest(context.Background())
 	})
 	assert.Equal(t, 2, iteration)
 	iteration = 0
@@ -53,7 +54,7 @@ func TestRedisSearchIndexer(t *testing.T) {
 		assert.Equal(t, uint64(7), lastID)
 		return 10, false
 	}
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	assert.Equal(t, 1, iteration)
 	iteration = 0
 	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
@@ -62,14 +63,14 @@ func TestRedisSearchIndexer(t *testing.T) {
 		return 0, false
 	}
 	engine.GetRedisSearch("search").ForceReindex("test")
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	assert.Equal(t, 1, iteration)
 	testIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
 		return 10, true
 	}
 	engine.GetRedisSearch("search").ForceReindex("test")
 	assert.PanicsWithError(t, "loop detected in indxer for index test in pool search", func() {
-		indexer.Digest()
+		indexer.Digest(context.Background())
 	})
 }
 
@@ -129,7 +130,7 @@ func TestRedisSearch(t *testing.T) {
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
-	indexer.Digest()
+	indexer.Digest(context.Background())
 
 	info := search.Info("test")
 	assert.Equal(t, "test", info.Name)
@@ -181,7 +182,7 @@ func TestRedisSearch(t *testing.T) {
 		return newID, newID < 1000
 	}
 	search.ForceReindex("test2")
-	indexer.Digest()
+	indexer.Digest(context.Background())
 
 	testIndex2.AddTextField("title2", 1, false, false, false)
 	testIndex2.AddNumericField("id", true, false)
@@ -197,7 +198,7 @@ func TestRedisSearch(t *testing.T) {
 	time.Sleep(time.Millisecond * 100)
 
 	search.ForceReindex("test2")
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	time.Sleep(time.Millisecond * 100)
 
 	pusher := engine.NewRedisSearchIndexPusher("search")
@@ -691,7 +692,7 @@ func TestRedisSearch(t *testing.T) {
 
 	engine.GetRedisSearch("search").ForceReindex("test2")
 	delete(engine.registry.redisSearchIndexes["search"], "test2")
-	indexer.Digest()
+	indexer.Digest(context.Background())
 
 	assert.PanicsWithError(t, "unregistered redis cache pool 'invalid'", func() {
 		engine.GetRedisSearch("invalid")

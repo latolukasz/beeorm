@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -11,11 +10,10 @@ import (
 func TestLocker(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
@@ -37,45 +35,4 @@ func TestLocker(t *testing.T) {
 	lock.Release()
 	has = lock.Refresh(time.Second)
 	assert.False(t, has)
-	lock.has = true
-	lock.done = make(chan bool)
-	lock.Release()
-	_, has = l.Obtain("test_key", time.Second, time.Millisecond)
-	assert.True(t, has)
-	lock.has = true
-	lock.done = make(chan bool)
-	has = lock.Refresh(time.Second)
-	assert.False(t, has)
-
-	assert.PanicsWithError(t, "ttl must be higher than zero", func() {
-		_, _ = l.Obtain("test_key", 0, time.Millisecond)
-	})
-
-	lock, has = l.Obtain("test_key_2", time.Millisecond*3, 0)
-	assert.True(t, has)
-	time.Sleep(time.Millisecond * 4)
-	assert.Equal(t, time.Duration(0), lock.TTL())
-
-	ctxCancel, cancel := context.WithCancel(engine.context)
-	l2 := validatedRegistry.CreateEngine(ctxCancel).GetRedis().GetLocker()
-	lock, has = l2.Obtain("test_key_3", time.Millisecond*3, 0)
-	assert.True(t, has)
-	cancel()
-	time.Sleep(time.Millisecond)
-	assert.PanicsWithError(t, "context canceled", func() {
-		assert.Equal(t, time.Duration(0), lock.TTL())
-	})
-
-	registry = &Registry{}
-	registry.RegisterRedis("localhost:6399", 15)
-	validatedRegistry, def, err = registry.Validate(ctx)
-	assert.NoError(t, err)
-	defer def()
-	engine = validatedRegistry.CreateEngine(ctx)
-	testLogger = &testLogHandler{}
-	engine.RegisterQueryLogger(testLogger, false, true, false)
-	l = engine.GetRedis().GetLocker()
-	assert.Panics(t, func() {
-		_, _ = l.Obtain("test_key", time.Second, time.Millisecond)
-	})
 }

@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -34,7 +33,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, deferFunc func(), err error) {
+func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), err error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -167,7 +166,7 @@ func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, d
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	engine := registry.CreateEngine(ctx)
+	engine := registry.CreateEngine()
 	for _, schema := range registry.tableSchemas {
 		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil)
 		if err != nil {

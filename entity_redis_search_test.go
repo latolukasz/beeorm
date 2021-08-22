@@ -65,7 +65,7 @@ func TestEntityRedisSearchIndexer(t *testing.T) {
 		flusher.Track(e)
 	}
 	flusher.Flush()
-	assert.True(t, indexer.Digest())
+	assert.True(t, indexer.Digest(context.Background()))
 	query := NewRedisSearchQuery()
 	total := engine.RedisSearchCount(entity, query)
 	assert.Equal(t, uint64(entityIndexerPage+100), total)
@@ -690,7 +690,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
-	receiver.Digest()
+	receiver.Digest(context.Background())
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false).FilterInt("Age", 101)
@@ -703,7 +703,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	for _, alter := range engine.GetRedisSearchIndexAlters() {
 		alter.Execute()
 	}
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 10))
@@ -805,7 +805,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	engine.Flush(&redisSearchEntity{Age: 133})
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
 	schema.ReindexRedisSearchIndex(engine)
-	indexer.Digest()
+	indexer.Digest(context.Background())
 	query = NewRedisSearchQuery()
 	query.FilterInt("Age", 133)
 	found := engine.RedisSearchOne(entity, query)
@@ -831,7 +831,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry = NewRegistry()
 	registry.RegisterEntity(&redisSearchEntity2{})
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
-	_, _, err := registry.Validate(context.Background())
+	_, _, err := registry.Validate()
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	assert.PanicsWithError(t, "integer too high for redis search sort field", func() {
@@ -854,7 +854,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
 	registry.RegisterEntity(&redisSearchEntity3{})
 	def()
-	vRegistry, def, err := registry.Validate(context.Background())
+	vRegistry, def, err := registry.Validate()
 	defer def()
 	assert.NoError(t, err)
 	schema = vRegistry.GetTableSchemaForEntity(&redisSearchEntity3{})

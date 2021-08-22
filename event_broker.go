@@ -162,8 +162,8 @@ func getRedisForStream(engine *Engine, stream string) *RedisCache {
 type EventConsumerHandler func([]Event)
 
 type EventsConsumer interface {
-	Consume(count int, handler EventConsumerHandler) bool
-	ConsumeMany(nr, count int, handler EventConsumerHandler) bool
+	Consume(ctx context.Context, count int, handler EventConsumerHandler) bool
+	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
 	DisableLoop()
 	Shutdown(timeout time.Duration)
@@ -244,15 +244,15 @@ func (b *eventConsumerBase) DisableLoop() {
 	b.loop = false
 }
 
-func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) bool {
-	return r.ConsumeMany(1, count, handler)
+func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {
+	return r.ConsumeMany(ctx, 1, count, handler)
 }
 
-func (r *eventsConsumer) ConsumeMany(nr, count int, handler EventConsumerHandler) bool {
-	return r.consume(r.getName(nr), count, handler)
+func (r *eventsConsumer) ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool {
+	return r.consume(ctx, r.getName(nr), count, handler)
 }
 
-func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHandler) (finished bool) {
+func (r *eventsConsumer) consume(ctx context.Context, name string, count int, handler EventConsumerHandler) (finished bool) {
 	lockKey := r.group + "_" + name
 	locker := r.redis.GetLocker()
 	lock, has := locker.Obtain(lockKey, r.lockTTL, 0)
@@ -269,16 +269,16 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	r.garbage()
 	done := make(chan error)
 	stop := make(chan bool)
-	go r.digest(done, stop, name, count, handler)
+	go r.digest(ctx, done, stop, name, count, handler)
 	for {
 		select {
-		case <-r.engine.context.Done():
-			stop <- true
+		case <-ctx.Done():
+			close(stop)
 			<-done
 			return true
 		case <-timer.C:
 			if !lock.Refresh(r.lockTTL) {
-				stop <- true
+				close(stop)
 				<-done
 				return false
 			}
@@ -303,7 +303,7 @@ type consumeAttributes struct {
 	Streams   []string
 }
 
-func (r *eventsConsumer) digest(done chan<- error, stop chan bool, name string, count int, handler EventConsumerHandler) {
+func (r *eventsConsumer) digest(ctx context.Context, done chan<- error, stop chan bool, name string, count int, handler EventConsumerHandler) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			asErr, isError := rec.(error)
@@ -335,7 +335,7 @@ func (r *eventsConsumer) digest(done chan<- error, stop chan bool, name string, 
 			close(done)
 			return
 		default:
-			finished := r.digestKeys(attributes)
+			finished := r.digestKeys(ctx, attributes)
 			if !r.loop && finished {
 				close(done)
 				return
@@ -344,7 +344,7 @@ func (r *eventsConsumer) digest(done chan<- error, stop chan bool, name string, 
 	}
 }
 
-func (r *eventsConsumer) digestKeys(attributes *consumeAttributes) (finished bool) {
+func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttributes) (finished bool) {
 	i := 0
 	for _, stream := range r.streams {
 		attributes.Streams[i] = stream
@@ -360,7 +360,7 @@ func (r *eventsConsumer) digestKeys(attributes *consumeAttributes) (finished boo
 	}
 	a := &redis.XReadGroupArgs{Consumer: attributes.Name, Group: r.group, Streams: attributes.Streams,
 		Count: int64(attributes.Count), Block: attributes.BlockTime}
-	results := r.redis.XReadGroup(r.engine.context, a)
+	results := r.redis.XReadGroup(ctx, a)
 	totalMessages := 0
 	for _, row := range results {
 		l := len(row.Messages)

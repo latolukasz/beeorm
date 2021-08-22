@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"io/ioutil"
 	"log"
 	"testing"
@@ -12,11 +11,10 @@ import (
 func TestLocalCache(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterLocalCache(100)
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, false, true)
 	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}

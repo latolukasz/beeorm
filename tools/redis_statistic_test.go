@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"testing"
 
 	"github.com/latolukasz/beeorm"
@@ -12,11 +11,10 @@ func TestRedisStatistics(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", 15)
 	registry.RegisterRedis("localhost:6382", 14, "another")
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
 

@@ -1,7 +1,6 @@
 package tools
 
 import (
-	"context"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -14,11 +13,10 @@ func TestRedisSearchStatistics(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", 0)
 	registry.RegisterRedisSearchIndex(&beeorm.RedisSearchIndex{Name: "test", RedisPool: "default"})
-	ctx := context.Background()
-	validatedRegistry, def, err := registry.Validate(ctx)
+	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()
-	engine := validatedRegistry.CreateEngine(ctx)
+	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
 	for _, alter := range engine.GetRedisSearchIndexAlters() {
 		alter.Execute()

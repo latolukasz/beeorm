@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"database/sql"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestLogReceiver(t *testing.T) {
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
 	engine.Flush(e2)
 
-	consumer.Digest()
+	consumer.Digest(context.Background())
 
 	var entityID int
 	var meta sql.NullString
@@ -71,7 +72,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher.Track(e2)
 	flusher.Flush()
 
-	consumer.Digest()
+	consumer.Digest(context.Background())
 
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 2")
 	engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
@@ -89,14 +90,14 @@ func TestLogReceiver(t *testing.T) {
 
 	e1.Country = "Germany"
 	engine.Flush(e1)
-	consumer.Digest()
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found := engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.False(t, found)
 
 	e1.LastName = "Summer"
 	engine.Flush(e1)
-	consumer.Digest()
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -106,7 +107,7 @@ func TestLogReceiver(t *testing.T) {
 	assert.Equal(t, "{\"user_id\": 12}", meta.String)
 
 	engine.Delete(e1)
-	consumer.Digest()
+	consumer.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 4")
 	var changesNullable sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNullable)
@@ -121,7 +122,7 @@ func TestLogReceiver(t *testing.T) {
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 5")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -133,7 +134,7 @@ func TestLogReceiver(t *testing.T) {
 	engine.LoadByID(3, e3)
 	e3.Name = "Eva"
 	engine.FlushLazy(e3)
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 6")
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
 	assert.True(t, found)
@@ -147,7 +148,7 @@ func TestLogReceiver(t *testing.T) {
 	flusher = engine.NewFlusher()
 	flusher.Delete(e3)
 	flusher.FlushLazy()
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 7")
 	var changesNull sql.NullString
 	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNull)

@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -44,7 +45,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	loaded := engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
-	receiver.Digest()
+	receiver.Digest(context.Background())
 
 	engine.GetLocalCache().Clear()
 	loaded = engine.LoadByID(1, e)
@@ -66,7 +67,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "John", e.Name)
 
-	receiver.Digest()
+	receiver.Digest(context.Background())
 
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
@@ -87,7 +88,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	engine.LoadByID(1, e)
 	engine.NewFlusher().Delete(e).FlushLazy()
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
@@ -95,7 +96,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	engine.Flush(e)
 	engine.DeleteLazy(e)
 	e = &lazyReceiverEntity{}
-	receiver.Digest()
+	receiver.Digest(context.Background())
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(100, e))

@@ -52,7 +52,7 @@ func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration
 		options = &redislock.Options{RetryStrategy: redislock.LimitRetry(redislock.ExponentialBackoff(minInterval, maxInterval), max)}
 	}
 	start := getNow(l.engine.hasRedisLogger)
-	redisLock, err := l.locker.Obtain(l.engine.context, key, ttl, options)
+	redisLock, err := l.locker.Obtain(context.Background(), key, ttl, options)
 	if err != nil {
 		if err == redislock.ErrNotObtained {
 			if l.engine.hasRedisLogger {
@@ -68,21 +68,6 @@ func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration
 	}
 	checkError(err)
 	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.engine}
-	lock.timer = time.NewTimer(ttl)
-	lock.done = make(chan bool)
-	go func() {
-		for {
-			select {
-			case <-l.engine.context.Done():
-				lock.Release()
-				return
-			case <-lock.timer.C:
-				return
-			case <-lock.done:
-				return
-			}
-		}
-	}()
 	return lock, true
 }
 
@@ -92,8 +77,6 @@ type Lock struct {
 	locker *Locker
 	has    bool
 	engine *Engine
-	timer  *time.Timer
-	done   chan bool
 }
 
 func (l *Lock) Release() {
@@ -110,12 +93,11 @@ func (l *Lock) Release() {
 		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, err)
 	}
 	checkError(err)
-	close(l.done)
 }
 
 func (l *Lock) TTL() time.Duration {
 	start := getNow(l.engine.hasRedisLogger)
-	d, err := l.lock.TTL(l.engine.context)
+	d, err := l.lock.TTL(context.Background())
 	if l.engine.hasRedisLogger {
 		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, err)
 	}
@@ -135,7 +117,6 @@ func (l *Lock) Refresh(ttl time.Duration) bool {
 		err = nil
 		l.has = false
 	}
-	l.timer.Reset(ttl)
 	if l.engine.hasRedisLogger {
 		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, ttl.String())
 		l.locker.fillLogFields("LOCK REFRESH", message, start, err)

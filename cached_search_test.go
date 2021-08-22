@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -256,7 +257,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		receiver := NewBackgroundConsumer(engine)
 		receiver.DisableLoop()
 		receiver.blockTime = time.Millisecond
-		receiver.Digest()
+		receiver.Digest(context.Background())
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 }

@@ -36,8 +36,7 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)
-	ctx := context.Background()
-	vRegistry, def, err := registry.Validate(ctx)
+	vRegistry, def, err := registry.Validate()
 	if err != nil {
 		if t != nil {
 			assert.NoError(t, err)
@@ -46,7 +45,7 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 		panic(err)
 	}
 
-	engine = vRegistry.CreateEngine(ctx)
+	engine = vRegistry.CreateEngine()
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}
@@ -85,7 +84,7 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
 	indexer.blockTime = time.Millisecond
-	indexer.Digest()
+	indexer.Digest(context.Background())
 
 	return engine, def
 }

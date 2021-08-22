@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"reflect"
 	"testing"
 
@@ -26,8 +25,7 @@ func TestValidatedRegistry(t *testing.T) {
 	registry.RegisterEnum("enum_map", []string{"a", "b"}, "b")
 	entity := &validatedRegistryEntity{}
 	registry.RegisterEntity(entity)
-	ctx := context.Background()
-	validated, def, err := registry.Validate(ctx)
+	validated, def, err := registry.Validate()
 	assert.NoError(t, err)
 	source := validated.GetSourceRegistry()
 	assert.NotNil(t, source)
@@ -44,7 +42,7 @@ func TestValidatedRegistry(t *testing.T) {
 
 	registry.RegisterEnum("enum_map", []string{"a", "b"})
 	def()
-	validated, def, err = registry.Validate(ctx)
+	validated, def, err = registry.Validate()
 	assert.NoError(t, err)
 	defer def()
 	enum = validated.GetEnum("enum_map")
