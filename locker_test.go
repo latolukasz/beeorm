@@ -35,4 +35,8 @@ func TestLocker(t *testing.T) {
 	lock.Release()
 	has = lock.Refresh(time.Second)
 	assert.False(t, has)
+
+	assert.PanicsWithError(t, "ttl must be higher than zero", func() {
+		_, _ = l.Obtain("test_key", 0, time.Millisecond)
+	})
 }
