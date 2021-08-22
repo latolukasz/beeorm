@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -700,10 +701,10 @@ func (r *RedisCache) XGroupDelConsumer(stream, group, consumer string) int64 {
 	return deleted
 }
 
-func (r *RedisCache) XReadGroup(a *redis.XReadGroupArgs) (streams []redis.XStream) {
+func (r *RedisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (streams []redis.XStream) {
 	start := getNow(r.engine.hasRedisLogger)
-	streams, err := r.client.XReadGroup(r.ctx, a).Result()
-	if err == redis.Nil {
+	streams, err := r.client.XReadGroup(ctx, a).Result()
+	if err == redis.Nil || errors.Is(err, context.DeadlineExceeded) {
 		err = nil
 	}
 	if r.engine.hasRedisLogger {

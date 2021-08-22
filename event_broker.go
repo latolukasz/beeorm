@@ -262,7 +262,6 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	r.isRunning.setTrue()
 	timer := time.NewTimer(r.lockTick)
 	defer func() {
-		fmt.Printf("DEFER\n")
 		lock.Release()
 		timer.Stop()
 		r.isRunning.setFalse()
@@ -274,7 +273,6 @@ func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHa
 	for {
 		select {
 		case <-r.engine.context.Done():
-			fmt.Printf("STOPPING!!\n")
 			stop <- true
 			<-done
 			return true
@@ -362,7 +360,7 @@ func (r *eventsConsumer) digestKeys(attributes *consumeAttributes) (finished boo
 	}
 	a := &redis.XReadGroupArgs{Consumer: attributes.Name, Group: r.group, Streams: attributes.Streams,
 		Count: int64(attributes.Count), Block: attributes.BlockTime}
-	results := r.redis.XReadGroup(a)
+	results := r.redis.XReadGroup(r.engine.context, a)
 	totalMessages := 0
 	for _, row := range results {
 		l := len(row.Messages)
@@ -472,15 +470,12 @@ func (r *eventsConsumer) Shutdown(timeout time.Duration) {
 	defer timer.Stop()
 	for {
 		if !r.isRunning.isSet() {
-			fmt.Printf("STOPA\n")
 			return
 		}
 		select {
 		case <-ctx.Done():
-			fmt.Printf("STOPB\n")
 			return
 		case <-timer.C:
-			fmt.Printf("SLEEPC\n")
 			timer.Reset(time.Millisecond * 100)
 		}
 	}

@@ -234,7 +234,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, "\xa2a5", events[0].Values["s"])
 	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
-	streams := r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
+	streams := r.XReadGroup(context.Background(), &redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
 		Consumer: "test-consumer"})
 	assert.Len(t, streams, 1)
 	assert.Equal(t, "test-stream", streams[0].Stream)
@@ -245,10 +245,10 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Len(t, infoGroups, 1)
 	assert.Equal(t, int64(1), infoGroups[0].Consumers)
 	assert.Equal(t, int64(5), infoGroups[0].Pending)
-	streams2 := r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
+	streams2 := r.XReadGroup(context.Background(), &redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", ">"},
 		Consumer: "test-consumer", Block: -1})
 	assert.Nil(t, streams2)
-	streams2 = r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", "0"},
+	streams2 = r.XReadGroup(context.Background(), &redis.XReadGroupArgs{Group: "test-group", Streams: []string{"test-stream", "0"},
 		Consumer: "test-consumer", Block: -1})
 	assert.Len(t, streams2, 1)
 	assert.Len(t, streams2[0].Messages, 5)
@@ -297,11 +297,18 @@ func testRedis(t *testing.T, engine *Engine) {
 	engine.GetEventBroker().Publish("test-stream-b", "b1")
 	r.XGroupCreate("test-stream-a", "test-group-ab", "0")
 	r.XGroupCreate("test-stream-b", "test-group-ab", "0")
-	streams = r.XReadGroup(&redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},
+	streams = r.XReadGroup(context.Background(), &redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},
 		Consumer: "test-consumer-ab", Block: -1})
 	assert.Len(t, streams, 2)
 	assert.Len(t, streams[0].Messages, 1)
 	assert.Len(t, streams[1].Messages, 1)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*300)
+	defer cancel()
+	now := time.Now()
+	streams = r.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},
+		Consumer: "test-consumer-ab", Block: time.Second * 30})
+	assert.LessOrEqual(t, time.Since(now).Milliseconds(), int64(350))
 
 	script := `
 		local count = 2	

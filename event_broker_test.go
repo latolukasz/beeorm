@@ -439,11 +439,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		})
 	}()
 	time.Sleep(time.Millisecond * 200)
-	fmt.Printf("START\n")
 	engine.EnableQueryDebug()
 	stop()
-	consumer.Shutdown(time.Second)
-	return
 	assert.Equal(t, 4, incr)
 	assert.Less(t, time.Since(start).Milliseconds(), int64(500))
 
