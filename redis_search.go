@@ -749,10 +749,7 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 		if q != "" {
 			q += " "
 		}
-		for i, v := range in {
-			if i > 0 {
-				q += "|"
-			}
+		for _, v := range in {
 			q += "(@" + field + ":[-inf (" + v + "] | @" + field + ":[(" + v + " +inf])"
 		}
 	}

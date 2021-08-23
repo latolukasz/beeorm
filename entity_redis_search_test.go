@@ -485,6 +485,15 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
+	query.FilterNotInt("Age", 30, 31)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(48), total)
+	assert.Len(t, ids, 48)
+	assert.Equal(t, uint64(29), ids[28])
+	assert.Equal(t, uint64(32), ids[29])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
 	query.FilterTag("EnumNullable", "", "c")
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
 	assert.Equal(t, uint64(30), total)
