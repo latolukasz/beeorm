@@ -52,7 +52,6 @@ type RedisSearchIndex struct {
 	Name            string
 	RedisPool       string
 	Prefixes        []string
-	Filter          string
 	DefaultLanguage string
 	LanguageField   string
 	DefaultScore    float64
@@ -886,9 +885,6 @@ func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string)
 	args := []interface{}{"FT.CREATE", indexName, "ON", "HASH", "PREFIX", len(index.Prefixes)}
 	for _, prefix := range index.Prefixes {
 		args = append(args, prefix)
-	}
-	if index.Filter != "" {
-		args = append(args, "FILTER", index.Filter)
 	}
 	if index.DefaultLanguage != "" {
 		args = append(args, "LANGUAGE", index.DefaultLanguage)
