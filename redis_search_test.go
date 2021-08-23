@@ -705,4 +705,14 @@ func TestRedisSearch(t *testing.T) {
 	assert.PanicsWithError(t, "unregistered redis cache pool 'invalid'", func() {
 		engine.GetRedisSearch("invalid")
 	})
+
+	assert.PanicsWithError(t, "missing pager in redis search query", func() {
+		query = &RedisSearchQuery{}
+		total, rows = search.Search("test2", query, nil)
+	})
+
+	assert.PanicsWithError(t, "pager size exceeded limit 10000", func() {
+		query = &RedisSearchQuery{}
+		total, rows = search.Search("test2", query, NewPager(1, 200000))
+	})
 }
