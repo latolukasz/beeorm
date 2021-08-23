@@ -100,6 +100,4 @@ func TestBackgroundConsumer(t *testing.T) {
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(100, e))
-
-	receiver.Shutdown()
 }

@@ -68,12 +68,6 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	})
 }
 
-func (r *BackgroundConsumer) Shutdown() {
-	if r.consumer != nil {
-		r.consumer.Shutdown()
-	}
-}
-
 func (r *BackgroundConsumer) handleLogEvent(event Event) {
 	var value LogQueueValue
 	event.Unserialize(&value)

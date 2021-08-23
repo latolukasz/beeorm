@@ -226,7 +226,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
 	consumer.DisableLoop()
 	consumer.Consume(ctx, 5, func(events []Event) {})
-	consumer.Shutdown()
 
 	type testEvent struct {
 		Name string

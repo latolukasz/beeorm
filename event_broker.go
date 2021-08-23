@@ -166,7 +166,6 @@ type EventsConsumer interface {
 	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
 	DisableLoop()
-	Shutdown()
 }
 
 type speedHandler struct {
@@ -460,15 +459,6 @@ func (r *eventsConsumer) Claim(from, to int) {
 				break
 			}
 		}
-	}
-}
-
-func (r *eventsConsumer) Shutdown() {
-	for {
-		if !r.isRunning.isSet() {
-			return
-		}
-		time.Sleep(time.Millisecond * 100)
 	}
 }
 
