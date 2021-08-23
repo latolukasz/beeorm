@@ -226,6 +226,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
 	consumer.DisableLoop()
 	consumer.Consume(ctx, 5, func(events []Event) {})
+	consumer.Shutdown()
 
 	type testEvent struct {
 		Name string
@@ -449,20 +450,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	eventFlusher.Publish("test-stream", "a")
 	eventFlusher.Flush()
 	broker = engine.GetEventBroker()
-	consumer = broker.Consumer("test-group")
-	incr = 0
-	start = time.Now()
-	go func() {
-		consumer.ConsumeMany(ctxCancel, 1, 1, func(events []Event) {
-			incr++
-			time.Sleep(time.Millisecond * 300)
-		})
-	}()
-	time.Sleep(time.Millisecond * 100)
-	stop()
-	consumer.Shutdown(time.Millisecond * 20)
-	assert.Equal(t, 1, incr)
-	assert.Less(t, time.Since(start).Milliseconds(), int64(300))
 
 	eventFlusher.Publish("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
 	assert.PanicsWithError(t, "unregistered stream test-stream-invalid", func() {
@@ -471,16 +458,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.PanicsWithError(t, "unregistered streams for group test-group-invalid", func() {
 		broker.Consumer("test-group-invalid")
 	})
-
-	ctxWithTimeout, cancel2 := context.WithTimeout(context.Background(), time.Millisecond*300)
-	defer cancel2()
-	engine = validatedRegistry.CreateEngine()
-	consumer = engine.GetEventBroker().Consumer("test-group")
-	consumer.(*eventsConsumer).blockTime = time.Millisecond * 10
-	consumer.(*eventsConsumer).lockTick = time.Millisecond * 10
-	start = time.Now()
-	res := consumer.Consume(ctxWithTimeout, 5, func(events []Event) {})
-	assert.False(t, res)
 
 	ctxWithTimeout2, cancel2 := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel2()
@@ -494,7 +471,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	}()
 	now := time.Now()
 	engine.GetRedis().Del("test-group_consumer-1")
-	res = consumer.Consume(ctxWithTimeout2, 5, func(events []Event) {})
+	res := consumer.Consume(ctxWithTimeout2, 5, func(events []Event) {})
 	assert.False(t, res)
 	assert.LessOrEqual(t, time.Since(now).Milliseconds(), int64(1000))
 }

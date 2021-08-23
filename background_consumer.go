@@ -68,9 +68,9 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	})
 }
 
-func (r *BackgroundConsumer) Shutdown(timeout time.Duration) {
+func (r *BackgroundConsumer) Shutdown() {
 	if r.consumer != nil {
-		r.consumer.Shutdown(timeout)
+		r.consumer.Shutdown()
 	}
 }
 
