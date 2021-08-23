@@ -57,7 +57,6 @@ type RedisSearchIndex struct {
 	LanguageField   string
 	DefaultScore    float64
 	ScoreField      string
-	PayloadField    string
 	MaxTextFields   bool
 	Temporary       int
 	NoOffsets       bool
@@ -175,7 +174,6 @@ type RedisSearchIndexInfoDefinition struct {
 	Filter        string
 	LanguageField string
 	ScoreField    string
-	PayloadField  string
 	DefaultScore  float64
 }
 
@@ -210,7 +208,6 @@ type RedisSearchQuery struct {
 	verbatim           bool
 	noStopWords        bool
 	withScores         bool
-	withPayLoads       bool
 	slop               int
 	inOrder            bool
 	lang               string
@@ -229,7 +226,6 @@ type RedisSearchResult struct {
 	Fields       []interface{}
 	Score        float64
 	ExplainScore []interface{}
-	PayLoad      string
 }
 
 func (r *RedisSearchResult) Value(field string) interface{} {
@@ -585,11 +581,6 @@ func (q *RedisSearchQuery) WithScores() *RedisSearchQuery {
 	return q
 }
 
-func (q *RedisSearchQuery) WithPayLoads() *RedisSearchQuery {
-	q.withPayLoads = true
-	return q
-}
-
 func (q *RedisSearchQuery) InKeys(key ...string) *RedisSearchQuery {
 	for _, k := range key {
 		q.inKeys = append(q.inKeys, k)
@@ -701,12 +692,6 @@ func (r *RedisSearch) Search(index string, query *RedisSearchQuery, pager *Pager
 			i++
 			row.Score, _ = strconv.ParseFloat(data[i].(string), 64)
 		}
-		if query.withPayLoads {
-			i++
-			if data[i] != nil {
-				row.PayLoad = data[i].(string)
-			}
-		}
 		i++
 		row.Fields = data[i].([]interface{})
 		rows = append(rows, row)
@@ -816,9 +801,6 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 	if query.withScores {
 		args = append(args, "WITHSCORES")
 	}
-	if query.withPayLoads {
-		args = append(args, "WITHPAYLOADS")
-	}
 	if query.sortField != "" {
 		args = append(args, "SORTBY", query.sortField)
 		if query.sortDesc {
@@ -921,9 +903,6 @@ func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string)
 	}
 	if index.ScoreField != "" {
 		args = append(args, "SCORE_FIELD", index.ScoreField)
-	}
-	if index.PayloadField != "" {
-		args = append(args, "PAYLOAD_FIELD", index.PayloadField)
 	}
 	if index.MaxTextFields {
 		args = append(args, "MAXTEXTFIELDS")
@@ -1085,8 +1064,6 @@ func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
 					definition.DefaultScore = score
 				case "score_field":
 					definition.ScoreField = def[subKey+1].(string)
-				case "payload_field":
-					definition.PayloadField = def[subKey+1].(string)
 				}
 			}
 			info.Definition = definition
@@ -1246,13 +1223,6 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 			}
 			if info.Definition.ScoreField != scoreField {
 				changes = append(changes, "different score field")
-			}
-			payloadField := def.PayloadField
-			if payloadField == "" {
-				payloadField = "__payload"
-			}
-			if info.Definition.PayloadField != payloadField {
-				changes = append(changes, "different payload field")
 			}
 			if info.Options.NoFreqs != def.NoFreqs {
 				changes = append(changes, "different option NOFREQS")

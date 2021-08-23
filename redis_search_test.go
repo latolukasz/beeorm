@@ -77,7 +77,6 @@ func TestRedisSearchIndexer(t *testing.T) {
 func TestRedisSearch(t *testing.T) {
 	registry := &Registry{}
 	testIndex := NewRedisSearchIndex("test", "search", []string{"doc1:", "doc2:"})
-	testIndex.PayloadField = "_my_payload"
 	testIndex.ScoreField = "_my_score"
 	testIndex.LanguageField = "_my_language"
 	testIndex.DefaultScore = 0.8
@@ -134,7 +133,6 @@ func TestRedisSearch(t *testing.T) {
 
 	info := search.Info("test")
 	assert.Equal(t, "test", info.Name)
-	assert.Equal(t, "_my_payload", info.Definition.PayloadField)
 	assert.Equal(t, "_my_score", info.Definition.ScoreField)
 	assert.Equal(t, "_my_language", info.Definition.LanguageField)
 	assert.Equal(t, 0.8, info.Definition.DefaultScore)
@@ -257,7 +255,7 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, "8.12", rows[1].Value("number_float"))
 	assert.Equal(t, "52.232855,20.920770", rows[1].Value("location"))
 
-	query.WithScores().WithPayLoads()
+	query.WithScores()
 	_, rows = search.Search("test2", query, NewPager(1, 2))
 	assert.Len(t, rows, 2)
 	assert.Equal(t, "test2:34", rows[0].Key)
@@ -421,15 +419,6 @@ func TestRedisSearch(t *testing.T) {
 	defaultIndex.ScoreField = "__score"
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.ScoreField = ""
-	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.PayloadField = "payload"
-	alters = engine.GetRedisSearchIndexAlters()
-	assert.Len(t, alters, 1)
-	assert.Len(t, alters[0].Changes, 1)
-	assert.Equal(t, "different payload field", alters[0].Changes[0])
-	defaultIndex.PayloadField = "__payload"
-	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.PayloadField = ""
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.Prefixes = []string{"test1:", "test2:"}
 	alters = engine.GetRedisSearchIndexAlters()
