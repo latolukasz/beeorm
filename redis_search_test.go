@@ -170,6 +170,8 @@ func TestRedisSearch(t *testing.T) {
 	assert.True(t, info.Fields[4].Sortable)
 	assert.Equal(t, ".", info.Fields[4].TagSeparator)
 
+	assert.Nil(t, search.Info("invalid"))
+
 	testIndex2.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
 		for i := lastID + 1; i <= lastID+100; i++ {
 			id := strconv.Itoa(int(i))

@@ -1199,18 +1199,6 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 		if r.GetPoolConfig().GetDatabase() > 0 {
 			continue
 		}
-		info := r.Info("Modules")
-		lines := strings.Split(info, "\r\n")
-		hasModule := false
-		for _, line := range lines {
-			if strings.HasPrefix(line, "module:name=search") {
-				hasModule = true
-				break
-			}
-		}
-		if !hasModule {
-			continue
-		}
 		search := engine.GetRedisSearch(poolName)
 		inRedis := make(map[string]bool)
 		for _, name := range search.ListIndices() {
