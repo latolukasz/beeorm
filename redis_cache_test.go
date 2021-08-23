@@ -174,6 +174,8 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, "", val)
 	assert.False(t, has)
 
+	assert.NotEmpty(t, r.Info("modules"))
+
 	id := engine.GetEventBroker().Publish("test-stream", "a")
 	assert.NotEmpty(t, id)
 	assert.Equal(t, int64(1), r.XLen("test-stream"))
