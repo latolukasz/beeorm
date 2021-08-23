@@ -58,7 +58,6 @@ type RedisSearchIndex struct {
 	DefaultScore    float64
 	ScoreField      string
 	MaxTextFields   bool
-	Temporary       int
 	NoOffsets       bool
 	NoNHL           bool
 	NoFields        bool
@@ -906,9 +905,6 @@ func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string)
 	}
 	if index.MaxTextFields {
 		args = append(args, "MAXTEXTFIELDS")
-	}
-	if index.Temporary > 0 {
-		args = append(args, "TEMPORARY", index.Temporary)
 	}
 	if index.NoOffsets {
 		args = append(args, "NOOFFSETS")
