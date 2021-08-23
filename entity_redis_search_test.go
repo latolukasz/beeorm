@@ -30,6 +30,7 @@ type redisSearchEntity struct {
 	Date              time.Time          `orm:"searchable"`
 	DateTime          time.Time          `orm:"time;searchable"`
 	DateNullable      *time.Time         `orm:"searchable"`
+	DateTimeNullable  *time.Time         `orm:"time;searchable"`
 	Ref               *redisSearchEntity `orm:"searchable"`
 	Another           string
 	AnotherNumeric    int64
@@ -114,6 +115,7 @@ func TestEntityRedisSearch(t *testing.T) {
 			e.Date = now
 			e.DateTime = now
 			e.DateNullable = &now
+			e.DateTimeNullable = &now
 		}
 		if i > 40 {
 			e.Enum = TestEnum.C
@@ -150,7 +152,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
 	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
-	assert.Len(t, info.Fields, 22)
+	assert.Len(t, info.Fields, 23)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
 	assert.True(t, info.Fields[0].Sortable)
@@ -227,22 +229,26 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, "NUMERIC", info.Fields[17].Type)
 	assert.False(t, info.Fields[17].Sortable)
 	assert.False(t, info.Fields[17].NoIndex)
-	assert.Equal(t, "Ref", info.Fields[18].Name)
+	assert.Equal(t, "DateTimeNullable", info.Fields[18].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[18].Type)
 	assert.False(t, info.Fields[18].Sortable)
 	assert.False(t, info.Fields[18].NoIndex)
-	assert.Equal(t, "Balance32", info.Fields[19].Name)
+	assert.Equal(t, "Ref", info.Fields[19].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[19].Type)
-	assert.True(t, info.Fields[19].Sortable)
-	assert.True(t, info.Fields[19].NoIndex)
-	assert.Equal(t, "AgeNullable32", info.Fields[20].Name)
+	assert.False(t, info.Fields[19].Sortable)
+	assert.False(t, info.Fields[19].NoIndex)
+	assert.Equal(t, "Balance32", info.Fields[20].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[20].Type)
 	assert.True(t, info.Fields[20].Sortable)
-	assert.False(t, info.Fields[20].NoIndex)
-	assert.Equal(t, "BalanceNullable32", info.Fields[21].Name)
+	assert.True(t, info.Fields[20].NoIndex)
+	assert.Equal(t, "AgeNullable32", info.Fields[21].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[21].Type)
 	assert.True(t, info.Fields[21].Sortable)
-	assert.True(t, info.Fields[21].NoIndex)
+	assert.False(t, info.Fields[21].NoIndex)
+	assert.Equal(t, "BalanceNullable32", info.Fields[22].Name)
+	assert.Equal(t, "NUMERIC", info.Fields[22].Type)
+	assert.True(t, info.Fields[22].Sortable)
+	assert.True(t, info.Fields[22].NoIndex)
 
 	query := NewRedisSearchQuery()
 	query.Sort("Age", false)
@@ -599,6 +605,24 @@ func TestEntityRedisSearch(t *testing.T) {
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)
+	query.FilterDateLessEqual("Date", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(40), total)
+	assert.Len(t, ids, 40)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(40), ids[39])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateLess("Date", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(20), total)
+	assert.Len(t, ids, 20)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(20), ids[19])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
 	query.FilterNotDate("Date", newNow)
 	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
 	assert.Equal(t, uint64(30), total)
@@ -633,6 +657,51 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Len(t, ids, 10)
 	assert.Equal(t, uint64(41), ids[0])
 	assert.Equal(t, uint64(50), ids[9])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateTimeMinMax("DateTime", newNow, newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(20), total)
+	assert.Len(t, ids, 20)
+	assert.Equal(t, uint64(21), ids[0])
+	assert.Equal(t, uint64(40), ids[19])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateTimeNull("DateTimeNullable")
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(20), total)
+	assert.Len(t, ids, 20)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(20), ids[19])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateTimeGreaterEqual("DateTime", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(30), total)
+	assert.Len(t, ids, 30)
+	assert.Equal(t, uint64(21), ids[0])
+	assert.Equal(t, uint64(50), ids[29])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateTimeLessEqual("DateTime", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(40), total)
+	assert.Len(t, ids, 40)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(40), ids[39])
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false)
+	query.FilterDateTimeLess("DateTime", newNow)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(20), total)
+	assert.Len(t, ids, 20)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(20), ids[19])
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false)

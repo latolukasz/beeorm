@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/shamaton/msgpack"
@@ -23,12 +22,6 @@ type Event interface {
 	Unserialize(val interface{})
 	delete()
 }
-
-type atomicBool int32
-
-func (b *atomicBool) isSet() bool { return atomic.LoadInt32((*int32)(b)) != 0 }
-func (b *atomicBool) setTrue()    { atomic.StoreInt32((*int32)(b), 1) }
-func (b *atomicBool) setFalse()   { atomic.StoreInt32((*int32)(b), 0) }
 
 type event struct {
 	consumer *eventsConsumer
@@ -236,7 +229,6 @@ type eventsConsumer struct {
 	speedTimeMicroseconds  int64
 	speedLimit             int
 	garbageLastTick        int64
-	isRunning              atomicBool
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -258,12 +250,10 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 	if !has {
 		return false
 	}
-	r.isRunning.setTrue()
 	timer := time.NewTimer(r.lockTick)
 	defer func() {
 		lock.Release()
 		timer.Stop()
-		r.isRunning.setFalse()
 	}()
 	r.garbage()
 	done := make(chan error)
