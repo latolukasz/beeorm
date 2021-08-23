@@ -170,7 +170,6 @@ type RedisSearchIndexInfo struct {
 type RedisSearchIndexInfoDefinition struct {
 	KeyType       string
 	Prefixes      []string
-	Filter        string
 	LanguageField string
 	ScoreField    string
 	DefaultScore  float64
@@ -1051,8 +1050,6 @@ func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
 						prefixes[k] = v.(string)
 					}
 					definition.Prefixes = prefixes
-				case "filter":
-					definition.Filter = def[subKey+1].(string)
 				case "language_field":
 					definition.LanguageField = def[subKey+1].(string)
 				case "default_score":
@@ -1209,9 +1206,6 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 			}
 			if info.Definition.LanguageField != languageField {
 				changes = append(changes, "different language field")
-			}
-			if info.Definition.Filter != def.Filter {
-				changes = append(changes, "different filter")
 			}
 			scoreField := def.ScoreField
 			if scoreField == "" {

@@ -87,6 +87,7 @@ func TestRedisSearch(t *testing.T) {
 	testIndex.NoNHL = true // TODO why not visible in info
 	testIndex.NoFields = true
 	testIndex.NoFreqs = true
+	testIndex.DefaultLanguage = "Dutch"
 	testIndex.AddTextField("title", 0.4, true, false, false)
 	testIndex.AddTextField("test", 1, false, true, true)
 	testIndex.AddNumericField("age", true, false)
@@ -430,13 +431,6 @@ func TestRedisSearch(t *testing.T) {
 	defaultIndex.Prefixes = []string{""}
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.Prefixes = nil
-	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.Filter = "@indexName==\"myindex\""
-	alters = engine.GetRedisSearchIndexAlters()
-	assert.Len(t, alters, 1)
-	assert.Len(t, alters[0].Changes, 1)
-	assert.Equal(t, "different filter", alters[0].Changes[0])
-	defaultIndex.Filter = ""
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.NoFreqs = true
 	alters = engine.GetRedisSearchIndexAlters()

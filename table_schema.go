@@ -500,6 +500,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 		redisSearchIndex.NoOffsets = true
 		redisSearchIndex.NoFreqs = true
 		redisSearchIndex.NoNHL = true
+		redisSearchIndex.SkipInitialScan = true
 		indexQuery := "SELECT `ID`"
 		indexColumns := make([]string, 0)
 		for column := range mapBindToRedisSearch {
