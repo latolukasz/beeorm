@@ -567,6 +567,17 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(2), total)
 
 	query = &RedisSearchQuery{}
+	query.QueryField("title", "house has")
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(2), total)
+
+	query = &RedisSearchQuery{}
+	query.QueryField("title", "house has")
+	query.InOrder()
+	total, _ = search.Search("test2", query, NewPager(1, 10))
+	assert.Equal(t, uint64(0), total)
+
+	query = &RedisSearchQuery{}
 	query.FilterStringStartsWith("title", "sm")
 	total, rows = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
@@ -612,6 +623,10 @@ func TestRedisSearch(t *testing.T) {
 		assert.Equal(t, uint64(0), total)
 		query = &RedisSearchQuery{}
 		query.FilterString("title", "aa "+string(characters[i]))
+		total, _ = search.Search("test2", query, NewPager(1, 10))
+		assert.Equal(t, uint64(0), total)
+		query = &RedisSearchQuery{}
+		query.FilterStringStartsWith("title", "a"+string(characters[i]))
 		total, _ = search.Search("test2", query, NewPager(1, 10))
 		assert.Equal(t, uint64(0), total)
 	}
