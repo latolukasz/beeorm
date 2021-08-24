@@ -347,16 +347,16 @@ func (q *RedisSearchQuery) FilterString(field string, value ...string) *RedisSea
 	return q.filterString(field, true, false, false, value...)
 }
 
-func (q *RedisSearchQuery) FilterStringStartsWith(field string, value ...string) *RedisSearchQuery {
-	return q.filterString(field, true, false, true, value...)
-}
-
 func (q *RedisSearchQuery) FilterNotString(field string, value ...string) *RedisSearchQuery {
 	return q.filterString(field, true, true, false, value...)
 }
 
 func (q *RedisSearchQuery) QueryField(field string, value ...string) *RedisSearchQuery {
 	return q.filterString(field, false, false, false, value...)
+}
+
+func (q *RedisSearchQuery) QueryFieldPrefixMatch(field string, value ...string) *RedisSearchQuery {
+	return q.filterString(field, true, false, true, value...)
 }
 
 func (q *RedisSearchQuery) filterString(field string, exactPhrase, not, starts bool, value ...string) *RedisSearchQuery {

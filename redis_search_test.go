@@ -578,20 +578,20 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(0), total)
 
 	query = &RedisSearchQuery{}
-	query.FilterStringStartsWith("title", "sm")
+	query.QueryFieldPrefixMatch("title", "sm")
 	total, rows = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 	assert.Equal(t, "test2:202", rows[0].Key)
 
 	query = &RedisSearchQuery{}
-	query.FilterStringStartsWith("title", "sm to")
+	query.QueryFieldPrefixMatch("title", "sm to")
 	total, rows = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 	assert.Equal(t, "test2:202", rows[0].Key)
 
 	query = &RedisSearchQuery{}
 	assert.PanicsWithError(t, "search start with requires min one word with 2 characters", func() {
-		query.FilterStringStartsWith("title", "s")
+		query.QueryFieldPrefixMatch("title", "s")
 	})
 
 	pusher.DeleteDocuments("test2:201")
@@ -603,7 +603,7 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(1), total)
 
 	query = &RedisSearchQuery{}
-	query.FilterStringStartsWith("title", "has house ")
+	query.QueryFieldPrefixMatch("title", "has house ")
 	total, _ = search.Search("test2", query, NewPager(1, 10))
 	assert.Equal(t, uint64(1), total)
 
@@ -626,7 +626,7 @@ func TestRedisSearch(t *testing.T) {
 		total, _ = search.Search("test2", query, NewPager(1, 10))
 		assert.Equal(t, uint64(0), total)
 		query = &RedisSearchQuery{}
-		query.FilterStringStartsWith("title", "a"+string(characters[i]))
+		query.QueryFieldPrefixMatch("title", "a"+string(characters[i]))
 		total, _ = search.Search("test2", query, NewPager(1, 10))
 		assert.Equal(t, uint64(0), total)
 	}
