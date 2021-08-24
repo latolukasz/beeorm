@@ -123,7 +123,8 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	}
 	hasLog := false
 	for name, entityType := range r.entities {
-		tableSchema, err := initTableSchema(r, entityType)
+		tableSchema := &tableSchema{}
+		err := tableSchema.init(r, entityType)
 		if err != nil {
 			deferFunc()
 			return nil, nil, err

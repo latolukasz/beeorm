@@ -252,53 +252,48 @@ func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alte
 	return getSchemaChanges(engine, tableSchema)
 }
 
-func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema, error) {
-	tags := extractTags(registry, entityType, "")
+func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type) error {
+	tableSchema.t = entityType
+	tableSchema.tags = extractTags(registry, entityType, "")
 	oneRefs := make([]string, 0)
 	manyRefs := make([]string, 0)
 	mapBindToRedisSearch := mapBindToRedisSearch{}
 	mapBindToScanPointer := mapBindToScanPointer{}
 	mapPointerToValue := mapPointerToValue{}
-	mysql, has := tags["ORM"]["mysql"]
+	tableSchema.mysqlPoolName = tableSchema.getTag("mysql", "default", "default")
+	_, has := registry.mysqlPools[tableSchema.mysqlPoolName]
 	if !has {
-		mysql = "default"
+		return fmt.Errorf("mysql pool '%s' not found", tableSchema.mysqlPoolName)
 	}
-	_, has = registry.mysqlPools[mysql]
-	if !has {
-		return nil, fmt.Errorf("mysql pool '%s' not found", mysql)
-	}
-	table, has := tags["ORM"]["table"]
-	if !has {
-		table = entityType.Name()
-	}
-	localCache := getTagValue(tags, "localCache")
-	redisCache := getTagValue(tags, "redisCache")
-	redisSearch := getTagValue(tags, "redisSearch")
+	tableSchema.tableName = tableSchema.getTag("table", entityType.Name(), entityType.Name())
+	localCache := tableSchema.getTag("localCache", "default", "")
+	redisCache := tableSchema.getTag("redisCache", "default", "")
+	redisSearch := tableSchema.getTag("redisSearch", "default", "")
 	if localCache != "" {
 		_, has = registry.localCachePools[localCache]
 		if !has {
-			return nil, fmt.Errorf("local cache pool '%s' not found", localCache)
+			return fmt.Errorf("local cache pool '%s' not found", localCache)
 		}
 	}
 	if redisCache != "" {
 		_, has = registry.mysqlPools[redisCache]
 		if !has {
-			return nil, fmt.Errorf("redis pool '%s' not found", redisCache)
+			return fmt.Errorf("redis pool '%s' not found", redisCache)
 		}
 	}
 	if redisSearch != "" {
 		_, has = registry.redisPools[redisSearch]
 		if !has {
-			return nil, fmt.Errorf("redis pool '%s' not found", redisSearch)
+			return fmt.Errorf("redis pool '%s' not found", redisSearch)
 		}
 	} else {
 		redisSearch = "default"
 	}
 	cachePrefix := ""
-	if mysql != "default" {
-		cachePrefix = mysql
+	if tableSchema.mysqlPoolName != "default" {
+		cachePrefix = tableSchema.mysqlPoolName
 	}
-	cachePrefix += table
+	cachePrefix += tableSchema.tableName
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
@@ -308,7 +303,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	if has && fakeDeleteField.Type.String() == "bool" {
 		hasFakeDelete = true
 	}
-	for key, values := range tags {
+	for key, values := range tableSchema.tags {
 		isOne := false
 		query, has := values["query"]
 		if !has {
@@ -393,17 +388,17 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 			}
 		}
 	}
-	logPoolName := tags["ORM"]["log"]
+	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
 	if logPoolName == "true" {
-		logPoolName = mysql
+		logPoolName = tableSchema.mysqlPoolName
 	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
 	indices := make(map[string]map[int]string)
 	skipLogs := make([]string, 0)
-	uniqueGlobal, has := tags["ORM"]["unique"]
-	if has {
+	uniqueGlobal := tableSchema.getTag("unique", "", "")
+	if uniqueGlobal != "" {
 		parts := strings.Split(uniqueGlobal, "|")
 		for _, part := range parts {
 			def := strings.Split(part, ":")
@@ -417,7 +412,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 			}
 		}
 	}
-	for k, v := range tags {
+	for k, v := range tableSchema.tags {
 		keys, has := v["unique"]
 		if has && k != "ORM" {
 			values := strings.Split(keys, ",")
@@ -479,7 +474,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	}
 	redisSearchIndex := &RedisSearchIndex{}
 	fields := buildTableFields(entityType, registry, redisSearchIndex, mapBindToRedisSearch, mapBindToScanPointer,
-		mapPointerToValue, 1, "", tags)
+		mapPointerToValue, 1, "", tableSchema.tags)
 	searchPrefix := ""
 	if len(redisSearchIndex.Fields) > 0 {
 		hasSearchable := false
@@ -507,13 +502,13 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 			indexQuery += ",`" + column + "`"
 			indexColumns = append(indexColumns, column)
 		}
-		indexQuery += " FROM `" + table + "` WHERE `ID` > ?"
+		indexQuery += " FROM `" + tableSchema.tableName + "` WHERE `ID` > ?"
 		if hasFakeDelete {
 			indexQuery += " AND FakeDelete = 0"
 		}
 		indexQuery += " ORDER BY `ID` LIMIT " + strconv.Itoa(entityIndexerPage)
 		redisSearchIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
-			results, def := engine.GetMysql(mysql).Query(indexQuery, lastID)
+			results, def := engine.GetMysql(tableSchema.mysqlPoolName).Query(indexQuery, lastID)
 			defer def()
 			total := 0
 			pointers := make([]interface{}, len(indexColumns)+1)
@@ -552,38 +547,34 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 	if redisSearchIndex == nil {
 		redisSearch = ""
 	}
-	tableSchema := &tableSchema{tableName: table,
-		mysqlPoolName:        mysql,
-		t:                    entityType,
-		fields:               fields,
-		fieldsQuery:          fieldsQuery,
-		redisSearchPrefix:    searchPrefix,
-		redisSearchIndex:     redisSearchIndex,
-		mapBindToRedisSearch: mapBindToRedisSearch,
-		tags:                 tags,
-		idIndex:              idIndex,
-		columnNames:          columns,
-		columnMapping:        columnMapping,
-		cachedIndexes:        cachedQueries,
-		cachedIndexesOne:     cachedQueriesOne,
-		cachedIndexesAll:     cachedQueriesAll,
-		dirtyFields:          dirtyFields,
-		localCacheName:       localCache,
-		hasLocalCache:        localCache != "",
-		redisCacheName:       redisCache,
-		hasRedisCache:        redisCache != "",
-		searchCacheName:      redisSearch,
-		hasSearchCache:       redisSearchIndex != nil,
-		refOne:               oneRefs,
-		refMany:              manyRefs,
-		cachePrefix:          cachePrefix,
-		uniqueIndices:        uniqueIndicesSimple,
-		uniqueIndicesGlobal:  uniqueIndicesSimpleGlobal,
-		hasFakeDelete:        hasFakeDelete,
-		hasLog:               logPoolName != "",
-		logPoolName:          logPoolName,
-		logTableName:         fmt.Sprintf("_log_%s_%s", mysql, table),
-		skipLogs:             skipLogs}
+	tableSchema.fields = fields
+	tableSchema.fieldsQuery = fieldsQuery
+	tableSchema.redisSearchPrefix = searchPrefix
+	tableSchema.redisSearchIndex = redisSearchIndex
+	tableSchema.mapBindToRedisSearch = mapBindToRedisSearch
+	tableSchema.idIndex = idIndex
+	tableSchema.columnNames = columns
+	tableSchema.columnMapping = columnMapping
+	tableSchema.cachedIndexes = cachedQueries
+	tableSchema.cachedIndexesOne = cachedQueriesOne
+	tableSchema.cachedIndexesAll = cachedQueriesAll
+	tableSchema.dirtyFields = dirtyFields
+	tableSchema.localCacheName = localCache
+	tableSchema.hasLocalCache = localCache != ""
+	tableSchema.redisCacheName = redisCache
+	tableSchema.hasRedisCache = redisCache != ""
+	tableSchema.searchCacheName = redisSearch
+	tableSchema.hasSearchCache = redisSearchIndex != nil
+	tableSchema.refOne = oneRefs
+	tableSchema.refMany = manyRefs
+	tableSchema.cachePrefix = cachePrefix
+	tableSchema.uniqueIndices = uniqueIndicesSimple
+	tableSchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
+	tableSchema.hasFakeDelete = hasFakeDelete
+	tableSchema.hasLog = logPoolName != ""
+	tableSchema.logPoolName = logPoolName
+	tableSchema.logTableName = fmt.Sprintf("_log_%s_%s", tableSchema.mysqlPoolName, tableSchema.tableName)
+	tableSchema.skipLogs = skipLogs
 
 	all := make(map[string]map[int]string)
 	for k, v := range uniqueIndices {
@@ -607,7 +598,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 				break
 			}
 			if same == len(v) {
-				return nil, fmt.Errorf("duplicated index %s with %s in %s", k, k2, entityType.String())
+				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, entityType.String())
 			}
 		}
 	}
@@ -630,7 +621,7 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 			}
 		}
 		if !ok {
-			return nil, fmt.Errorf("missing unique index for cached query '%s' in %s", k, entityType.String())
+			return fmt.Errorf("missing unique index for cached query '%s' in %s", k, entityType.String())
 		}
 	}
 	for k, v := range tableSchema.cachedIndexes {
@@ -672,21 +663,21 @@ func initTableSchema(registry *Registry, entityType reflect.Type) (*tableSchema,
 			}
 		}
 		if !ok {
-			return nil, fmt.Errorf("missing index for cached query '%s' in %s", k, entityType.String())
+			return fmt.Errorf("missing index for cached query '%s' in %s", k, entityType.String())
 		}
 	}
-	return tableSchema, nil
+	return nil
 }
 
-func getTagValue(tags map[string]map[string]string, key string) string {
-	userValue, has := tags["ORM"][key]
+func (tableSchema *tableSchema) getTag(key, trueValue, defaultValue string) string {
+	userValue, has := tableSchema.tags["ORM"][key]
 	if has {
 		if userValue == "true" {
-			return "default"
+			return trueValue
 		}
 		return userValue
 	}
-	return ""
+	return defaultValue
 }
 
 func buildTableFields(t reflect.Type, registry *Registry, index *RedisSearchIndex,
