@@ -605,327 +605,431 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
-		fields.fields[i] = f
 		tags := schemaTags[f.Name]
-		typeName := f.Type.String()
 		_, has := tags["ignore"]
 		if has {
 			continue
 		}
-		_, hasSearchable := tags["searchable"]
-		_, hasSortable := tags["sortable"]
-		switch typeName {
+		attributes := schemaFieldAttributes{
+			Fields:               fields,
+			Tags:                 tags,
+			Index:                i,
+			Prefix:               prefix,
+			Field:                f,
+			TypeName:             f.Type.String(),
+			MapBindToScanPointer: mapBindToScanPointer,
+			MapPointerToValue:    mapPointerToValue,
+		}
+		fields.fields[i] = f
+		_, attributes.HasSearchable = tags["searchable"]
+		_, attributes.HasSortable = tags["sortable"]
+		switch attributes.TypeName {
 		case "uint",
 			"uint8",
 			"uint16",
 			"uint32",
 			"uint64":
-			fields.uintegers = append(fields.uintegers, i)
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				if hasSortable && typeName == "uint64" {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
-						if val.(uint64) > math.MaxInt32 {
-							panic(errors.New("integer too high for redis search sort field"))
-						}
-						return val
-					}
-				} else {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
-				}
-			}
-			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
-				v := uint64(0)
-				return &v
-			}
-			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
-				return *val.(*uint64)
-			}
+			tableSchema.buildUintField(attributes)
 		case "*uint",
 			"*uint8",
 			"*uint16",
 			"*uint32",
 			"*uint64":
-			fields.uintegersNullable = append(fields.uintegersNullable, i)
-			switch typeName {
-			case "*uint":
-				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 0)
-			case "*uint8":
-				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 8)
-			case "*uint16":
-				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 16)
-			case "*uint32":
-				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 32)
-			case "*uint64":
-				fields.uintegersNullableSize = append(fields.uintegersNullableSize, 64)
-			}
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				if hasSortable && typeName == "*uint64" {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
-						if val == nil {
-							return RedisSearchNullNumber
-						} else if val.(uint64) > math.MaxInt32 {
-							panic(errors.New("integer too high for redis search sort field"))
-						}
-						return val
-					}
-				} else {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
-				}
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerUintNullableScan
+			tableSchema.buildUintPointerField(attributes)
 		case "int",
 			"int8",
 			"int16",
 			"int32",
 			"int64":
-			fields.integers = append(fields.integers, i)
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				if hasSortable && typeName == "int64" {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
-						if val.(int64) > math.MaxInt32 {
-							panic(errors.New("integer too high for redis search sort field"))
-						}
-						return val
-					}
-				} else {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
-				}
-			}
-			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
-				v := int64(0)
-				return &v
-			}
-			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
-				return *val.(*int64)
-			}
+			tableSchema.buildIntField(attributes)
 		case "*int",
 			"*int8",
 			"*int16",
 			"*int32",
 			"*int64":
-			fields.integersNullable = append(fields.integersNullable, i)
-			switch typeName {
-			case "*int":
-				fields.integersNullableSize = append(fields.integersNullableSize, 0)
-			case "*int8":
-				fields.integersNullableSize = append(fields.integersNullableSize, 8)
-			case "*int16":
-				fields.integersNullableSize = append(fields.integersNullableSize, 16)
-			case "*int32":
-				fields.integersNullableSize = append(fields.integersNullableSize, 32)
-			case "*int64":
-				fields.integersNullableSize = append(fields.integersNullableSize, 64)
-			}
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				if hasSortable && typeName == "*int64" {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = func(val interface{}) interface{} {
-						if val == nil {
-							return RedisSearchNullNumber
-						} else if val.(int64) > math.MaxInt32 {
-							panic(errors.New("integer too high for redis search sort field"))
-						}
-						return val
-					}
-				} else {
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
-				}
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerIntNullableScan
+			tableSchema.buildIntPointerField(attributes)
 		case "string":
-			enumCode, hasEnum := tags["enum"]
-			if hasEnum {
-				fields.stringsEnums = append(fields.stringsEnums, i)
-				fields.enums = append(fields.enums, registry.enums[enumCode])
-			} else {
-				fields.strings = append(fields.strings, i)
-			}
-			if hasSearchable || hasSortable {
-				if hasEnum {
-					tableSchema.redisSearchIndex.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
-				} else {
-					stem, hasStem := tags["stem"]
-					tableSchema.redisSearchIndex.AddTextField(prefix+f.Name, 1.0, hasSortable, !hasSearchable, !hasStem || stem != "true")
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
-				}
-			}
-			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
-				return &sql.NullString{}
-			}
-			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
-				v := val.(*sql.NullString)
-				if v.Valid {
-					return v.String
-				}
-				return nil
-			}
+			tableSchema.buildStringField(attributes, registry)
 		case "[]string":
-			setCode, hasSet := tags["set"]
-			if hasSet {
-				fields.sliceStringsSets = append(fields.sliceStringsSets, i)
-				fields.sets = append(fields.sets, registry.enums[setCode])
-				if hasSearchable || hasSortable {
-					tableSchema.redisSearchIndex.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableString
-				}
-			} else {
-				fields.jsons = append(fields.jsons, i)
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
+			tableSchema.buildStringSliceField(attributes, registry)
 		case "[]uint8":
 			fields.bytes = append(fields.bytes, i)
 		case "bool":
-			if f.Name == "FakeDelete" {
-				fields.fakeDelete = i
-			} else {
-				fields.booleans = append(fields.booleans, i)
-				mapBindToScanPointer[prefix+f.Name] = scanBoolPointer
-				mapPointerToValue[prefix+f.Name] = pointerBoolScan
-				if hasSearchable || hasSortable {
-					tableSchema.redisSearchIndex.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-					tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableBool
-				}
-			}
+			tableSchema.buildBoolField(attributes)
 		case "*bool":
-			fields.booleansNullable = append(fields.booleansNullable, i)
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddTagField(prefix+f.Name, hasSortable, !hasSearchable, ",")
-				tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableBool
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanBoolNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerBoolNullableScan
+			tableSchema.buildBoolPointerField(attributes)
 		case "float32",
 			"float64":
-			precision := 8
-			if typeName == "float32" {
-				precision = 4
-			}
-			precisionAttribute, has := tags["precision"]
-			if has {
-				userPrecision, _ := strconv.Atoi(precisionAttribute)
-				precision = userPrecision
-			} else {
-				decimal, has := tags["decimal"]
-				if has {
-					decimalArgs := strings.Split(decimal, ",")
-					precision, _ = strconv.Atoi(decimalArgs[1])
-				}
-			}
-			fields.floats = append(fields.floats, i)
-			fields.floatsPrecision = append(fields.floatsPrecision, precision)
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapper
-			}
-			mapBindToScanPointer[prefix+f.Name] = func() interface{} {
-				v := float64(0)
-				return &v
-			}
-			mapPointerToValue[prefix+f.Name] = func(val interface{}) interface{} {
-				return *val.(*float64)
-			}
+			tableSchema.buildFloatField(attributes)
 		case "*float32",
 			"*float64":
-			precision := 8
-			if typeName == "*float32" {
-				precision = 4
-				fields.floatsNullableSize = append(fields.floatsNullableSize, 32)
-			} else {
-				fields.floatsNullableSize = append(fields.floatsNullableSize, 64)
-			}
-			precisionAttribute, has := tags["precision"]
-			if has {
-				userPrecision, _ := strconv.Atoi(precisionAttribute)
-				precision = userPrecision
-			} else {
-				precisionAttribute, has := tags["decimal"]
-				if has {
-					precision, _ = strconv.Atoi(strings.Split(precisionAttribute, ",")[1])
-				}
-			}
-			fields.floatsNullable = append(fields.floatsNullable, i)
-			fields.floatsNullablePrecision = append(fields.floatsNullablePrecision, precision)
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanFloatNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerFloatNullableScan
-		case "*time.Time":
-			_, hasTime := tags["time"]
-			if hasTime {
-				fields.timesNullable = append(fields.timesNullable, i)
-			} else {
-				fields.datesNullable = append(fields.datesNullable, i)
-			}
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanStringNullablePointer
-			mapPointerToValue[prefix+f.Name] = pointerStringNullableScan
+			tableSchema.buildFloatPointerField(attributes)
 		case "*beeorm.CachedQuery":
 			continue
+		case "*time.Time":
+			tableSchema.buildTimePointerField(attributes)
 		case "time.Time":
-			_, hasTime := tags["time"]
-			if hasTime {
-				fields.times = append(fields.times, i)
-			} else {
-				fields.dates = append(fields.dates, i)
-			}
-			if hasSearchable || hasSortable {
-				tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-				tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableTime
-			}
-			mapBindToScanPointer[prefix+f.Name] = scanStringPointer
-			mapPointerToValue[prefix+f.Name] = pointerStringScan
+			tableSchema.buildTimeField(attributes)
 		default:
 			k := f.Type.Kind().String()
 			if k == "struct" {
-				fields.structs = append(fields.structs, i)
-				subPrefix := ""
-				if !f.Anonymous {
-					subPrefix = f.Name
-				}
-				subFields := tableSchema.buildTableFields(f.Type, registry,
-					mapBindToScanPointer, mapPointerToValue, 0, subPrefix, schemaTags)
-				fields.structsFields = append(fields.structsFields, subFields)
+				tableSchema.buildStructField(attributes, registry, schemaTags)
 			} else if k == "ptr" {
-				modelType := reflect.TypeOf((*Entity)(nil)).Elem()
-				if f.Type.Implements(modelType) {
-					fields.refs = append(fields.refs, i)
-					fields.refsTypes = append(fields.refsTypes, f.Type.Elem())
-					if hasSearchable || hasSortable {
-						tableSchema.redisSearchIndex.AddNumericField(prefix+f.Name, hasSortable, !hasSearchable)
-						tableSchema.mapBindToRedisSearch[prefix+f.Name] = defaultRedisSearchMapperNullableNumeric
-					}
-					mapBindToScanPointer[prefix+f.Name] = scanIntNullablePointer
-					mapPointerToValue[prefix+f.Name] = pointerUintNullableScan
-				} else {
-					fields.jsons = append(fields.jsons, i)
-				}
+				tableSchema.buildPointerField(attributes)
 			} else {
-				if typeName[0:3] == "[]*" {
-					modelType := reflect.TypeOf((*Entity)(nil)).Elem()
-					t := f.Type.Elem()
-					if t.Implements(modelType) {
-						fields.refsMany = append(fields.refsMany, i)
-						fields.refsManyTypes = append(fields.refsManyTypes, t.Elem())
-						continue
-					}
-				}
-				fields.jsons = append(fields.jsons, i)
+				tableSchema.buildPointersSliceField(attributes)
 			}
 		}
 	}
 	return fields
+}
+
+type schemaFieldAttributes struct {
+	Field                reflect.StructField
+	TypeName             string
+	Tags                 map[string]string
+	Fields               *tableFields
+	Index                int
+	HasSearchable        bool
+	HasSortable          bool
+	Prefix               string
+	MapBindToScanPointer mapBindToScanPointer
+	MapPointerToValue    mapPointerToValue
+}
+
+func (attributes schemaFieldAttributes) GetColumnName() string {
+	return attributes.Prefix + attributes.Field.Name
+}
+
+func (attributes schemaFieldAttributes) IsInByRedisSearch() bool {
+	return attributes.HasSearchable || attributes.HasSortable
+}
+
+func (tableSchema *tableSchema) buildUintField(attributes schemaFieldAttributes) {
+	attributes.Fields.uintegers = append(attributes.Fields.uintegers, attributes.Index)
+	columnName := attributes.GetColumnName()
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		if attributes.HasSortable && attributes.TypeName == "uint64" {
+			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+				if val.(uint64) > math.MaxInt32 {
+					panic(errors.New("integer too high for redis search sort field"))
+				}
+				return val
+			}
+		} else {
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
+		}
+	}
+	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+		v := uint64(0)
+		return &v
+	}
+	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+		return *val.(*uint64)
+	}
+}
+
+func (tableSchema *tableSchema) buildUintPointerField(attributes schemaFieldAttributes) {
+	attributes.Fields.uintegersNullable = append(attributes.Fields.uintegersNullable, attributes.Index)
+	columnName := attributes.GetColumnName()
+	switch attributes.TypeName {
+	case "*uint":
+		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 0)
+	case "*uint8":
+		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 8)
+	case "*uint16":
+		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 16)
+	case "*uint32":
+		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 32)
+	case "*uint64":
+		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 64)
+	}
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		if attributes.HasSortable && attributes.TypeName == "*uint64" {
+			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+				if val == nil {
+					return RedisSearchNullNumber
+				} else if val.(uint64) > math.MaxInt32 {
+					panic(errors.New("integer too high for redis search sort field"))
+				}
+				return val
+			}
+		} else {
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
+		}
+	}
+	attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerUintNullableScan
+}
+
+func (tableSchema *tableSchema) buildIntField(attributes schemaFieldAttributes) {
+	attributes.Fields.integers = append(attributes.Fields.integers, attributes.Index)
+	columnName := attributes.GetColumnName()
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		if attributes.HasSortable && attributes.TypeName == "int64" {
+			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+				if val.(int64) > math.MaxInt32 {
+					panic(errors.New("integer too high for redis search sort field"))
+				}
+				return val
+			}
+		} else {
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
+		}
+	}
+	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+		v := int64(0)
+		return &v
+	}
+	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+		return *val.(*int64)
+	}
+}
+
+func (tableSchema *tableSchema) buildIntPointerField(attributes schemaFieldAttributes) {
+	attributes.Fields.integersNullable = append(attributes.Fields.integersNullable, attributes.Index)
+	columnName := attributes.GetColumnName()
+	switch attributes.TypeName {
+	case "*int":
+		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 0)
+	case "*int8":
+		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 8)
+	case "*int16":
+		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 16)
+	case "*int32":
+		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 32)
+	case "*int64":
+		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 64)
+	}
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		if attributes.HasSortable && attributes.TypeName == "*int64" {
+			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+				if val == nil {
+					return RedisSearchNullNumber
+				} else if val.(int64) > math.MaxInt32 {
+					panic(errors.New("integer too high for redis search sort field"))
+				}
+				return val
+			}
+		} else {
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
+		}
+	}
+	attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerIntNullableScan
+}
+
+func (tableSchema *tableSchema) buildStringField(attributes schemaFieldAttributes, registry *Registry) {
+	enumCode, hasEnum := attributes.Tags["enum"]
+	columnName := attributes.GetColumnName()
+	if hasEnum {
+		attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
+		attributes.Fields.enums = append(attributes.Fields.enums, registry.enums[enumCode])
+	} else {
+		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
+	}
+	if attributes.IsInByRedisSearch() {
+		if hasEnum {
+			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
+		} else {
+			stem, hasStem := attributes.Tags["stem"]
+			tableSchema.redisSearchIndex.AddTextField(columnName, 1.0, attributes.HasSortable, !attributes.HasSearchable, !hasStem || stem != "true")
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
+		}
+	}
+	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+		return &sql.NullString{}
+	}
+	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+		v := val.(*sql.NullString)
+		if v.Valid {
+			return v.String
+		}
+		return nil
+	}
+}
+
+func (tableSchema *tableSchema) buildStringSliceField(attributes schemaFieldAttributes, registry *Registry) {
+	setCode, hasSet := attributes.Tags["set"]
+	columnName := attributes.GetColumnName()
+	if hasSet {
+		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
+		attributes.Fields.sets = append(attributes.Fields.sets, registry.enums[setCode])
+		if attributes.IsInByRedisSearch() {
+			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
+		}
+	} else {
+		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
+	}
+	attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+}
+
+func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	if attributes.GetColumnName() == "FakeDelete" {
+		attributes.Fields.fakeDelete = attributes.Index
+	} else {
+		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
+		attributes.MapBindToScanPointer[columnName] = scanBoolPointer
+		attributes.MapPointerToValue[columnName] = pointerBoolScan
+		if attributes.IsInByRedisSearch() {
+			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
+		}
+	}
+}
+
+func (tableSchema *tableSchema) buildBoolPointerField(attributes schemaFieldAttributes) {
+	attributes.Fields.booleansNullable = append(attributes.Fields.booleansNullable, attributes.Index)
+	columnName := attributes.GetColumnName()
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
+		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
+	}
+	attributes.MapBindToScanPointer[columnName] = scanBoolNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerBoolNullableScan
+}
+
+func (tableSchema *tableSchema) buildFloatField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	precision := 8
+	if attributes.TypeName == "float32" {
+		precision = 4
+	}
+	precisionAttribute, has := attributes.Tags["precision"]
+	if has {
+		userPrecision, _ := strconv.Atoi(precisionAttribute)
+		precision = userPrecision
+	} else {
+		decimal, has := attributes.Tags["decimal"]
+		if has {
+			decimalArgs := strings.Split(decimal, ",")
+			precision, _ = strconv.Atoi(decimalArgs[1])
+		}
+	}
+	attributes.Fields.floats = append(attributes.Fields.floats, attributes.Index)
+	attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
+	}
+	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+		v := float64(0)
+		return &v
+	}
+	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+		return *val.(*float64)
+	}
+}
+
+func (tableSchema *tableSchema) buildFloatPointerField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	precision := 8
+	if attributes.TypeName == "*float32" {
+		precision = 4
+		attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 32)
+	} else {
+		attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 64)
+	}
+	precisionAttribute, has := attributes.Tags["precision"]
+	if has {
+		userPrecision, _ := strconv.Atoi(precisionAttribute)
+		precision = userPrecision
+	} else {
+		precisionAttribute, has := attributes.Tags["decimal"]
+		if has {
+			precision, _ = strconv.Atoi(strings.Split(precisionAttribute, ",")[1])
+		}
+	}
+	attributes.Fields.floatsNullable = append(attributes.Fields.floatsNullable, attributes.Index)
+	attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
+	}
+	attributes.MapBindToScanPointer[columnName] = scanFloatNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerFloatNullableScan
+}
+
+func (tableSchema *tableSchema) buildTimePointerField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	_, hasTime := attributes.Tags["time"]
+	if hasTime {
+		attributes.Fields.timesNullable = append(attributes.Fields.timesNullable, attributes.Index)
+	} else {
+		attributes.Fields.datesNullable = append(attributes.Fields.datesNullable, attributes.Index)
+	}
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
+	}
+	attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
+	attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+}
+
+func (tableSchema *tableSchema) buildTimeField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	_, hasTime := attributes.Tags["time"]
+	if hasTime {
+		attributes.Fields.times = append(attributes.Fields.times, attributes.Index)
+	} else {
+		attributes.Fields.dates = append(attributes.Fields.dates, attributes.Index)
+	}
+	if attributes.IsInByRedisSearch() {
+		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
+	}
+	attributes.MapBindToScanPointer[columnName] = scanStringPointer
+	attributes.MapPointerToValue[columnName] = pointerStringScan
+}
+
+func (tableSchema *tableSchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
+	schemaTags map[string]map[string]string) {
+	attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
+	subPrefix := ""
+	if !attributes.Field.Anonymous {
+		subPrefix = attributes.Field.Name
+	}
+	subFields := tableSchema.buildTableFields(attributes.Field.Type, registry,
+		attributes.MapBindToScanPointer, attributes.MapPointerToValue, 0, subPrefix, schemaTags)
+	attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
+}
+
+func (tableSchema *tableSchema) buildPointerField(attributes schemaFieldAttributes) {
+	columnName := attributes.GetColumnName()
+	modelType := reflect.TypeOf((*Entity)(nil)).Elem()
+	if attributes.Field.Type.Implements(modelType) {
+		attributes.Fields.refs = append(attributes.Fields.refs, attributes.Index)
+		attributes.Fields.refsTypes = append(attributes.Fields.refsTypes, attributes.Field.Type.Elem())
+		if attributes.IsInByRedisSearch() {
+			tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
+			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
+		}
+		attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
+		attributes.MapPointerToValue[columnName] = pointerUintNullableScan
+	} else {
+		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
+	}
+}
+
+func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAttributes) {
+	if attributes.TypeName[0:3] == "[]*" {
+		modelType := reflect.TypeOf((*Entity)(nil)).Elem()
+		t := attributes.Field.Type.Elem()
+		if t.Implements(modelType) {
+			attributes.Fields.refsMany = append(attributes.Fields.refsMany, attributes.Index)
+			attributes.Fields.refsManyTypes = append(attributes.Fields.refsManyTypes, t.Elem())
+			return
+		}
+	}
+	attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 }
 
 func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry, mapBindToScanPointer mapBindToScanPointer,
