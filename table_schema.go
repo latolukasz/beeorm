@@ -491,6 +491,10 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.logTableName = fmt.Sprintf("_log_%s_%s", tableSchema.mysqlPoolName, tableSchema.tableName)
 	tableSchema.skipLogs = skipLogs
 
+	return tableSchema.validateIndexes(uniqueIndices, indices)
+}
+
+func (tableSchema *tableSchema) validateIndexes(uniqueIndices map[string]map[int]string, indices map[string]map[int]string) error {
 	all := make(map[string]map[int]string)
 	for k, v := range uniqueIndices {
 		all[k] = v
@@ -513,7 +517,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 				break
 			}
 			if same == len(v) {
-				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, entityType.String())
+				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, tableSchema.t.String())
 			}
 		}
 	}
@@ -536,7 +540,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			}
 		}
 		if !ok {
-			return fmt.Errorf("missing unique index for cached query '%s' in %s", k, entityType.String())
+			return fmt.Errorf("missing unique index for cached query '%s' in %s", k, tableSchema.t.String())
 		}
 	}
 	for k, v := range tableSchema.cachedIndexes {
@@ -578,7 +582,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			}
 		}
 		if !ok {
-			return fmt.Errorf("missing index for cached query '%s' in %s", k, entityType.String())
+			return fmt.Errorf("missing index for cached query '%s' in %s", k, tableSchema.t.String())
 		}
 	}
 	return nil

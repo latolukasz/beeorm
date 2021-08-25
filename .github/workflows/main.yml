@@ -30,7 +30,7 @@ jobs:
           go clean -modcache
           go mod tidy
           go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-          gocyclo -over 90 .
+          gocyclo -over 80 .
 
   test:
     name: Test & coverage
