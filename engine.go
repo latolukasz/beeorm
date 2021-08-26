@@ -274,6 +274,18 @@ func (e *Engine) Load(entity Entity, references ...string) (found bool) {
 	return e.load(newSerializer(nil), entity, references...)
 }
 
+func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) {
+	tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
+}
+
+func (e *Engine) GetAlters() (alters []Alter) {
+	return getAlters(e)
+}
+
+func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
+	return getRedisSearchAlters(e)
+}
+
 func (e *Engine) load(serializer *serializer, entity Entity, references ...string) bool {
 	if entity.IsLoaded() {
 		if len(references) > 0 {
@@ -289,16 +301,4 @@ func (e *Engine) load(serializer *serializer, entity Entity, references ...strin
 		found, _ = loadByID(serializer, e, id, entity, true, references...)
 	}
 	return found
-}
-
-func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) {
-	tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
-}
-
-func (e *Engine) GetAlters() (alters []Alter) {
-	return getAlters(e)
-}
-
-func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
-	return getRedisSearchAlters(e)
 }
