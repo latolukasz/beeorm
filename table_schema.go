@@ -1045,10 +1045,7 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry, mapBin
 			if !has {
 				return fmt.Errorf("redis pool '%s' not found", tableSchema.searchCacheName)
 			}
-		} else {
-			tableSchema.searchCacheName = "default"
 		}
-
 		hasSearchable := false
 		for _, field := range tableSchema.redisSearchIndex.Fields {
 			if !field.NoIndex {
