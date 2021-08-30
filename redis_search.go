@@ -285,7 +285,8 @@ func NewAggregateReduceRandomSample(property, alias string, size ...int) Aggrega
 }
 
 type RedisSearchAggregate struct {
-	args []interface{}
+	query *RedisSearchQuery
+	args  []interface{}
 }
 
 type RedisSearchAggregateSort struct {
@@ -318,6 +319,11 @@ func (a *RedisSearchAggregate) Sort(fields ...RedisSearchAggregateSort) *RedisSe
 
 func (a *RedisSearchAggregate) Apply(expression, alias string) *RedisSearchAggregate {
 	a.args = append(a.args, "APPLY", expression, "AS", alias)
+	return a
+}
+
+func (a *RedisSearchAggregate) Filter(expression string) *RedisSearchAggregate {
+	a.args = append(a.args, "FILTER", expression)
 	return a
 }
 
@@ -673,6 +679,10 @@ func (q *RedisSearchQuery) Sort(field string, desc bool) *RedisSearchQuery {
 	return q
 }
 
+func (q *RedisSearchQuery) Aggregate() *RedisSearchAggregate {
+	return &RedisSearchAggregate{query: q}
+}
+
 func (q *RedisSearchQuery) Verbatim() *RedisSearchQuery {
 	q.verbatim = true
 	return q
@@ -818,7 +828,12 @@ func (r *RedisSearch) SearchKeys(index string, query *RedisSearchQuery, pager *P
 }
 
 func (r *RedisSearch) Aggregate(index string, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
-	args := []interface{}{"FT.AGGREGATE", index, "*"}
+	args := []interface{}{"FT.AGGREGATE", index}
+	if query.query == nil {
+		args = append(args, "*")
+	} else {
+		args = r.buildQueryArgs(query.query, args)
+	}
 	args = append(args, query.args...)
 	args = r.applyPager(pager, args)
 	cmd := redis.NewSliceCmd(r.ctx, args...)
@@ -872,75 +887,7 @@ func (r *RedisSearch) GetPoolConfig() RedisPoolConfig {
 
 func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager, noContent bool) (total uint64, rows []interface{}) {
 	args := []interface{}{"FT.SEARCH", index}
-	q := query.query
-	for field, in := range query.filtersNumeric {
-		if len(in) == 1 {
-			continue
-		}
-		if q != "" {
-			q += " "
-		}
-		for i, v := range in {
-			if i > 0 {
-				q += "|"
-			}
-			q += "@" + field + ":"
-			q += "[" + v[0] + " " + v[1] + "]"
-		}
-	}
-	for field, in := range query.filtersTags {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "@" + field + ":{ " + strings.Join(v, " | ") + " }"
-		}
-	}
-	for field, in := range query.filtersString {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "@" + field + ":( " + strings.Join(v, " | ") + " )"
-		}
-	}
-	for field, in := range query.filtersNotNumeric {
-		if q != "" {
-			q += " "
-		}
-		for _, v := range in {
-			q += "(@" + field + ":[-inf (" + v + "] | @" + field + ":[(" + v + " +inf])"
-		}
-	}
-	for field, in := range query.filtersNotTags {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "-@" + field + ":{ " + strings.Join(v, " | ") + " }"
-		}
-	}
-	for field, in := range query.filtersNotString {
-		for _, v := range in {
-			if q != "" {
-				q += " "
-			}
-			q += "-@" + field + ":( " + strings.Join(v, " | ") + " )"
-		}
-	}
-	if q == "" {
-		q = "*"
-	}
-	args = append(args, q)
-
-	for field, ranges := range query.filtersNumeric {
-		if len(ranges) == 1 {
-			args = append(args, "FILTER", field, ranges[0][0], ranges[0][1])
-		}
-	}
-	for field, data := range query.filtersGeo {
-		args = append(args, "GEOFILTER", field, data[0], data[1], data[2], data[3])
-	}
+	args = r.buildQueryArgs(query, args)
 
 	if noContent {
 		args = append(args, "NOCONTENT")
@@ -1026,6 +973,79 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 	checkError(err)
 	total = uint64(res[0].(int64))
 	return total, res[1:]
+}
+
+func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}) []interface{} {
+	q := query.query
+	for field, in := range query.filtersNumeric {
+		if len(in) == 1 {
+			continue
+		}
+		if q != "" {
+			q += " "
+		}
+		for i, v := range in {
+			if i > 0 {
+				q += "|"
+			}
+			q += "@" + field + ":"
+			q += "[" + v[0] + " " + v[1] + "]"
+		}
+	}
+	for field, in := range query.filtersTags {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "@" + field + ":{ " + strings.Join(v, " | ") + " }"
+		}
+	}
+	for field, in := range query.filtersString {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "@" + field + ":( " + strings.Join(v, " | ") + " )"
+		}
+	}
+	for field, in := range query.filtersNotNumeric {
+		if q != "" {
+			q += " "
+		}
+		for _, v := range in {
+			q += "(@" + field + ":[-inf (" + v + "] | @" + field + ":[(" + v + " +inf])"
+		}
+	}
+	for field, in := range query.filtersNotTags {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "-@" + field + ":{ " + strings.Join(v, " | ") + " }"
+		}
+	}
+	for field, in := range query.filtersNotString {
+		for _, v := range in {
+			if q != "" {
+				q += " "
+			}
+			q += "-@" + field + ":( " + strings.Join(v, " | ") + " )"
+		}
+	}
+	if q == "" {
+		q = "*"
+	}
+	args = append(args, q)
+
+	for field, ranges := range query.filtersNumeric {
+		if len(ranges) == 1 {
+			args = append(args, "FILTER", field, ranges[0][0], ranges[0][1])
+		}
+	}
+	for field, data := range query.filtersGeo {
+		args = append(args, "GEOFILTER", field, data[0], data[1], data[2], data[3])
+	}
+	return args
 }
 
 func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string) []interface{} {

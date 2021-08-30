@@ -53,7 +53,7 @@ type redisSearchOnlySortPKEntity struct {
 
 type redisSearchAggregateEntity struct {
 	ORM  `orm:"redisSearch=search"`
-	ID   uint   `orm:"sortable"`
+	ID   uint   `orm:"sortable;searchable"`
 	Age  int    `orm:"searchable"`
 	Size int    `orm:"searchable"`
 	Name string `orm:"sortable"`
@@ -1166,6 +1166,26 @@ func TestEntityRedisAggregate(t *testing.T) {
 	assert.Equal(t, "1", res[1]["ages"])
 	assert.Equal(t, "3", res[0]["sizes"])
 	assert.Equal(t, "1", res[1]["sizes"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceCountDistinct("@Size", "sizes", false))
+	query.Filter("@Age > 18")
+	query.Sort(RedisSearchAggregateSort{"@Age", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "39", res[0]["Age"])
+	assert.Equal(t, "", res[1]["Age"])
+
+	q := &RedisSearchQuery{}
+	q.Sort("ID", true)
+	q.FilterInt("ID", 4, 6, 2)
+	query = q.Aggregate()
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceCountDistinct("@Size", "sizes", false))
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Len(t, res, 1)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "1", res[0]["sizes"])
 }
 
 func TestEntityOnlySortPKRedisSearch(t *testing.T) {
