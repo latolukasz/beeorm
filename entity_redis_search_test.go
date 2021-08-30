@@ -1047,7 +1047,7 @@ func TestEntityRedisAggregate(t *testing.T) {
 	assert.Len(t, res, 2)
 
 	query = &RedisSearchAggregate{}
-	query.GroupByFields([]string{"@Age"}, NewAggregateReduceSum("@Size", "total"))
+	query.GroupByField("@Age", NewAggregateReduceSum("@Size", "total"))
 	query.Sort(RedisSearchAggregateSort{"@total", false})
 	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
 	assert.Equal(t, uint64(2), totalRows)
