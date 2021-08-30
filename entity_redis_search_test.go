@@ -51,6 +51,14 @@ type redisSearchOnlySortPKEntity struct {
 	ID  uint `orm:"sortable"`
 }
 
+type redisSearchAggregateEntity struct {
+	ORM  `orm:"redisSearch=search"`
+	ID   uint   `orm:"sortable"`
+	Age  int    `orm:"searchable"`
+	Size int    `orm:"searchable"`
+	Name string `orm:"sortable"`
+}
+
 func TestEntityRedisSearchIndexer(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
@@ -975,6 +983,189 @@ func TestEntityRedisSearch(t *testing.T) {
 	entitySearch, has = schema.GetRedisSearch(engine)
 	assert.Nil(t, entitySearch)
 	assert.False(t, has)
+}
+
+func TestEntityRedisAggregate(t *testing.T) {
+	var entity *redisSearchAggregateEntity
+	registry := &Registry{}
+	engine, def := prepareTables(t, registry, 5, entity)
+	defer def()
+	flusher := engine.NewFlusher()
+	for i := 1; i <= 50; i++ {
+		e := &redisSearchAggregateEntity{}
+		age := 18
+		size := 10
+		name := "Adam"
+		if i > 20 {
+			age = 39
+			size = 20
+		}
+		if i > 30 {
+			size = 30
+		}
+		if i > 35 {
+			name = "John"
+		}
+		e.Age = age
+		e.Size = size
+		e.Name = name
+		flusher.Track(e)
+	}
+	flusher.Flush()
+	query := &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age", "@Size"}, NewAggregateReduceCount("rows"))
+	query.Sort(RedisSearchAggregateSort{"@rows", true}, RedisSearchAggregateSort{"@Size", false})
+	res, totalRows := engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(3), totalRows)
+	assert.Len(t, res, 3)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["Size"])
+	assert.Equal(t, "20", res[0]["rows"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "30", res[1]["Size"])
+	assert.Equal(t, "20", res[1]["rows"])
+	assert.Equal(t, "39", res[2]["Age"])
+	assert.Equal(t, "20", res[2]["Size"])
+	assert.Equal(t, "10", res[2]["rows"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceCountDistinct("@Size", "sizes", false))
+	query.Sort(RedisSearchAggregateSort{"@sizes", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "1", res[0]["sizes"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "2", res[1]["sizes"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceCountDistinct("@Size", "sizes", true))
+	query.Sort(RedisSearchAggregateSort{"@sizes", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceSum("@Size", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "200", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "800", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceMin("@Size", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "20", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceMax("@Size", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "30", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceAvg("@Size", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "26.6666666667", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceStdDev("@Size", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "0", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "4.79463301485", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceQuantile("@Size", "0.1", "total"))
+	query.Sort(RedisSearchAggregateSort{"@total", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["total"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.Equal(t, "20", res[1]["total"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceToList("@Size", "list"))
+	query.Sort(RedisSearchAggregateSort{"@Age", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "10", res[0]["list"])
+	assert.Equal(t, "39", res[1]["Age"])
+	assert.True(t, "20,30" == res[1]["list"] || "30,20" == res[1]["list"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceFirstValue("@Size", "first"))
+	query.Sort(RedisSearchAggregateSort{"@Age", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "18", res[0]["Age"])
+	assert.Equal(t, "39", res[1]["Age"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceFirstValueBy("@Size", "@Age", "first", true))
+	query.Sort(RedisSearchAggregateSort{"@Age", true})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "39", res[0]["Age"])
+	assert.Equal(t, "18", res[1]["Age"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Age"}, NewAggregateReduceRandomSample("@Size", "res", 2))
+	query.Sort(RedisSearchAggregateSort{"@Age", true})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "39", res[0]["Age"])
+	assert.Equal(t, "18", res[1]["Age"])
+
+	query = &RedisSearchAggregate{}
+	query.GroupByFields([]string{"@Name"}, NewAggregateReduceCountDistinct("@Age", "ages", false),
+		NewAggregateReduceCountDistinct("@Size", "sizes", false))
+	query.Apply("upper(@Name)", "upperName")
+	query.Sort(RedisSearchAggregateSort{"@Name", false})
+	res, totalRows = engine.RedisSearchAggregate(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(2), totalRows)
+	assert.Len(t, res, 2)
+	assert.Equal(t, "adam", res[0]["Name"])
+	assert.Equal(t, "john", res[1]["Name"])
+	assert.Equal(t, "ADAM", res[0]["upperName"])
+	assert.Equal(t, "JOHN", res[1]["upperName"])
+	assert.Equal(t, "2", res[0]["ages"])
+	assert.Equal(t, "1", res[1]["ages"])
+	assert.Equal(t, "3", res[0]["sizes"])
+	assert.Equal(t, "1", res[1]["sizes"])
 }
 
 func TestEntityOnlySortPKRedisSearch(t *testing.T) {

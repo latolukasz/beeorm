@@ -218,11 +218,121 @@ type RedisSearchQuery struct {
 	summarizeLen       int
 }
 
+type AggregateReduce struct {
+	function string
+	args     []interface{}
+	alias    string
+}
+
+func NewAggregateReduceCount(alias string) AggregateReduce {
+	return AggregateReduce{function: "COUNT", alias: alias}
+}
+
+func NewAggregateReduceCountDistinct(property, alias string, distinctish bool) AggregateReduce {
+	f := "COUNT_DISTINCT"
+	if distinctish {
+		f += "ISH"
+	}
+	return AggregateReduce{function: f, args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceSum(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "SUM", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceMin(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "MIN", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceMax(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "MAX", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceAvg(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "AVG", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceStdDev(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "STDDEV", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceQuantile(property, quantile, alias string) AggregateReduce {
+	return AggregateReduce{function: "QUANTILE", args: []interface{}{property, quantile}, alias: alias}
+}
+
+func NewAggregateReduceToList(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "TOLIST", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceFirstValue(property, alias string) AggregateReduce {
+	return AggregateReduce{function: "FIRST_VALUE", args: []interface{}{property}, alias: alias}
+}
+
+func NewAggregateReduceFirstValueBy(property, byProperty, alias string, desc bool) AggregateReduce {
+	sort := "ASC"
+	if desc {
+		sort = "DESC"
+	}
+	return AggregateReduce{function: "FIRST_VALUE", args: []interface{}{property, "BY", byProperty, sort}, alias: alias}
+}
+
+func NewAggregateReduceRandomSample(property, alias string, size ...int) AggregateReduce {
+	sample := "1"
+	if len(size) > 0 {
+		sample = strconv.Itoa(size[0])
+	}
+	return AggregateReduce{function: "RANDOM_SAMPLE", args: []interface{}{property, sample}, alias: alias}
+}
+
+type RedisSearchAggregate struct {
+	args []interface{}
+}
+
+type RedisSearchAggregateSort struct {
+	Field string
+	Desc  bool
+}
+
 type RedisSearchResult struct {
 	Key          string
 	Fields       []interface{}
 	Score        float64
 	ExplainScore []interface{}
+}
+
+func (a *RedisSearchAggregate) GroupByField(field string, reduce ...AggregateReduce) *RedisSearchAggregate {
+	return a.GroupByFields([]string{field}, reduce...)
+}
+
+func (a *RedisSearchAggregate) Sort(fields ...RedisSearchAggregateSort) *RedisSearchAggregate {
+	a.args = append(a.args, "SORTBY", strconv.Itoa(len(fields)*2))
+	for _, field := range fields {
+		if field.Desc {
+			a.args = append(a.args, field.Field, "DESC")
+		} else {
+			a.args = append(a.args, field.Field, "ASC")
+		}
+	}
+	return a
+}
+
+func (a *RedisSearchAggregate) Apply(expression, alias string) *RedisSearchAggregate {
+	a.args = append(a.args, "APPLY", expression, "AS", alias)
+	return a
+}
+
+func (a *RedisSearchAggregate) GroupByFields(fields []string, reduce ...AggregateReduce) *RedisSearchAggregate {
+	a.args = append(a.args, "GROUPBY", len(fields))
+	for _, f := range fields {
+		a.args = append(a.args, f)
+	}
+	for _, r := range reduce {
+		a.args = append(a.args, "REDUCE", r.function, len(r.args))
+		a.args = append(a.args, r.args...)
+		a.args = append(a.args, "AS", r.alias)
+	}
+
+	return a
 }
 
 func (r *RedisSearchResult) Value(field string) interface{} {
@@ -707,6 +817,55 @@ func (r *RedisSearch) SearchKeys(index string, query *RedisSearchQuery, pager *P
 	return total, keys
 }
 
+func (r *RedisSearch) Aggregate(index string, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
+	args := []interface{}{"FT.AGGREGATE", index, "*"}
+	args = append(args, query.args...)
+	args = r.applyPager(pager, args)
+	cmd := redis.NewSliceCmd(r.ctx, args...)
+	start := getNow(r.engine.hasRedisLogger)
+	err := r.redis.client.Process(r.ctx, cmd)
+	if r.engine.hasRedisLogger {
+		r.fillLogFields("FT.AGGREGATE", cmd.String(), start, err)
+	}
+	checkError(err)
+	res, err := cmd.Result()
+	checkError(err)
+	totalRows = uint64(res[0].(int64))
+	result = make([]map[string]string, totalRows)
+	for i, row := range res[1:] {
+		data := make(map[string]string)
+		rowSlice := row.([]interface{})
+		for k := 0; k < len(rowSlice); k = k + 2 {
+			asSLice, ok := rowSlice[k+1].([]interface{})
+			if ok {
+				values := make([]string, len(asSLice))
+				for k, v := range asSLice {
+					values[k] = v.(string)
+				}
+				data[rowSlice[k].(string)] = strings.Join(values, ",")
+			} else {
+				data[rowSlice[k].(string)] = rowSlice[k+1].(string)
+			}
+		}
+		result[i] = data
+	}
+	return result, totalRows
+}
+
+func (r *RedisSearch) applyPager(pager *Pager, args []interface{}) []interface{} {
+	if pager != nil {
+		if pager.PageSize > 10000 {
+			panic(fmt.Errorf("pager size exceeded limit 10000"))
+		}
+		args = append(args, "LIMIT")
+		args = append(args, (pager.CurrentPage-1)*pager.PageSize)
+		args = append(args, pager.PageSize)
+	} else {
+		panic(fmt.Errorf("missing pager in redis search query"))
+	}
+	return args
+}
+
 func (r *RedisSearch) GetPoolConfig() RedisPoolConfig {
 	return r.redis.config
 }
@@ -855,16 +1014,7 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 			args = append(args, "SEPARATOR", query.summarizeSeparator)
 		}
 	}
-	if pager != nil {
-		if pager.PageSize > 10000 {
-			panic(fmt.Errorf("pager size exceeded limit 10000"))
-		}
-		args = append(args, "LIMIT")
-		args = append(args, (pager.CurrentPage-1)*pager.PageSize)
-		args = append(args, pager.PageSize)
-	} else {
-		panic(fmt.Errorf("missing pager in redis search query"))
-	}
+	args = r.applyPager(pager, args)
 	cmd := redis.NewSliceCmd(r.ctx, args...)
 	start := getNow(r.engine.hasRedisLogger)
 	err := r.redis.client.Process(r.ctx, cmd)

@@ -8,6 +8,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+func (e *Engine) RedisSearchAggregate(entity Entity, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
+	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	return e.GetRedisSearch(schema.searchCacheName).Aggregate(schema.redisSearchIndex.Name, query, pager)
+}
+
 func (e *Engine) RedisSearchIds(entity Entity, query *RedisSearchQuery, pager *Pager) (ids []uint64, totalRows uint64) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	return redisSearch(e, schema, query, pager)
