@@ -467,12 +467,33 @@ func (q *RedisSearchQuery) FilterNotString(field string, value ...string) *Redis
 	return q.filterString(field, true, true, false, value...)
 }
 
+func (q *RedisSearchQuery) FilterManyReferenceIn(field string, id ...uint64) *RedisSearchQuery {
+	values := q.buildRefMAnyValues(id)
+	return q.filterString(field, false, false, false, values...)
+}
+
+func (q *RedisSearchQuery) FilterManyReferenceNotIn(field string, id ...uint64) *RedisSearchQuery {
+	values := make([]string, len(id))
+	for i, k := range id {
+		values[i] = "e" + strconv.FormatUint(k, 10)
+	}
+	return q.filterString(field, false, true, false, values...)
+}
+
 func (q *RedisSearchQuery) QueryField(field string, value ...string) *RedisSearchQuery {
 	return q.filterString(field, false, false, false, value...)
 }
 
 func (q *RedisSearchQuery) QueryFieldPrefixMatch(field string, value ...string) *RedisSearchQuery {
 	return q.filterString(field, true, false, true, value...)
+}
+
+func (q *RedisSearchQuery) buildRefMAnyValues(id []uint64) []string {
+	values := make([]string, len(id))
+	for i, k := range id {
+		values[i] = "e" + strconv.FormatUint(k, 10)
+	}
+	return values
 }
 
 func (q *RedisSearchQuery) filterString(field string, exactPhrase, not, starts bool, value ...string) *RedisSearchQuery {

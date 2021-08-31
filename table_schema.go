@@ -1030,6 +1030,23 @@ func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAt
 		if t.Implements(modelType) {
 			attributes.Fields.refsMany = append(attributes.Fields.refsMany, attributes.Index)
 			attributes.Fields.refsManyTypes = append(attributes.Fields.refsManyTypes, t.Elem())
+			if attributes.HasSearchable {
+				columnName := attributes.GetColumnName()
+				tableSchema.redisSearchIndex.AddTextField(columnName, 0, false, false, true)
+				tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+					if val == nil {
+						return ""
+					}
+					asString := val.(string)[1:]
+					asString = asString[0 : len(asString)-1]
+					asString = strings.ReplaceAll(asString, ", ", " e")
+					asString = strings.ReplaceAll(asString, ",", " e")
+					asString = "e" + asString
+					return asString
+				}
+				attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
+				attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+			}
 			return
 		}
 	}

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/shamaton/msgpack"
 
 	"github.com/go-redis/redis/v8"
@@ -299,7 +301,7 @@ func (r *eventsConsumer) digest(ctx context.Context, done chan<- error, stop cha
 			if !isError {
 				asErr = fmt.Errorf("%v", rec)
 			}
-			done <- asErr
+			done <- errors.WithStack(asErr)
 		}
 	}()
 	for _, stream := range r.streams {

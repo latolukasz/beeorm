@@ -36,9 +36,10 @@ type redisSearchEntity struct {
 	AnotherNumeric    int64
 	AnotherTag        bool
 	FakeDelete        bool
-	Balance32         int32   `orm:"sortable"`
-	AgeNullable32     *uint32 `orm:"searchable;sortable"`
-	BalanceNullable32 *int32  `orm:"sortable"`
+	Balance32         int32                  `orm:"sortable"`
+	AgeNullable32     *uint32                `orm:"searchable;sortable"`
+	BalanceNullable32 *int32                 `orm:"sortable"`
+	ReferenceMany     []*redisNoSearchEntity `orm:"searchable"`
 }
 
 type redisNoSearchEntity struct {
@@ -84,7 +85,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
@@ -124,6 +125,7 @@ func TestEntityRedisSearch(t *testing.T) {
 			e.DateTime = now
 			e.DateNullable = &now
 			e.DateTimeNullable = &now
+			e.ReferenceMany = []*redisNoSearchEntity{{ID: 1}}
 		}
 		if i > 40 {
 			e.Enum = TestEnum.C
@@ -139,6 +141,10 @@ func TestEntityRedisSearch(t *testing.T) {
 			e.WeightNullable = &f
 			e.Date = now.Add(time.Hour * 48)
 			e.DateTime = e.Date
+			e.ReferenceMany = []*redisNoSearchEntity{{ID: 1}, {ID: 2}}
+		}
+		if i > 45 {
+			e.ReferenceMany = []*redisNoSearchEntity{{ID: 1}, {ID: 3}}
 		}
 		flusher.Track(e)
 	}
@@ -160,7 +166,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
 	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
-	assert.Len(t, info.Fields, 23)
+	assert.Len(t, info.Fields, 24)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
 	assert.True(t, info.Fields[0].Sortable)
@@ -258,6 +264,12 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Fields[22].Sortable)
 	assert.True(t, info.Fields[22].NoIndex)
 
+	assert.Equal(t, "ReferenceMany", info.Fields[23].Name)
+	assert.Equal(t, "TEXT", info.Fields[23].Type)
+	assert.False(t, info.Fields[23].Sortable)
+	assert.False(t, info.Fields[23].NoIndex)
+	assert.True(t, info.Fields[23].NoStem)
+
 	query := NewRedisSearchQuery()
 	query.Sort("Age", false)
 	ids, total := engine.RedisSearchIds(entity, query, NewPager(1, 10))
@@ -351,6 +363,43 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Len(t, ids, 2)
 	assert.Equal(t, uint64(18), ids[0])
 	assert.Equal(t, uint64(38), ids[1])
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.FilterManyReferenceIn("ReferenceMany", 1)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(30), total)
+	assert.Len(t, ids, 30)
+	assert.Equal(t, uint64(21), ids[0])
+	assert.Equal(t, uint64(50), ids[29])
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.FilterManyReferenceIn("ReferenceMany", 3, 2)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 30))
+	assert.Equal(t, uint64(10), total)
+	assert.Len(t, ids, 10)
+	assert.Equal(t, uint64(41), ids[0])
+	assert.Equal(t, uint64(50), ids[9])
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.FilterManyReferenceNotIn("ReferenceMany", 2, 3)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(40), total)
+	assert.Len(t, ids, 40)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(40), ids[39])
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.FilterManyReferenceIn("ReferenceMany", 1)
+	query.FilterManyReferenceIn("ReferenceMany", 3)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(5), total)
+	assert.Len(t, ids, 5)
+	assert.Equal(t, uint64(46), ids[0])
+	assert.Equal(t, uint64(50), ids[4])
 
 	query = &RedisSearchQuery{}
 	query.Sort("Balance", false)
