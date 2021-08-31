@@ -382,6 +382,22 @@ func (r *RedisCache) Incr(key string) int64 {
 	return val
 }
 
+func (r *RedisCache) IncrWithExpire(key string, expire time.Duration) int64 {
+	start := getNow(r.engine.hasRedisLogger)
+	p := r.client.Pipeline()
+	ctx := context.Background()
+	res := p.Incr(ctx, key)
+	p.Expire(ctx, key, expire)
+	_, err := p.Exec(ctx)
+	if r.engine.hasRedisLogger {
+		r.fillLogFields("INCR_EXPIRE", "INCR EXP"+key+" "+expire.String(), start, err)
+	}
+	checkError(err)
+	value, err := res.Result()
+	checkError(err)
+	return value
+}
+
 func (r *RedisCache) Expire(key string, expiration time.Duration) bool {
 	start := getNow(r.engine.hasRedisLogger)
 	val, err := r.client.Expire(context.Background(), key, expiration).Result()

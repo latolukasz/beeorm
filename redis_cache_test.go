@@ -131,6 +131,14 @@ func testRedis(t *testing.T, engine *Engine) {
 	val = r.Incr("test_inc_2")
 	assert.Equal(t, int64(3), val)
 
+	val = r.IncrWithExpire("test_inc_exp", time.Second)
+	assert.Equal(t, int64(1), val)
+	val = r.IncrWithExpire("test_inc_exp", time.Second)
+	assert.Equal(t, int64(2), val)
+	time.Sleep(time.Second)
+	val = r.IncrWithExpire("test_inc_exp", time.Second)
+	assert.Equal(t, int64(1), val)
+
 	assert.True(t, r.Expire("test_map", time.Second*1))
 	assert.Equal(t, int64(1), r.Exists("test_map"))
 	time.Sleep(time.Millisecond * 1200)
