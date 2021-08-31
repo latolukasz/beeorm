@@ -822,18 +822,26 @@ func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before, cha
 
 func (f *flusher) fillRedisSearchFromBind(schema *tableSchema, bind Bind, id uint64, insert bool) {
 	if schema.hasSearchCache {
+		values := make([]interface{}, 0)
+		hasChangedField := false
 		if schema.hasFakeDelete {
 			val, has := bind["FakeDelete"]
 			if has && val.(uint64) > 0 {
-				f.getRedisFlusher().Del(schema.searchCacheName, schema.redisSearchPrefix+strconv.FormatUint(id, 10))
+				if !schema.hasSearchableFakeDelete {
+					f.getRedisFlusher().Del(schema.searchCacheName, schema.redisSearchPrefix+strconv.FormatUint(id, 10))
+				} else {
+					values = append(values, "FakeDelete", "true")
+					hasChangedField = true
+				}
 			}
 		}
-		values := make([]interface{}, 0)
+
 		idMap, has := schema.mapBindToRedisSearch["ID"]
-		hasChangedField := false
 		if has {
 			values = append(values, "ID", idMap(id))
-			hasChangedField = insert
+			if !hasChangedField {
+				hasChangedField = insert
+			}
 		}
 		for k, f := range schema.mapBindToRedisSearch {
 			v, has := bind[k]

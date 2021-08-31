@@ -93,39 +93,40 @@ type TableSchema interface {
 }
 
 type tableSchema struct {
-	tableName            string
-	mysqlPoolName        string
-	t                    reflect.Type
-	fields               *tableFields
-	registry             *validatedRegistry
-	fieldsQuery          string
-	tags                 map[string]map[string]string
-	cachedIndexes        map[string]*cachedQueryDefinition
-	cachedIndexesOne     map[string]*cachedQueryDefinition
-	cachedIndexesAll     map[string]*cachedQueryDefinition
-	columnNames          []string
-	columnMapping        map[string]int
-	uniqueIndices        map[string][]string
-	uniqueIndicesGlobal  map[string][]string
-	dirtyFields          map[string][]string
-	refOne               []string
-	refMany              []string
-	idIndex              int
-	localCacheName       string
-	hasLocalCache        bool
-	redisCacheName       string
-	hasRedisCache        bool
-	searchCacheName      string
-	hasSearchCache       bool
-	cachePrefix          string
-	hasFakeDelete        bool
-	hasLog               bool
-	logPoolName          string //name of redis
-	logTableName         string
-	skipLogs             []string
-	redisSearchPrefix    string
-	redisSearchIndex     *RedisSearchIndex
-	mapBindToRedisSearch mapBindToRedisSearch
+	tableName               string
+	mysqlPoolName           string
+	t                       reflect.Type
+	fields                  *tableFields
+	registry                *validatedRegistry
+	fieldsQuery             string
+	tags                    map[string]map[string]string
+	cachedIndexes           map[string]*cachedQueryDefinition
+	cachedIndexesOne        map[string]*cachedQueryDefinition
+	cachedIndexesAll        map[string]*cachedQueryDefinition
+	columnNames             []string
+	columnMapping           map[string]int
+	uniqueIndices           map[string][]string
+	uniqueIndicesGlobal     map[string][]string
+	dirtyFields             map[string][]string
+	refOne                  []string
+	refMany                 []string
+	idIndex                 int
+	localCacheName          string
+	hasLocalCache           bool
+	redisCacheName          string
+	hasRedisCache           bool
+	searchCacheName         string
+	hasSearchCache          bool
+	cachePrefix             string
+	hasFakeDelete           bool
+	hasSearchableFakeDelete bool
+	hasLog                  bool
+	logPoolName             string //name of redis
+	logTableName            string
+	skipLogs                []string
+	redisSearchPrefix       string
+	redisSearchIndex        *RedisSearchIndex
+	mapBindToRedisSearch    mapBindToRedisSearch
 }
 
 type mapBindToRedisSearch map[string]func(val interface{}) interface{}
@@ -291,6 +292,8 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
 	if has && fakeDeleteField.Type.String() == "bool" {
 		tableSchema.hasFakeDelete = true
+		searchable := tableSchema.tags["FakeDelete"] != nil && tableSchema.tags["FakeDelete"]["searchable"] == "true"
+		tableSchema.hasSearchableFakeDelete = searchable
 	}
 	for key, values := range tableSchema.tags {
 		isOne := false
@@ -879,6 +882,23 @@ func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes)
 	columnName := attributes.GetColumnName()
 	if attributes.GetColumnName() == "FakeDelete" {
 		attributes.Fields.fakeDelete = attributes.Index
+		if attributes.IsInByRedisSearch() {
+			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
+			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
+				if val.(uint64) > 0 {
+					return "true"
+				}
+				return "false"
+			}
+			attributes.MapBindToScanPointer[columnName] = func() interface{} {
+				v := uint64(0)
+				return &v
+			}
+			attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+				v := *val.(*uint64)
+				return v > 0
+			}
+		}
 	} else {
 		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
 		attributes.MapBindToScanPointer[columnName] = scanBoolPointer
@@ -1089,7 +1109,7 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry, mapBin
 			indexColumns = append(indexColumns, column)
 		}
 		indexQuery += " FROM `" + tableSchema.tableName + "` WHERE `ID` > ?"
-		if tableSchema.hasFakeDelete {
+		if tableSchema.hasFakeDelete && !tableSchema.hasSearchableFakeDelete {
 			indexQuery += " AND FakeDelete = 0"
 		}
 		indexQuery += " ORDER BY `ID` LIMIT " + strconv.Itoa(entityIndexerPage)

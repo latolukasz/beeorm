@@ -216,6 +216,8 @@ type RedisSearchQuery struct {
 	summarizeSeparator string
 	summarizeFrags     int
 	summarizeLen       int
+	withFakeDelete     bool
+	hasFakeDelete      bool
 }
 
 type AggregateReduce struct {
@@ -357,6 +359,11 @@ func (r *RedisSearchResult) Value(field string) interface{} {
 
 func (q *RedisSearchQuery) Query(query string) *RedisSearchQuery {
 	q.query = EscapeRedisSearchString(query)
+	return q
+}
+
+func (q *RedisSearchQuery) WithFakeDeleteRows() *RedisSearchQuery {
+	q.withFakeDelete = true
 	return q
 }
 
@@ -998,6 +1005,9 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 
 func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}) []interface{} {
 	q := query.query
+	if query.hasFakeDelete && !query.withFakeDelete {
+		q += "-@FakeDelete:{true}"
+	}
 	for field, in := range query.filtersNumeric {
 		if len(in) == 1 {
 			continue

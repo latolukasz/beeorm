@@ -10,6 +10,12 @@ import (
 
 func (e *Engine) RedisSearchAggregate(entity Entity, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	if schema.hasSearchableFakeDelete {
+		if query.query == nil {
+			query.query = NewRedisSearchQuery()
+		}
+		query.query.hasFakeDelete = true
+	}
 	return e.GetRedisSearch(schema.searchCacheName).Aggregate(schema.redisSearchIndex.Name, query, pager)
 }
 
@@ -121,6 +127,7 @@ func redisSearch(e *Engine, schema *tableSchema, query *RedisSearchQuery, pager 
 		}
 	}
 	search := e.GetRedisSearch(schema.searchCacheName)
+	query.hasFakeDelete = schema.hasSearchableFakeDelete
 	totalRows, res := search.search(schema.redisSearchIndex.Name, query, pager, true)
 	ids := make([]uint64, len(res))
 	for i, v := range res {

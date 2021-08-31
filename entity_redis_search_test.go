@@ -52,6 +52,12 @@ type redisSearchOnlySortPKEntity struct {
 	ID  uint `orm:"sortable"`
 }
 
+type redisSearchFakeDeleteEntity struct {
+	ORM        `orm:"redisSearch=search"`
+	ID         uint `orm:"sortable"`
+	FakeDelete bool `orm:"searchable"`
+}
+
 type redisSearchAggregateEntity struct {
 	ORM  `orm:"redisSearch=search"`
 	ID   uint   `orm:"sortable;searchable"`
@@ -1282,4 +1288,43 @@ func TestEntityOnlySortPKRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(1), ids[0])
 	assert.Equal(t, uint64(3), ids[1])
 	assert.Equal(t, uint64(4), ids[2])
+}
+
+func TestEntityFakeDeleteRedisSearch(t *testing.T) {
+	var entity *redisSearchFakeDeleteEntity
+	registry := &Registry{}
+	engine, def := prepareTables(t, registry, 5, entity)
+	defer def()
+	flusher := engine.NewFlusher()
+	for i := 1; i <= 50; i++ {
+		e := &redisSearchFakeDeleteEntity{}
+		flusher.Track(e)
+	}
+	flusher.Flush()
+
+	query := &RedisSearchQuery{}
+	query.Sort("ID", false)
+	ids, total := engine.RedisSearchIds(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(50), total)
+	assert.Len(t, ids, 50)
+	assert.Equal(t, uint64(1), ids[0])
+	assert.Equal(t, uint64(30), ids[29])
+	assert.Equal(t, uint64(50), ids[49])
+
+	entity = &redisSearchFakeDeleteEntity{}
+	engine.LoadByID(10, entity)
+	engine.Delete(entity)
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(49), total)
+	assert.Len(t, ids, 49)
+
+	query = &RedisSearchQuery{}
+	query.Sort("ID", false)
+	query.WithFakeDeleteRows()
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 100))
+	assert.Equal(t, uint64(50), total)
+	assert.Len(t, ids, 50)
 }
