@@ -128,6 +128,8 @@ type tableSchema struct {
 	redisSearchPrefix       string
 	redisSearchIndex        *RedisSearchIndex
 	mapBindToRedisSearch    mapBindToRedisSearch
+	mapBindToScanPointer    mapBindToScanPointer
+	mapPointerToValue       mapPointerToValue
 }
 
 type mapBindToRedisSearch map[string]func(val interface{}) interface{}
@@ -279,8 +281,8 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.tags = extractTags(registry, entityType, "")
 	oneRefs := make([]string, 0)
 	manyRefs := make([]string, 0)
-	mapBindToScanPointer := mapBindToScanPointer{}
-	mapPointerToValue := mapPointerToValue{}
+	tableSchema.mapBindToScanPointer = mapBindToScanPointer{}
+	tableSchema.mapPointerToValue = mapPointerToValue{}
 	tableSchema.mysqlPoolName = tableSchema.getTag("mysql", "default", "default")
 	_, has := registry.mysqlPools[tableSchema.mysqlPoolName]
 	if !has {
@@ -482,9 +484,8 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			}
 		}
 	}
-	tableSchema.fields = tableSchema.buildTableFields(entityType, registry, mapBindToScanPointer,
-		mapPointerToValue, 1, "", tableSchema.tags)
-	if err := tableSchema.buildRedisSearchIndex(registry, mapBindToScanPointer, mapPointerToValue); err != nil {
+	tableSchema.fields = tableSchema.buildTableFields(entityType, registry, 1, "", tableSchema.tags)
+	if err := tableSchema.buildRedisSearchIndex(registry); err != nil {
 		return err
 	}
 	tableSchema.columnNames, tableSchema.fieldsQuery = tableSchema.fields.buildColumnNames()
@@ -624,7 +625,6 @@ func (tableSchema *tableSchema) getTag(key, trueValue, defaultValue string) stri
 }
 
 func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Registry,
-	mapBindToScanPointer mapBindToScanPointer, mapPointerToValue mapPointerToValue,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
 	if start == 1 {
 		tableSchema.redisSearchIndex = &RedisSearchIndex{}
@@ -639,14 +639,12 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 			continue
 		}
 		attributes := schemaFieldAttributes{
-			Fields:               fields,
-			Tags:                 tags,
-			Index:                i,
-			Prefix:               prefix,
-			Field:                f,
-			TypeName:             f.Type.String(),
-			MapBindToScanPointer: mapBindToScanPointer,
-			MapPointerToValue:    mapPointerToValue,
+			Fields:   fields,
+			Tags:     tags,
+			Index:    i,
+			Prefix:   prefix,
+			Field:    f,
+			TypeName: f.Type.String(),
 		}
 		fields.fields[i] = f
 		_, attributes.HasSearchable = tags["searchable"]
@@ -713,16 +711,14 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 }
 
 type schemaFieldAttributes struct {
-	Field                reflect.StructField
-	TypeName             string
-	Tags                 map[string]string
-	Fields               *tableFields
-	Index                int
-	HasSearchable        bool
-	HasSortable          bool
-	Prefix               string
-	MapBindToScanPointer mapBindToScanPointer
-	MapPointerToValue    mapPointerToValue
+	Field         reflect.StructField
+	TypeName      string
+	Tags          map[string]string
+	Fields        *tableFields
+	Index         int
+	HasSearchable bool
+	HasSortable   bool
+	Prefix        string
 }
 
 func (attributes schemaFieldAttributes) GetColumnName() string {
@@ -749,11 +745,11 @@ func (tableSchema *tableSchema) buildUintField(attributes schemaFieldAttributes)
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
 		}
 	}
-	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := uint64(0)
 		return &v
 	}
-	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+	tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*uint64)
 	}
 }
@@ -788,8 +784,8 @@ func (tableSchema *tableSchema) buildUintPointerField(attributes schemaFieldAttr
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
 		}
 	}
-	attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerUintNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerUintNullableScan
 }
 
 func (tableSchema *tableSchema) buildIntField(attributes schemaFieldAttributes) {
@@ -808,11 +804,11 @@ func (tableSchema *tableSchema) buildIntField(attributes schemaFieldAttributes) 
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
 		}
 	}
-	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := int64(0)
 		return &v
 	}
-	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+	tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*int64)
 	}
 }
@@ -847,8 +843,8 @@ func (tableSchema *tableSchema) buildIntPointerField(attributes schemaFieldAttri
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
 		}
 	}
-	attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerIntNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerIntNullableScan
 }
 
 func (tableSchema *tableSchema) buildStringField(attributes schemaFieldAttributes, registry *Registry) {
@@ -870,10 +866,10 @@ func (tableSchema *tableSchema) buildStringField(attributes schemaFieldAttribute
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
 		}
 	}
-	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
 	}
-	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+	tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		v := val.(*sql.NullString)
 		if v.Valid {
 			return v.String
@@ -895,8 +891,8 @@ func (tableSchema *tableSchema) buildStringSliceField(attributes schemaFieldAttr
 	} else {
 		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 	}
-	attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerStringNullableScan
 }
 
 func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes) {
@@ -911,19 +907,19 @@ func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes)
 				}
 				return "false"
 			}
-			attributes.MapBindToScanPointer[columnName] = func() interface{} {
+			tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 				v := uint64(0)
 				return &v
 			}
-			attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+			tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 				v := *val.(*uint64)
 				return v > 0
 			}
 		}
 	} else {
 		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
-		attributes.MapBindToScanPointer[columnName] = scanBoolPointer
-		attributes.MapPointerToValue[columnName] = pointerBoolScan
+		tableSchema.mapBindToScanPointer[columnName] = scanBoolPointer
+		tableSchema.mapPointerToValue[columnName] = pointerBoolScan
 		if attributes.IsInByRedisSearch() {
 			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
@@ -938,8 +934,8 @@ func (tableSchema *tableSchema) buildBoolPointerField(attributes schemaFieldAttr
 		tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
 		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
 	}
-	attributes.MapBindToScanPointer[columnName] = scanBoolNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerBoolNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanBoolNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerBoolNullableScan
 }
 
 func (tableSchema *tableSchema) buildFloatField(attributes schemaFieldAttributes) {
@@ -965,11 +961,11 @@ func (tableSchema *tableSchema) buildFloatField(attributes schemaFieldAttributes
 		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
 		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
 	}
-	attributes.MapBindToScanPointer[columnName] = func() interface{} {
+	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := float64(0)
 		return &v
 	}
-	attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
+	tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*float64)
 	}
 }
@@ -999,8 +995,8 @@ func (tableSchema *tableSchema) buildFloatPointerField(attributes schemaFieldAtt
 		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
 		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
 	}
-	attributes.MapBindToScanPointer[columnName] = scanFloatNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerFloatNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerFloatNullableScan
 }
 
 func (tableSchema *tableSchema) buildTimePointerField(attributes schemaFieldAttributes) {
@@ -1015,8 +1011,8 @@ func (tableSchema *tableSchema) buildTimePointerField(attributes schemaFieldAttr
 		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
 		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
 	}
-	attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
-	attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+	tableSchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
+	tableSchema.mapPointerToValue[columnName] = pointerStringNullableScan
 }
 
 func (tableSchema *tableSchema) buildTimeField(attributes schemaFieldAttributes) {
@@ -1031,8 +1027,8 @@ func (tableSchema *tableSchema) buildTimeField(attributes schemaFieldAttributes)
 		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
 		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
 	}
-	attributes.MapBindToScanPointer[columnName] = scanStringPointer
-	attributes.MapPointerToValue[columnName] = pointerStringScan
+	tableSchema.mapBindToScanPointer[columnName] = scanStringPointer
+	tableSchema.mapPointerToValue[columnName] = pointerStringScan
 }
 
 func (tableSchema *tableSchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
@@ -1042,8 +1038,7 @@ func (tableSchema *tableSchema) buildStructField(attributes schemaFieldAttribute
 	if !attributes.Field.Anonymous {
 		subPrefix = attributes.Field.Name
 	}
-	subFields := tableSchema.buildTableFields(attributes.Field.Type, registry,
-		attributes.MapBindToScanPointer, attributes.MapPointerToValue, 0, subPrefix, schemaTags)
+	subFields := tableSchema.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
 	attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
 }
 
@@ -1057,8 +1052,8 @@ func (tableSchema *tableSchema) buildPointerField(attributes schemaFieldAttribut
 			tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
 			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
 		}
-		attributes.MapBindToScanPointer[columnName] = scanIntNullablePointer
-		attributes.MapPointerToValue[columnName] = pointerUintNullableScan
+		tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
+		tableSchema.mapPointerToValue[columnName] = pointerUintNullableScan
 	} else {
 		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 	}
@@ -1085,8 +1080,8 @@ func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAt
 					asString = "e" + asString
 					return asString
 				}
-				attributes.MapBindToScanPointer[columnName] = scanStringNullablePointer
-				attributes.MapPointerToValue[columnName] = pointerStringNullableScan
+				tableSchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
+				tableSchema.mapPointerToValue[columnName] = pointerStringNullableScan
 			}
 			return
 		}
@@ -1094,8 +1089,7 @@ func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAt
 	attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 }
 
-func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry, mapBindToScanPointer mapBindToScanPointer,
-	mapPointerToValue mapPointerToValue) error {
+func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry) error {
 	if len(tableSchema.redisSearchIndex.Fields) > 0 {
 		tableSchema.searchCacheName = tableSchema.getTag("redisSearch", "default", "")
 		if tableSchema.searchCacheName != "" {
@@ -1142,14 +1136,14 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry, mapBin
 			v := uint64(0)
 			pointers[0] = &v
 			for i, column := range indexColumns {
-				pointers[i+1] = mapBindToScanPointer[column]()
+				pointers[i+1] = tableSchema.mapBindToScanPointer[column]()
 			}
 			for results.Next() {
 				results.Scan(pointers...)
 				lastID = *pointers[0].(*uint64)
 				pusher.NewDocument(tableSchema.redisSearchIndex.Prefixes[0] + strconv.FormatUint(lastID, 10))
 				for i, column := range indexColumns {
-					val := mapPointerToValue[column](pointers[i+1])
+					val := tableSchema.mapPointerToValue[column](pointers[i+1])
 					pusher.setField(column, tableSchema.mapBindToRedisSearch[column](val))
 				}
 				pusher.PushDocument()
