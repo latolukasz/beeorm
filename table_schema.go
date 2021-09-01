@@ -253,6 +253,26 @@ func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alte
 	return getSchemaChanges(engine, tableSchema)
 }
 
+func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {
+	vRegistry := registry.(*validatedRegistry)
+	results := make(map[reflect.Type][]string)
+	if vRegistry.entities != nil {
+		for _, t := range vRegistry.entities {
+			schema := getTableSchema(vRegistry, t)
+			for _, columnName := range schema.refOne {
+				ref, has := schema.tags[columnName]["ref"]
+				if has && ref == tableSchema.t.String() {
+					if results[t] == nil {
+						results[t] = make([]string, 0)
+					}
+					results[t] = append(results[t], columnName)
+				}
+			}
+		}
+	}
+	return results
+}
+
 func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type) error {
 	tableSchema.t = entityType
 	tableSchema.tags = extractTags(registry, entityType, "")
