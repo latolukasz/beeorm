@@ -390,7 +390,7 @@ func (r *RedisCache) IncrWithExpire(key string, expire time.Duration) int64 {
 	p.Expire(ctx, key, expire)
 	_, err := p.Exec(ctx)
 	if r.engine.hasRedisLogger {
-		r.fillLogFields("INCR_EXPIRE", "INCR EXP"+key+" "+expire.String(), start, err)
+		r.fillLogFields("INCR_EXPIRE", "INCR EXP "+key+" "+expire.String(), start, err)
 	}
 	checkError(err)
 	value, err := res.Result()
