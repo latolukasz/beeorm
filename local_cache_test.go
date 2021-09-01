@@ -74,6 +74,9 @@ func TestLocalCache(t *testing.T) {
 	assert.Nil(t, valuesMap["a"])
 	assert.Nil(t, valuesMap["v"])
 
+	total := c.GetObjectsCount()
+	assert.Equal(t, 3, total)
+
 	c.Clear()
 	valuesMap = c.HMGet("test_h", "a", "b")
 	assert.Len(t, valuesMap, 2)

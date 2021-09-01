@@ -185,6 +185,12 @@ func (c *LocalCache) Clear() {
 	}
 }
 
+func (c *LocalCache) GetObjectsCount() int {
+	c.config.m.Lock()
+	defer c.config.m.Unlock()
+	return c.lru.Len()
+}
+
 func (c *LocalCache) fillLogFields(operation, query string) {
 	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, nil)
 }
