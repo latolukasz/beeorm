@@ -59,11 +59,12 @@ type redisSearchFakeDeleteEntity struct {
 }
 
 type redisSearchAggregateEntity struct {
-	ORM  `orm:"redisSearch=search"`
-	ID   uint   `orm:"sortable;searchable"`
-	Age  int    `orm:"searchable"`
-	Size int    `orm:"searchable"`
-	Name string `orm:"sortable"`
+	ORM        `orm:"redisSearch=search"`
+	ID         uint   `orm:"sortable;searchable"`
+	Age        int    `orm:"searchable"`
+	Size       int    `orm:"searchable"`
+	Name       string `orm:"sortable"`
+	FakeDelete bool   `orm:"searchable"`
 }
 
 func TestEntityRedisSearchIndexer(t *testing.T) {
