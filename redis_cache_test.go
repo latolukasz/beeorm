@@ -135,7 +135,7 @@ func testRedis(t *testing.T, engine *Engine) {
 	assert.Equal(t, int64(1), val)
 	val = r.IncrWithExpire("test_inc_exp", time.Second)
 	assert.Equal(t, int64(2), val)
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 1200)
 	val = r.IncrWithExpire("test_inc_exp", time.Second)
 	assert.Equal(t, int64(1), val)
 
