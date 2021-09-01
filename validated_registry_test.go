@@ -9,7 +9,8 @@ import (
 
 type validatedRegistryEntity struct {
 	ORM
-	ID uint
+	ID  uint
+	Ref *validatedRegistryEntity
 }
 
 type validatedRegistryNotRegisteredEntity struct {
@@ -71,4 +72,8 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.PanicsWithError(t, "entity 'beeorm.validatedRegistryNotRegisteredEntity' is not registered", func() {
 		validated.GetTableSchemaForEntity(&validatedRegistryNotRegisteredEntity{})
 	})
+
+	usage := validated.GetTableSchemaForEntity(entity).GetUsage(validated)
+	assert.NotNil(t, usage)
+	assert.Len(t, usage, 1)
 }

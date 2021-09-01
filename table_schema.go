@@ -90,6 +90,7 @@ type TableSchema interface {
 	GetReferences() []string
 	GetColumns() []string
 	GetSchemaChanges(engine *Engine) (has bool, alters []Alter)
+	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
 }
 
 type tableSchema struct {
