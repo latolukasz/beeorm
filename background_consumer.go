@@ -89,9 +89,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 	if value.Changes != nil {
 		changes, _ = jsoniter.ConfigFastest.Marshal(value.Changes)
 	}
-	func() {
-		poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
-	}()
+	poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 }
 
 func (r *BackgroundConsumer) handleLazy(event Event) {

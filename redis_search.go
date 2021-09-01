@@ -1005,9 +1005,6 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 
 func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}) []interface{} {
 	q := query.query
-	if query.hasFakeDelete && !query.withFakeDelete {
-		q += "-@FakeDelete:{true}"
-	}
 	for field, in := range query.filtersNumeric {
 		if len(in) == 1 {
 			continue
@@ -1062,6 +1059,9 @@ func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}
 			}
 			q += "-@" + field + ":( " + strings.Join(v, " | ") + " )"
 		}
+	}
+	if query.hasFakeDelete && !query.withFakeDelete {
+		q += "-@FakeDelete:{true}"
 	}
 	if q == "" {
 		q = "*"
