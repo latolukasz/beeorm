@@ -915,10 +915,6 @@ func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes)
 				v := uint64(0)
 				return &v
 			}
-			attributes.MapPointerToValue[columnName] = func(val interface{}) interface{} {
-				v := *val.(*uint64)
-				return v > 0
-			}
 		}
 	} else {
 		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
