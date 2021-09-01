@@ -101,34 +101,37 @@ func (r *BackgroundConsumer) handleLazy(event Event) {
 }
 
 func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]interface{}) []uint64 {
-	queries := validMap["q"]
-	validQueries := queries.([]interface{})
-	ids := make([]uint64, len(validQueries))
-	for i, query := range validQueries {
-		validInsert := query.([]interface{})
-		code := validInsert[0].(string)
-		db := engine.GetMysql(code)
-		sql := validInsert[1].(string)
-		res := db.Exec(sql)
-		if sql[0:11] == "INSERT INTO" {
-			id := res.LastInsertId()
-			ids[i] = res.LastInsertId()
-			logEvents, has := validMap["l"]
-			if has {
-				for _, row := range logEvents.([]interface{}) {
-					row.(map[interface{}]interface{})["ID"] = id
-					id += db.GetPoolConfig().getAutoincrement()
+	queries, has := validMap["q"]
+	var ids []uint64
+	if has {
+		validQueries := queries.([]interface{})
+		ids = make([]uint64, len(validQueries))
+		for i, query := range validQueries {
+			validInsert := query.([]interface{})
+			code := validInsert[0].(string)
+			db := engine.GetMysql(code)
+			sql := validInsert[1].(string)
+			res := db.Exec(sql)
+			if sql[0:11] == "INSERT INTO" {
+				id := res.LastInsertId()
+				ids[i] = res.LastInsertId()
+				logEvents, has := validMap["l"]
+				if has {
+					for _, row := range logEvents.([]interface{}) {
+						row.(map[interface{}]interface{})["ID"] = id
+						id += db.GetPoolConfig().getAutoincrement()
+					}
 				}
-			}
-			dirtyEvents, has := validMap["d"]
-			if has {
-				for _, row := range dirtyEvents.([]interface{}) {
-					row.(map[interface{}]interface{})["Event"].(map[interface{}]interface{})["I"] = id
-					id += db.GetPoolConfig().getAutoincrement()
+				dirtyEvents, has := validMap["d"]
+				if has {
+					for _, row := range dirtyEvents.([]interface{}) {
+						row.(map[interface{}]interface{})["Event"].(map[interface{}]interface{})["I"] = id
+						id += db.GetPoolConfig().getAutoincrement()
+					}
 				}
+			} else {
+				ids[i] = 0
 			}
-		} else {
-			ids[i] = 0
 		}
 	}
 	logEvents, has := validMap["l"]
