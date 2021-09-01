@@ -286,7 +286,9 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		case <-done:
 			return true
 		default:
-			r.digest(ctx, attributes, done)
+			if r.digest(ctx, attributes) {
+				return true
+			}
 		}
 	}
 }
@@ -302,11 +304,12 @@ type consumeAttributes struct {
 	Streams   []string
 }
 
-func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes, done chan bool) {
+func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes) (stop bool) {
 	finished := r.digestKeys(ctx, attributes)
 	if !r.loop && finished {
-		close(done)
+		return true
 	}
+	return false
 }
 
 func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttributes) (finished bool) {
