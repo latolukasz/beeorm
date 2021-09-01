@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/shamaton/msgpack"
 
 	"github.com/go-redis/redis/v8"
@@ -258,27 +256,37 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		timer.Stop()
 	}()
 	r.garbage()
-	done := make(chan error)
-	stop := make(chan bool)
-	go r.digest(ctx, done, stop, name, count, handler)
+
+	for _, stream := range r.streams {
+		r.redis.XGroupCreateMkStream(stream, r.group, "0")
+	}
+
+	done := make(chan bool)
+	attributes := &consumeAttributes{
+		Pending:   true,
+		BlockTime: -1,
+		Name:      name,
+		Count:     count,
+		Handler:   handler,
+		LastIDs:   make(map[string]string),
+		Streams:   make([]string, len(r.streams)*2),
+	}
+	for _, stream := range r.streams {
+		attributes.LastIDs[stream] = "0"
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			close(stop)
-			<-done
 			return true
 		case <-timer.C:
 			if !lock.Refresh(r.lockTTL) {
-				close(stop)
-				<-done
 				return false
 			}
 			timer.Reset(r.lockTick)
-		case err := <-done:
-			if err != nil {
-				panic(err)
-			}
+		case <-done:
 			return true
+		default:
+			r.digest(ctx, attributes, done)
 		}
 	}
 }
@@ -294,44 +302,10 @@ type consumeAttributes struct {
 	Streams   []string
 }
 
-func (r *eventsConsumer) digest(ctx context.Context, done chan<- error, stop chan bool, name string, count int, handler EventConsumerHandler) {
-	defer func() {
-		if rec := recover(); rec != nil {
-			asErr, isError := rec.(error)
-			if !isError {
-				asErr = fmt.Errorf("%v", rec)
-			}
-			done <- errors.WithStack(asErr)
-		}
-	}()
-	for _, stream := range r.streams {
-		r.redis.XGroupCreateMkStream(stream, r.group, "0")
-	}
-	attributes := &consumeAttributes{
-		Pending:   true,
-		BlockTime: -1,
-		Stop:      stop,
-		Name:      name,
-		Count:     count,
-		Handler:   handler,
-		LastIDs:   make(map[string]string),
-		Streams:   make([]string, len(r.streams)*2),
-	}
-	for _, stream := range r.streams {
-		attributes.LastIDs[stream] = "0"
-	}
-	for {
-		select {
-		case <-stop:
-			close(done)
-			return
-		default:
-			finished := r.digestKeys(ctx, attributes)
-			if !r.loop && finished {
-				close(done)
-				return
-			}
-		}
+func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes, done chan bool) {
+	finished := r.digestKeys(ctx, attributes)
+	if !r.loop && finished {
+		close(done)
 	}
 }
 

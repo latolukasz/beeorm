@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -187,7 +189,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	consumer.DisableLoop()
 	assert.PanicsWithError(t, "stop", func() {
 		consumed2 = consumer.ConsumeMany(context.Background(), 1, 3, func(events []Event) {
-			panic("stop")
+			panic(errors.New("stop"))
 		})
 	})
 	pending := engine.GetRedis().XPending("test-stream", "test-group")
