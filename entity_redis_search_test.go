@@ -35,11 +35,11 @@ type redisSearchEntity struct {
 	Another           string
 	AnotherNumeric    int64
 	AnotherTag        bool
-	FakeDelete        bool
 	Balance32         int32                  `orm:"sortable"`
 	AgeNullable32     *uint32                `orm:"searchable;sortable"`
 	BalanceNullable32 *int32                 `orm:"sortable"`
 	ReferenceMany     []*redisNoSearchEntity `orm:"searchable"`
+	FakeDelete        bool                   `orm:"searchable"`
 }
 
 type redisNoSearchEntity struct {
@@ -82,6 +82,11 @@ func TestEntityRedisSearchIndexer(t *testing.T) {
 		flusher.Track(e)
 	}
 	flusher.Flush()
+	engine.GetRedis().FlushDB()
+	engine.GetRedis("search").FlushDB()
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema.ReindexRedisSearchIndex(engine)
+
 	assert.True(t, indexer.Digest(context.Background()))
 	query := NewRedisSearchQuery()
 	total := engine.RedisSearchCount(entity, query)
@@ -173,7 +178,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
 	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
-	assert.Len(t, info.Fields, 24)
+	assert.Len(t, info.Fields, 25)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
 	assert.True(t, info.Fields[0].Sortable)
@@ -270,12 +275,15 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, "NUMERIC", info.Fields[22].Type)
 	assert.True(t, info.Fields[22].Sortable)
 	assert.True(t, info.Fields[22].NoIndex)
-
 	assert.Equal(t, "ReferenceMany", info.Fields[23].Name)
 	assert.Equal(t, "TEXT", info.Fields[23].Type)
 	assert.False(t, info.Fields[23].Sortable)
 	assert.False(t, info.Fields[23].NoIndex)
 	assert.True(t, info.Fields[23].NoStem)
+	assert.Equal(t, "FakeDelete", info.Fields[24].Name)
+	assert.Equal(t, "TAG", info.Fields[24].Type)
+	assert.False(t, info.Fields[23].Sortable)
+	assert.False(t, info.Fields[23].NoIndex)
 
 	query := NewRedisSearchQuery()
 	query.Sort("Age", false)

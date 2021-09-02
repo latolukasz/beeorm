@@ -913,7 +913,7 @@ func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes)
 			}
 			tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 				v := *val.(*uint64)
-				return v > 0
+				return v
 			}
 		}
 	} else {
