@@ -857,11 +857,7 @@ func (r *RedisSearch) SearchKeys(index string, query *RedisSearchQuery, pager *P
 
 func (r *RedisSearch) Aggregate(index string, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
 	args := []interface{}{"FT.AGGREGATE", index}
-	if query.query == nil {
-		args = append(args, "*")
-	} else {
-		args = r.buildQueryArgs(query.query, args)
-	}
+	args = r.buildQueryArgs(query.query, args)
 	args = append(args, query.args...)
 	args = r.applyPager(pager, args)
 	cmd := redis.NewSliceCmd(r.ctx, args...)
