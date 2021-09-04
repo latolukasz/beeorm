@@ -413,5 +413,9 @@ func escapeSQLValue(val interface{}) string {
 	if is {
 		return escapeSQLString(asString)
 	}
-	return fmt.Sprintf("%v", val)
+	asString = fmt.Sprintf("%v", val)
+	if asString == "<nil>" {
+		return "NULL"
+	}
+	return asString
 }

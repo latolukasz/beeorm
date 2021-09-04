@@ -454,13 +454,11 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
-			if isNil {
-				e := getTableSchema(orm.tableSchema.registry, fields.refsTypes[k]).NewEntity()
-				o := e.getORM()
-				o.idElem.SetUint(id)
-				o.inDB = true
-				f.Set(o.value)
-			}
+			e := getTableSchema(orm.tableSchema.registry, fields.refsTypes[k]).NewEntity()
+			o := e.getORM()
+			o.idElem.SetUint(id)
+			o.inDB = true
+			f.Set(o.value)
 		} else if !isNil {
 			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
 		}
@@ -707,9 +705,10 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		"*uint16",
 		"*uint32",
 		"*uint64":
-		if value != nil {
+		valueOf := reflect.ValueOf(value)
+		if value != nil && !valueOf.IsZero() {
 			val := uint64(0)
-			parsed, err := strconv.ParseUint(fmt.Sprintf("%v", reflect.Indirect(reflect.ValueOf(value)).Interface()), 10, 64)
+			parsed, err := strconv.ParseUint(fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface()), 10, 64)
 			if err != nil {
 				return fmt.Errorf("%s value %v not valid", field, value)
 			}
@@ -752,9 +751,10 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		"*int16",
 		"*int32",
 		"*int64":
-		if value != nil {
+		valueOf := reflect.ValueOf(value)
+		if value != nil && !valueOf.IsZero() {
 			val := int64(0)
-			parsed, err := strconv.ParseInt(fmt.Sprintf("%v", reflect.Indirect(reflect.ValueOf(value)).Interface()), 10, 64)
+			parsed, err := strconv.ParseInt(fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface()), 10, 64)
 			if err != nil {
 				return fmt.Errorf("%s value %v not valid", field, value)
 			}
@@ -804,11 +804,12 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		}
 		f.SetBool(val)
 	case "*bool":
-		if value == nil {
+		valueOf := reflect.ValueOf(value)
+		if value == nil || valueOf.IsZero() {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
 			val := false
-			asString := strings.ToLower(fmt.Sprintf("%v", reflect.Indirect(reflect.ValueOf(value)).Interface()))
+			asString := strings.ToLower(fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface()))
 			if asString == "true" || asString == "1" {
 				val = true
 			}
@@ -829,11 +830,12 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		f.SetFloat(val)
 	case "*float32",
 		"*float64":
-		if value == nil {
+		valueOf := reflect.ValueOf(value)
+		if value == nil || valueOf.IsZero() {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
 			val := float64(0)
-			valueString := fmt.Sprintf("%v", reflect.Indirect(reflect.ValueOf(value)).Interface())
+			valueString := fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface())
 			valueString = strings.ReplaceAll(valueString, ",", ".")
 			parsed, err := strconv.ParseFloat(valueString, 64)
 			if err != nil {
@@ -843,7 +845,8 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 			f.Set(reflect.ValueOf(&val))
 		}
 	case "*time.Time":
-		if value == nil {
+		valueOf := reflect.ValueOf(value)
+		if value == nil || valueOf.IsZero() {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
 			_, ok := value.(*time.Time)
