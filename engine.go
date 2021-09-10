@@ -68,7 +68,7 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 		config, has := e.registry.localCacheServers[dbCode]
 		if !has {
 			if dbCode == requestCacheKey {
-				cache = &LocalCache{config: &localCachePoolConfig{code: dbCode, limit: 5000}, engine: e, lru: lru.New(5000)}
+				cache = &LocalCache{config: &localCachePoolConfig{code: dbCode, limit: 5000, lru: lru.New(5000)}, engine: e}
 				if e.localCache == nil {
 					e.localCache = map[string]*LocalCache{dbCode: cache}
 				} else {
@@ -78,7 +78,7 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 			}
 			panic(fmt.Errorf("unregistered local cache pool '%s'", dbCode))
 		}
-		cache = &LocalCache{engine: e, config: config.(*localCachePoolConfig), lru: lru.New(config.GetLimit())}
+		cache = &LocalCache{engine: e, config: config.(*localCachePoolConfig)}
 		if e.localCache == nil {
 			e.localCache = make(map[string]*LocalCache)
 		}

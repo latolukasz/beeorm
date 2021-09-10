@@ -19,6 +19,7 @@ type LocalCachePoolConfig interface {
 type localCachePoolConfig struct {
 	code  string
 	limit int
+	lru   *lru.Cache
 	m     sync.Mutex
 }
 
@@ -33,7 +34,6 @@ func (p *localCachePoolConfig) GetLimit() int {
 type LocalCache struct {
 	engine *Engine
 	config *localCachePoolConfig
-	lru    *lru.Cache
 }
 
 type ttlValue struct {
@@ -64,7 +64,7 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 
-	value, ok = c.lru.Get(key)
+	value, ok = c.config.lru.Get(key)
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("GET", "GET "+key)
 	}
@@ -78,7 +78,7 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 	results := make([]interface{}, len(keys))
 	misses := 0
 	for i, key := range keys {
-		value, ok := c.lru.Get(key)
+		value, ok := c.config.lru.Get(key)
 		if !ok {
 			misses++
 			value = nil
@@ -94,9 +94,9 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 func (c *LocalCache) Set(key string, value interface{}) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
-	c.lru.Add(key, value)
+	c.config.lru.Add(key, value)
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("SET", fmt.Sprintf("SET %v", value))
+		c.fillLogFields("SET", fmt.Sprintf("SET %s %v", key, value))
 	}
 }
 
@@ -105,7 +105,7 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 	for i := 0; i < max; i += 2 {
-		c.lru.Add(pairs[i], pairs[i+1])
+		c.config.lru.Add(pairs[i], pairs[i+1])
 	}
 	if c.engine.hasLocalCacheLogger {
 		message := "MSET "
@@ -122,7 +122,7 @@ func (c *LocalCache) HMGet(key string, fields ...string) map[string]interface{} 
 
 	l := len(fields)
 	results := make(map[string]interface{}, l)
-	value, ok := c.lru.Get(key)
+	value, ok := c.config.lru.Get(key)
 	misses := 0
 	for _, field := range fields {
 		if !ok {
@@ -139,7 +139,7 @@ func (c *LocalCache) HMGet(key string, fields ...string) map[string]interface{} 
 		}
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("HMGET", "HMGET "+strings.Join(fields, " "))
+		c.fillLogFields("HMGET", "HMGET "+key+" "+strings.Join(fields, " "))
 	}
 	return results
 }
@@ -148,16 +148,16 @@ func (c *LocalCache) HMSet(key string, fields map[string]interface{}) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 
-	m, has := c.lru.Get(key)
+	m, has := c.config.lru.Get(key)
 	if !has {
 		m = make(map[string]interface{})
-		c.lru.Add(key, m)
+		c.config.lru.Add(key, m)
 	}
 	for k, v := range fields {
 		m.(map[string]interface{})[k] = v
 	}
 	if c.engine.hasLocalCacheLogger {
-		message := "HMSET "
+		message := "HMSET " + key + " "
 		for k, v := range fields {
 			message += fmt.Sprintf(" %s %v", k, v)
 		}
@@ -169,7 +169,7 @@ func (c *LocalCache) Remove(keys ...string) {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
 	for _, v := range keys {
-		c.lru.Remove(v)
+		c.config.lru.Remove(v)
 	}
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("REMOVE", "REMOVE "+strings.Join(keys, " "))
@@ -179,7 +179,7 @@ func (c *LocalCache) Remove(keys ...string) {
 func (c *LocalCache) Clear() {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
-	c.lru.Clear()
+	c.config.lru.Clear()
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("CLEAR", "CLEAR")
 	}
@@ -188,7 +188,7 @@ func (c *LocalCache) Clear() {
 func (c *LocalCache) GetObjectsCount() int {
 	c.config.m.Lock()
 	defer c.config.m.Unlock()
-	return c.lru.Len()
+	return c.config.lru.Len()
 }
 
 func (c *LocalCache) fillLogFields(operation, query string) {

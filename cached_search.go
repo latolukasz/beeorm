@@ -10,7 +10,7 @@ import (
 	"github.com/segmentio/fasthash/fnv1a"
 )
 
-const idsOnCachePage = 100
+const idsOnCachePage = 1000
 
 func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {

@@ -43,6 +43,12 @@ func TestLocalCache(t *testing.T) {
 	assert.True(t, has)
 	assert.Equal(t, "hello", val)
 
+	engine = validatedRegistry.CreateEngine()
+	c = engine.GetLocalCache()
+	val, has = c.Get("test_get")
+	assert.True(t, has)
+	assert.Equal(t, "hello", val)
+
 	values := c.MGet("m_get_1", "m_get_2", "m_get_3")
 	assert.Len(t, values, 3)
 	assert.Nil(t, values[0])

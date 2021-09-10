@@ -17,6 +17,6 @@ require (
 	github.com/segmentio/fasthash v1.0.3
 	github.com/shamaton/msgpack v1.2.1
 	github.com/stretchr/testify v1.7.0
-	golang.org/x/sys v0.0.0-20210902050250-f475640dd07b // indirect
+	golang.org/x/sys v0.0.0-20210909193231-528a39cd75f3 // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
