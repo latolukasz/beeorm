@@ -42,6 +42,13 @@ type redisSearchEntity struct {
 	FakeDelete        bool                   `orm:"searchable"`
 }
 
+type redisSearchEntityNoSearchableFakeDelete struct {
+	ORM        `orm:"redisSearch=search"`
+	ID         uint   `orm:"searchable;sortable"`
+	Age        uint64 `orm:"searchable;sortable"`
+	FakeDelete bool
+}
+
 type redisNoSearchEntity struct {
 	ORM
 	ID uint
@@ -91,6 +98,62 @@ func TestEntityRedisSearchIndexer(t *testing.T) {
 	query := NewRedisSearchQuery()
 	total := engine.RedisSearchCount(entity, query)
 	assert.Equal(t, uint64(entityIndexerPage+100), total)
+
+	e := &redisSearchEntity{ID: 10}
+	engine.Load(e)
+	engine.Delete(e)
+	engine.GetRedis().FlushDB()
+	engine.GetRedis("search").FlushDB()
+	schema.ReindexRedisSearchIndex(engine)
+	assert.True(t, indexer.Digest(context.Background()))
+	query = NewRedisSearchQuery()
+	total = engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+99), total)
+	query = NewRedisSearchQuery()
+	query.WithFakeDeleteRows()
+	total = engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+100), total)
+}
+
+func TestEntityRedisSearchIndexerNoFakeDelete(t *testing.T) {
+	var entity *redisSearchEntityNoSearchableFakeDelete
+	registry := &Registry{}
+	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
+	engine, def := prepareTables(t, registry, 5, entity)
+	defer def()
+	indexer := NewBackgroundConsumer(engine)
+	indexer.DisableLoop()
+	indexer.blockTime = time.Millisecond
+	flusher := engine.NewFlusher()
+	for i := 1; i <= entityIndexerPage+100; i++ {
+		e := &redisSearchEntityNoSearchableFakeDelete{Age: uint64(i)}
+		flusher.Track(e)
+	}
+	flusher.Flush()
+	engine.GetRedis().FlushDB()
+	engine.GetRedis("search").FlushDB()
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema.ReindexRedisSearchIndex(engine)
+
+	assert.True(t, indexer.Digest(context.Background()))
+	query := NewRedisSearchQuery()
+	total := engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+100), total)
+
+	e := &redisSearchEntityNoSearchableFakeDelete{ID: 10}
+	engine.Load(e)
+	engine.Delete(e)
+	engine.GetRedis().FlushDB()
+	engine.GetRedis("search").FlushDB()
+	schema.ReindexRedisSearchIndex(engine)
+	assert.True(t, indexer.Digest(context.Background()))
+	query = NewRedisSearchQuery()
+	total = engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+99), total)
+	query = NewRedisSearchQuery()
+	query.WithFakeDeleteRows()
+	total = engine.RedisSearchCount(entity, query)
+	assert.Equal(t, uint64(entityIndexerPage+99), total)
 }
 
 func TestEntityRedisSearch(t *testing.T) {
