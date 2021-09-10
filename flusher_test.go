@@ -328,7 +328,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
 	var uIntNullable *uint
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": uIntNullable})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": uIntNullable, "BoolNullable": nil})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint(1), entity2.ID)
