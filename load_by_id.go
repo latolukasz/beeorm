@@ -39,11 +39,17 @@ func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, 
 			row, has := redisCache.Get(cacheKey)
 			if has {
 				if row == cacheNilValue {
+					if localCache != nil {
+						localCache.Set(cacheKey, cacheNilValue)
+					}
 					return false, schema
 				}
 				fillFromBinary(serializer, engine.registry, []byte(row), entity)
 				if len(references) > 0 {
 					warmUpReferences(serializer, engine, schema, orm.value, references, false)
+				}
+				if localCache != nil {
+					localCache.Set(cacheKey, orm.copyBinary())
 				}
 				return true, schema
 			}
