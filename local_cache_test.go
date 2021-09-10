@@ -44,6 +44,8 @@ func TestLocalCache(t *testing.T) {
 	assert.Equal(t, "hello", val)
 
 	engine = validatedRegistry.CreateEngine()
+	engine.RegisterQueryLogger(testLogger, false, false, true)
+	engine.RegisterQueryLogger(testQueryLog, false, false, true)
 	c = engine.GetLocalCache()
 	val, has = c.Get("test_get")
 	assert.True(t, has)
