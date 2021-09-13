@@ -10,10 +10,10 @@ import (
 
 func (e *Engine) RedisSearchAggregate(entity Entity, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
 	schema := e.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	if query.query == nil {
+		query.query = NewRedisSearchQuery()
+	}
 	if schema.hasSearchableFakeDelete {
-		if query.query == nil {
-			query.query = NewRedisSearchQuery()
-		}
 		query.query.hasFakeDelete = true
 	}
 	return e.GetRedisSearch(schema.searchCacheName).Aggregate(schema.redisSearchIndex.Name, query, pager)
