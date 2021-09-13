@@ -18,6 +18,7 @@ type RedisSearchIndexPusher interface {
 	SetInt(key string, value int64)
 	SetIntNil(key string)
 	SetFloat(key string, value float64)
+	SetBool(key string, value bool)
 	SetGeo(key string, lon float64, lat float64)
 	PushDocument()
 	Flush()
@@ -77,6 +78,14 @@ func (p *redisSearchIndexPusher) SetIntNil(key string) {
 
 func (p *redisSearchIndexPusher) SetFloat(key string, value float64) {
 	p.fields = append(p.fields, key, value)
+}
+
+func (p *redisSearchIndexPusher) SetBool(key string, value bool) {
+	if value {
+		p.fields = append(p.fields, key, "true")
+	} else {
+		p.fields = append(p.fields, key, "false")
+	}
 }
 
 func (p *redisSearchIndexPusher) SetGeo(key string, lon float64, lat float64) {

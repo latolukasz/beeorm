@@ -696,6 +696,28 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, "test2:1", rows[0].Key)
 	assert.Equal(t, "test2:2", rows[1].Key)
 
+	pusher.NewDocument("doc1:300")
+	pusher.SetInt("id", 300)
+	pusher.SetBool("tags", true)
+	pusher.PushDocument()
+	pusher.Flush()
+	query = &RedisSearchQuery{}
+	query.FilterBool("tags", true)
+	total, rows = search.Search("test", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, "doc1:300", rows[0].Key)
+
+	pusher.NewDocument("doc1:300")
+	pusher.SetInt("id", 300)
+	pusher.SetBool("tags", false)
+	pusher.PushDocument()
+	pusher.Flush()
+	query = &RedisSearchQuery{}
+	query.FilterBool("tags", false)
+	total, rows = search.Search("test", query, NewPager(1, 10))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, "doc1:300", rows[0].Key)
+
 	engine.GetRedisSearch("search").ForceReindex("test2")
 	delete(engine.registry.redisSearchIndexes["search"], "test2")
 	indexer.Digest(context.Background())
