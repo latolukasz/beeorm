@@ -77,7 +77,23 @@ type loadByIDBenchmarkEntity struct {
 	Decimal float32 `orm:"decimal=10,2"`
 }
 
-func TestLoadById(t *testing.T) {
+func TestLoadByIdNoCache(t *testing.T) {
+	testLoadByID(t, false, false)
+}
+
+func TestLoadByIdLocalCache(t *testing.T) {
+	testLoadByID(t, true, false)
+}
+
+func TestLoadByIdRedisCache(t *testing.T) {
+	testLoadByID(t, false, true)
+}
+
+func TestLoadByIdLocalRedisCache(t *testing.T) {
+	testLoadByID(t, true, true)
+}
+
+func testLoadByID(t *testing.T, local, redis bool) {
 	var entity *loadByIDEntity
 	var entityRedis *loadByIDRedisEntity
 	var entityLocal *loadByIDLocalEntity
@@ -90,6 +106,43 @@ func TestLoadById(t *testing.T) {
 	engine, def := prepareTables(t, &Registry{}, 5, entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2, refMany)
 	defer def()
+
+	schemas := make([]TableSchema, 0)
+	registry := engine.GetRegistry()
+	schemas = append(schemas, registry.GetTableSchemaForEntity(entity))
+
+	schemas = append(schemas, registry.GetTableSchemaForEntity(entityRedis))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(entityLocal))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(entityNoCache))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(reference))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(reference2))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference2))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference))
+	schemas = append(schemas, registry.GetTableSchemaForEntity(refMany))
+
+	if local {
+		for _, schema := range schemas {
+			schema.(*tableSchema).localCacheName = "default"
+			schema.(*tableSchema).hasLocalCache = true
+		}
+	} else {
+		for _, schema := range schemas {
+			schema.(*tableSchema).localCacheName = ""
+			schema.(*tableSchema).hasLocalCache = false
+		}
+	}
+	if redis {
+		for _, schema := range schemas {
+			schema.(*tableSchema).redisCacheName = "default"
+			schema.(*tableSchema).hasRedisCache = true
+		}
+	} else {
+		for _, schema := range schemas {
+			schema.(*tableSchema).redisCacheName = ""
+			schema.(*tableSchema).hasRedisCache = false
+		}
+	}
+
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
@@ -102,13 +155,12 @@ func TestLoadById(t *testing.T) {
 	engine.FlushMany(&loadByIDReferenceMany{Name: "rm1", ID: 100}, &loadByIDReferenceMany{Name: "rm2", ID: 101}, &loadByIDReferenceMany{Name: "rm3", ID: 102})
 	engine.FlushMany(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReferenceMany{{ID: 100}, {ID: 101}, {ID: 102}}})
 
+	engine.GetLocalCache().Clear()
+
 	entity = &loadByIDEntity{}
-	localLogger := &testLogHandler{}
-	engine.RegisterQueryLogger(localLogger, false, false, true)
 	found := engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
 	assert.True(t, found)
-	assert.Len(t, localLogger.Logs, 5)
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
