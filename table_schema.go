@@ -1110,7 +1110,8 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry) error 
 		}
 		tableSchema.redisSearchIndex.Name = tableSchema.t.String()
 		tableSchema.redisSearchIndex.RedisPool = tableSchema.searchCacheName
-		tableSchema.redisSearchPrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(tableSchema.t.String())))
+		dbConnectionURI := registry.mysqlPools[tableSchema.mysqlPoolName].GetDataSourceURI()
+		tableSchema.redisSearchPrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(tableSchema.t.String()+dbConnectionURI)))
 		tableSchema.redisSearchPrefix = tableSchema.redisSearchPrefix[0:5] + ":"
 		tableSchema.redisSearchIndex.Prefixes = []string{tableSchema.redisSearchPrefix}
 		tableSchema.redisSearchIndex.NoOffsets = true

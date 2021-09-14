@@ -240,7 +240,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.False(t, info.Options.NoFields)
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
-	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
+	assert.Equal(t, []string{"df52e:"}, info.Definition.Prefixes)
 	assert.Len(t, info.Fields, 25)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)
