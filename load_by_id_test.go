@@ -236,6 +236,13 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	found = engine.LoadByID(1, entityLocalCache)
 	assert.True(t, found)
 
+	if local && redis {
+		engine.LoadByID(999, entityLocalCache)
+		engine.GetLocalCache().Clear()
+		assert.True(t, engine.LoadByID(1, entityLocalCache))
+		assert.False(t, engine.LoadByID(999, entityLocalCache))
+	}
+
 	engine, def = prepareTables(t, &Registry{}, 5)
 	defer def()
 	entity = &loadByIDEntity{}
