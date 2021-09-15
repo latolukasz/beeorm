@@ -261,7 +261,6 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		r.redis.XGroupCreateMkStream(stream, r.group, "0")
 	}
 
-	done := make(chan bool)
 	attributes := &consumeAttributes{
 		Pending:   true,
 		BlockTime: -1,
@@ -283,8 +282,6 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 				return false
 			}
 			timer.Reset(r.lockTick)
-		case <-done:
-			return true
 		default:
 			if r.digest(ctx, attributes) {
 				return true
