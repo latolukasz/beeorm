@@ -549,6 +549,10 @@ func TestRedisSearch(t *testing.T) {
 	pusher.SetString("title", "tom has small house")
 	pusher.SetInt("id", 202)
 	pusher.PushDocument()
+	pusher.NewDocument("test2:700")
+	pusher.SetString("title", "test coming soon to")
+	pusher.SetInt("id", 700)
+	pusher.PushDocument()
 	pusher.Flush()
 
 	query = &RedisSearchQuery{}

@@ -975,6 +975,16 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.Equal(t, uint64(49), total)
 
 	entity = &redisSearchEntity{}
+	engine.LoadByID(29, entity)
+	entity.Name = "test coming soon to"
+	engine.Flush(entity)
+	query = &RedisSearchQuery{}
+	query.QueryFieldPrefixMatch("Name", "test coming soon to")
+	total = engine.RedisSearch(&entities, query, NewPager(1, 100))
+	assert.Equal(t, uint64(1), total)
+	assert.Equal(t, uint(29), entities[0].ID)
+
+	entity = &redisSearchEntity{}
 	engine.LoadByID(1, entity)
 	entity.Age = 120
 	entity.Name = ""

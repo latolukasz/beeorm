@@ -1110,7 +1110,7 @@ func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string)
 	if index.SkipInitialScan {
 		args = append(args, "SKIPINITIALSCAN")
 	}
-	if len(index.StopWords) > 0 {
+	if index.StopWords != nil {
 		args = append(args, "STOPWORDS", len(index.StopWords))
 		for _, word := range index.StopWords {
 			args = append(args, word)

@@ -16,6 +16,8 @@ import (
 
 const entityIndexerPage = 5000
 
+var redisSearchStopWords = []string{}
+
 type CachedQuery struct{}
 
 type cachedQueryDefinition struct {
@@ -1108,6 +1110,7 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry) error 
 		if !hasSearchable {
 			tableSchema.redisSearchIndex.Fields[0].NoIndex = false
 		}
+		tableSchema.redisSearchIndex.StopWords = redisSearchStopWords
 		tableSchema.redisSearchIndex.Name = tableSchema.t.String()
 		tableSchema.redisSearchIndex.RedisPool = tableSchema.searchCacheName
 		dbConnectionURI := registry.mysqlPools[tableSchema.mysqlPoolName].GetDataSourceURI()
