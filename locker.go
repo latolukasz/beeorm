@@ -24,8 +24,7 @@ func (l *standardLockerClient) Obtain(ctx context.Context, key string, ttl time.
 
 type Locker struct {
 	locker lockerClient
-	engine *Engine
-	code   string
+	r      *RedisCache
 }
 
 func (r *RedisCache) GetLocker() *Locker {
@@ -33,11 +32,12 @@ func (r *RedisCache) GetLocker() *Locker {
 		return r.locker
 	}
 	lockerClient := &standardLockerClient{client: redislock.New(r.client)}
-	r.locker = &Locker{locker: lockerClient, engine: r.engine, code: r.config.GetCode()}
+	r.locker = &Locker{locker: lockerClient, r: r}
 	return r.locker
 }
 
 func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
+	key = l.r.addNamespacePrefix(key)
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
 	}
@@ -51,23 +51,23 @@ func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration
 		}
 		options = &redislock.Options{RetryStrategy: redislock.LimitRetry(redislock.ExponentialBackoff(minInterval, maxInterval), max)}
 	}
-	start := getNow(l.engine.hasRedisLogger)
+	start := getNow(l.r.engine.hasRedisLogger)
 	redisLock, err := l.locker.Obtain(context.Background(), key, ttl, options)
 	if err != nil {
 		if err == redislock.ErrNotObtained {
-			if l.engine.hasRedisLogger {
+			if l.r.engine.hasRedisLogger {
 				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
 				l.fillLogFields("LOCK OBTAIN", message, start, nil)
 			}
 			return nil, false
 		}
 	}
-	if l.engine.hasRedisLogger {
+	if l.r.engine.hasRedisLogger {
 		message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
 		l.fillLogFields("LOCK OBTAIN", message, start, nil)
 	}
 	checkError(err)
-	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.engine}
+	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.r.engine}
 	return lock, true
 }
 
@@ -126,5 +126,5 @@ func (l *Lock) Refresh(ttl time.Duration) bool {
 }
 
 func (l *Locker) fillLogFields(operation, query string, start *time.Time, err error) {
-	fillLogFields(l.engine.queryLoggersRedis, l.code, sourceRedis, operation, query, start, err)
+	fillLogFields(l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, err)
 }

@@ -11,6 +11,14 @@ import (
 )
 
 func TestRedisSearchIndexer(t *testing.T) {
+	testRedisSearchIndexer(t, "")
+}
+
+func TestRedisSearchIndexerNamespace(t *testing.T) {
+	testRedisSearchIndexer(t, "test")
+}
+
+func testRedisSearchIndexer(t *testing.T, redisNamespace string) {
 	registry := &Registry{}
 	testIndex := NewRedisSearchIndex("test", "search", []string{"doc:"})
 	testIndex.AddTextField("title", 1, true, false, false)
@@ -25,7 +33,7 @@ func TestRedisSearchIndexer(t *testing.T) {
 		return 10, false
 	}
 	registry.RegisterRedisSearchIndex(testIndex)
-	engine, def := prepareTables(t, registry, 5)
+	engine, def := prepareTables(t, registry, 5, redisNamespace)
 	defer def()
 
 	indexer := NewBackgroundConsumer(engine)
@@ -69,12 +77,20 @@ func TestRedisSearchIndexer(t *testing.T) {
 		return 10, true
 	}
 	engine.GetRedisSearch("search").ForceReindex("test")
-	assert.PanicsWithError(t, "loop detected in indxer for index test in pool search", func() {
+	assert.PanicsWithError(t, "loop detected in indexer for index test in pool search", func() {
 		indexer.Digest(context.Background())
 	})
 }
 
 func TestRedisSearch(t *testing.T) {
+	testRedisSearch(t, "")
+}
+
+func TestRedisSearchNamespace(t *testing.T) {
+	testRedisSearch(t, "test")
+}
+
+func testRedisSearch(t *testing.T, redisNamespace string) {
 	registry := &Registry{}
 	testIndex := NewRedisSearchIndex("test", "search", []string{"doc1:", "doc2:"})
 	testIndex.ScoreField = "_my_score"
@@ -100,11 +116,11 @@ func TestRedisSearch(t *testing.T) {
 	testIndex2 := &RedisSearchIndex{Name: "test2", RedisPool: "search", Prefixes: []string{"test2:"}}
 	testIndex2.AddTextField("title", 1, true, false, false)
 	registry.RegisterRedisSearchIndex(testIndex2)
-	defaultIndex := &RedisSearchIndex{Name: "default", RedisPool: "search"}
+	defaultIndex := &RedisSearchIndex{Name: "default", RedisPool: "search", Prefixes: []string{"default:"}}
 	defaultIndex.AddTextField("text_field", 0.12, true, false, false)
 	defaultIndex.AddTagField("tag_field", true, false, ",")
 	registry.RegisterRedisSearchIndex(defaultIndex)
-	engine, def := prepareTables(t, registry, 5)
+	engine, def := prepareTables(t, registry, 5, redisNamespace)
 	defer def()
 
 	testLog := &testLogHandler{}
@@ -116,7 +132,10 @@ func TestRedisSearch(t *testing.T) {
 	assert.Len(t, alters, 0)
 
 	testLog.clear()
-	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"})
+	assert.PanicsWithError(t, "missing redis search prefix", func() {
+		search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"})
+	})
+	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search", Prefixes: []string{"another:"}})
 
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 1)
@@ -138,8 +157,12 @@ func TestRedisSearch(t *testing.T) {
 	assert.Equal(t, "_my_language", info.Definition.LanguageField)
 	assert.Equal(t, 0.8, info.Definition.DefaultScore)
 	assert.Len(t, info.Definition.Prefixes, 2)
-	assert.Equal(t, "doc1:", info.Definition.Prefixes[0])
-	assert.Equal(t, "doc2:", info.Definition.Prefixes[1])
+	prefix := ""
+	if redisNamespace != "" {
+		prefix = redisNamespace + ":"
+	}
+	assert.Equal(t, prefix+"doc1:", info.Definition.Prefixes[0])
+	assert.Equal(t, prefix+"doc2:", info.Definition.Prefixes[1])
 	assert.Equal(t, []string{"and", "in"}, info.StopWords)
 	assert.True(t, info.Options.MaxTextFields)
 	assert.True(t, info.Options.NoOffsets)
@@ -243,6 +266,7 @@ func TestRedisSearch(t *testing.T) {
 	query.FilterIntMinMax("id", 34, 35)
 	_, rows := search.Search("test2", query, NewPager(1, 2))
 	assert.Len(t, rows, 2)
+
 	assert.Equal(t, "test2:34", rows[0].Key)
 	assert.Nil(t, rows[0].Value("missing"))
 	assert.Equal(t, "hello 34", rows[0].Value("title"))
@@ -426,11 +450,7 @@ func TestRedisSearch(t *testing.T) {
 	assert.Len(t, alters, 1)
 	assert.Len(t, alters[0].Changes, 1)
 	assert.Equal(t, "different prefixes", alters[0].Changes[0])
-	defaultIndex.Prefixes = []string{}
-	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.Prefixes = []string{""}
-	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.Prefixes = nil
+	defaultIndex.Prefixes = []string{"default:"}
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.NoFreqs = true
 	alters = engine.GetRedisSearchIndexAlters()

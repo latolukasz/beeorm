@@ -250,7 +250,7 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	r.localCachePools[dbCode] = &localCachePoolConfig{code: dbCode, limit: size, lru: lru.New(size)}
 }
 
-func (r *Registry) RegisterRedis(address string, db int, code ...string) {
+func (r *Registry) RegisterRedis(address, namespace string, db int, code ...string) {
 	if strings.HasSuffix(address, ".sock") {
 		client := redis.NewClient(&redis.Options{
 			Network:    "unix",
@@ -258,25 +258,25 @@ func (r *Registry) RegisterRedis(address string, db int, code ...string) {
 			DB:         db,
 			MaxConnAge: time.Minute * 2,
 		})
-		r.registerRedis(client, code, address, db)
+		r.registerRedis(client, code, address, namespace, db)
 	} else {
 		client := redis.NewClient(&redis.Options{
 			Addr:       address,
 			DB:         db,
 			MaxConnAge: time.Minute * 2,
 		})
-		r.registerRedis(client, code, address, db)
+		r.registerRedis(client, code, address, namespace, db)
 	}
 }
 
-func (r *Registry) RegisterRedisSentinel(masterName string, db int, sentinels []string, code ...string) {
+func (r *Registry) RegisterRedisSentinel(masterName, namespace string, db int, sentinels []string, code ...string) {
 	client := redis.NewFailoverClient(&redis.FailoverOptions{
 		MasterName:    masterName,
 		SentinelAddrs: sentinels,
 		DB:            db,
 		MaxConnAge:    time.Minute * 2,
 	})
-	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), db)
+	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
 }
 
 func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []string) {
@@ -330,12 +330,13 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 	r.mysqlPools[dbCode] = db
 }
 
-func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {
+func (r *Registry) registerRedis(client *redis.Client, code []string, address, namespace string, db int) {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, db: db}
+	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, namespace: namespace,
+		hasNamespace: namespace != "", db: db}
 	if r.redisPools == nil {
 		r.redisPools = make(map[string]RedisPoolConfig)
 	}
@@ -346,14 +347,18 @@ type RedisPoolConfig interface {
 	GetCode() string
 	GetDatabase() int
 	GetAddress() string
+	GetNamespace() string
+	HasNamespace() bool
 	getClient() *redis.Client
 }
 
 type redisCacheConfig struct {
-	code    string
-	client  *redis.Client
-	db      int
-	address string
+	code         string
+	client       *redis.Client
+	db           int
+	address      string
+	namespace    string
+	hasNamespace bool
 }
 
 func (p *redisCacheConfig) GetCode() string {
@@ -366,6 +371,14 @@ func (p *redisCacheConfig) GetDatabase() int {
 
 func (p *redisCacheConfig) GetAddress() string {
 	return p.address
+}
+
+func (p *redisCacheConfig) GetNamespace() string {
+	return p.namespace
+}
+
+func (p *redisCacheConfig) HasNamespace() bool {
+	return p.hasNamespace
 }
 
 func (p *redisCacheConfig) getClient() *redis.Client {

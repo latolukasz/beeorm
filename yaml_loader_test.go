@@ -20,6 +20,11 @@ func TestYamlLoader(t *testing.T) {
 	assert.NotNil(t, registry)
 	assert.Len(t, registry.redisStreamGroups, 2)
 	assert.NotNil(t, registry.redisPools["another"])
+	assert.Equal(t, "", registry.redisPools["another"].GetNamespace())
+	assert.Equal(t, "test_namespace", registry.redisPools["default_queue"].GetNamespace())
+
+	assert.Equal(t, "second_namespace", registry.redisPools["third"].GetNamespace())
+
 	assert.Len(t, registry.redisStreamGroups["default"], 2)
 	assert.Len(t, registry.redisStreamGroups["another"], 1)
 	assert.Len(t, registry.redisStreamGroups["default"]["stream-1"], 2)

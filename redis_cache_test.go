@@ -13,31 +13,24 @@ import (
 )
 
 func TestRedis(t *testing.T) {
+	testRedis(t, "")
+}
+
+func TestRedisNamespaces(t *testing.T) {
+	testRedis(t, "test")
+}
+
+func testRedis(t *testing.T, namespace string) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", 15)
+	registry.RegisterRedis("localhost:6382", namespace, 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
 	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
-	testRedis(t, engine)
 	def()
 
-	registry = &Registry{}
-	registry.RegisterRedis("localhost:6399", 15)
-	validatedRegistry, def, err = registry.Validate()
-	assert.NoError(t, err)
-	defer def()
-	engine = validatedRegistry.CreateEngine()
-	testLogger := &testLogHandler{}
-	engine.RegisterQueryLogger(testLogger, false, true, false)
-	assert.Panics(t, func() {
-		engine.GetRedis().Get("invalid")
-	})
-}
-
-func testRedis(t *testing.T, engine *Engine) {
 	r := engine.GetRedis()
 
 	testLogger := &testLogHandler{}
@@ -333,4 +326,16 @@ func testRedis(t *testing.T, engine *Engine) {
 	r.Set("a", "n", 10)
 	r.FlushAll()
 	assert.Equal(t, int64(0), r.Exists("a"))
+
+	registry = &Registry{}
+	registry.RegisterRedis("localhost:6399", "", 15)
+	validatedRegistry, def, err = registry.Validate()
+	assert.NoError(t, err)
+	defer def()
+	engine = validatedRegistry.CreateEngine()
+	testLogger = &testLogHandler{}
+	engine.RegisterQueryLogger(testLogger, false, true, false)
+	assert.Panics(t, func() {
+		engine.GetRedis().Get("invalid")
+	})
 }

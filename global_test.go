@@ -22,7 +22,7 @@ func (h *testLogHandler) clear() {
 	h.Logs = nil
 }
 
-func prepareTables(t *testing.T, registry *Registry, version int, entities ...Entity) (engine *Engine, def func()) {
+func prepareTables(t *testing.T, registry *Registry, version int, redisNamespace string, entities ...Entity) (engine *Engine, def func()) {
 	if version == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -30,9 +30,9 @@ func prepareTables(t *testing.T, registry *Registry, version int, entities ...En
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test_log", "log")
 	}
-	registry.RegisterRedis("localhost:6382", 15)
-	registry.RegisterRedis("localhost:6382", 14, "default_queue")
-	registry.RegisterRedis("localhost:6382", 0, "search")
+	registry.RegisterRedis("localhost:6382", redisNamespace, 15)
+	registry.RegisterRedis("localhost:6382", redisNamespace, 14, "default_queue")
+	registry.RegisterRedis("localhost:6382", redisNamespace, 0, "search")
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)

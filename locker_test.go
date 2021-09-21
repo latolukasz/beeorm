@@ -8,8 +8,16 @@ import (
 )
 
 func TestLocker(t *testing.T) {
+	testLocker(t, "")
+}
+
+func TestLockerNamespace(t *testing.T) {
+	testLocker(t, "test")
+}
+
+func testLocker(t *testing.T, namespace string) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", 15)
+	registry.RegisterRedis("localhost:6382", namespace, 15)
 	validatedRegistry, def, err := registry.Validate()
 	assert.Nil(t, err)
 	defer def()

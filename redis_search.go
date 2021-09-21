@@ -827,7 +827,7 @@ func (r *RedisSearch) Search(index string, query *RedisSearchQuery, pager *Pager
 		if i > max {
 			break
 		}
-		row := &RedisSearchResult{Key: data[i].(string)}
+		row := &RedisSearchResult{Key: r.redis.removeNamespacePrefix(data[i].(string))}
 		if query.explainScore {
 			i++
 			row.ExplainScore = data[i].([]interface{})
@@ -850,12 +850,13 @@ func (r *RedisSearch) SearchKeys(index string, query *RedisSearchQuery, pager *P
 	total, rows := r.search(index, query, pager, true)
 	keys = make([]string, len(rows))
 	for k, v := range rows {
-		keys[k] = v.(string)
+		keys[k] = r.redis.removeNamespacePrefix(v.(string))
 	}
 	return total, keys
 }
 
 func (r *RedisSearch) Aggregate(index string, query *RedisSearchAggregate, pager *Pager) (result []map[string]string, totalRows uint64) {
+	index = r.redis.addNamespacePrefix(index)
 	args := []interface{}{"FT.AGGREGATE", index}
 	args = r.buildQueryArgs(query.query, args)
 	args = append(args, query.args...)
@@ -910,6 +911,7 @@ func (r *RedisSearch) GetPoolConfig() RedisPoolConfig {
 }
 
 func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager, noContent bool) (total uint64, rows []interface{}) {
+	index = r.redis.addNamespacePrefix(index)
 	args := []interface{}{"FT.SEARCH", index}
 	args = r.buildQueryArgs(query, args)
 
@@ -933,7 +935,9 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 	}
 	if len(query.inKeys) > 0 {
 		args = append(args, "INKEYS", len(query.inKeys))
-		args = append(args, query.inKeys...)
+		for _, k := range query.inKeys {
+			args = append(args, r.redis.addNamespacePrefix(k.(string)))
+		}
 	}
 	if len(query.inFields) > 0 {
 		args = append(args, "INFIELDS", len(query.inFields))
@@ -1076,9 +1080,13 @@ func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}
 }
 
 func (r *RedisSearch) createIndexArgs(index *RedisSearchIndex, indexName string) []interface{} {
+	indexName = r.redis.addNamespacePrefix(indexName)
+	if len(index.Prefixes) == 0 {
+		panic(errors.New("missing redis search prefix"))
+	}
 	args := []interface{}{"FT.CREATE", indexName, "ON", "HASH", "PREFIX", len(index.Prefixes)}
 	for _, prefix := range index.Prefixes {
-		args = append(args, prefix)
+		args = append(args, r.redis.addNamespacePrefix(prefix))
 	}
 	if index.DefaultLanguage != "" {
 		args = append(args, "LANGUAGE", index.DefaultLanguage)
@@ -1164,10 +1172,21 @@ func (r *RedisSearch) ListIndices() []string {
 	checkError(err)
 	res, err := cmd.Result()
 	checkError(err)
+	if r.redis.config.HasNamespace() {
+		finalResult := make([]string, 0)
+		prefix := r.redis.config.GetNamespace() + ":"
+		for _, v := range res {
+			if strings.HasPrefix(v, prefix) {
+				finalResult = append(finalResult, r.redis.removeNamespacePrefix(v))
+			}
+		}
+		return finalResult
+	}
 	return res
 }
 
 func (r *RedisSearch) dropIndex(indexName string, withHashes bool) bool {
+	indexName = r.redis.addNamespacePrefix(indexName)
 	args := []interface{}{"FT.DROPINDEX", indexName}
 	if withHashes {
 		args = append(args, "DD")
@@ -1188,6 +1207,7 @@ func (r *RedisSearch) dropIndex(indexName string, withHashes bool) bool {
 }
 
 func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
+	indexName = r.redis.addNamespacePrefix(indexName)
 	cmd := redis.NewSliceCmd(r.ctx, "FT.INFO", indexName)
 	start := getNow(r.engine.hasRedisLogger)
 	err := r.redis.client.Process(r.ctx, cmd)
@@ -1209,7 +1229,11 @@ func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
 	for i, row := range res {
 		switch row {
 		case "index_name":
-			info.Name = res[i+1].(string)
+			if r.redis.config.HasNamespace() {
+				info.Name = r.redis.removeNamespacePrefix(res[i+1].(string))
+			} else {
+				info.Name = res[i+1].(string)
+			}
 		case "index_options":
 			infoOptions := res[i+1].([]interface{})
 			options := RedisSearchIndexInfoOptions{}
@@ -1383,9 +1407,14 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 			if !reflect.DeepEqual(info.StopWords, stopWords) {
 				changes = append(changes, "different stop words")
 			}
-			prefixes := def.Prefixes
-			if len(prefixes) == 0 || (len(prefixes) == 1 && prefixes[0] == "") {
-				prefixes = []string{""}
+			prefixes := make([]string, 0)
+			if len(def.Prefixes) == 0 || (len(def.Prefixes) == 1 && def.Prefixes[0] == "") {
+				prefixes = append(prefixes, search.redis.addNamespacePrefix(""))
+				def.Prefixes = []string{""}
+			} else {
+				for _, v := range def.Prefixes {
+					prefixes = append(prefixes, search.redis.addNamespacePrefix(v))
+				}
 			}
 			if !reflect.DeepEqual(info.Definition.Prefixes, prefixes) {
 				changes = append(changes, "different prefixes")

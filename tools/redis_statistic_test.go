@@ -9,8 +9,8 @@ import (
 
 func TestRedisStatistics(t *testing.T) {
 	registry := &beeorm.Registry{}
-	registry.RegisterRedis("localhost:6382", 15)
-	registry.RegisterRedis("localhost:6382", 14, "another")
+	registry.RegisterRedis("localhost:6382", "", 15)
+	registry.RegisterRedis("localhost:6382", "", 14, "another")
 	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()

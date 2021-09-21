@@ -16,9 +16,15 @@ another:
       - 192.156.23.11:26379
       - 192.156.23.12:26379
   streams:
-      stream-3:
-        - test-group-1
+    stream-3:
+      - test-group-1
+third:
+  sentinel:
+    master2:2:second_namespace:
+      - :26380
+      - 192.156.23.15:26379
+      - 192.156.23.16:26379
 default_queue:
-  redis: localhost:6382:1
+  redis: localhost:6382:1:test_namespace
 sockets:
   redis: /var/redis.sock:1

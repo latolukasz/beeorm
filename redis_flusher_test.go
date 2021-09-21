@@ -8,8 +8,8 @@ import (
 
 func TestRedisFlusher(t *testing.T) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", 15)
-	registry.RegisterRedis("localhost:6382", 15, "second")
+	registry.RegisterRedis("localhost:6382", "", 15)
+	registry.RegisterRedis("localhost:6382", "", 15, "second")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-2", "default", []string{"test-group-2"})
 	validatedRegistry, def, err := registry.Validate()

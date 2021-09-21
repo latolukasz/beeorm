@@ -78,7 +78,7 @@ func TestEntityRedisSearchIndexer(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, "", entity, &redisNoSearchEntity{})
 	defer def()
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -119,7 +119,7 @@ func TestEntityRedisSearchIndexerNoFakeDelete(t *testing.T) {
 	var entity *redisSearchEntityNoSearchableFakeDelete
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, entity)
+	engine, def := prepareTables(t, registry, 5, "", entity)
 	defer def()
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -160,7 +160,7 @@ func TestEntityRedisSearch(t *testing.T) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, "", entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
@@ -1125,7 +1125,7 @@ func TestEntityRedisSearch(t *testing.T) {
 func TestEntityRedisAggregate(t *testing.T) {
 	var entity *redisSearchAggregateEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, entity)
+	engine, def := prepareTables(t, registry, 5, "", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {
@@ -1328,7 +1328,7 @@ func TestEntityRedisAggregate(t *testing.T) {
 func TestEntityOnlySortPKRedisSearch(t *testing.T) {
 	var entity *redisSearchOnlySortPKEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, entity)
+	engine, def := prepareTables(t, registry, 5, "", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {
@@ -1375,7 +1375,7 @@ func TestEntityOnlySortPKRedisSearch(t *testing.T) {
 func TestEntityFakeDeleteRedisSearch(t *testing.T) {
 	var entity *redisSearchFakeDeleteEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, entity)
+	engine, def := prepareTables(t, registry, 5, "", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {

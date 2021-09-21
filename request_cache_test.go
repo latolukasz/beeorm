@@ -17,7 +17,7 @@ type requestCacheEntity struct {
 
 func TestRequestCache(t *testing.T) {
 	var entity *requestCacheEntity
-	engine, def := prepareTables(t, &Registry{}, 5, entity)
+	engine, def := prepareTables(t, &Registry{}, 5, "", entity)
 	defer def()
 
 	flusher := engine.NewFlusher()

@@ -61,21 +61,27 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	elements := strings.Split(asString, ":")
 	dbNumber := ""
 	uri := ""
+	namespace := ""
 	l := len(elements)
-	if l == 2 {
+	switch l {
+	case 2:
 		dbNumber = elements[1]
 		uri = elements[0]
-	} else if l == 3 {
+	case 3:
 		dbNumber = elements[2]
 		uri = elements[0] + ":" + elements[1]
-	} else {
+	case 4:
+		dbNumber = elements[2]
+		namespace = elements[3]
+		uri = elements[0] + ":" + elements[1]
+	default:
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
 	db, err := strconv.ParseUint(dbNumber, 10, 64)
 	if err != nil {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
-	registry.RegisterRedis(uri, int(db), key)
+	registry.RegisterRedis(uri, namespace, int(db), key)
 }
 
 func validateSentinel(registry *Registry, value interface{}, key string) {
@@ -90,16 +96,21 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 			asStrings[i] = fmt.Sprintf("%v", v)
 		}
 		db := 0
+		namespace := ""
 		elements := strings.Split(master, ":")
-		if len(elements) == 2 {
+		l := len(elements)
+		if l >= 2 {
 			master = elements[0]
 			nr, err := strconv.ParseUint(elements[1], 10, 64)
 			if err != nil {
 				panic(fmt.Errorf("sentinel db '%v' is not valid", value))
 			}
 			db = int(nr)
+			if l == 3 {
+				namespace = elements[2]
+			}
 		}
-		registry.RegisterRedisSentinel(master, db, asStrings, key)
+		registry.RegisterRedisSentinel(master, namespace, db, asStrings, key)
 	}
 }
 

@@ -259,7 +259,7 @@ func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
 			break
 		}
 		if nextID <= id {
-			panic(errors.Errorf("loop detected in indxer for index %s in pool %s", indexDefinition.Name, redisPool))
+			panic(errors.Errorf("loop detected in indexer for index %s in pool %s", indexDefinition.Name, redisPool))
 		}
 		id = nextID
 	}
@@ -353,7 +353,7 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 		}
 
 		for {
-			res := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{stream}, end)
+			res := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
 			if res == int64(1) {
 				break
 			}

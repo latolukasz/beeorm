@@ -11,8 +11,8 @@ import (
 
 func TestRedisSearchStatistics(t *testing.T) {
 	registry := &beeorm.Registry{}
-	registry.RegisterRedis("localhost:6382", 0)
-	registry.RegisterRedisSearchIndex(&beeorm.RedisSearchIndex{Name: "test", RedisPool: "default"})
+	registry.RegisterRedis("localhost:6382", "", 0)
+	registry.RegisterRedisSearchIndex(&beeorm.RedisSearchIndex{Name: "test", RedisPool: "default", Prefixes: []string{"test:"}})
 	validatedRegistry, def, err := registry.Validate()
 	assert.NoError(t, err)
 	defer def()
