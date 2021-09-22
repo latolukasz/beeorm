@@ -42,11 +42,6 @@ func (p *redisSearchIndexPusher) NewDocument(key string) {
 }
 
 func (p *redisSearchIndexPusher) DeleteDocuments(key ...string) {
-	if p.pipeline.r.config.HasNamespace() {
-		for i, v := range key {
-			key[i] = p.pipeline.r.addNamespacePrefix(v)
-		}
-	}
 	p.pipeline.Del(key...)
 }
 
@@ -100,7 +95,7 @@ func (p *redisSearchIndexPusher) SetGeo(key string, lon float64, lat float64) {
 }
 
 func (p *redisSearchIndexPusher) PushDocument() {
-	p.pipeline.HSet(p.pipeline.r.addNamespacePrefix(p.key), p.fields...)
+	p.pipeline.HSet(p.key, p.fields...)
 	p.key = ""
 	p.fields = p.fields[:0]
 }

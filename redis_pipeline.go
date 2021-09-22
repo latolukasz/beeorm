@@ -20,6 +20,9 @@ type RedisPipeLine struct {
 }
 
 func (rp *RedisPipeLine) Del(key ...string) {
+	for i, v := range key {
+		key[i] = rp.r.addNamespacePrefix(v)
+	}
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "DEL")
@@ -29,6 +32,7 @@ func (rp *RedisPipeLine) Del(key ...string) {
 }
 
 func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "GET", key)
@@ -37,6 +41,7 @@ func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
 }
 
 func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "SET", key, expiration.String())
@@ -45,6 +50,7 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 }
 
 func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "EXPIRE", key, expiration.String())
@@ -53,6 +59,7 @@ func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineB
 }
 
 func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HINCRBY", key, field, strconv.Itoa(int(incr)))
@@ -61,6 +68,7 @@ func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 }
 
 func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HSET", key)
@@ -72,6 +80,7 @@ func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
 }
 
 func (rp *RedisPipeLine) HDel(key string, values ...string) {
+	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HDEL", key)
@@ -81,6 +90,7 @@ func (rp *RedisPipeLine) HDel(key string, values ...string) {
 }
 
 func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
+	stream = rp.r.addNamespacePrefix(stream)
 	rp.commands++
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "XADD", stream)

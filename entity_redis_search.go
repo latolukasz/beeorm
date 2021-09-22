@@ -131,7 +131,7 @@ func redisSearch(e *Engine, schema *tableSchema, query *RedisSearchQuery, pager 
 	totalRows, res := search.search(schema.redisSearchIndex.Name, query, pager, true)
 	ids := make([]uint64, len(res))
 	for i, v := range res {
-		ids[i], _ = strconv.ParseUint(v.(string)[6:], 10, 64)
+		ids[i], _ = strconv.ParseUint(v.(string)[schema.redisSearchPrefixLen:], 10, 64)
 	}
 	return ids, totalRows
 }

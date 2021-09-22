@@ -128,6 +128,7 @@ type tableSchema struct {
 	logTableName            string
 	skipLogs                []string
 	redisSearchPrefix       string
+	redisSearchPrefixLen    int
 	redisSearchIndex        *RedisSearchIndex
 	mapBindToRedisSearch    mapBindToRedisSearch
 	mapBindToScanPointer    mapBindToScanPointer

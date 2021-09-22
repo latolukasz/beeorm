@@ -75,10 +75,18 @@ type redisSearchAggregateEntity struct {
 }
 
 func TestEntityRedisSearchIndexer(t *testing.T) {
+	testEntityRedisSearchIndexer(t, "")
+}
+
+func TestEntityRedisSearchIndexerNamespace(t *testing.T) {
+	testEntityRedisSearchIndexer(t, "test")
+}
+
+func testEntityRedisSearchIndexer(t *testing.T, redisNamespace string) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, "", entity, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, redisNamespace, entity, &redisNoSearchEntity{})
 	defer def()
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -157,10 +165,18 @@ func TestEntityRedisSearchIndexerNoFakeDelete(t *testing.T) {
 }
 
 func TestEntityRedisSearch(t *testing.T) {
+	testEntityRedisSearch(t, "")
+}
+
+func TestEntityRedisSearchNamespace(t *testing.T) {
+	testEntityRedisSearch(t, "test")
+}
+
+func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, "", entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, redisNamespace, entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
 
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
@@ -240,7 +256,11 @@ func TestEntityRedisSearch(t *testing.T) {
 	assert.False(t, info.Options.NoFields)
 	assert.True(t, info.Options.NoOffsets)
 	assert.False(t, info.Options.MaxTextFields)
-	assert.Equal(t, []string{"7499e:"}, info.Definition.Prefixes)
+	prefix := ""
+	if redisNamespace != "" {
+		prefix = redisNamespace + ":"
+	}
+	assert.Equal(t, []string{prefix + "7499e:"}, info.Definition.Prefixes)
 	assert.Len(t, info.Fields, 25)
 	assert.Equal(t, "ID", info.Fields[0].Name)
 	assert.Equal(t, "NUMERIC", info.Fields[0].Type)

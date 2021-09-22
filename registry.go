@@ -177,6 +177,14 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 			return nil, nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
 		schema.registry = registry
+		if schema.hasSearchCache {
+			prefix := registry.redisServers[schema.searchCacheName].GetNamespace()
+			if prefix != "" {
+				prefix += ":"
+			}
+			prefix += schema.redisSearchPrefix
+			schema.redisSearchPrefixLen = len(prefix)
+		}
 	}
 	return registry, deferFunc, nil
 }
