@@ -306,6 +306,11 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			return fmt.Errorf("redis pool '%s' not found", redisCache)
 		}
 	}
+	cachePrefix := ""
+	if tableSchema.mysqlPoolName != "default" {
+		cachePrefix = tableSchema.mysqlPoolName
+	}
+	cachePrefix += tableSchema.tableName
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
@@ -492,7 +497,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		columnMapping[name] = i
 	}
 	tableSchema.idIndex = columnMapping["ID"]
-	cachePrefix := fmt.Sprintf("%x", sha256.Sum256([]byte(tableSchema.t.String())))
+	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+tableSchema.fieldsQuery)))
 	cachePrefix = cachePrefix[0:5]
 	tableSchema.columnMapping = columnMapping
 	tableSchema.cachedIndexes = cachedQueries
