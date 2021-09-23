@@ -328,7 +328,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
 	var uIntNullable *uint
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": uIntNullable, "BoolNullable": nil})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": uIntNullable,
+		"BoolNullable": nil, "TimeWithTime": now, "Time": now})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint(1), entity2.ID)
@@ -340,6 +341,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.UintNullable)
 	assert.Equal(t, 40, entity.Age)
 	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, now.Unix(), entity.TimeWithTime.Unix())
+	assert.Equal(t, entity.Time.Format(dateformat), now.Format(dateformat))
 
 	entity2 = &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{})

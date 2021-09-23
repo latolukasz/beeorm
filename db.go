@@ -409,9 +409,13 @@ func escapeSQLValue(val interface{}) string {
 	if val == nil {
 		return "NULL"
 	}
-	asString, is := val.(string)
-	if is {
+	asString, isString := val.(string)
+	if isString {
 		return escapeSQLString(asString)
+	}
+	asTime, isTime := val.(time.Time)
+	if isTime {
+		return "'" + asTime.Format(timeFormat) + "'"
 	}
 	asString = fmt.Sprintf("%v", val)
 	if asString == "<nil>" {
