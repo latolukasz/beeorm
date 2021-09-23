@@ -47,6 +47,9 @@ func newBindBuilder(id uint64, orm *ORM) *bindBuilder {
 }
 
 func (b *bindBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
+	if root {
+		serializer.DeserializeUInteger()
+	}
 	b.buildRefs(serializer, fields, value)
 	b.buildUIntegers(serializer, fields, value, root)
 	b.buildIntegers(serializer, fields, value)

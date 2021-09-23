@@ -115,16 +115,19 @@ func (orm *ORM) buildDirtyBind(serializer *serializer) (bindBuilder *bindBuilder
 }
 
 func (orm *ORM) serialize(serializer *serializer) {
-	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem)
+	orm.serializeFields(serializer, orm.tableSchema.fields, orm.elem, true)
 	orm.binary = serializer.Read()
 }
 
 func (orm *ORM) deserializeFromDB(serializer *serializer, pointers []interface{}) {
-	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers)
+	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers, true)
 	orm.binary = serializer.Read()
 }
 
-func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}) int {
+func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}, root bool) int {
+	if root {
+		serializer.SerializeUInteger(orm.tableSchema.structureHash)
+	}
 	for range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeUInteger(uint64(v.Int64))
@@ -281,12 +284,15 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		index++
 	}
 	for _, subField := range fields.structsFields {
-		index = orm.deserializeStructFromDB(serializer, index, subField, pointers)
+		index = orm.deserializeStructFromDB(serializer, index, subField, pointers, false)
 	}
 	return index
 }
 
-func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value, root bool) {
+	if root {
+		serialized.SerializeUInteger(orm.tableSchema.structureHash)
+	}
 	for _, i := range fields.refs {
 		f := elem.Field(i)
 		id := uint64(0)
@@ -437,12 +443,16 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		}
 	}
 	for k, i := range fields.structs {
-		orm.serializeFields(serialized, fields.structsFields[k], elem.Field(i))
+		orm.serializeFields(serialized, fields.structsFields[k], elem.Field(i), false)
 	}
 }
 
 func (orm *ORM) deserialize(serializer *serializer) {
 	serializer.Reset(orm.binary)
+	hash := serializer.DeserializeUInteger()
+	if hash != orm.tableSchema.structureHash {
+		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.tableSchema.t.String()))
+	}
 	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
 	orm.loaded = true
 }
