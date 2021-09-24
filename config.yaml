@@ -1,5 +1,6 @@
 default:
   mysqlEncoding: utf8
+  disableCacheHashCheck: true
   mysql: root:root@tcp(localhost:3308)/test
   redis: localhost:6382:0
   streams:
