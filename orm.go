@@ -17,6 +17,8 @@ import (
 const timeFormat = "2006-01-02 15:04:05"
 const dateformat = "2006-01-02"
 
+var disableCacheHashCheck bool
+
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
@@ -43,6 +45,10 @@ type ORM struct {
 	elem                 reflect.Value
 	idElem               reflect.Value
 	logMeta              map[string]interface{}
+}
+
+func DisableCacheHashCheck() {
+	disableCacheHashCheck = true
 }
 
 func (orm *ORM) getORM() *ORM {
@@ -450,7 +456,7 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 func (orm *ORM) deserialize(serializer *serializer) {
 	serializer.Reset(orm.binary)
 	hash := serializer.DeserializeUInteger()
-	if hash != orm.tableSchema.structureHash {
+	if !disableCacheHashCheck && hash != orm.tableSchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.tableSchema.t.String()))
 	}
 	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
