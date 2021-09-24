@@ -1401,10 +1401,8 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 			info := search.Info(name)
 			changes := make([]string, 0)
 			stopWords := def.StopWords
-			if len(stopWords) == 0 {
-				stopWords = nil
-			}
-			if !reflect.DeepEqual(info.StopWords, stopWords) {
+			bothEmpty := len(info.StopWords) == 0 && len(stopWords) == 0
+			if !bothEmpty && !reflect.DeepEqual(info.StopWords, stopWords) {
 				changes = append(changes, "different stop words")
 			}
 			prefixes := make([]string, 0)

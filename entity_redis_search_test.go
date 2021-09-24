@@ -178,6 +178,9 @@ func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	engine, def := prepareTables(t, registry, 5, redisNamespace, entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
 
+	alters := engine.GetRedisSearchIndexAlters()
+	assert.Len(t, alters, 0)
+
 	assert.Len(t, engine.GetRedisSearch().ListIndices(), 1)
 
 	indexer := NewBackgroundConsumer(engine)
