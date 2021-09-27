@@ -12,8 +12,6 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-const speedHSetKey = "_orm_ss"
-
 type Event interface {
 	Ack()
 	ID() string
@@ -161,49 +159,19 @@ type EventsConsumer interface {
 	DisableLoop()
 }
 
-type speedHandler struct {
-	DBQueries         int
-	DBMicroseconds    int64
-	RedisQueries      int
-	RedisMicroseconds int64
-}
-
-func (s *speedHandler) Handle(fields map[string]interface{}) {
-	if fields["source"] == sourceMySQL {
-		s.DBQueries++
-		s.DBMicroseconds += fields["microseconds"].(int64)
-	} else {
-		s.RedisQueries++
-		s.RedisMicroseconds += fields["microseconds"].(int64)
-	}
-}
-
-func (s *speedHandler) Clear() {
-	s.DBQueries = 0
-	s.RedisQueries = 0
-	s.DBMicroseconds = 0
-	s.RedisMicroseconds = 0
-}
-
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	streams := eb.engine.registry.getRedisStreamsForGroup(group)
 	if len(streams) == 0 {
 		panic(fmt.Errorf("unregistered streams for group %s", group))
 	}
 	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
-	speedPrefixKey := group + "_" + redisPool
-	speedLogger := &speedHandler{}
-	eb.engine.RegisterQueryLogger(speedLogger, true, true, false)
 	return &eventsConsumer{
 		eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, blockTime: time.Second * 30},
 		redis:             eb.engine.GetRedis(redisPool),
 		streams:           streams,
 		group:             group,
 		lockTTL:           time.Second * 90,
-		lockTick:          time.Minute,
-		speedLimit:        10000,
-		speedPrefixKey:    speedPrefixKey,
-		speedLogger:       speedLogger}
+		lockTick:          time.Minute}
 }
 
 type eventConsumerBase struct {
@@ -214,21 +182,12 @@ type eventConsumerBase struct {
 
 type eventsConsumer struct {
 	eventConsumerBase
-	redis                  *RedisCache
-	streams                []string
-	group                  string
-	lockTTL                time.Duration
-	lockTick               time.Duration
-	speedPrefixKey         string
-	speedEvents            int
-	speedDBQueries         int
-	speedDBMicroseconds    int64
-	speedRedisQueries      int
-	speedRedisMicroseconds int64
-	speedLogger            *speedHandler
-	speedTimeMicroseconds  int64
-	speedLimit             int
-	garbageLastTick        int64
+	redis           *RedisCache
+	streams         []string
+	group           string
+	lockTTL         time.Duration
+	lockTick        time.Duration
+	garbageLastTick int64
 }
 
 func (b *eventConsumerBase) DisableLoop() {
@@ -354,15 +313,7 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 			i++
 		}
 	}
-	r.speedEvents += totalMessages
-	r.speedLogger.Clear()
-	start := getNow(r.engine.hasRedisLogger)
 	attributes.Handler(events)
-	r.speedTimeMicroseconds += time.Since(*start).Microseconds()
-	r.speedDBQueries += r.speedLogger.DBQueries
-	r.speedRedisQueries += r.speedLogger.RedisQueries
-	r.speedDBMicroseconds += r.speedLogger.DBMicroseconds
-	r.speedRedisMicroseconds += r.speedLogger.RedisMicroseconds
 	var toAck map[string][]string
 	allDeleted := true
 	for _, ev := range events {
@@ -381,25 +332,6 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 	}
 	for stream, ids := range toAck {
 		r.redis.XAck(stream, r.group, ids...)
-	}
-	if r.speedEvents >= r.speedLimit {
-		today := time.Now().Format("01-02-06")
-		key := speedHSetKey + today
-		pipeline := r.redis.PipeLine()
-		pipeline.Expire(key, time.Hour*216)
-		pipeline.HIncrBy(key, r.speedPrefixKey+"e", int64(r.speedEvents))
-		pipeline.HIncrBy(key, r.speedPrefixKey+"t", r.speedTimeMicroseconds)
-		pipeline.HIncrBy(key, r.speedPrefixKey+"d", int64(r.speedDBQueries))
-		pipeline.HIncrBy(key, r.speedPrefixKey+"dt", r.speedDBMicroseconds)
-		pipeline.HIncrBy(key, r.speedPrefixKey+"r", int64(r.speedRedisQueries))
-		pipeline.HIncrBy(key, r.speedPrefixKey+"rt", r.speedRedisMicroseconds)
-		pipeline.Exec()
-		r.speedEvents = 0
-		r.speedDBQueries = 0
-		r.speedRedisQueries = 0
-		r.speedTimeMicroseconds = 0
-		r.speedDBMicroseconds = 0
-		r.speedRedisMicroseconds = 0
 	}
 	return false
 }

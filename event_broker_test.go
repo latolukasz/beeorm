@@ -238,8 +238,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
 	iterations := 0
-	speedLimitBefore := consumer.(*eventsConsumer).speedLimit
-	consumer.(*eventsConsumer).speedLimit = 10
 	consumer.Consume(ctx, 5, func(events []Event) {
 		iterations++
 		assert.Len(t, events, 5)
@@ -267,11 +265,6 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 			assert.Equal(t, "a10", e.Name)
 		}
 	})
-	consumer.(*eventsConsumer).speedLimit = speedLimitBefore
-	today := time.Now().Format("01-02-06")
-	statsEvents, hasStats := engine.GetRedis().HGet(speedHSetKey+today, "test-group_defaulte")
-	assert.True(t, hasStats)
-	assert.Equal(t, "10", statsEvents)
 	assert.Equal(t, 2, iterations)
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbage()

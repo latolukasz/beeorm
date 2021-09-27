@@ -78,18 +78,6 @@ func TestRedisStreamsStatus(t *testing.T) {
 			assert.Equal(t, "test-group", stream.Groups[0].Group)
 			assert.Equal(t, uint64(0), stream.Groups[0].Pending)
 			assert.Len(t, stream.Groups[0].Consumers, 0)
-			assert.GreaterOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.01)
-			assert.LessOrEqual(t, stream.Groups[0].SpeedMilliseconds, 0.012)
-			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00019)
-			assert.LessOrEqual(t, stream.Groups[0].RedisQueriesPerEvent, 0.00021)
-			assert.GreaterOrEqual(t, stream.Groups[0].RedisQueriesMillisecondsPerEvent, 0.00001)
-			assert.LessOrEqual(t, stream.Groups[0].RedisQueriesMillisecondsPerEvent, 0.001)
-			assert.GreaterOrEqual(t, stream.Groups[0].DBQueriesPerEvent, 0.00009)
-			assert.LessOrEqual(t, stream.Groups[0].DBQueriesPerEvent, 0.00011)
-			assert.GreaterOrEqual(t, stream.Groups[0].DBQueriesMillisecondsPerEvent, 0.00001)
-			assert.LessOrEqual(t, stream.Groups[0].DBQueriesMillisecondsPerEvent, 0.0005)
-			assert.Len(t, stream.Groups[0].SpeedHistory, 7)
-			assert.Equal(t, int64(0), stream.Groups[0].SpeedHistory[0].SpeedEvents)
 			valid = true
 		}
 	}

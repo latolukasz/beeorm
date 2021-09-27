@@ -22,12 +22,12 @@ func TestEngine(t *testing.T) {
 	})
 
 	engine.EnableQueryDebug()
-	assert.Len(t, engine.queryLoggersRedis, 2)
-	assert.Len(t, engine.queryLoggersDB, 2)
+	assert.Len(t, engine.queryLoggersRedis, 1)
+	assert.Len(t, engine.queryLoggersDB, 1)
 	assert.Len(t, engine.queryLoggersLocalCache, 1)
 	engine.EnableQueryDebugCustom(true, true, false)
-	assert.Len(t, engine.queryLoggersRedis, 2)
-	assert.Len(t, engine.queryLoggersDB, 2)
+	assert.Len(t, engine.queryLoggersRedis, 1)
+	assert.Len(t, engine.queryLoggersDB, 1)
 	assert.Len(t, engine.queryLoggersLocalCache, 1)
 }
 
