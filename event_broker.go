@@ -128,6 +128,8 @@ func (ef *eventFlusher) Flush() {
 }
 
 func (e *Engine) GetEventBroker() EventBroker {
+	e.Mutex.Lock()
+	defer e.Mutex.Unlock()
 	if e.eventBroker == nil {
 		e.eventBroker = &eventBroker{engine: e}
 	}
