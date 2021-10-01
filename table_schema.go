@@ -1106,6 +1106,8 @@ func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry) error 
 			if !has {
 				return fmt.Errorf("redis pool '%s' not found", tableSchema.searchCacheName)
 			}
+		} else {
+			return fmt.Errorf("missing redis search pool tag in %s", tableSchema.t.String())
 		}
 		hasSearchable := false
 		for _, field := range tableSchema.redisSearchIndex.Fields {
