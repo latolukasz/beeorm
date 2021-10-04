@@ -22,6 +22,9 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 			case "mysqlEncoding":
 				valAsString := validateOrmString(value, key)
 				r.SetDefaultEncoding(valAsString)
+			case "mysqlCollate":
+				valAsString := validateOrmString(value, key)
+				r.SetDefaultCollate(valAsString)
 			case "disableCacheHashCheck":
 				if value.(bool) {
 					DisableCacheHashCheck()

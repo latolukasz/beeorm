@@ -45,8 +45,6 @@ type foreignKeyDB struct {
 	OnDelete              string
 }
 
-const defaultCollate = "0900_ai_ci"
-
 func (a Alter) Exec() {
 	a.engine.GetMysql(a.Pool).Exec(a.SQL)
 }
@@ -87,7 +85,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 					logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 						"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 						"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName, defaultCollate)
+						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName, engine.registry.registry.defaultCollate)
 				}
 
 				if !hasLogTable {
@@ -213,7 +211,7 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 	createTableSQL += "  PRIMARY KEY (`ID`)\n"
 	collate := ""
 	if pool.GetPoolConfig().GetVersion() == 8 {
-		collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + defaultCollate
+		collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + engine.registry.registry.defaultCollate
 	}
 	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
 
@@ -487,7 +485,7 @@ OUTER:
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
-			collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + defaultCollate
+			collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + engine.registry.registry.defaultCollate
 		}
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
 		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
@@ -813,7 +811,7 @@ func handleString(version int, registry *validatedRegistry, attributes map[strin
 		definition = "mediumtext"
 		if version == 8 {
 			encoding := registry.registry.defaultEncoding
-			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + defaultCollate
+			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + registry.registry.defaultCollate
 		}
 		addDefaultNullIfNullable = false
 		defaultValue = "nil"
@@ -825,7 +823,7 @@ func handleString(version int, registry *validatedRegistry, attributes map[strin
 		if version == 5 {
 			definition = fmt.Sprintf("varchar(%s)", strconv.Itoa(i))
 		} else {
-			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+defaultCollate, strconv.Itoa(i),
+			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+registry.registry.defaultCollate, strconv.Itoa(i),
 				registry.registry.defaultEncoding, registry.registry.defaultEncoding)
 		}
 	}

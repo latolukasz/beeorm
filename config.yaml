@@ -1,5 +1,6 @@
 default:
   mysqlEncoding: utf8
+  mysqlCollate: 0900_ai_ci
   disableCacheHashCheck: true
   mysql: root:root@tcp(localhost:3308)/test
   redis: localhost:6382:0

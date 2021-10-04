@@ -27,6 +27,7 @@ type Registry struct {
 	redisSearchIndices map[string]map[string]*RedisSearchIndex
 	enums              map[string]Enum
 	defaultEncoding    string
+	defaultCollate     string
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
 }
@@ -38,6 +39,9 @@ func NewRegistry() *Registry {
 func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), err error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
+	}
+	if r.defaultCollate == "" {
+		r.defaultCollate = "0900_ai_ci"
 	}
 	maxPoolLen := 0
 	registry := &validatedRegistry{}
@@ -191,6 +195,10 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 
 func (r *Registry) SetDefaultEncoding(encoding string) {
 	r.defaultEncoding = encoding
+}
+
+func (r *Registry) SetDefaultCollate(collate string) {
+	r.defaultCollate = collate
 }
 
 func (r *Registry) RegisterEntity(entity ...Entity) {

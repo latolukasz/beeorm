@@ -17,6 +17,6 @@ require (
 	github.com/shamaton/msgpack v1.2.1
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
-	golang.org/x/sys v0.0.0-20210927094055-39ccf1dd6fa6 // indirect
+	golang.org/x/sys v0.0.0-20211004093028-2c5d950f24ef // indirect
 	gopkg.in/yaml.v2 v2.4.0
 )
