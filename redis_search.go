@@ -1006,9 +1006,6 @@ func (r *RedisSearch) search(index string, query *RedisSearchQuery, pager *Pager
 func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}) []interface{} {
 	q := query.query
 	for field, in := range query.filtersNumeric {
-		if len(in) == 1 {
-			continue
-		}
 		if q != "" {
 			q += " "
 		}
@@ -1068,11 +1065,6 @@ func (r *RedisSearch) buildQueryArgs(query *RedisSearchQuery, args []interface{}
 	}
 	args = append(args, q)
 
-	for field, ranges := range query.filtersNumeric {
-		if len(ranges) == 1 {
-			args = append(args, "FILTER", field, ranges[0][0], ranges[0][1])
-		}
-	}
 	for field, data := range query.filtersGeo {
 		args = append(args, "GEOFILTER", field, data[0], data[1], data[2], data[3])
 	}
