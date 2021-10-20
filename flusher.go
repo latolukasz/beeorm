@@ -56,11 +56,17 @@ type flusher struct {
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
+main:
 	for _, entity := range entity {
 		initIfNeeded(f.engine.registry, entity)
 		if f.trackedEntities == nil {
 			f.trackedEntities = []Entity{entity}
 		} else {
+			for _, old := range f.trackedEntities {
+				if old == entity {
+					continue main
+				}
+			}
 			f.trackedEntities = append(f.trackedEntities, entity)
 		}
 		f.trackedEntitiesCounter++

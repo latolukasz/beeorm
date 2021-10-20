@@ -190,6 +190,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, entity.IsDirty())
 	assert.True(t, entity.ReferenceOne.IsDirty())
 	flusher := engine.NewFlusher().Track(entity)
+	flusher.Track(entity)
 	flusher.Flush()
 	flusher.Flush()
 
@@ -207,7 +208,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	refManyID := entity.ReferenceMany[0].ID
 
 	entity = &flushEntity{}
-	found := engine.LoadByID(1, entity)
+	found := engine.LoadByID(2, entity)
+	assert.False(t, found)
+	found = engine.LoadByID(1, entity)
 
 	assert.True(t, found)
 	assert.Equal(t, "Tom", entity.Name)
