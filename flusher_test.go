@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
@@ -33,6 +34,30 @@ var TestSet = struct {
 	D: "d",
 	E: "e",
 	F: "f",
+}
+
+type attributesValues map[uint64][]interface{}
+
+func (av attributesValues) UnmarshalJSON(data []byte) error {
+	temp := map[uint64][]interface{}{}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+
+	for attributeID, values := range temp {
+		valuesNew := make([]interface{}, len(values))
+
+		for i, value := range values {
+			if _, ok := value.(string); ok {
+				valuesNew[i] = value
+			} else {
+				valuesNew[i] = uint64(value.(float64))
+			}
+		}
+		av[attributeID] = valuesNew
+	}
+
+	return nil
 }
 
 type flushEntity struct {
@@ -85,6 +110,7 @@ type flushEntity struct {
 	Uint32Nullable        *uint32
 	Uint64Nullable        *uint64
 	Images                []obj
+	AttributesValues      attributesValues
 	flushStructAnonymous
 }
 
@@ -160,6 +186,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeWithTimeNullable = &now
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
 	entity.flushStructAnonymous = flushStructAnonymous{"Adam", 39.123}
+	entity.AttributesValues = attributesValues{12: []interface{}{"a", "b"}}
 	assert.True(t, entity.IsDirty())
 	assert.True(t, entity.ReferenceOne.IsDirty())
 	flusher := engine.NewFlusher().Track(entity)
@@ -188,6 +215,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint(7), entity.Uint)
 	assert.Equal(t, uint16(1982), entity.Year)
 	assert.Equal(t, map[string]string{"pl": "kot", "en": "cat"}, entity.NameTranslated)
+	assert.Equal(t, attributesValues{12: []interface{}{"a", "b"}}, entity.AttributesValues)
 	assert.Equal(t, []string{"a", "b"}, entity.StringSlice)
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)

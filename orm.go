@@ -650,9 +650,16 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		bytes := serializer.DeserializeBytes()
 		f := elem.Field(i)
 		if bytes != nil {
-			v := reflect.New(f.Type()).Interface()
-			_ = jsoniter.ConfigFastest.Unmarshal(bytes, v)
-			f.Set(reflect.ValueOf(v).Elem())
+			t := f.Type()
+			if t.Kind().String() == "map" {
+				f.Set(reflect.MakeMap(t))
+				v := f.Addr().Interface()
+				_ = jsoniter.ConfigFastest.Unmarshal(bytes, v)
+			} else {
+				v := reflect.New(f.Type())
+				_ = jsoniter.ConfigFastest.Unmarshal(bytes, v.Interface())
+				f.Set(v.Elem())
+			}
 		} else if !f.IsNil() {
 			f.Set(reflect.Zero(f.Type()))
 		}
