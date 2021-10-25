@@ -68,7 +68,17 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 		if hasRedis && len(nilsKeys) > 0 {
 			fromRedis := redisCache.HMGet(cacheKey, nilsKeys...)
 			for key, idsFromRedis := range fromRedis {
-				fromCache[key] = idsFromRedis
+				if idsFromRedis != nil {
+					ids := strings.Split(idsFromRedis.(string), " ")
+					length := len(ids)
+					idsAsUint := make([]uint64, length)
+					for i := 0; i < length; i++ {
+						idsAsUint[i], _ = strconv.ParseUint(ids[i], 10, 64)
+					}
+					fromCache[key] = idsAsUint
+				} else {
+					fromCache[key] = idsFromRedis
+				}
 			}
 		}
 	} else if hasRedis {

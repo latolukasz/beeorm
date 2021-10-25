@@ -97,7 +97,6 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	totalRows = engine.CachedSearchCount(entity, "IndexAge", 10)
 	assert.EqualValues(t, 5, totalRows)
-
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
@@ -219,6 +218,10 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, "Name 3", rows[0].ReferenceOne.Name)
 	assert.Equal(t, "Name 4", rows[1].ReferenceOne.Name)
 	assert.Equal(t, "Name 5", rows[2].ReferenceOne.Name)
+
+	engine.GetLocalCache().Clear()
+	totalRows = engine.CachedSearchCount(entity, "IndexAge", 10)
+	assert.EqualValues(t, 3, totalRows)
 
 	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {
 		engine.CachedSearchWithReferences(&rows, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
