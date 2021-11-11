@@ -116,7 +116,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.True(t, valid)
 
 	e.Name = "test transaction"
-	engine.NewFlusher().Track(e).FlushInTransaction()
+	engine.NewFlusher().Track(e).Flush()
 	valid = false
 	consumer.Consume(context.Background(), 2, func(events []Event) {
 		valid = true

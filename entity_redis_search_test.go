@@ -943,7 +943,7 @@ func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 	entity.Age = 100
 	flusher = engine.NewFlusher()
 	flusher.Track(entity)
-	flusher.FlushInTransaction()
+	flusher.Flush()
 
 	query = &RedisSearchQuery{}
 	query.Sort("Age", false).FilterInt("Age", 100)

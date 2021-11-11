@@ -32,10 +32,8 @@ type Flusher interface {
 	Track(entity ...Entity) Flusher
 	Flush()
 	FlushWithCheck() error
-	FlushInTransactionWithCheck() error
 	FlushWithFullCheck() error
 	FlushLazy()
-	FlushInTransaction()
 	Clear()
 	Delete(entity ...Entity) Flusher
 	ForceDelete(entity ...Entity) Flusher
@@ -101,10 +99,6 @@ func (f *flusher) FlushWithCheck() error {
 	return f.flushWithCheck(false)
 }
 
-func (f *flusher) FlushInTransactionWithCheck() error {
-	return f.flushWithCheck(true)
-}
-
 func (f *flusher) FlushWithFullCheck() error {
 	var err error
 	func() {
@@ -122,10 +116,6 @@ func (f *flusher) FlushWithFullCheck() error {
 
 func (f *flusher) FlushLazy() {
 	f.flushTrackedEntities(true, false)
-}
-
-func (f *flusher) FlushInTransaction() {
-	f.flushTrackedEntities(false, true)
 }
 
 func (f *flusher) Clear() {

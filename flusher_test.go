@@ -92,7 +92,8 @@ type flushEntity struct {
 	Float64               float64  `orm:"precision=10"`
 	Decimal               float64  `orm:"decimal=5,2"`
 	DecimalNullable       *float64 `orm:"decimal=5,2"`
-	Float64Default        float64
+	Float64Default        float64  `orm:"unsigned"`
+	Float64Signed         float64
 	CachedQuery           *CachedQuery
 	Time                  time.Time
 	TimeWithTime          time.Time `orm:"time"`
@@ -507,9 +508,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity6 := &flushEntity{Name: "test_transaction_2", EnumNotNull: "a"}
 	flusher.Clear()
-	flusher.FlushInTransaction()
+	flusher.Flush()
 	flusher.Track(entity6)
-	flusher.FlushInTransaction()
+	flusher.Flush()
 	entity6 = &flushEntity{}
 	found = engine.LoadByID(14, entity6)
 	assert.True(t, found)
@@ -543,7 +544,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity8 := &flushEntity{Name: "test_check", EnumNotNull: "a"}
 	flusher.Track(entity8)
-	err = flusher.FlushInTransactionWithCheck()
+	err = flusher.FlushWithCheck()
 	assert.EqualError(t, err, "Duplicate entry 'test_check' for key 'name'")
 
 	assert.PanicsWithError(t, "track limit 10000 exceeded", func() {
@@ -708,11 +709,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(102, entity)
 	assert.Equal(t, 0.3, entity.Float64Default)
 	entity.Float64Default = 0.4
+	entity.Float64Signed = -0.4
 	assert.True(t, entity.IsDirty())
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(102, entity)
 	assert.Equal(t, 0.4, entity.Float64Default)
+	assert.Equal(t, -0.4, entity.Float64Signed)
 
 	entity.SetNullable = []string{}
 	engine.Flush(entity)

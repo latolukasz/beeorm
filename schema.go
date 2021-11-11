@@ -767,7 +767,7 @@ func handleFloat(floatDefinition string, attributes map[string]string, nullable 
 		definition = floatDefinition
 	}
 	unsigned, hasUnsigned := attributes["unsigned"]
-	if !hasUnsigned || unsigned == "true" {
+	if hasUnsigned && unsigned == "true" {
 		definition += " unsigned"
 	}
 	if nullable {
