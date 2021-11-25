@@ -278,11 +278,11 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	for range fields.refsMany {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			var slice []uint8
+			var slice []uint64
 			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
 			serializer.SerializeUInteger(uint64(len(slice)))
 			for _, i := range slice {
-				serializer.SerializeUInteger(uint64(i))
+				serializer.SerializeUInteger(i)
 			}
 		} else {
 			serializer.SerializeUInteger(0)
