@@ -219,6 +219,10 @@ func (e *Engine) Search(where *Where, pager *Pager, entities interface{}, refere
 	search(newSerializer(nil), true, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
+func (e *Engine) SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string) {
+	search(newSerializer(nil), false, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
+}
+
 func (e *Engine) SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int) {
 	return searchIDsWithCount(true, e, where, pager, reflect.TypeOf(entity).Elem())
 }
