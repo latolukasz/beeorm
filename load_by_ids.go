@@ -211,27 +211,36 @@ func warmUpReferences(serializer *serializer, engine *Engine, schema *tableSchem
 			redisMap = make(map[string]map[string][]Entity)
 		}
 		for i := 0; i < l; i++ {
+			fmt.Printf("1\n")
 			var ref reflect.Value
 			var refEntity reflect.Value
 			if many {
+				fmt.Printf("2\n")
 				refEntity = rows.Index(i)
 				if refEntity.IsZero() {
 					continue
 				}
+				fmt.Printf("3 %v\n", refName)
 				ref = reflect.Indirect(refEntity.Elem()).FieldByName(refName)
 			} else {
 				refEntity = rows
 				ref = reflect.Indirect(refEntity).FieldByName(refName)
 			}
+			fmt.Printf("4\n")
 			if !ref.IsValid() || ref.IsZero() {
 				continue
 			}
+			fmt.Printf("5\n")
 			if manyRef {
 				length := ref.Len()
+				fmt.Printf("6 %v\n", length)
 				for i := 0; i < length; i++ {
 					e := ref.Index(i).Interface().(Entity)
+					fmt.Printf("6\n")
 					if !e.IsLoaded() {
+						fmt.Printf("7\n")
 						id := e.GetID()
+						fmt.Printf("8 %v\n", id)
 						if id > 0 {
 							fillRefMap(engine, id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
 						}
