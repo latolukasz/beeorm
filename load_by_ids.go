@@ -151,6 +151,7 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 		}
 	}
 	entities.Set(newSlice)
+	fmt.Printf("HAS REFERENCES %v %v\n", len(references), hasValid)
 	if len(references) > 0 && hasValid {
 		warmUpReferences(serializer, engine, schema, entities, references, true)
 	}
@@ -247,6 +248,9 @@ func warmUpReferences(serializer *serializer, engine *Engine, schema *tableSchem
 			}
 		}
 	}
+	fmt.Printf("LOCAL MAP %v\n", localMap)
+	fmt.Printf("REDIS MAP %v\n", redisMap)
+	fmt.Printf("DB MAP %v\n", dbMap)
 	for k, v := range localMap {
 		l := len(v)
 		if l == 1 {
