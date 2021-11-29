@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities reflect.Value, references []string) (schema *tableSchema) {
+func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities reflect.Value, references []string) (schema *tableSchema, hasMissing bool) {
 	lenIDs := len(ids)
 	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
 	if lenIDs == 0 {
@@ -68,6 +68,8 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 					newSlice.Index(k).Set(e.getORM().value)
 					fillFromBinary(serializer, engine.registry, val.([]byte), e)
 					hasValid = true
+				} else {
+					hasMissing = true
 				}
 				cacheKeysMap[cacheKeys[i]] = -1
 			}
@@ -94,6 +96,8 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
 					}
 					hasValid = true
+				} else {
+					hasMissing = true
 				}
 				cacheKeysMap[cacheKeys[i]] = -1
 			}
@@ -114,6 +118,7 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 		pool := schema.GetMysql(engine)
 		results, def := pool.Query(query)
 		defer def()
+		found := 0
 		for results.Next() {
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
@@ -130,8 +135,12 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 				redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)
 			}
 			hasValid = true
+			found++
 		}
 		def()
+		if !hasMissing && found < len(idsDB) {
+			hasMissing = true
+		}
 	}
 	if len(localCacheToSet) > 0 && localCache != nil {
 		localCache.MSet(localCacheToSet...)
