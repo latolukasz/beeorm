@@ -278,9 +278,9 @@ func (e *Engine) Load(entity Entity, references ...string) (found bool) {
 	return e.load(newSerializer(nil), entity, references...)
 }
 
-func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) (hasMissing bool) {
-	_, hasMissing = tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
-	return hasMissing
+func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool) {
+	_, hasMissing := tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
+	return !hasMissing
 }
 
 func (e *Engine) GetAlters() (alters []Alter) {
