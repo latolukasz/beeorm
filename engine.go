@@ -29,6 +29,20 @@ type Engine struct {
 	sync.Mutex
 }
 
+func (e *Engine) Clone() *Engine {
+	return &Engine{
+		registry:               e.registry,
+		logMetaData:            e.logMetaData,
+		hasRequestCache:        e.hasRequestCache,
+		queryLoggersDB:         e.queryLoggersDB,
+		queryLoggersRedis:      e.queryLoggersRedis,
+		queryLoggersLocalCache: e.queryLoggersLocalCache,
+		hasRedisLogger:         e.hasRedisLogger,
+		hasDBLogger:            e.hasDBLogger,
+		hasLocalCacheLogger:    e.hasLocalCacheLogger,
+	}
+}
+
 func (e *Engine) EnableRequestCache() {
 	e.hasRequestCache = true
 }
