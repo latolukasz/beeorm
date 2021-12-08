@@ -30,3 +30,5 @@ default_queue:
   redis: localhost:6382:1:test_namespace
 sockets:
   redis: /var/redis.sock:1
+sockets_namespace:
+  redis: /var/redis.sock:2:test_namespace

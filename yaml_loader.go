@@ -69,14 +69,21 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	dbNumber := ""
 	uri := ""
 	namespace := ""
+	isSocket := strings.Index(asString, ".sock") > 0
 	l := len(elements)
 	switch l {
 	case 2:
 		dbNumber = elements[1]
 		uri = elements[0]
 	case 3:
-		dbNumber = elements[2]
-		uri = elements[0] + ":" + elements[1]
+		if isSocket {
+			dbNumber = elements[1]
+			uri = elements[0]
+			namespace = elements[2]
+		} else {
+			dbNumber = elements[2]
+			uri = elements[0] + ":" + elements[1]
+		}
 	case 4:
 		dbNumber = elements[2]
 		namespace = elements[3]
