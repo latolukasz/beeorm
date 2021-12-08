@@ -30,6 +30,7 @@ type Registry struct {
 	defaultCollate     string
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
+	forcedEntityLog    string
 }
 
 func NewRegistry() *Registry {
@@ -127,7 +128,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 			registry.redisSearchIndexes[k][k2] = v2
 		}
 	}
-	hasLog := false
+	hasLog := r.forcedEntityLog != ""
 	for name, entityType := range r.entities {
 		tableSchema := &tableSchema{}
 		err := tableSchema.init(r, entityType)
@@ -313,6 +314,10 @@ func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []s
 		groupsMap[group] = true
 	}
 	r.redisStreamGroups[redisPool][name] = groupsMap
+}
+
+func (r *Registry) ForceEntityLogInAllEntities(dbPool string) {
+	r.forcedEntityLog = dbPool
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {

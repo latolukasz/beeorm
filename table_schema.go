@@ -409,6 +409,9 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		}
 	}
 	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
+	if logPoolName == "" && registry.forcedEntityLog != "" {
+		logPoolName = registry.forcedEntityLog
+	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
