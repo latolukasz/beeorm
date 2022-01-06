@@ -144,8 +144,17 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 			db.Rollback()
 		}
 	}()
-	f.flush(true, lazy, transaction, f.trackedEntities...)
+	useTransaction := f.flush(true, lazy, transaction, f.trackedEntities...)
 	if transaction {
+		for _, db := range dbPools {
+			db.Commit()
+		}
+	} else if useTransaction {
+		dbPools = make(map[string]*DB)
+		for _, entity := range f.trackedEntities {
+			db := entity.getORM().tableSchema.GetMysql(f.engine)
+			dbPools[db.GetPoolConfig().GetCode()] = db
+		}
 		for _, db := range dbPools {
 			db.Commit()
 		}
@@ -193,7 +202,7 @@ type flushPackage struct {
 	referencesToFlash   map[Entity]Entity
 }
 
-func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Entity) {
+func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Entity) (useTransaction bool) {
 	flushPackage := &flushPackage{
 		insertKeys:          make(map[reflect.Type][]string),
 		insertBinds:         make(map[reflect.Type][]Bind),
@@ -242,7 +251,25 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 	}
 
 	if f.flushReferences(flushPackage, lazy, transaction, entities) {
-		return
+		return !transaction
+	}
+	if !transaction {
+		diffs := len(flushPackage.insertKeys)
+		if diffs <= 1 {
+			diffs += len(f.updateSQLs)
+			if diffs <= 1 {
+				diffs += len(f.deleteBinds)
+				if diffs <= 1 && len(f.updateSQLs) == 1 {
+					for _, queries := range f.updateSQLs {
+						diffs = len(queries)
+					}
+				}
+			}
+		}
+		if diffs > 1 {
+			f.startTransaction()
+			useTransaction = true
+		}
 	}
 	f.executeInserts(flushPackage, lazy)
 	if root {
@@ -251,6 +278,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		f.updateLocalCache(lazy, transaction)
 	}
 	f.updateRedisCache(root, lazy, transaction)
+	return useTransaction
 }
 
 func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
@@ -380,18 +408,8 @@ func (f *flusher) executeUpdates() {
 			db.Exec(queries[0])
 			continue
 		}
-		forcedTransaction := l >= 3 && !db.inTransaction
-		func() {
-			if forcedTransaction {
-				db.Begin()
-				defer db.Rollback()
-			}
-			_, def := db.Query(strings.Join(queries, ";") + ";")
-			defer def()
-			if forcedTransaction {
-				db.Commit()
-			}
-		}()
+		_, def := db.Query(strings.Join(queries, ";") + ";")
+		def()
 	}
 }
 
@@ -496,10 +514,24 @@ func (f *flusher) flushDelete(t reflect.Type, currentID uint64, entity Entity) {
 	f.deleteBinds[t][currentID] = entity
 }
 
+func (f *flusher) startTransaction() {
+	dbPools := make(map[string]*DB)
+	for _, entity := range f.trackedEntities {
+		db := entity.getORM().tableSchema.GetMysql(f.engine)
+		dbPools[db.GetPoolConfig().GetCode()] = db
+	}
+	for _, db := range dbPools {
+		db.Begin()
+	}
+}
+
 func (f *flusher) flushReferences(flushPackage *flushPackage, lazy bool, transaction bool, entities []Entity) bool {
 	if len(flushPackage.referencesToFlash) > 0 {
 		if lazy {
 			panic(fmt.Errorf("lazy flush for unsaved references is not supported"))
+		}
+		if !transaction {
+			f.startTransaction()
 		}
 		toFlush := make([]Entity, len(flushPackage.referencesToFlash))
 		i := 0

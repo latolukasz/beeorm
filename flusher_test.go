@@ -815,6 +815,21 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(101, entity))
+
+	testLogger.clear()
+	flusher = engine.NewFlusher()
+	flusher.Track(&flushEntityReference{})
+	flusher.Track(&flushEntityReference{})
+	flusher.Flush()
+	assert.Len(t, testLogger.Logs, 1)
+	testLogger.clear()
+	flusher = engine.NewFlusher()
+	flusher.Track(&flushEntityReference{})
+	flusher.Track(&flushEntity{})
+	flusher.Flush()
+	assert.Len(t, testLogger.Logs, 4)
+	assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
+	assert.Equal(t, "COMMIT", testLogger.Logs[3]["query"])
 }
 
 // 17 allocs/op - 6 for Exec
