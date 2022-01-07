@@ -129,6 +129,7 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 		return
 	}
 	var dbPools map[string]*DB
+	executed := false
 	if transaction {
 		dbPools = make(map[string]*DB)
 		for _, entity := range f.trackedEntities {
@@ -140,8 +141,17 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 		}
 	}
 	defer func() {
-		for _, db := range dbPools {
-			db.Rollback()
+		if !executed {
+			if dbPools == nil {
+				dbPools = make(map[string]*DB)
+				for _, entity := range f.trackedEntities {
+					db := entity.getORM().tableSchema.GetMysql(f.engine)
+					dbPools[db.GetPoolConfig().GetCode()] = db
+				}
+			}
+			for _, db := range dbPools {
+				db.Rollback()
+			}
 		}
 	}()
 	useTransaction := f.flush(true, lazy, transaction, f.trackedEntities...)
@@ -150,15 +160,18 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 			db.Commit()
 		}
 	} else if useTransaction {
-		dbPools = make(map[string]*DB)
-		for _, entity := range f.trackedEntities {
-			db := entity.getORM().tableSchema.GetMysql(f.engine)
-			dbPools[db.GetPoolConfig().GetCode()] = db
+		if dbPools == nil {
+			dbPools = make(map[string]*DB)
+			for _, entity := range f.trackedEntities {
+				db := entity.getORM().tableSchema.GetMysql(f.engine)
+				dbPools[db.GetPoolConfig().GetCode()] = db
+			}
 		}
 		for _, db := range dbPools {
 			db.Commit()
 		}
 	}
+	executed = true
 	f.clear()
 }
 

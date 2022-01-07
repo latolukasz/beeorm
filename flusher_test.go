@@ -830,6 +830,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Len(t, testLogger.Logs, 4)
 	assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
 	assert.Equal(t, "COMMIT", testLogger.Logs[3]["query"])
+
+	testLogger.clear()
+	flusher = engine.NewFlusher()
+	flusher.Track(&flushEntityReference{})
+	flusher.Track(&flushEntity{Name: "Adam"})
+	err = flusher.FlushWithCheck()
+	assert.NotNil(t, err)
+	assert.Equal(t, "ROLLBACK", testLogger.Logs[len(testLogger.Logs)-1]["query"])
 }
 
 // 17 allocs/op - 6 for Exec
