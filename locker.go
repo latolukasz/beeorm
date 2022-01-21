@@ -57,14 +57,14 @@ func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration
 		if err == redislock.ErrNotObtained {
 			if l.r.engine.hasRedisLogger {
 				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
-				l.fillLogFields("LOCK OBTAIN", message, start, nil)
+				l.fillLogFields("LOCK OBTAIN", message, start, true, nil)
 			}
 			return nil, false
 		}
 	}
 	if l.r.engine.hasRedisLogger {
 		message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
-		l.fillLogFields("LOCK OBTAIN", message, start, nil)
+		l.fillLogFields("LOCK OBTAIN", message, start, false, nil)
 	}
 	checkError(err)
 	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.r.engine}
@@ -90,7 +90,7 @@ func (l *Lock) Release() {
 		err = nil
 	}
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, err)
+		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, false, err)
 	}
 	checkError(err)
 }
@@ -99,7 +99,7 @@ func (l *Lock) TTL() time.Duration {
 	start := getNow(l.engine.hasRedisLogger)
 	d, err := l.lock.TTL(context.Background())
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, err)
+		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, false, err)
 	}
 	checkError(err)
 	return d
@@ -119,12 +119,12 @@ func (l *Lock) Refresh(ttl time.Duration) bool {
 	}
 	if l.engine.hasRedisLogger {
 		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, ttl.String())
-		l.locker.fillLogFields("LOCK REFRESH", message, start, err)
+		l.locker.fillLogFields("LOCK REFRESH", message, start, false, err)
 	}
 	checkError(err)
 	return has
 }
 
-func (l *Locker) fillLogFields(operation, query string, start *time.Time, err error) {
-	fillLogFields(l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, err)
+func (l *Locker) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {
+	fillLogFields(l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
 }

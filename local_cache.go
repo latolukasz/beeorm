@@ -66,7 +66,7 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 
 	value, ok = c.config.lru.Get(key)
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("GET", "GET "+key)
+		c.fillLogFields("GET", "GET "+key, !ok)
 	}
 	return
 }
@@ -86,7 +86,7 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 		results[i] = value
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("MGET", "MGET "+strings.Join(keys, " "))
+		c.fillLogFields("MGET", "MGET "+strings.Join(keys, " "), misses > 0)
 	}
 	return results
 }
@@ -96,7 +96,7 @@ func (c *LocalCache) Set(key string, value interface{}) {
 	defer c.config.m.Unlock()
 	c.config.lru.Add(key, value)
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("SET", fmt.Sprintf("SET %s %v", key, value))
+		c.fillLogFields("SET", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
 
@@ -112,7 +112,7 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 		for _, v := range pairs {
 			message += fmt.Sprintf(" %v", v)
 		}
-		c.fillLogFields("MSET", message)
+		c.fillLogFields("MSET", message, false)
 	}
 }
 
@@ -139,7 +139,7 @@ func (c *LocalCache) HMGet(key string, fields ...string) map[string]interface{} 
 		}
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("HMGET", "HMGET "+key+" "+strings.Join(fields, " "))
+		c.fillLogFields("HMGET", "HMGET "+key+" "+strings.Join(fields, " "), misses > 0)
 	}
 	return results
 }
@@ -161,7 +161,7 @@ func (c *LocalCache) HMSet(key string, fields map[string]interface{}) {
 		for k, v := range fields {
 			message += fmt.Sprintf(" %s %v", k, v)
 		}
-		c.fillLogFields("HMSET", message)
+		c.fillLogFields("HMSET", message, false)
 	}
 }
 
@@ -172,7 +172,7 @@ func (c *LocalCache) Remove(keys ...string) {
 		c.config.lru.Remove(v)
 	}
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("REMOVE", "REMOVE "+strings.Join(keys, " "))
+		c.fillLogFields("REMOVE", "REMOVE "+strings.Join(keys, " "), false)
 	}
 }
 
@@ -181,7 +181,7 @@ func (c *LocalCache) Clear() {
 	defer c.config.m.Unlock()
 	c.config.lru.Clear()
 	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("CLEAR", "CLEAR")
+		c.fillLogFields("CLEAR", "CLEAR", false)
 	}
 }
 
@@ -191,6 +191,6 @@ func (c *LocalCache) GetObjectsCount() int {
 	return c.config.lru.Len()
 }
 
-func (c *LocalCache) fillLogFields(operation, query string) {
-	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, nil)
+func (c *LocalCache) fillLogFields(operation, query string, cacheMiss bool) {
+	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

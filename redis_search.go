@@ -1523,7 +1523,7 @@ func (r *RedisSearch) addAlter(index *RedisSearchIndex, documents uint64, change
 }
 
 func (r *RedisSearch) fillLogFields(operation, query string, start *time.Time, err error) {
-	fillLogFields(r.engine.queryLoggersRedis, r.redis.config.GetCode(), sourceRedis, operation, query, start, err)
+	fillLogFields(r.engine.queryLoggersRedis, r.redis.config.GetCode(), sourceRedis, operation, query, start, false, err)
 }
 
 func (q *RedisSearchQuery) cutDate(date time.Time) int64 {

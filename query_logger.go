@@ -105,12 +105,15 @@ func (e *Engine) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
 	return append(logs, toAdd)
 }
 
-func fillLogFields(handlers []LogHandler, pool, source, operation, query string, start *time.Time, err error) {
+func fillLogFields(handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	fields := Bind{
 		"operation": operation,
 		"query":     query,
 		"pool":      pool,
 		"source":    source,
+	}
+	if cacheMiss {
+		fields["miss"] = true
 	}
 	if start != nil {
 		now := time.Now()

@@ -557,7 +557,7 @@ func getDropForeignKeysAlter(engine *Engine, tableName string, poolName string) 
 
 func isTableEmpty(db sqlClient, tableName string) bool {
 	/* #nosec */
-	rows, err := db.Query(fmt.Sprintf("SELECT `ID` FROM `%s` LIMIT 1", tableName))
+	rows, err := db.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", tableName))
 	defer func() {
 		_ = rows.Close()
 	}()

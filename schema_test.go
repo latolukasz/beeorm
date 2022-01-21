@@ -247,6 +247,11 @@ func testSchema(t *testing.T, version int) {
 	alters = engine.GetAlters()
 	assert.Len(t, alters, 0)
 
+	engine.GetMysql().Exec("CREATE TABLE `invalid_table` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
+	alters = engine.GetAlters()
+	assert.Len(t, alters, 1)
+	assert.Equal(t, "DROP TABLE IF EXISTS `test`.`invalid_table`;", alters[0].SQL)
+
 	pool := "root:root@tcp(localhost:3311)/test"
 	if version == 8 {
 		pool = "root:root@tcp(localhost:3312)/test"
