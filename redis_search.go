@@ -1293,6 +1293,34 @@ func (r *RedisSearch) Info(indexName string) *RedisSearchIndexInfo {
 				fields[i] = field
 			}
 			info.Fields = fields
+		case "attributes":
+			fieldsRaw := res[i+1].([]interface{})
+			fields := make([]RedisSearchIndexInfoField, len(fieldsRaw))
+			for i, v := range fieldsRaw {
+				def := v.([]interface{})
+				field := RedisSearchIndexInfoField{}
+				for subKey, subValue := range def {
+					switch subValue {
+					case "identifier":
+						field.Name = def[subKey+1].(string)
+					case "type":
+						field.Type = def[subKey+1].(string)
+					case "WEIGHT":
+						weight, _ := strconv.ParseFloat(def[subKey+1].(string), 64)
+						field.Weight = weight
+					case "SORTABLE":
+						field.Sortable = true
+					case "NOSTEM":
+						field.NoStem = true
+					case "NOINDEX":
+						field.NoIndex = true
+					case "SEPARATOR":
+						field.TagSeparator = def[subKey+1].(string)
+					}
+				}
+				fields[i] = field
+			}
+			info.Fields = fields
 		case "num_docs":
 			v, _ := strconv.ParseUint(res[i+1].(string), 10, 64)
 			info.NumDocs = v
@@ -1378,8 +1406,15 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 		info := r.Info("Modules")
 		lines := strings.Split(info, "\r\n")
 		hasModule := false
+		version := ""
 		for _, line := range lines {
 			if strings.HasPrefix(line, "module:name=search") {
+				for _, part := range strings.Split(line, ",") {
+					if strings.HasPrefix(part, "ver=") {
+						version = part[4:7]
+						break
+					}
+				}
 				hasModule = true
 				break
 			}
@@ -1422,14 +1457,14 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 				changes = append(changes, "different prefixes")
 			}
 			languageField := def.LanguageField
-			if languageField == "" {
+			if languageField == "" && version != "202" {
 				languageField = "__language"
 			}
 			if info.Definition.LanguageField != languageField {
 				changes = append(changes, "different language field")
 			}
 			scoreField := def.ScoreField
-			if scoreField == "" {
+			if scoreField == "" && version != "202" {
 				scoreField = "__score"
 			}
 			if info.Definition.ScoreField != scoreField {

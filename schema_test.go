@@ -106,10 +106,10 @@ func testSchema(t *testing.T, version int) {
 	ref := &schemaEntityRef{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum, "b")
-	engine, def := prepareTables(t, registry, version, "", entity, ref)
+	engine, def := prepareTables(t, registry, version, "", "2.0", entity, ref)
 	defer def()
 
-	engineDrop, def2 := prepareTables(t, &Registry{}, version, "")
+	engineDrop, def2 := prepareTables(t, &Registry{}, version, "", "2.0")
 	defer def2()
 	for _, alter := range engineDrop.GetAlters() {
 		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
@@ -276,7 +276,7 @@ func testSchema(t *testing.T, version int) {
 	_, _, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaEntity': unregistered enum beeorm.TestEnum")
 
-	engine, _ = prepareTables(t, &Registry{}, 5, "", &schemaToDropEntity{})
+	engine, _ = prepareTables(t, &Registry{}, 5, "", "2.0", &schemaToDropEntity{})
 	schema = engine.GetRegistry().GetTableSchemaForEntity(&schemaToDropEntity{})
 	schema.DropTable(engine)
 	has, alters := schema.GetSchemaChanges(engine)

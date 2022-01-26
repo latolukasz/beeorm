@@ -11,14 +11,18 @@ import (
 )
 
 func TestRedisSearchIndexer(t *testing.T) {
-	testRedisSearchIndexer(t, "")
+	testRedisSearchIndexer(t, "", "2.0")
+}
+
+func TestRedisSearchIndexer22(t *testing.T) {
+	testRedisSearchIndexer(t, "", "2.2")
 }
 
 func TestRedisSearchIndexerNamespace(t *testing.T) {
-	testRedisSearchIndexer(t, "test")
+	testRedisSearchIndexer(t, "test", "2.0")
 }
 
-func testRedisSearchIndexer(t *testing.T, redisNamespace string) {
+func testRedisSearchIndexer(t *testing.T, redisNamespace, version string) {
 	registry := &Registry{}
 	testIndex := NewRedisSearchIndex("test", "search", []string{"doc:"})
 	testIndex.AddTextField("title", 1, true, false, false)
@@ -33,7 +37,7 @@ func testRedisSearchIndexer(t *testing.T, redisNamespace string) {
 		return 10, false
 	}
 	registry.RegisterRedisSearchIndex(testIndex)
-	engine, def := prepareTables(t, registry, 5, redisNamespace)
+	engine, def := prepareTables(t, registry, 5, redisNamespace, version)
 	defer def()
 
 	indexer := NewBackgroundConsumer(engine)
@@ -83,14 +87,18 @@ func testRedisSearchIndexer(t *testing.T, redisNamespace string) {
 }
 
 func TestRedisSearch(t *testing.T) {
-	testRedisSearch(t, "")
+	testRedisSearch(t, "", "2.0")
+}
+
+func TestRedisSearch22(t *testing.T) {
+	testRedisSearch(t, "", "2.2")
 }
 
 func TestRedisSearchNamespace(t *testing.T) {
-	testRedisSearch(t, "test")
+	testRedisSearch(t, "test", "2.0")
 }
 
-func testRedisSearch(t *testing.T, redisNamespace string) {
+func testRedisSearch(t *testing.T, redisNamespace, version string) {
 	registry := &Registry{}
 	testIndex := NewRedisSearchIndex("test", "search", []string{"doc1:", "doc2:"})
 	testIndex.ScoreField = "_my_score"
@@ -120,7 +128,7 @@ func testRedisSearch(t *testing.T, redisNamespace string) {
 	defaultIndex.AddTextField("text_field", 0.12, true, false, false)
 	defaultIndex.AddTagField("tag_field", true, false, ",")
 	registry.RegisterRedisSearchIndex(defaultIndex)
-	engine, def := prepareTables(t, registry, 5, redisNamespace)
+	engine, def := prepareTables(t, registry, 5, redisNamespace, version)
 	defer def()
 
 	testLog := &testLogHandler{}
@@ -135,7 +143,9 @@ func testRedisSearch(t *testing.T, redisNamespace string) {
 	assert.PanicsWithError(t, "missing redis search prefix", func() {
 		search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search"})
 	})
-	search.createIndex(&RedisSearchIndex{Name: "to_delete", RedisPool: "search", Prefixes: []string{"another:"}})
+	toDelete := &RedisSearchIndex{Name: "to_delete", RedisPool: "search", Prefixes: []string{"another:"}}
+	toDelete.AddNumericField("test", false, false)
+	search.createIndex(toDelete)
 
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 1)
@@ -434,14 +444,22 @@ func testRedisSearch(t *testing.T, redisNamespace string) {
 	assert.Equal(t, "different language field", alters[0].Changes[0])
 	defaultIndex.LanguageField = ""
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
-	defaultIndex.LanguageField = "__language"
+	if version == "200" {
+		defaultIndex.LanguageField = "__language"
+	} else {
+		defaultIndex.LanguageField = ""
+	}
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.ScoreField = "score"
 	alters = engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 1)
 	assert.Len(t, alters[0].Changes, 1)
 	assert.Equal(t, "different score field", alters[0].Changes[0])
-	defaultIndex.ScoreField = "__score"
+	if version == "200" {
+		defaultIndex.ScoreField = "__score"
+	} else {
+		defaultIndex.ScoreField = ""
+	}
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)
 	defaultIndex.ScoreField = ""
 	assert.Len(t, engine.GetRedisSearchIndexAlters(), 0)

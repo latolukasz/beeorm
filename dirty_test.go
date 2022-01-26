@@ -21,7 +21,7 @@ func TestDirtyConsumer(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterRedisStream("name_changed", "default", []string{"test-group-2"})
-	engine, def := prepareTables(t, registry, 5, "", entity)
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entity)
 	defer def()
 
 	channels := engine.GetRegistry().GetRedisStreams()

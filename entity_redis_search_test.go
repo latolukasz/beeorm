@@ -75,18 +75,22 @@ type redisSearchAggregateEntity struct {
 }
 
 func TestEntityRedisSearchIndexer(t *testing.T) {
-	testEntityRedisSearchIndexer(t, "")
+	testEntityRedisSearchIndexer(t, "", "2.0")
+}
+
+func TestEntityRedisSearchIndexer22(t *testing.T) {
+	testEntityRedisSearchIndexer(t, "", "2.2")
 }
 
 func TestEntityRedisSearchIndexerNamespace(t *testing.T) {
-	testEntityRedisSearchIndexer(t, "test")
+	testEntityRedisSearchIndexer(t, "test", "2.0")
 }
 
-func testEntityRedisSearchIndexer(t *testing.T, redisNamespace string) {
+func testEntityRedisSearchIndexer(t *testing.T, redisNamespace, version string) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, redisNamespace, entity, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, redisNamespace, version, entity, &redisNoSearchEntity{})
 	defer def()
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -127,7 +131,7 @@ func TestEntityRedisSearchIndexerNoFakeDelete(t *testing.T) {
 	var entity *redisSearchEntityNoSearchableFakeDelete
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, "", entity)
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entity)
 	defer def()
 	indexer := NewBackgroundConsumer(engine)
 	indexer.DisableLoop()
@@ -176,7 +180,7 @@ func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 	var entity *redisSearchEntity
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	engine, def := prepareTables(t, registry, 5, redisNamespace, entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
+	engine, def := prepareTables(t, registry, 5, redisNamespace, "2.0", entity, &redisNoSearchEntity{}, &redisNoSearchEntity{})
 
 	alters := engine.GetRedisSearchIndexAlters()
 	assert.Len(t, alters, 0)
@@ -1148,7 +1152,7 @@ func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 func TestEntityRedisAggregate(t *testing.T) {
 	var entity *redisSearchAggregateEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, "", entity)
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {
@@ -1351,7 +1355,7 @@ func TestEntityRedisAggregate(t *testing.T) {
 func TestEntityOnlySortPKRedisSearch(t *testing.T) {
 	var entity *redisSearchOnlySortPKEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, "", entity)
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {
@@ -1398,7 +1402,7 @@ func TestEntityOnlySortPKRedisSearch(t *testing.T) {
 func TestEntityFakeDeleteRedisSearch(t *testing.T) {
 	var entity *redisSearchFakeDeleteEntity
 	registry := &Registry{}
-	engine, def := prepareTables(t, registry, 5, "", entity)
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entity)
 	defer def()
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 50; i++ {
