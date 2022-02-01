@@ -650,6 +650,24 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	isRequired := hasRequired && required == "true"
 
 	var err error
+	definition, addNotNullIfNotSet, defaultValue, addDefaultNullIfNullable, i, err2, done := getColumnByType(engine, schema, field, indexes, foreignKeys, typeAsString, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
+	if done {
+		return i, err2
+	}
+	isNotNull := false
+	if addNotNullIfNotSet || isRequired {
+		definition += " NOT NULL"
+		isNotNull = true
+	}
+	if defaultValue != "nil" && columnName != "ID" {
+		definition += " DEFAULT " + defaultValue
+	} else if !isNotNull && addDefaultNullIfNullable {
+		definition += " DEFAULT NULL"
+	}
+	return [][2]string{{columnName, fmt.Sprintf("`%s` %s", columnName, definition)}}, nil
+}
+
+func getColumnByType(engine *Engine, schema *tableSchema, field *reflect.StructField, indexes map[string]*index, foreignKeys map[string]*foreignIndex, typeAsString string, definition string, addNotNullIfNotSet bool, defaultValue string, version int, attributes map[string]string, columnName string, addDefaultNullIfNullable bool, err error, isRequired bool) (string, bool, string, bool, [][2]string, error, bool) {
 	switch typeAsString {
 	case "uint",
 		"uint8",
@@ -674,22 +692,22 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	case "uint16":
 		if attributes["year"] == "true" {
 			if version == 5 {
-				return [][2]string{{columnName, fmt.Sprintf("`%s` year(4) NOT NULL DEFAULT '0000'", columnName)}}, nil
+				return "", false, "", false, [][2]string{{columnName, fmt.Sprintf("`%s` year(4) NOT NULL DEFAULT '0000'", columnName)}}, nil, true
 			}
-			return [][2]string{{columnName, fmt.Sprintf("`%s` year NOT NULL DEFAULT '0000'", columnName)}}, nil
+			return "", false, "", false, [][2]string{{columnName, fmt.Sprintf("`%s` year NOT NULL DEFAULT '0000'", columnName)}}, nil, true
 		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(version, typeAsString, attributes, false)
 	case "*uint16":
 		if attributes["year"] == "true" {
 			if version == 5 {
-				return [][2]string{{columnName, fmt.Sprintf("`%s` year(4) DEFAULT NULL", columnName)}}, nil
+				return "", false, "", false, [][2]string{{columnName, fmt.Sprintf("`%s` year(4) DEFAULT NULL", columnName)}}, nil, true
 			}
-			return [][2]string{{columnName, fmt.Sprintf("`%s` year DEFAULT NULL", columnName)}}, nil
+			return "", false, "", false, [][2]string{{columnName, fmt.Sprintf("`%s` year DEFAULT NULL", columnName)}}, nil, true
 		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(version, typeAsString, attributes, true)
 	case "bool":
 		if columnName == "FakeDelete" {
-			return nil, nil
+			return "", false, "", false, nil, nil, true
 		}
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"
 	case "*bool":
@@ -697,7 +715,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	case "string", "[]string":
 		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleString(version, engine.registry, attributes, !isRequired)
 		if err != nil {
-			return nil, err
+			return "", false, "", false, nil, err, true
 		}
 	case "float32":
 		definition, addNotNullIfNotSet, defaultValue = handleFloat("float", attributes, false)
@@ -714,13 +732,15 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	case "[]uint8":
 		definition, addDefaultNullIfNullable = handleBlob(attributes)
 	case "*beeorm.CachedQuery":
-		return nil, nil
+		return "", false, "", false, nil, nil, true
 	default:
 		kind := field.Type.Kind().String()
 		if kind == "struct" {
 			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field)
 			checkError(err)
-			return structFields, nil
+			return "", false, "", false, structFields, nil, true
+		} else if kind == "string" {
+			getColumnByType(engine, schema, field, indexes, foreignKeys, typeAsString, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
 		} else if kind == "ptr" {
 			subSchema := getTableSchema(engine.registry, field.Type.Elem())
 			if subSchema != nil {
@@ -734,17 +754,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 			definition = "json"
 		}
 	}
-	isNotNull := false
-	if addNotNullIfNotSet || isRequired {
-		definition += " NOT NULL"
-		isNotNull = true
-	}
-	if defaultValue != "nil" && columnName != "ID" {
-		definition += " DEFAULT " + defaultValue
-	} else if !isNotNull && addDefaultNullIfNullable {
-		definition += " DEFAULT NULL"
-	}
-	return [][2]string{{columnName, fmt.Sprintf("`%s` %s", columnName, definition)}}, nil
+	return definition, addNotNullIfNotSet, defaultValue, addDefaultNullIfNullable, nil, nil, false
 }
 
 func handleInt(version int, typeAsString string, attributes map[string]string, nullable bool) (string, bool, string) {
