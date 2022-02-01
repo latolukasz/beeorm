@@ -740,7 +740,7 @@ func getColumnByType(engine *Engine, schema *tableSchema, field *reflect.StructF
 			checkError(err)
 			return "", false, "", false, structFields, nil, true
 		} else if kind == "string" {
-			getColumnByType(engine, schema, field, indexes, foreignKeys, typeAsString, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
+			return getColumnByType(engine, schema, field, indexes, foreignKeys, typeAsString, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
 		} else if kind == "ptr" {
 			subSchema := getTableSchema(engine.registry, field.Type.Elem())
 			if subSchema != nil {
