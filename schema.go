@@ -739,8 +739,6 @@ func getColumnByType(engine *Engine, schema *tableSchema, field *reflect.StructF
 			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field)
 			checkError(err)
 			return "", false, "", false, structFields, nil, true
-		} else if kind == "string" {
-			return getColumnByType(engine, schema, field, indexes, foreignKeys, kind, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
 		} else if kind == "ptr" {
 			subSchema := getTableSchema(engine.registry, field.Type.Elem())
 			if subSchema != nil {
@@ -750,8 +748,10 @@ func getColumnByType(engine *Engine, schema *tableSchema, field *reflect.StructF
 			} else {
 				definition = "json"
 			}
-		} else {
+		} else if kind == "slice" {
 			definition = "json"
+		} else {
+			return getColumnByType(engine, schema, field, indexes, foreignKeys, kind, definition, addNotNullIfNotSet, defaultValue, version, attributes, columnName, addDefaultNullIfNullable, err, isRequired)
 		}
 	}
 	return definition, addNotNullIfNotSet, defaultValue, addDefaultNullIfNullable, nil, nil, false
