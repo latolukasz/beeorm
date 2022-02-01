@@ -126,7 +126,7 @@ type tableSchema struct {
 	hasFakeDelete           bool
 	hasSearchableFakeDelete bool
 	hasLog                  bool
-	logPoolName             string //name of redis
+	logPoolName             string // name of redis
 	logTableName            string
 	skipLogs                []string
 	redisSearchPrefix       string
@@ -584,7 +584,7 @@ func (tableSchema *tableSchema) validateIndexes(uniqueIndices map[string]map[int
 		if v.Query == "1 ORDER BY `ID`" {
 			continue
 		}
-		//first do we have query fields
+		// first do we have query fields
 		ok := false
 		for _, columns := range all {
 			valid := 0
@@ -661,65 +661,71 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 		fields.fields[i] = f
 		_, attributes.HasSearchable = tags["searchable"]
 		_, attributes.HasSortable = tags["sortable"]
-		switch attributes.TypeName {
-		case "uint",
-			"uint8",
-			"uint16",
-			"uint32",
-			"uint64":
-			tableSchema.buildUintField(attributes)
-		case "*uint",
-			"*uint8",
-			"*uint16",
-			"*uint32",
-			"*uint64":
-			tableSchema.buildUintPointerField(attributes)
-		case "int",
-			"int8",
-			"int16",
-			"int32",
-			"int64":
-			tableSchema.buildIntField(attributes)
-		case "*int",
-			"*int8",
-			"*int16",
-			"*int32",
-			"*int64":
-			tableSchema.buildIntPointerField(attributes)
-		case "string":
-			tableSchema.buildStringField(attributes, registry)
-		case "[]string":
-			tableSchema.buildStringSliceField(attributes, registry)
-		case "[]uint8":
-			fields.bytes = append(fields.bytes, i)
-		case "bool":
-			tableSchema.buildBoolField(attributes)
-		case "*bool":
-			tableSchema.buildBoolPointerField(attributes)
-		case "float32",
-			"float64":
-			tableSchema.buildFloatField(attributes)
-		case "*float32",
-			"*float64":
-			tableSchema.buildFloatPointerField(attributes)
-		case "*beeorm.CachedQuery":
-			continue
-		case "*time.Time":
-			tableSchema.buildTimePointerField(attributes)
-		case "time.Time":
-			tableSchema.buildTimeField(attributes)
-		default:
-			k := f.Type.Kind().String()
-			if k == "struct" {
-				tableSchema.buildStructField(attributes, registry, schemaTags)
-			} else if k == "ptr" {
-				tableSchema.buildPointerField(attributes)
-			} else {
-				tableSchema.buildPointersSliceField(attributes)
-			}
-		}
+		tableSchema.buildTableField(attributes.TypeName, i, f, fields, attributes, registry, schemaTags)
 	}
 	return fields
+}
+
+func (tableSchema *tableSchema) buildTableField(fieldType string, i int, f reflect.StructField, fields *tableFields, attributes schemaFieldAttributes, registry *Registry, schemaTags map[string]map[string]string) {
+	switch fieldType {
+	case "uint",
+		"uint8",
+		"uint16",
+		"uint32",
+		"uint64":
+		tableSchema.buildUintField(attributes)
+	case "*uint",
+		"*uint8",
+		"*uint16",
+		"*uint32",
+		"*uint64":
+		tableSchema.buildUintPointerField(attributes)
+	case "int",
+		"int8",
+		"int16",
+		"int32",
+		"int64":
+		tableSchema.buildIntField(attributes)
+	case "*int",
+		"*int8",
+		"*int16",
+		"*int32",
+		"*int64":
+		tableSchema.buildIntPointerField(attributes)
+	case "string":
+		tableSchema.buildStringField(attributes, registry)
+	case "[]string":
+		tableSchema.buildStringSliceField(attributes, registry)
+	case "[]uint8":
+		fields.bytes = append(fields.bytes, i)
+	case "bool":
+		tableSchema.buildBoolField(attributes)
+	case "*bool":
+		tableSchema.buildBoolPointerField(attributes)
+	case "float32",
+		"float64":
+		tableSchema.buildFloatField(attributes)
+	case "*float32",
+		"*float64":
+		tableSchema.buildFloatPointerField(attributes)
+	case "*beeorm.CachedQuery":
+		return
+	case "*time.Time":
+		tableSchema.buildTimePointerField(attributes)
+	case "time.Time":
+		tableSchema.buildTimeField(attributes)
+	default:
+		k := f.Type.Kind().String()
+		if k == "struct" {
+			tableSchema.buildStructField(attributes, registry, schemaTags)
+		} else if k == "ptr" {
+			tableSchema.buildPointerField(attributes)
+		} else if k == "slice" {
+			tableSchema.buildPointersSliceField(attributes)
+		} else {
+			tableSchema.buildTableField(k, i, f, fields, attributes, registry, schemaTags)
+		}
+	}
 }
 
 type schemaFieldAttributes struct {
