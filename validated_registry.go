@@ -9,6 +9,7 @@ type ValidatedRegistry interface {
 	CreateEngine() *Engine
 	GetTableSchema(entityName string) TableSchema
 	GetTableSchemaForEntity(entity Entity) TableSchema
+	GetTableSchemaForCachePrefix(cachePrefix string) TableSchema
 	GetSourceRegistry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
@@ -116,6 +117,15 @@ func (r *validatedRegistry) GetTableSchemaForEntity(entity Entity) TableSchema {
 		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 	}
 	return tableSchema
+}
+
+func (r *validatedRegistry) GetTableSchemaForCachePrefix(cachePrefix string) TableSchema {
+	for _, schema := range r.tableSchemas {
+		if schema.cachePrefix == cachePrefix {
+			return schema
+		}
+	}
+	return nil
 }
 
 func (r *validatedRegistry) GetEnum(code string) Enum {

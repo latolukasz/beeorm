@@ -169,6 +169,12 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
+	schema := engine.GetRegistry().GetTableSchemaForCachePrefix("f3b2d")
+	assert.NotNil(t, schema)
+	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
+	schema = engine.GetRegistry().GetTableSchemaForCachePrefix("invalid")
+	assert.Nil(t, schema)
+
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceThird", "ReferenceOne", "ReferenceMany")
 	assert.True(t, found)
