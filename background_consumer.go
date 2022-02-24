@@ -325,7 +325,25 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 		}
 
 		if r.garbageCollectorSha1 == "" {
-			script := `
+			r.setGCScript(redisGarbage)
+		}
+
+		for {
+			res, exists := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
+			if !exists {
+				r.setGCScript(redisGarbage)
+				res, _ = redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
+			}
+			if res == int64(1) {
+				break
+			}
+		}
+	}
+	event.delete()
+}
+
+func (r *BackgroundConsumer) setGCScript(redisGarbage *RedisCache) {
+	script := `
 						local count = 0
 						local all = 0
 						while(true)
@@ -349,15 +367,5 @@ func (r *BackgroundConsumer) handleRedisChannelGarbageCollector(event Event) {
 						end
 						return all
 						`
-			r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
-		}
-
-		for {
-			res := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
-			if res == int64(1) {
-				break
-			}
-		}
-	}
-	event.delete()
+	r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
 }

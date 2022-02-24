@@ -325,6 +325,7 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 				toAck = make(map[string][]string)
 			}
 			toAck[ev.stream] = append(toAck[ev.stream], ev.message.ID)
+			allDeleted = false
 		} else if !ev.deleted {
 			allDeleted = false
 		}

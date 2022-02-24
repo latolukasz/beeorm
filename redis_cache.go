@@ -105,15 +105,28 @@ func (r *RedisCache) Eval(script string, keys []string, args ...interface{}) int
 	return res
 }
 
-func (r *RedisCache) EvalSha(sha1 string, keys []string, args ...interface{}) interface{} {
+func (r *RedisCache) EvalSha(sha1 string, keys []string, args ...interface{}) (res interface{}, exists bool) {
 	start := getNow(r.engine.hasRedisLogger)
 	res, err := r.client.EvalSha(context.Background(), sha1, keys, args...).Result()
 	if r.engine.hasRedisLogger {
 		message := fmt.Sprintf("EVALSHA "+sha1+" %v %v", keys, args)
 		r.fillLogFields("EVALSHA", message, start, false, err)
 	}
+	if err != nil && !r.ScriptExists(sha1) {
+		return nil, false
+	}
 	checkError(err)
-	return res
+	return res, true
+}
+
+func (r *RedisCache) ScriptExists(sha1 string) bool {
+	start := getNow(r.engine.hasRedisLogger)
+	res, err := r.client.ScriptExists(context.Background(), sha1).Result()
+	if r.engine.hasRedisLogger {
+		r.fillLogFields("SCRIPTEXISTS", "SCRIPTEXISTS "+sha1, start, false, err)
+	}
+	checkError(err)
+	return res[0]
 }
 
 func (r *RedisCache) ScriptLoad(script string) string {

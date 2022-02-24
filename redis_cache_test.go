@@ -319,9 +319,18 @@ func testRedis(t *testing.T, namespace string) {
 	val = r.Eval(script, []string{"3"}, 7)
 	assert.Equal(t, int64(12), val)
 	val = r.ScriptLoad(script)
+
+	assert.False(t, r.ScriptExists("invalid"))
+	assert.True(t, r.ScriptExists("618358a5df682faed583025e34f07905c2a96823"))
+
 	assert.Equal(t, "618358a5df682faed583025e34f07905c2a96823", val)
-	val = r.EvalSha(val.(string), []string{"3"}, 8)
+	val, exists := r.EvalSha(val.(string), []string{"3"}, 8)
 	assert.Equal(t, int64(13), val)
+	assert.True(t, exists)
+
+	val, exists = r.EvalSha("invalid", []string{"3"}, 8)
+	assert.Nil(t, val)
+	assert.False(t, exists)
 
 	r.Set("a", "n", 10)
 	r.FlushAll()
