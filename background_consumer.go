@@ -53,16 +53,87 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	r.consumer = r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
 	return r.consumer.Consume(ctx, 100, func(events []Event) {
+		lazyEvents := make([]Event, 0)
+		lazyEventsData := make([]map[string]interface{}, 0)
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
-				r.handleLazy(event)
+				lazyEvents = append(lazyEvents, event)
+				var data map[string]interface{}
+				event.Unserialize(&data)
+				lazyEventsData = append(lazyEventsData, data)
 			case logChannelName:
 				r.handleLogEvent(event)
 			case redisSearchIndexerChannelName:
 				r.handleRedisIndexerEvent(event)
 			case redisStreamGarbageCollectorChannelName:
 				r.handleRedisChannelGarbageCollector(event)
+			}
+		}
+		l := len(lazyEvents)
+		if l == 1 {
+			r.handleLazy(lazyEvents[0], lazyEventsData[0])
+		} else if l > 1 {
+			groupQueries := make(map[string]string)
+			groupEvents := make(map[string][]int)
+		MAIN:
+			for i, data := range lazyEventsData {
+				queries, has := data["q"]
+				if has {
+					validQueries := queries.([]interface{})
+					for _, query := range validQueries {
+						validInsert := query.([]interface{})
+						code := validInsert[0].(string)
+						sql := validInsert[1].(string)
+						if sql[0:11] == "INSERT INTO" {
+							beforeSQL, hasBefore := groupQueries[code]
+							if hasBefore {
+								db := r.engine.GetMysql(code)
+								if len(groupEvents[code]) == 1 {
+									db.Exec(beforeSQL)
+								} else {
+									func() {
+										db.Begin()
+										defer db.Rollback()
+										db.Exec(beforeSQL)
+										db.Commit()
+									}()
+								}
+								for _, i := range groupEvents[code] {
+									lazyEvents[i].Ack()
+									r.handleCache(lazyEventsData[i], nil)
+								}
+								delete(groupQueries, code)
+								delete(groupEvents, code)
+							}
+							r.handleLazy(lazyEvents[i], data)
+							continue MAIN
+						}
+						before := groupQueries[code]
+						before += sql + ";"
+						groupQueries[code] = before
+						groupEvents[code] = append(groupEvents[code], i)
+					}
+				} else {
+					r.handleLazy(lazyEvents[i], data)
+				}
+			}
+			for code, sql := range groupQueries {
+				db := r.engine.GetMysql(code)
+				if len(groupEvents[code]) == 1 {
+					db.Exec(sql)
+				} else {
+					func() {
+						db.Begin()
+						defer db.Rollback()
+						db.Exec(sql)
+						db.Commit()
+					}()
+				}
+				for _, i := range groupEvents[code] {
+					lazyEvents[i].Ack()
+					r.handleCache(lazyEventsData[i], nil)
+				}
 			}
 		}
 	})
@@ -92,9 +163,7 @@ func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
 	poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 }
 
-func (r *BackgroundConsumer) handleLazy(event Event) {
-	var data map[string]interface{}
-	event.Unserialize(&data)
+func (r *BackgroundConsumer) handleLazy(event Event, data map[string]interface{}) {
 	ids := r.handleQueries(r.engine, data)
 	r.handleCache(data, ids)
 	event.Ack()

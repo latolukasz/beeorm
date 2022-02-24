@@ -56,10 +56,14 @@ func TestBackgroundConsumer(t *testing.T) {
 	e.Name = "Tom"
 	engine.FlushLazy(e)
 
+	e.Age = 30
+	engine.FlushLazy(e)
+
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
 	assert.True(t, loaded)
 	assert.Equal(t, "Tom", e.Name)
+	assert.Equal(t, uint64(30), e.Age)
 
 	engine.GetLocalCache().Clear()
 	e = &lazyReceiverEntity{}
@@ -73,6 +77,36 @@ func TestBackgroundConsumer(t *testing.T) {
 	loaded = engine.LoadByID(1, e)
 	assert.True(t, loaded)
 	assert.Equal(t, "John", e.Name)
+
+	e = &lazyReceiverEntity{}
+	e.Name = "Monica"
+	e.Age = 18
+	engine.Flush(e)
+
+	engine.LoadByID(uint64(e.ID), e)
+	e.Name = "Ivona"
+	engine.FlushLazy(e)
+
+	e2 := &lazyReceiverEntity{}
+	e2.Name = "Adam"
+	e2.Age = 20
+	engine.FlushLazy(e2)
+
+	e.Age = 60
+	engine.FlushLazy(e)
+
+	receiver.Digest(context.Background())
+
+	e = &lazyReceiverEntity{}
+	loaded = engine.LoadByID(2, e)
+	assert.True(t, loaded)
+	assert.Equal(t, "Ivona", e.Name)
+	assert.Equal(t, uint64(60), e.Age)
+
+	loaded = engine.LoadByID(3, e2)
+	assert.True(t, loaded)
+	assert.Equal(t, "Adam", e2.Name)
+	assert.Equal(t, uint64(20), e2.Age)
 
 	e = &lazyReceiverEntity{Name: "Tom"}
 	e.SetOnDuplicateKeyUpdate(map[string]interface{}{"Age": 38})
