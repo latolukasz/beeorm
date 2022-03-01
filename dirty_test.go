@@ -265,4 +265,19 @@ func TestDirtyConsumer(t *testing.T) {
 		valid = true
 	})
 	assert.True(t, valid)
+
+	e = &dirtyReceiverEntity{}
+	e.Name = "Monica"
+	engine.Flush(e)
+	engine.LoadByID(1, e)
+	e2 := &dirtyReceiverEntity{}
+	engine.LoadByID(4, e2)
+	e.Age = 100
+	e2.Age = 100
+	customLogger := &testLogHandler{}
+	engine.RegisterQueryLogger(customLogger, true, true, false)
+	engine.FlushMany(e, e2)
+	assert.Len(t, customLogger.Logs, 6)
+	assert.Equal(t, "BEGIN", customLogger.Logs[0]["operation"])
+	assert.Equal(t, "COMMIT", customLogger.Logs[2]["operation"])
 }

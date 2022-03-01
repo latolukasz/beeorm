@@ -284,13 +284,14 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			useTransaction = true
 		}
 	}
+
 	f.executeInserts(flushPackage, lazy)
 	if root {
 		f.executeUpdates()
 		f.executeDeletes(lazy)
-		f.updateLocalCache(lazy, transaction)
+		f.updateLocalCache(lazy, useTransaction || transaction)
 	}
-	f.updateRedisCache(root, lazy, transaction)
+	f.updateRedisCache(root, lazy, useTransaction || transaction)
 	return useTransaction
 }
 

@@ -122,13 +122,18 @@ func (f *redisFlusher) Flush() {
 		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.hSets) > 1
 		if usePool {
 			p := f.engine.GetRedis(poolCode).PipeLine()
+			has := false
 			if commands.deletes != nil {
 				p.Del(commands.deletes...)
+				has = true
 			}
 			for key, values := range commands.hSets {
 				p.HSet(key, values...)
+				has = true
 			}
-			p.Exec()
+			if has {
+				p.Exec()
+			}
 		} else {
 			r := f.engine.GetRedis(poolCode)
 			if commands.deletes != nil {
