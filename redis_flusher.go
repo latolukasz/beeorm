@@ -81,8 +81,45 @@ func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
 }
 
 func (f *redisFlusher) Flush() {
+	if len(f.pipelines) <= 1 {
+		for poolCode, commands := range f.pipelines {
+			usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1 || len(commands.hSets) > 1
+			if usePool {
+				p := f.engine.GetRedis(poolCode).PipeLine()
+				if commands.deletes != nil {
+					p.Del(commands.deletes...)
+				}
+				for key, values := range commands.hSets {
+					p.HSet(key, values...)
+				}
+				for stream, events := range commands.events {
+					for _, e := range events {
+						p.XAdd(stream, e)
+					}
+				}
+				p.Exec()
+			} else {
+				r := f.engine.GetRedis(poolCode)
+				if commands.deletes != nil {
+					r.Del(commands.deletes...)
+				}
+				if commands.hSets != nil {
+					for key, values := range commands.hSets {
+						r.HSet(key, values...)
+					}
+				}
+				for stream, events := range commands.events {
+					for _, e := range events {
+						r.xAdd(stream, e)
+					}
+				}
+			}
+		}
+		f.pipelines = nil
+		return
+	}
 	for poolCode, commands := range f.pipelines {
-		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1 || len(commands.hSets) > 1
+		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.hSets) > 1
 		if usePool {
 			p := f.engine.GetRedis(poolCode).PipeLine()
 			if commands.deletes != nil {
@@ -90,11 +127,6 @@ func (f *redisFlusher) Flush() {
 			}
 			for key, values := range commands.hSets {
 				p.HSet(key, values...)
-			}
-			for stream, events := range commands.events {
-				for _, e := range events {
-					p.XAdd(stream, e)
-				}
 			}
 			p.Exec()
 		} else {
@@ -107,6 +139,23 @@ func (f *redisFlusher) Flush() {
 					r.HSet(key, values...)
 				}
 			}
+		}
+	}
+	for poolCode, commands := range f.pipelines {
+		if len(commands.events) == 0 {
+			continue
+		}
+		usePool := len(commands.events) > 1
+		if usePool {
+			p := f.engine.GetRedis(poolCode).PipeLine()
+			for stream, events := range commands.events {
+				for _, e := range events {
+					p.XAdd(stream, e)
+				}
+			}
+			p.Exec()
+		} else {
+			r := f.engine.GetRedis(poolCode)
 			for stream, events := range commands.events {
 				for _, e := range events {
 					r.xAdd(stream, e)
