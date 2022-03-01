@@ -55,6 +55,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	return r.consumer.Consume(ctx, 100, func(events []Event) {
 		lazyEvents := make([]Event, 0)
 		lazyEventsData := make([]map[string]interface{}, 0)
+		logEventsData := make(map[string][]*LogQueueValue)
 		for _, event := range events {
 			switch event.Stream() {
 			case lazyChannelName:
@@ -63,7 +64,13 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 				event.Unserialize(&data)
 				lazyEventsData = append(lazyEventsData, data)
 			case logChannelName:
-				r.handleLogEvent(event)
+				var data LogQueueValue
+				event.Unserialize(&data)
+				_, has := logEventsData[data.PoolName]
+				if !has {
+					logEventsData[data.PoolName] = make([]*LogQueueValue, 0)
+				}
+				logEventsData[data.PoolName] = append(logEventsData[data.PoolName], &data)
 			case redisSearchIndexerChannelName:
 				r.handleRedisIndexerEvent(event)
 			case redisStreamGarbageCollectorChannelName:
@@ -136,31 +143,50 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 				}
 			}
 		}
+		r.handleLog(logEventsData)
 	})
 }
 
-func (r *BackgroundConsumer) handleLogEvent(event Event) {
-	var value LogQueueValue
-	event.Unserialize(&value)
-	r.handleLog(&value)
-	event.Ack()
-}
-
-func (r *BackgroundConsumer) handleLog(value *LogQueueValue) {
-	poolDB := r.engine.GetMysql(value.PoolName)
-	/* #nosec */
-	query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
-	var meta, before, changes interface{}
-	if value.Meta != nil {
-		meta, _ = jsoniter.ConfigFastest.Marshal(value.Meta)
+func (r *BackgroundConsumer) handleLog(values map[string][]*LogQueueValue) {
+	for poolName, rows := range values {
+		poolDB := r.engine.GetMysql(poolName)
+		query := ""
+		for _, value := range rows {
+			/* #nosec */
+			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(" +
+				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(timeFormat) + "',"
+			var meta, before, changes string
+			if value.Meta != nil {
+				meta, _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
+				query += escapeSQLString(meta) + ","
+			} else {
+				query += "NULL,"
+			}
+			if value.Before != nil {
+				before, _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
+				query += escapeSQLString(before) + ","
+			} else {
+				query += "NULL,"
+			}
+			if value.Changes != nil {
+				changes, _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
+				query += escapeSQLString(changes)
+			} else {
+				query += "NULL"
+			}
+			query += ");"
+		}
+		if len(rows) > 1 {
+			func() {
+				poolDB.Begin()
+				defer poolDB.Rollback()
+				poolDB.Exec(query)
+				poolDB.Commit()
+			}()
+		} else {
+			poolDB.Exec(query)
+		}
 	}
-	if value.Before != nil {
-		before, _ = jsoniter.ConfigFastest.Marshal(value.Before)
-	}
-	if value.Changes != nil {
-		changes, _ = jsoniter.ConfigFastest.Marshal(value.Changes)
-	}
-	poolDB.Exec(query, value.ID, value.Updated.Format(timeFormat), meta, before, changes)
 }
 
 func (r *BackgroundConsumer) handleLazy(event Event, data map[string]interface{}) {
@@ -221,7 +247,7 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			if asMap["Changes"] != nil {
 				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
 			}
-			r.handleLog(logEvent)
+			r.handleLog(map[string][]*LogQueueValue{logEvent.PoolName: {logEvent}})
 		}
 	}
 	dirtyEvents, has := validMap["d"]
