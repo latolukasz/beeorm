@@ -80,7 +80,7 @@ jobs:
       - name: Create database
         run: |
           sudo apt-get update
-          sudo apt-get install -y mysql-client
+          sudo apt-get install -y mysql-client-8.0
           mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
           mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_schema;'
           mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_log;'
