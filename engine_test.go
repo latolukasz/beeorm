@@ -29,6 +29,12 @@ func TestEngine(t *testing.T) {
 	assert.Len(t, engine.queryLoggersRedis, 1)
 	assert.Len(t, engine.queryLoggersDB, 1)
 	assert.Len(t, engine.queryLoggersLocalCache, 1)
+
+	engine2 := engine.Clone()
+	assert.NotNil(t, engine2)
+	assert.Len(t, engine2.queryLoggersRedis, 1)
+	assert.Len(t, engine2.queryLoggersDB, 1)
+	assert.Len(t, engine2.queryLoggersLocalCache, 1)
 }
 
 func BenchmarkEngine(b *testing.B) {
