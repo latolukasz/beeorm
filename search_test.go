@@ -45,13 +45,13 @@ func TestSearch(t *testing.T) {
 	assert.Equal(t, uint(2), rows[1].ID)
 	assert.Nil(t, rows[2])
 
-	var entity2 *searchEntity
-	found := engine.SearchOne(NewWhere("ID = ?", 1), entity2, "ReferenceOne")
+	entity = &searchEntity{}
+	found := engine.SearchOne(NewWhere("ID = ?", 1), entity, "ReferenceOne")
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entity2.ID)
-	assert.Equal(t, "name 1", entity2.Name)
-	assert.Equal(t, "name 1", entity2.ReferenceOne.Name)
-	assert.True(t, entity2.ReferenceOne.IsLoaded())
+	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, "name 1", entity.Name)
+	assert.Equal(t, "name 1", entity.ReferenceOne.Name)
+	assert.True(t, entity.ReferenceOne.IsLoaded())
 
 	engine.Search(NewWhere("ID > 0"), nil, &rows, "ReferenceOne")
 	assert.Len(t, rows, 10)
