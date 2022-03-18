@@ -818,6 +818,11 @@ func (r *RedisSearch) SearchRaw(index string, query *RedisSearchQuery, pager *Pa
 	return r.search(index, query, pager, false)
 }
 
+func (r *RedisSearch) SearchCount(index string, query *RedisSearchQuery) uint64 {
+	total, _ := r.search(index, query, NewPager(0, 0), false)
+	return total
+}
+
 func (r *RedisSearch) Search(index string, query *RedisSearchQuery, pager *Pager) (total uint64, rows []*RedisSearchResult) {
 	total, data := r.search(index, query, pager, false)
 	rows = make([]*RedisSearchResult, 0)

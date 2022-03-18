@@ -267,6 +267,9 @@ func testRedisSearch(t *testing.T, redisNamespace, version string) {
 	assert.Len(t, rowsRaw, 4)
 	assert.Equal(t, uint64(1000), total)
 
+	total = search.SearchCount("test2", query)
+	assert.Equal(t, uint64(1000), total)
+
 	total, keys := search.SearchKeys("test2", query, NewPager(1, 2))
 	assert.Len(t, keys, 2)
 	assert.Equal(t, uint64(1000), total)
