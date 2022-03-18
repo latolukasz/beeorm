@@ -270,6 +270,11 @@ func testRedisSearch(t *testing.T, redisNamespace, version string) {
 	total = search.SearchCount("test2", query)
 	assert.Equal(t, uint64(1000), total)
 
+	queryAggregate := &RedisSearchAggregate{}
+	aggregateResults, aggregateTotal := search.Aggregate("test2", queryAggregate, NewPager(1, 1))
+	assert.Len(t, aggregateResults, 1)
+	assert.Equal(t, uint64(1), aggregateTotal)
+
 	total, keys := search.SearchKeys("test2", query, NewPager(1, 2))
 	assert.Len(t, keys, 2)
 	assert.Equal(t, uint64(1000), total)
