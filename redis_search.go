@@ -308,18 +308,15 @@ func (a *RedisSearchAggregate) GroupByField(field string, reduce ...AggregateRed
 }
 
 type LoadFields struct {
-	count int
-	args  []string
+	args []string
 }
 
 func (lf LoadFields) AddField(field string) {
 	lf.args = append(lf.args, field)
-	lf.count++
 }
 
 func (lf LoadFields) AddFieldWithAlias(field, alias string) {
 	lf.args = append(lf.args, field, "AS", alias)
-	lf.count++
 }
 
 func (a *RedisSearchAggregate) Sort(fields ...RedisSearchAggregateSort) *RedisSearchAggregate {
@@ -335,7 +332,7 @@ func (a *RedisSearchAggregate) Sort(fields ...RedisSearchAggregateSort) *RedisSe
 }
 
 func (a *RedisSearchAggregate) Load(fields LoadFields) *RedisSearchAggregate {
-	a.args = append(a.args, "LOAD", strconv.Itoa(fields.count))
+	a.args = append(a.args, "LOAD", strconv.Itoa(len(fields.args)))
 	for _, field := range fields.args {
 		a.args = append(a.args, field)
 	}
