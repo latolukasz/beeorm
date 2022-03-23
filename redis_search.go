@@ -311,11 +311,11 @@ type LoadFields struct {
 	args []string
 }
 
-func (lf LoadFields) AddField(field string) {
+func (lf *LoadFields) AddField(field string) {
 	lf.args = append(lf.args, field)
 }
 
-func (lf LoadFields) AddFieldWithAlias(field, alias string) {
+func (lf *LoadFields) AddFieldWithAlias(field, alias string) {
 	lf.args = append(lf.args, field, "AS", alias)
 }
 
@@ -331,7 +331,7 @@ func (a *RedisSearchAggregate) Sort(fields ...RedisSearchAggregateSort) *RedisSe
 	return a
 }
 
-func (a *RedisSearchAggregate) Load(fields LoadFields) *RedisSearchAggregate {
+func (a *RedisSearchAggregate) Load(fields *LoadFields) *RedisSearchAggregate {
 	a.args = append(a.args, "LOAD", strconv.Itoa(len(fields.args)))
 	for _, field := range fields.args {
 		a.args = append(a.args, field)
