@@ -540,7 +540,6 @@ func getDropForeignKeysAlter(engine *Engine, tableName string, poolName string) 
 	var skip string
 	var createTableDB string
 	pool := engine.GetMysql(poolName)
-	fmt.Printf("%v\n", tableName)
 	pool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
 	alter := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableName)
 	foreignKeysDB := getForeignKeys(engine, createTableDB, tableName, poolName)
