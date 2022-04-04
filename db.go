@@ -417,6 +417,10 @@ func escapeSQLValue(val interface{}) string {
 	if isTime {
 		return "'" + asTime.Format(timeFormat) + "'"
 	}
+	asTimePointer, isTimePointer := val.(*time.Time)
+	if isTimePointer {
+		return "'" + asTimePointer.Format(timeFormat) + "'"
+	}
 	asString = fmt.Sprintf("%v", val)
 	if asString == "<nil>" {
 		return "NULL"
