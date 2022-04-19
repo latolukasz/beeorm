@@ -12,11 +12,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-const lazyChannelName = "orm-lazy-channel"
-const logChannelName = "orm-log-channel"
-const redisSearchIndexerChannelName = "orm-redis-search-channel"
-const redisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
-const asyncConsumerGroupName = "orm-async-consumer"
+const LazyChannelName = "orm-lazy-channel"
+const LogChannelName = "orm-log-channel"
+const RedisSearchIndexerChannelName = "orm-redis-search-channel"
+const RedisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
+const AsyncConsumerGroupName = "orm-async-consumer"
 
 type LogQueueValue struct {
 	PoolName  string
@@ -50,7 +50,7 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 }
 
 func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
-	r.consumer = r.engine.GetEventBroker().Consumer(asyncConsumerGroupName).(*eventsConsumer)
+	r.consumer = r.engine.GetEventBroker().Consumer(AsyncConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
 	return r.consumer.Consume(ctx, 100, func(events []Event) {
 		lazyEvents := make([]Event, 0)
@@ -58,12 +58,12 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 		logEventsData := make(map[string][]*LogQueueValue)
 		for _, event := range events {
 			switch event.Stream() {
-			case lazyChannelName:
+			case LazyChannelName:
 				lazyEvents = append(lazyEvents, event)
 				var data map[string]interface{}
 				event.Unserialize(&data)
 				lazyEventsData = append(lazyEventsData, data)
-			case logChannelName:
+			case LogChannelName:
 				var data LogQueueValue
 				event.Unserialize(&data)
 				_, has := logEventsData[data.PoolName]
@@ -71,9 +71,9 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					logEventsData[data.PoolName] = make([]*LogQueueValue, 0)
 				}
 				logEventsData[data.PoolName] = append(logEventsData[data.PoolName], &data)
-			case redisSearchIndexerChannelName:
+			case RedisSearchIndexerChannelName:
 				r.handleRedisIndexerEvent(event)
-			case redisStreamGarbageCollectorChannelName:
+			case RedisStreamGarbageCollectorChannelName:
 				r.handleRedisChannelGarbageCollector(event)
 			}
 		}

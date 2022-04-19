@@ -377,7 +377,7 @@ func (r *eventsConsumer) garbage() {
 	now := time.Now().Unix()
 	if (now - r.garbageLastTick) >= 10 {
 		garbageEvent := garbageCollectorEvent{Group: r.group, Pool: r.redis.config.GetCode()}
-		r.engine.GetEventBroker().Publish(redisStreamGarbageCollectorChannelName, garbageEvent)
+		r.engine.GetEventBroker().Publish(RedisStreamGarbageCollectorChannelName, garbageEvent)
 		r.garbageLastTick = now
 	}
 }

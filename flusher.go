@@ -312,7 +312,7 @@ func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
 	}
 	if len(f.lazyMap) > 0 {
-		f.getRedisFlusher().Publish(lazyChannelName, f.lazyMap)
+		f.getRedisFlusher().Publish(LazyChannelName, f.lazyMap)
 		f.lazyMap = nil
 	}
 	if f.redisFlusher != nil && !transaction && root {
@@ -857,7 +857,7 @@ func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before, cha
 		}
 	}
 	if !lazy {
-		f.getRedisFlusher().Publish(logChannelName, val)
+		f.getRedisFlusher().Publish(LogChannelName, val)
 	}
 	return val
 }

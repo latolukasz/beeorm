@@ -836,7 +836,7 @@ func (r *RedisSearch) ForceReindex(index string) {
 	r.dropIndex(index, true)
 	r.createIndex(def)
 	event := redisIndexerEvent{Index: index}
-	r.engine.GetEventBroker().Publish(redisSearchIndexerChannelName, event)
+	r.engine.GetEventBroker().Publish(RedisSearchIndexerChannelName, event)
 }
 
 func (r *RedisSearch) SearchRaw(index string, query *RedisSearchQuery, pager *Pager) (total uint64, rows []interface{}) {

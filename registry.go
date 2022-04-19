@@ -149,26 +149,26 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 			hasLog = true
 		}
 	}
-	_, has := r.redisStreamPools[lazyChannelName]
+	_, has := r.redisStreamPools[LazyChannelName]
 	if !has {
-		r.RegisterRedisStream(lazyChannelName, "default", []string{asyncConsumerGroupName})
+		r.RegisterRedisStream(LazyChannelName, "default", []string{AsyncConsumerGroupName})
 	}
 	if hasLog {
-		_, has = r.redisStreamPools[logChannelName]
+		_, has = r.redisStreamPools[LogChannelName]
 		if !has {
-			r.RegisterRedisStream(logChannelName, "default", []string{asyncConsumerGroupName})
+			r.RegisterRedisStream(LogChannelName, "default", []string{AsyncConsumerGroupName})
 		}
 	}
 	if len(registry.redisSearchIndexes) > 0 {
-		_, has = r.redisStreamPools[redisSearchIndexerChannelName]
+		_, has = r.redisStreamPools[RedisSearchIndexerChannelName]
 		if !has {
-			r.RegisterRedisStream(redisSearchIndexerChannelName, "default", []string{asyncConsumerGroupName})
+			r.RegisterRedisStream(RedisSearchIndexerChannelName, "default", []string{AsyncConsumerGroupName})
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
-		_, has = r.redisStreamPools[redisStreamGarbageCollectorChannelName]
+		_, has = r.redisStreamPools[RedisStreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(redisStreamGarbageCollectorChannelName, "default", []string{asyncConsumerGroupName})
+			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{AsyncConsumerGroupName})
 		}
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
