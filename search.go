@@ -165,6 +165,7 @@ func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *
 	whereQuery := where.String()
 	if skipFakeDelete && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
+		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
 	pageStart := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
