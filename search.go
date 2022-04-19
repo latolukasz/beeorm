@@ -208,6 +208,7 @@ func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, 
 	if skipFakeDelete && schema.hasFakeDelete {
 		/* #nosec */
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
+		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
 	startPage := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
