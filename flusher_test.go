@@ -258,6 +258,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
 
+	entity.FlushStructPtr = nil
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	engine.LoadByID(1, entity)
+	assert.Nil(t, entity.FlushStructPtr)
+
 	entity.ReferenceOne.Name = "John 2"
 	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
 		engine.Flush(entity.ReferenceOne)
