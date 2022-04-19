@@ -15,11 +15,11 @@ clean: ## Remove all artifacts from ./bin/ and ./resources
 	@rm -rf ./bin/*
 
 format: ## Format go code with goimports
-	@go get golang.org/x/tools/cmd/goimports
+	@go install golang.org/x/tools/cmd/goimports@latest
 	@goimports -l -w .
 
 format-check: ## Check if the code is formatted
-	@go get golang.org/x/tools/cmd/goimports
+	@go install golang.org/x/tools/cmd/goimports@latest
 	@for i in $$(goimports -l .); do echo "[ERROR] Code is not formated run 'make format'" && exit 1; done
 
 test: ## Run tests

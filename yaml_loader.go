@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 )
@@ -65,11 +66,12 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	if !ok {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
-	elements := strings.Split(asString, ":")
+	parts := strings.Split(asString, "?")
+	elements := strings.Split(parts[0], ":")
 	dbNumber := ""
 	uri := ""
 	namespace := ""
-	isSocket := strings.Index(asString, ".sock") > 0
+	isSocket := strings.Index(parts[0], ".sock") > 0
 	l := len(elements)
 	switch l {
 	case 2:
@@ -95,6 +97,16 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	if err != nil {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
+	if len(parts) == 2 && parts[1] != "" {
+		values, err := url.ParseQuery(parts[1])
+		if err != nil {
+			panic(fmt.Errorf("redis uri '%v' is not valid", value))
+		}
+		if values.Has("user") && values.Has("password") {
+			registry.RegisterRedisWithCredentials(uri, namespace, values.Get("user"), values.Get("password"), int(db), key)
+			return
+		}
+	}
 	registry.RegisterRedis(uri, namespace, int(db), key)
 }
 
@@ -111,7 +123,8 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 		}
 		db := 0
 		namespace := ""
-		elements := strings.Split(master, ":")
+		parts := strings.Split(master, "?")
+		elements := strings.Split(parts[0], ":")
 		l := len(elements)
 		if l >= 2 {
 			master = elements[0]
@@ -122,6 +135,16 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 			db = int(nr)
 			if l == 3 {
 				namespace = elements[2]
+			}
+		}
+		if len(parts) == 2 && parts[1] != "" {
+			values, err := url.ParseQuery(parts[1])
+			if err != nil {
+				panic(fmt.Errorf("sentinel uri '%v' is not valid", master))
+			}
+			if values.Has("user") && values.Has("password") {
+				registry.RegisterRedisSentinelWithCredentials(master, namespace, values.Get("user"), values.Get("password"), db, asStrings, key)
+				return
 			}
 		}
 		registry.RegisterRedisSentinel(master, namespace, db, asStrings, key)

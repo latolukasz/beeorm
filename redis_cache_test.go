@@ -347,4 +347,14 @@ func testRedis(t *testing.T, namespace string) {
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
 	})
+
+	registry = &Registry{}
+	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
+	validatedRegistry, def, err = registry.Validate()
+	assert.Nil(t, err)
+	def()
+	engine = validatedRegistry.CreateEngine()
+	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
+		engine.GetRedis().Incr("test")
+	})
 }

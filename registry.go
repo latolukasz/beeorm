@@ -268,31 +268,42 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 }
 
 func (r *Registry) RegisterRedis(address, namespace string, db int, code ...string) {
-	if strings.HasSuffix(address, ".sock") {
-		client := redis.NewClient(&redis.Options{
-			Network:    "unix",
-			Addr:       address,
-			DB:         db,
-			MaxConnAge: time.Minute * 2,
-		})
-		r.registerRedis(client, code, address, namespace, db)
-	} else {
-		client := redis.NewClient(&redis.Options{
-			Addr:       address,
-			DB:         db,
-			MaxConnAge: time.Minute * 2,
-		})
-		r.registerRedis(client, code, address, namespace, db)
+	r.RegisterRedisWithCredentials(address, namespace, "", "", db, code...)
+}
+
+func (r *Registry) RegisterRedisWithCredentials(address, namespace, user, password string, db int, code ...string) {
+	options := &redis.Options{
+		Addr:       address,
+		DB:         db,
+		MaxConnAge: time.Minute * 2,
 	}
+	if strings.HasSuffix(address, ".sock") {
+		options.Network = "unix"
+	}
+	if user != "" {
+		options.Username = user
+		options.Password = password
+	}
+	client := redis.NewClient(options)
+	r.registerRedis(client, code, address, namespace, db)
 }
 
 func (r *Registry) RegisterRedisSentinel(masterName, namespace string, db int, sentinels []string, code ...string) {
-	client := redis.NewFailoverClient(&redis.FailoverOptions{
+	r.RegisterRedisSentinelWithCredentials(masterName, namespace, "", "", db, sentinels, code...)
+}
+
+func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, user, password string, db int, sentinels []string, code ...string) {
+	options := &redis.FailoverOptions{
 		MasterName:    masterName,
 		SentinelAddrs: sentinels,
 		DB:            db,
 		MaxConnAge:    time.Minute * 2,
-	})
+	}
+	if user != "" {
+		options.Username = user
+		options.Password = password
+	}
+	client := redis.NewFailoverClient(options)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
 }
 

@@ -32,3 +32,10 @@ sockets:
   redis: /var/redis.sock:1
 sockets_namespace:
   redis: /var/redis.sock:2:test_namespace
+redis_credentials:
+  redis: localhost:6382:11?user=test&password=test2
+  sentinel:
+    master:1?user=test&password=test2:
+      - :26379
+      - 192.156.23.11:26379
+      - 192.156.23.12:26379
