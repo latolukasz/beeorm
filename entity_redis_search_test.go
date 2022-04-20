@@ -1019,6 +1019,22 @@ func testEntityRedisSearch(t *testing.T, redisNamespace string) {
 	query = &RedisSearchQuery{}
 	query.FilterString("Name", "")
 	assert.True(t, engine.RedisSearchOne(entity, query))
+
+	entity = &redisSearchEntity{}
+	entity.Age = 77
+	engine.FlushLazy(entity)
+	receiver = NewBackgroundConsumer(engine)
+	receiver.DisableLoop()
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
+
+	query = &RedisSearchQuery{}
+	query.Sort("Age", false).FilterInt("Age", 77)
+	ids, total = engine.RedisSearchIds(entity, query, NewPager(1, 50))
+	assert.Equal(t, uint64(1), total)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, uint64(51), ids[0])
+
 	assert.PanicsWithError(t, "unknown field Name2", func() {
 		query = &RedisSearchQuery{}
 		query.FilterString("Name2", "")

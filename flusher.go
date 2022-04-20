@@ -464,7 +464,7 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 		sql := f.stringBuilder.String()
 		f.stringBuilder.Reset()
 		db := schema.GetMysql(f.engine)
-		if lazy {
+		if lazy && !schema.hasSearchCache {
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
 			for key, entity := range flushPackage.insertReflectValues[typeOf] {
