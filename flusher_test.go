@@ -19,6 +19,12 @@ type obj struct {
 type flushStruct struct {
 	Name2 string
 	Age   int
+	Sub   flushSubStruct
+}
+
+type flushSubStruct struct {
+	Name3 string
+	Age3  int
 }
 
 type flushStructAnonymous struct {
@@ -178,9 +184,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.StringSlice = []string{"a", "b"}
 	entity.StringSliceNotNull = []string{"c", "d"}
 	entity.SetNotNull = []string{"d", "e"}
-	entity.FlushStructPtr = &flushStruct{"A", 12}
+	entity.FlushStructPtr = &flushStruct{"A", 12, flushSubStruct{Age3: 11, Name3: "G"}}
 	entity.EnumNotNull = "a"
 	entity.FlushStruct.Name2 = "Ita"
+	entity.FlushStruct.Sub.Age3 = 13
+	entity.FlushStruct.Sub.Name3 = "Nanami"
 	entity.TimeWithTime = now
 	entity.Float64 = 2.12
 	entity.Decimal = 6.15
@@ -233,6 +241,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.NotNil(t, entity.FlushStructPtr)
 	assert.Equal(t, "A", entity.FlushStructPtr.Name2)
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
+	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
+	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
@@ -257,6 +267,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.NotNil(t, entity.ReferenceMany)
 	assert.Len(t, entity.ReferenceMany, 1)
 	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
+	assert.Equal(t, "Ita", entity.FlushStruct.Name2)
+	assert.Equal(t, 13, entity.FlushStruct.Sub.Age3)
+	assert.Equal(t, "Nanami", entity.FlushStruct.Sub.Name3)
 
 	entity.FlushStructPtr = nil
 	engine.Flush(entity)

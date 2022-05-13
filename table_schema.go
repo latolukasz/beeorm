@@ -498,7 +498,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	if err := tableSchema.buildRedisSearchIndex(registry); err != nil {
 		return err
 	}
-	tableSchema.columnNames, tableSchema.fieldsQuery = tableSchema.fields.buildColumnNames()
+	tableSchema.columnNames, tableSchema.fieldsQuery = tableSchema.fields.buildColumnNames("")
 	columnMapping := make(map[string]int)
 	for i, name := range tableSchema.columnNames {
 		columnMapping[name] = i
@@ -1278,7 +1278,7 @@ func (tableSchema *tableSchema) NewEntity() Entity {
 	return e
 }
 
-func (fields *tableFields) buildColumnNames() ([]string, string) {
+func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {
 	fieldsQuery := ""
 	columns := make([]string, 0)
 	ids := fields.refs
@@ -1308,7 +1308,7 @@ func (fields *tableFields) buildColumnNames() ([]string, string) {
 	ids = append(ids, fields.jsons...)
 	ids = append(ids, fields.refsMany...)
 	for k, i := range ids {
-		name := fields.prefix + fields.fields[i].Name
+		name := subFieldPrefix + fields.fields[i].Name
 		columns = append(columns, name)
 		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
 			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
@@ -1316,8 +1316,13 @@ func (fields *tableFields) buildColumnNames() ([]string, string) {
 			fieldsQuery += ",`" + name + "`"
 		}
 	}
-	for _, subFields := range fields.structsFields {
-		subColumns, subQuery := subFields.buildColumnNames()
+	for i, subFields := range fields.structsFields {
+		field := fields.fields[fields.structs[i]]
+		prefixName := subFieldPrefix
+		if !field.Anonymous {
+			prefixName += field.Name
+		}
+		subColumns, subQuery := subFields.buildColumnNames(prefixName)
 		columns = append(columns, subColumns...)
 		fieldsQuery += "," + subQuery
 	}
