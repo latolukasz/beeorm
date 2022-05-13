@@ -184,7 +184,7 @@ func getAllTables(db sqlClient) []string {
 func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alters []Alter) {
 	indexes := make(map[string]*index)
 	foreignKeys := make(map[string]*foreignIndex)
-	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, nil)
+	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, nil, "")
 	var newIndexes []string
 	var newForeignKeys []string
 	pool := engine.GetMysql(tableSchema.mysqlPoolName)
@@ -719,7 +719,11 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 	default:
 		kind := field.Type.Kind().String()
 		if kind == "struct" {
-			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field)
+			subFieldPrefix := prefix
+			//if !field.Anonymous {
+			//	subFieldPrefix += field.Name
+			//}
+			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field, subFieldPrefix)
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
@@ -939,7 +943,7 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 }
 
 func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, indexes map[string]*index,
-	foreignKeys map[string]*foreignIndex, subField *reflect.StructField) ([][2]string, error) {
+	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
 	columns := make([][2]string, 0, t.NumField())
 	max := t.NumField() - 1
 	for i := 0; i <= max; i++ {
@@ -954,9 +958,9 @@ func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, index
 			}
 			continue
 		}
-		prefix := ""
+		prefix := subFieldPrefix
 		if subField != nil && !subField.Anonymous {
-			prefix = subField.Name
+			prefix += subField.Name
 		}
 		fieldColumns, err := checkColumn(engine, tableSchema, &field, indexes, foreignKeys, prefix)
 		if err != nil {
