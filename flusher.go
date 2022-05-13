@@ -248,6 +248,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		if orm.delete {
 			f.flushDelete(t, currentID, entity)
 		} else if !orm.inDB {
+			if currentID == 0 && schema.hasUUID {
+				currentID = uuid()
+				orm.idElem.SetUint(currentID)
+			}
 			if currentID > 0 {
 				bindBuilder.bind["ID"] = currentID
 				if bindBuilder.buildSQL {

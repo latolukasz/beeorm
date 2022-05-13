@@ -131,6 +131,7 @@ type tableSchema struct {
 	skipLogs                []string
 	redisSearchPrefix       string
 	redisSearchPrefixLen    int
+	hasUUID                 bool
 	redisSearchIndex        *RedisSearchIndex
 	mapBindToRedisSearch    mapBindToRedisSearch
 	mapBindToScanPointer    mapBindToScanPointer
@@ -412,6 +413,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	if logPoolName == "" && registry.forcedEntityLog != "" {
 		logPoolName = registry.forcedEntityLog
 	}
+	hasUUID := tableSchema.getTag("uuid", "true", "false") == "true"
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
@@ -524,6 +526,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.uniqueIndices = uniqueIndicesSimple
 	tableSchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
 	tableSchema.hasLog = logPoolName != ""
+	tableSchema.hasUUID = hasUUID
 	tableSchema.logPoolName = logPoolName
 	tableSchema.logTableName = fmt.Sprintf("_log_%s_%s", tableSchema.mysqlPoolName, tableSchema.tableName)
 	tableSchema.skipLogs = skipLogs
