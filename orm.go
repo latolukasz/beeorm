@@ -716,11 +716,24 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		"uint64":
 		val := uint64(0)
 		if value != nil {
-			parsed, err := strconv.ParseUint(fmt.Sprintf("%v", value), 10, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v not valid", field, value)
+			valid := !isString
+			if !isString {
+				switch value.(type) {
+				case float32:
+					val = uint64(value.(float32))
+				case float64:
+					val = uint64(value.(float64))
+				default:
+					valid = false
+				}
 			}
-			val = parsed
+			if !valid {
+				parsed, err := strconv.ParseUint(fmt.Sprintf("%v", value), 10, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v not valid", field, value)
+				}
+				val = parsed
+			}
 		}
 		f.SetUint(val)
 	case "*uint",
@@ -762,11 +775,32 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		"int64":
 		val := int64(0)
 		if value != nil {
-			parsed, err := strconv.ParseInt(fmt.Sprintf("%v", value), 10, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v not valid", field, value)
+			valid := !isString
+			if !isString {
+				switch value.(type) {
+				case float32:
+					asFloat := value.(float32)
+					if asFloat < 0 {
+						return fmt.Errorf("%s value %v not valid", field, value)
+					}
+					val = int64(asFloat)
+				case float64:
+					asFloat := value.(float64)
+					if asFloat < 0 {
+						return fmt.Errorf("%s value %v not valid", field, value)
+					}
+					val = int64(asFloat)
+				default:
+					valid = false
+				}
 			}
-			val = parsed
+			if !valid {
+				parsed, err := strconv.ParseInt(fmt.Sprintf("%v", value), 10, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v not valid", field, value)
+				}
+				val = parsed
+			}
 		}
 		f.SetInt(val)
 	case "*int",
