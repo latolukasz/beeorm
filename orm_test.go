@@ -65,9 +65,21 @@ func TestORM(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "hello", entity.Name)
 
-	err = entity.SetField("Name", "NIL")
+	err = entity.SetField("Name", "hello")
 	assert.NoError(t, err)
-	assert.Equal(t, "", entity.Name)
+	assert.Equal(t, "hello", entity.Name)
+
+	err = entity.SetField("Uint", 2497770)
+	assert.NoError(t, err)
+	assert.Equal(t, uint(2497770), entity.Uint)
+
+	err = entity.SetField("Uint", float32(2497770))
+	assert.NoError(t, err)
+	assert.Equal(t, uint(2497770), entity.Uint)
+
+	err = entity.SetField("Uint", float64(2497770))
+	assert.NoError(t, err)
+	assert.Equal(t, uint(2497770), entity.Uint)
 
 	err = entity.SetField("Invalid", "hello")
 	assert.EqualError(t, err, "field Invalid not found")
@@ -119,6 +131,17 @@ func TestORM(t *testing.T) {
 	assert.Equal(t, 23, entity.Int)
 	err = entity.SetField("Int", "hello")
 	assert.EqualError(t, err, "Int value hello not valid")
+
+	err = entity.SetField("Int", float32(2497770))
+	assert.NoError(t, err)
+	assert.Equal(t, 2497770, entity.Int)
+	err = entity.SetField("Int", float64(2497770))
+	assert.NoError(t, err)
+	assert.Equal(t, 2497770, entity.Int)
+	err = entity.SetField("Int", float32(-2497770))
+	assert.EqualError(t, err, "Int value -2.49777e+06 not valid")
+	err = entity.SetField("Int", float64(-2497770))
+	assert.EqualError(t, err, "Int value -2.49777e+06 not valid")
 
 	err = entity.SetField("IntNullable", 23)
 	assert.NoError(t, err)
