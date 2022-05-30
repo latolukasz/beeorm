@@ -83,7 +83,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Len(t, usage, 1)
 	for _, data := range usage {
 		assert.Len(t, data, 2)
-		assert.Equal(t, "TestSub/Sub", data[0])
-		assert.Equal(t, "Ref", data[1])
+		assert.Equal(t, "TestSubSub", data[1])
+		assert.Equal(t, "Ref", data[0])
 	}
 }
