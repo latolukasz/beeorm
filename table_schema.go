@@ -1179,7 +1179,7 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 	fields = make(map[string]map[string]string)
 	for i := 0; i < entityType.NumField(); i++ {
 		field := entityType.Field(i)
-		for k, v := range extractTag(registry, field, prefix) {
+		for k, v := range extractTag(registry, field) {
 			fields[prefix+k] = v
 		}
 		_, hasIgnore := fields[field.Name]["ignore"]
@@ -1206,39 +1206,35 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 
 		query, hasQuery := field.Tag.Lookup("query")
 		queryOne, hasQueryOne := field.Tag.Lookup("queryOne")
-		fieldName := field.Name
-		if prefix != "" {
-			fieldName = prefix + "/" + fieldName
-		}
 		if hasQuery {
-			if fields[fieldName] == nil {
-				fields[fieldName] = make(map[string]string)
+			if fields[field.Name] == nil {
+				fields[field.Name] = make(map[string]string)
 			}
 			fields[field.Name]["query"] = query
 		}
 		if hasQueryOne {
-			if fields[fieldName] == nil {
-				fields[fieldName] = make(map[string]string)
+			if fields[field.Name] == nil {
+				fields[field.Name] = make(map[string]string)
 			}
-			fields[fieldName]["queryOne"] = queryOne
+			fields[field.Name]["queryOne"] = queryOne
 		}
 		if hasRef {
-			if fields[fieldName] == nil {
-				fields[fieldName] = make(map[string]string)
+			if fields[field.Name] == nil {
+				fields[field.Name] = make(map[string]string)
 			}
-			fields[fieldName]["ref"] = refOne
+			fields[field.Name]["ref"] = refOne
 		}
 		if hasRefMany {
-			if fields[fieldName] == nil {
-				fields[fieldName] = make(map[string]string)
+			if fields[field.Name] == nil {
+				fields[field.Name] = make(map[string]string)
 			}
-			fields[fieldName]["refs"] = refMany
+			fields[field.Name]["refs"] = refMany
 		}
 	}
 	return
 }
 
-func extractTag(registry *Registry, field reflect.StructField, prefix string) map[string]map[string]string {
+func extractTag(registry *Registry, field reflect.StructField) map[string]map[string]string {
 	tag, ok := field.Tag.Lookup("orm")
 	if ok {
 		args := strings.Split(tag, ";")
@@ -1256,11 +1252,11 @@ func extractTag(registry *Registry, field reflect.StructField, prefix string) ma
 	} else if field.Type.Kind().String() == "struct" {
 		t := field.Type.String()
 		if t != "beeorm.ORM" && t != "time.Time" {
-			fieldPrefix := prefix
+			prefix := ""
 			if !field.Anonymous {
-				fieldPrefix += field.Name
+				prefix = field.Name
 			}
-			return extractTags(registry, field.Type, fieldPrefix)
+			return extractTags(registry, field.Type, prefix)
 		}
 	}
 	return make(map[string]map[string]string)
