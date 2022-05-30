@@ -268,18 +268,27 @@ func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect
 	if vRegistry.entities != nil {
 		for _, t := range vRegistry.entities {
 			schema := getTableSchema(vRegistry, t)
-			for _, columnName := range schema.refOne {
-				ref, has := schema.tags[columnName]["ref"]
-				if has && ref == tableSchema.t.String() {
-					if results[t] == nil {
-						results[t] = make([]string, 0)
-					}
-					results[t] = append(results[t], columnName)
-				}
-			}
+			tableSchema.getUsage(schema.fields, schema.t, "", results)
 		}
 	}
 	return results
+}
+
+func (tableSchema *tableSchema) getUsage(fields *tableFields, t reflect.Type, prefix string, results map[reflect.Type][]string) {
+	tName := tableSchema.t.String()
+	for i, fieldID := range fields.refs {
+		if fields.refsTypes[i].String() == tName {
+			results[t] = append(results[t], prefix+fields.t.Field(fieldID).Name)
+		}
+	}
+	for i, k := range fields.structs {
+		f := fields.t.Field(k)
+		subPrefix := prefix
+		if !f.Anonymous {
+			subPrefix += f.Name
+		}
+		tableSchema.getUsage(fields.structsFields[i], t, subPrefix, results)
+	}
 }
 
 func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type) error {
