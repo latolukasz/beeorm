@@ -225,7 +225,7 @@ func testSchema(t *testing.T, version int) {
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
 	assert.Equal(t, "beeorm.schemaEntity", schema.GetType().String())
 	references := schema.GetReferences()
-	assert.Len(t, references, 2)
+	assert.Len(t, references, 3)
 	columns := schema.GetColumns()
 	assert.Len(t, columns, 48)
 
