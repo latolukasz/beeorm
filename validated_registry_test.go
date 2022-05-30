@@ -9,8 +9,13 @@ import (
 
 type validatedRegistryEntity struct {
 	ORM
-	ID  uint
-	Ref *validatedRegistryEntity
+	ID      uint
+	TestSub validatedRegistryStruct
+	Ref     *validatedRegistryEntity
+}
+
+type validatedRegistryStruct struct {
+	Sub *validatedRegistryEntity
 }
 
 type validatedRegistryNotRegisteredEntity struct {
@@ -76,4 +81,9 @@ func TestValidatedRegistry(t *testing.T) {
 	usage := validated.GetTableSchemaForEntity(entity).GetUsage(validated)
 	assert.NotNil(t, usage)
 	assert.Len(t, usage, 1)
+	for _, data := range usage {
+		assert.Len(t, data, 2)
+		assert.Equal(t, "TestSub/Sub", data[0])
+		assert.Equal(t, "Ref", data[1])
+	}
 }
