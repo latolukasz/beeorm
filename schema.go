@@ -863,7 +863,10 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 	t := attributes["time"]
 	defaultValue := "nil"
 	if t == "true" {
-		return "datetime", !nullable, true, "nil"
+		if !nullable {
+			defaultValue = "'0001-01-01 00:00:00'"
+		}
+		return "datetime", !nullable, true, defaultValue
 	}
 	if !nullable {
 		defaultValue = "'0001-01-01'"
