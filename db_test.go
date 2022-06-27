@@ -42,6 +42,12 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, uint64(1), row.LastInsertId())
 	assert.Equal(t, uint64(1), row.RowsAffected())
 
+	engine.SetQueryTimeLimit(1)
+	assert.PanicsWithError(t, "query exceeded limit of 1 seconds", func() {
+		db.Exec("SELECT SLEEP(5)")
+	})
+	engine.SetQueryTimeLimit(0)
+
 	var id uint64
 	var name string
 	found := db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
@@ -51,6 +57,11 @@ func TestDB(t *testing.T) {
 
 	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
+	engine.SetQueryTimeLimit(1)
+	assert.PanicsWithError(t, "query exceeded limit of 1 seconds", func() {
+		db.QueryRow(NewWhere("SELECT SLEEP(5)"))
+	})
+	engine.SetQueryTimeLimit(0)
 
 	assert.False(t, db.IsInTransaction())
 	db.Begin()
@@ -84,6 +95,12 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, uint64(2), id)
 	assert.Equal(t, "John", name)
 	def()
+
+	engine.SetQueryTimeLimit(1)
+	assert.PanicsWithError(t, "query exceeded limit of 1 seconds", func() {
+		db.Query("SELECT SLEEP(3)")
+	})
+	engine.SetQueryTimeLimit(0)
 
 	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
 	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())

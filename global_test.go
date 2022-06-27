@@ -97,14 +97,17 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisName
 }
 
 type mockDBClient struct {
-	db           dbClient
-	tx           dbClientTX
-	ExecMock     func(query string, args ...interface{}) (sql.Result, error)
-	QueryRowMock func(query string, args ...interface{}) *sql.Row
-	QueryMock    func(query string, args ...interface{}) (*sql.Rows, error)
-	BeginMock    func() (*sql.Tx, error)
-	CommitMock   func() error
-	RollbackMock func() error
+	db                  dbClient
+	tx                  dbClientTX
+	ExecMock            func(query string, args ...interface{}) (sql.Result, error)
+	ExecContextMock     func(context context.Context, query string, args ...interface{}) (sql.Result, error)
+	QueryRowMock        func(query string, args ...interface{}) *sql.Row
+	QueryRowContextMock func(ctx context.Context, query string, args ...interface{}) *sql.Row
+	QueryMock           func(query string, args ...interface{}) (*sql.Rows, error)
+	QueryContextMock    func(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	BeginMock           func() (*sql.Tx, error)
+	CommitMock          func() error
+	RollbackMock        func() error
 }
 
 func (m *mockDBClient) Exec(query string, args ...interface{}) (sql.Result, error) {
@@ -114,6 +117,13 @@ func (m *mockDBClient) Exec(query string, args ...interface{}) (sql.Result, erro
 	return m.db.Exec(query, args...)
 }
 
+func (m *mockDBClient) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	if m.ExecMock != nil {
+		return m.ExecContextMock(ctx, query, args...)
+	}
+	return m.db.ExecContext(ctx, query, args...)
+}
+
 func (m *mockDBClient) QueryRow(query string, args ...interface{}) *sql.Row {
 	if m.QueryRowMock != nil {
 		return m.QueryRowMock(query, args...)
@@ -121,11 +131,25 @@ func (m *mockDBClient) QueryRow(query string, args ...interface{}) *sql.Row {
 	return m.db.QueryRow(query, args...)
 }
 
+func (m *mockDBClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	if m.QueryRowMock != nil {
+		return m.QueryRowContextMock(ctx, query, args...)
+	}
+	return m.db.QueryRowContext(ctx, query, args...)
+}
+
 func (m *mockDBClient) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	if m.QueryMock != nil {
 		return m.QueryMock(query, args...)
 	}
 	return m.db.Query(query, args...)
+}
+
+func (m *mockDBClient) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	if m.QueryMock != nil {
+		return m.QueryContextMock(ctx, query, args...)
+	}
+	return m.db.QueryContext(ctx, query, args...)
 }
 
 func (m *mockDBClient) Begin() (*sql.Tx, error) {

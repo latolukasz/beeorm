@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
@@ -86,14 +87,20 @@ type sqlClient interface {
 	Commit() error
 	Rollback() (bool, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRow(query string, args ...interface{}) SQLRow
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow
 	Query(query string, args ...interface{}) (SQLRows, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error)
 }
 
 type dbClientQuery interface {
 	Exec(query string, args ...interface{}) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
 	Query(query string, args ...interface{}) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
 type dbClient interface {
@@ -163,11 +170,33 @@ func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result
 	return res, nil
 }
 
+func (db *standardSQLClient) ExecContext(context context.Context, query string, args ...interface{}) (sql.Result, error) {
+	if db.tx != nil {
+		res, err := db.tx.ExecContext(context, query, args...)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	res, err := db.db.ExecContext(context, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func (db *standardSQLClient) QueryRow(query string, args ...interface{}) SQLRow {
 	if db.tx != nil {
 		return db.tx.QueryRow(query, args...)
 	}
 	return db.db.QueryRow(query, args...)
+}
+
+func (db *standardSQLClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow {
+	if db.tx != nil {
+		return db.tx.QueryRowContext(ctx, query, args...)
+	}
+	return db.db.QueryRowContext(ctx, query, args...)
 }
 
 func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, error) {
@@ -179,6 +208,21 @@ func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, 
 		return rows, nil
 	}
 	rows, err := db.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func (db *standardSQLClient) QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error) {
+	if db.tx != nil {
+		rows, err := db.tx.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, err
+		}
+		return rows, nil
+	}
+	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -285,6 +329,26 @@ func (db *DB) Rollback() {
 
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 	start := getNow(db.engine.hasDBLogger)
+	if db.engine.queryTimeLimit > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(db.engine.queryTimeLimit)*time.Second)
+		defer cancel()
+		rows, err := db.client.ExecContext(ctx, query, args...)
+		if db.engine.hasDBLogger {
+			message := query
+			if len(args) > 0 {
+				message += " " + fmt.Sprintf("%v", args)
+			}
+			db.fillLogFields("EXEC", message, start, err)
+		}
+		if err != nil {
+			_, isTimeout := ctx.Deadline()
+			if isTimeout {
+				panic(errors.Errorf("query exceeded limit of %d seconds", db.engine.queryTimeLimit))
+			}
+			panic(db.convertToError(err))
+		}
+		return &execResult{r: rows}
+	}
 	rows, err := db.client.Exec(query, args...)
 	if db.engine.hasDBLogger {
 		message := query
@@ -301,6 +365,39 @@ func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 
 func (db *DB) QueryRow(query *Where, toFill ...interface{}) (found bool) {
 	start := getNow(db.engine.hasDBLogger)
+	if db.engine.queryTimeLimit > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(db.engine.queryTimeLimit)*time.Second)
+		defer cancel()
+		row := db.client.QueryRowContext(ctx, query.String(), query.GetParameters()...)
+		err := row.Scan(toFill...)
+		message := ""
+		if db.engine.hasDBLogger {
+			message = query.String()
+			if len(query.GetParameters()) > 0 {
+				message += " " + fmt.Sprintf("%v", query.GetParameters())
+			}
+		}
+		if err != nil {
+			_, isTimeout := ctx.Deadline()
+			if isTimeout {
+				panic(errors.Errorf("query exceeded limit of %d seconds", db.engine.queryTimeLimit))
+			}
+			if err.Error() == "sql: no rows in result set" {
+				if db.engine.hasDBLogger {
+					db.fillLogFields("SELECT", message, start, nil)
+				}
+				return false
+			}
+			if db.engine.hasDBLogger {
+				db.fillLogFields("SELECT", message, start, err)
+			}
+			panic(err)
+		}
+		if db.engine.hasDBLogger {
+			db.fillLogFields("SELECT", message, start, nil)
+		}
+		return true
+	}
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)
 	err := row.Scan(toFill...)
 	message := ""
@@ -330,6 +427,33 @@ func (db *DB) QueryRow(query *Where, toFill ...interface{}) (found bool) {
 
 func (db *DB) Query(query string, args ...interface{}) (rows Rows, close func()) {
 	start := getNow(db.engine.hasDBLogger)
+	if db.engine.queryTimeLimit > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(db.engine.queryTimeLimit)*time.Second)
+		defer cancel()
+		result, err := db.client.QueryContext(ctx, query, args...)
+		if db.engine.hasDBLogger {
+			message := query
+			if len(args) > 0 {
+				message += " " + fmt.Sprintf("%v", args)
+			}
+			db.fillLogFields("SELECT", message, start, err)
+		}
+		if err != nil {
+			_, isTimeout := ctx.Deadline()
+			if isTimeout {
+				panic(errors.Errorf("query exceeded limit of %d seconds", db.engine.queryTimeLimit))
+			}
+		}
+		checkError(err)
+		return &rowsStruct{result}, func() {
+			if result != nil {
+				err := result.Err()
+				checkError(err)
+				err = result.Close()
+				checkError(err)
+			}
+		}
+	}
 	result, err := db.client.Query(query, args...)
 	if db.engine.hasDBLogger {
 		message := query

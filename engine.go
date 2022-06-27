@@ -26,6 +26,7 @@ type Engine struct {
 	afterCommitLocalCacheSets map[string][]interface{}
 	afterCommitRedisFlusher   *redisFlusher
 	eventBroker               *eventBroker
+	queryTimeLimit            uint16
 	sync.Mutex
 }
 
@@ -45,6 +46,10 @@ func (e *Engine) Clone() *Engine {
 
 func (e *Engine) EnableRequestCache() {
 	e.hasRequestCache = true
+}
+
+func (e *Engine) SetQueryTimeLimit(seconds int) {
+	e.queryTimeLimit = uint16(seconds)
 }
 
 func (e *Engine) GetMysql(code ...string) *DB {
