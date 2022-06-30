@@ -41,7 +41,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
 	engine.FlushLazy(e)
 
-	sample := receiver.GetEventsSample(1000)
+	sample := receiver.GetLazyFlushEventsSample(1000)
 	assert.Len(t, sample, 1)
 
 	e = &lazyReceiverEntity{}

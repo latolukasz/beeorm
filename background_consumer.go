@@ -51,7 +51,7 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	return c
 }
 
-func (r *BackgroundConsumer) GetEventsSample(count int64) []string {
+func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
 	sample := make([]string, 0)
 	entries := r.engine.GetRedis().XRange(LazyChannelName, "-", "+", count)
 	for _, entry := range entries {
