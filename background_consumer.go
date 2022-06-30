@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/shamaton/msgpack"
+
 	jsoniter "github.com/json-iterator/go"
 
 	"github.com/pkg/errors"
@@ -47,6 +49,36 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	c.loop = true
 	c.blockTime = time.Second * 30
 	return c
+}
+
+func (r *BackgroundConsumer) GetEventsSample(count int64) []string {
+	sample := make([]string, 0)
+	entries := r.engine.GetRedis().XRange(LazyChannelName, "-", "+", count)
+	for _, entry := range entries {
+		val, has := entry.Values["s"]
+		if !has {
+			continue
+		}
+		var data map[interface{}]interface{}
+		err := msgpack.Unmarshal([]byte(val.(string)), &data)
+		if err != nil {
+			continue
+		}
+		query, hasQuery := data["q"]
+		if !hasQuery {
+			continue
+		}
+		queryData, ok := query.([]interface{})
+		if !ok || len(queryData) == 0 {
+			continue
+		}
+		queryDetails, ok := queryData[0].([]interface{})
+		if !ok || len(queryDetails) < 2 {
+			continue
+		}
+		sample = append(sample, queryDetails[1].(string))
+	}
+	return sample
 }
 
 func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
