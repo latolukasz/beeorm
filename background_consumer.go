@@ -287,38 +287,6 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			}
 		}
 	}
-	logEvents, has := validMap["l"]
-	if has {
-		for _, row := range logEvents.([]interface{}) {
-			logEvent := &LogQueueValue{}
-			asMap := row.(map[interface{}]interface{})
-			logEvent.ID, _ = strconv.ParseUint(fmt.Sprintf("%v", asMap["ID"]), 10, 64)
-			logEvent.PoolName = asMap["PoolName"].(string)
-			logEvent.TableName = asMap["TableName"].(string)
-			logEvent.Updated = time.Now()
-			if asMap["Meta"] != nil {
-				logEvent.Meta = r.convertMap(asMap["Meta"].(map[interface{}]interface{}))
-			}
-			if asMap["Before"] != nil {
-				logEvent.Before = r.convertMap(asMap["Before"].(map[interface{}]interface{}))
-			}
-			if asMap["Changes"] != nil {
-				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
-			}
-			r.handleLog(map[string][]*LogQueueValue{logEvent.PoolName: {logEvent}})
-		}
-	}
-	dirtyEvents, has := validMap["d"]
-	if has {
-		for _, row := range dirtyEvents.([]interface{}) {
-			asMap := row.(map[interface{}]interface{})
-			e := asMap["Event"].(map[interface{}]interface{})
-			for _, stream := range asMap["Streams"].([]interface{}) {
-				r.redisFlusher.Publish(stream.(string), e)
-			}
-		}
-		r.redisFlusher.Flush()
-	}
 	return ids
 }
 
@@ -364,6 +332,38 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 			}
 			r.engine.GetLocalCache(cacheCode.(string)).Remove(stringKeys...)
 		}
+	}
+	logEvents, has := validMap["l"]
+	if has {
+		for _, row := range logEvents.([]interface{}) {
+			logEvent := &LogQueueValue{}
+			asMap := row.(map[interface{}]interface{})
+			logEvent.ID, _ = strconv.ParseUint(fmt.Sprintf("%v", asMap["ID"]), 10, 64)
+			logEvent.PoolName = asMap["PoolName"].(string)
+			logEvent.TableName = asMap["TableName"].(string)
+			logEvent.Updated = time.Now()
+			if asMap["Meta"] != nil {
+				logEvent.Meta = r.convertMap(asMap["Meta"].(map[interface{}]interface{}))
+			}
+			if asMap["Before"] != nil {
+				logEvent.Before = r.convertMap(asMap["Before"].(map[interface{}]interface{}))
+			}
+			if asMap["Changes"] != nil {
+				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
+			}
+			r.handleLog(map[string][]*LogQueueValue{logEvent.PoolName: {logEvent}})
+		}
+	}
+	dirtyEvents, has := validMap["d"]
+	if has {
+		for _, row := range dirtyEvents.([]interface{}) {
+			asMap := row.(map[interface{}]interface{})
+			e := asMap["Event"].(map[interface{}]interface{})
+			for _, stream := range asMap["Streams"].([]interface{}) {
+				r.redisFlusher.Publish(stream.(string), e)
+			}
+		}
+		r.redisFlusher.Flush()
 	}
 }
 
