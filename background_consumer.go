@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/shamaton/msgpack"
@@ -41,6 +42,7 @@ type BackgroundConsumer struct {
 	redisFlusher         *redisFlusher
 	garbageCollectorSha1 string
 	consumer             *eventsConsumer
+	lazyFlushModulo      uint64
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
@@ -48,7 +50,12 @@ func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
 	c.engine = engine
 	c.loop = true
 	c.blockTime = time.Second * 30
+	c.lazyFlushModulo = 11
 	return c
+}
+
+func (r *BackgroundConsumer) SetLazyFlushWorkers(workers int) {
+	r.lazyFlushModulo = uint64(workers)
 }
 
 func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
@@ -84,7 +91,7 @@ func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
 func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	r.consumer = r.engine.GetEventBroker().Consumer(AsyncConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
-	return r.consumer.Consume(ctx, 100, func(events []Event) {
+	return r.consumer.Consume(ctx, 500, func(events []Event) {
 		lazyEvents := make([]Event, 0)
 		lazyEventsData := make([]map[string]interface{}, 0)
 		logEventsData := make(map[string][]*LogQueueValue)
@@ -110,69 +117,86 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 			}
 		}
 		l := len(lazyEvents)
-		if l == 1 {
-			r.handleLazy(lazyEvents[0], lazyEventsData[0])
-		} else if l > 1 {
-			groupQueries := make(map[string]string)
-			groupEvents := make(map[string][]int)
+		if l > 0 {
+			insertEvents := make(map[string][]int)
+			groupQueries := make(map[string]map[int]string)
+			groupEvents := make(map[string]map[int][]int)
 		MAIN:
 			for i, data := range lazyEventsData {
 				queries, has := data["q"]
+				ids, hasIDs := data["i"]
 				if has {
 					validQueries := queries.([]interface{})
-					for _, query := range validQueries {
+					for k, query := range validQueries {
 						validInsert := query.([]interface{})
 						code := validInsert[0].(string)
 						sql := validInsert[1].(string)
-						if sql[0:11] == "INSERT INTO" {
-							beforeSQL, hasBefore := groupQueries[code]
-							if hasBefore {
-								db := r.engine.GetMysql(code)
-								if len(groupEvents[code]) == 1 {
-									db.Exec(beforeSQL)
-								} else {
-									func() {
-										db.Begin()
-										defer db.Rollback()
-										db.Exec(beforeSQL)
-										db.Commit()
-									}()
-								}
-								for _, i := range groupEvents[code] {
-									lazyEvents[i].Ack()
-									r.handleCache(lazyEventsData[i], nil)
-								}
-								delete(groupQueries, code)
-								delete(groupEvents, code)
-							}
-							r.handleLazy(lazyEvents[i], data)
+						operation := data["o"]
+						isInsert := operation == "i"
+						if isInsert {
+							insertEvents[code] = append(insertEvents[code], i)
 							continue MAIN
 						}
-						before := groupQueries[code]
+						id := uint64(0)
+						if hasIDs {
+							id, _ = strconv.ParseUint(fmt.Sprintf("%v", ids.([]interface{})[k]), 10, 64)
+						}
+						modulo := int(id % r.lazyFlushModulo)
+						before := groupQueries[code][modulo]
 						before += sql + ";"
-						groupQueries[code] = before
-						groupEvents[code] = append(groupEvents[code], i)
+						if groupQueries[code] == nil {
+							groupQueries[code] = make(map[int]string)
+							groupEvents[code] = make(map[int][]int)
+						}
+						groupQueries[code][modulo] = before
+						groupEvents[code][modulo] = append(groupEvents[code][modulo], i)
 					}
 				} else {
 					r.handleLazy(lazyEvents[i], data)
 				}
 			}
-			for code, sql := range groupQueries {
-				db := r.engine.GetMysql(code)
-				if len(groupEvents[code]) == 1 {
-					db.Exec(sql)
-				} else {
-					func() {
-						db.Begin()
-						defer db.Rollback()
-						db.Exec(sql)
-						db.Commit()
+			if len(insertEvents) > 0 {
+				wg := &sync.WaitGroup{}
+				for _, insertGroup := range insertEvents {
+					wg.Add(1)
+					ids := insertGroup
+					go func() {
+						defer wg.Done()
+						for _, i := range ids {
+							r.handleLazy(lazyEvents[i], lazyEventsData[i])
+						}
 					}()
 				}
-				for _, i := range groupEvents[code] {
-					lazyEvents[i].Ack()
-					r.handleCache(lazyEventsData[i], nil)
+				wg.Wait()
+			}
+			if len(groupQueries) > 0 {
+				wg := &sync.WaitGroup{}
+				for code, group := range groupQueries {
+					for i, sql := range group {
+						key := i
+						updateSQL := sql
+						wg.Add(1)
+						go func() {
+							defer wg.Done()
+							if len(groupEvents[code][key]) == 1 {
+								r.engine.GetMysql(code).Exec(updateSQL)
+							} else {
+								func() {
+									db := r.engine.Clone().GetMysql(code)
+									db.Begin()
+									defer db.Rollback()
+									db.Exec(updateSQL)
+									db.Commit()
+								}()
+							}
+							for _, k := range groupEvents[code][key] {
+								lazyEvents[k].Ack()
+								r.handleCache(lazyEventsData[k], nil)
+							}
+						}()
+					}
 				}
+				wg.Wait()
 			}
 		}
 		r.handleLog(logEventsData)
@@ -239,7 +263,9 @@ func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]i
 			db := engine.GetMysql(code)
 			sql := validInsert[1].(string)
 			res := db.Exec(sql)
-			if sql[0:11] == "INSERT INTO" {
+			operation := validMap["o"]
+			isInsert := operation == "i"
+			if isInsert {
 				id := res.LastInsertId()
 				ids[i] = res.LastInsertId()
 				logEvents, has := validMap["l"]

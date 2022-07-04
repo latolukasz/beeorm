@@ -111,6 +111,28 @@ func TestBackgroundConsumer(t *testing.T) {
 	assert.Equal(t, "Adam", e2.Name)
 	assert.Equal(t, uint64(20), e2.Age)
 
+	e1 := &lazyReceiverEntity{}
+	e2 = &lazyReceiverEntity{}
+	e3 := &lazyReceiverEntity{}
+	engine.LoadByID(1, e1)
+	engine.LoadByID(2, e2)
+	engine.LoadByID(3, e3)
+	e1.Name = "Tommy"
+	e2.Name = "Tommy2"
+	e3.Name = "Tommy3"
+	engine.FlushLazyMany(e1, e2, e3)
+	receiver.SetLazyFlushWorkers(2)
+	receiver.Digest(context.Background())
+	e1 = &lazyReceiverEntity{}
+	e2 = &lazyReceiverEntity{}
+	e3 = &lazyReceiverEntity{}
+	engine.LoadByID(1, e1)
+	engine.LoadByID(2, e2)
+	engine.LoadByID(3, e3)
+	assert.Equal(t, "Tommy", e1.Name)
+	assert.Equal(t, "Tommy2", e2.Name)
+	assert.Equal(t, "Tommy3", e3.Name)
+
 	e = &lazyReceiverEntity{Name: "Tom"}
 	e.SetOnDuplicateKeyUpdate(map[string]interface{}{"Age": 38})
 	assert.PanicsWithError(t, "lazy flush on duplicate key is not supported", func() {

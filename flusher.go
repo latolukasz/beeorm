@@ -413,7 +413,7 @@ func (f *flusher) executeDeletes(lazy bool) {
 			}
 		}
 		if lazy {
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQL, logEvents, dirtyEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQL, false, 0, logEvents, dirtyEvents)
 		}
 	}
 }
@@ -480,7 +480,7 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
 			}
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, logEvents, dirtyEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, true, 0, logEvents, dirtyEvents)
 		} else {
 			res := db.Exec(sql)
 			id := res.LastInsertId()
@@ -604,7 +604,7 @@ func (f *flusher) flushUpdate(entity Entity, bindBuilder *bindBuilder, currentID
 		if dirtyEvent != nil {
 			dirtyEvents = append(dirtyEvents, dirtyEvent)
 		}
-		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, logEvents, dirtyEvents)
+		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, false, currentID, logEvents, dirtyEvents)
 	} else {
 		if f.updateSQLs == nil {
 			f.updateSQLs = make(map[string][]string)
@@ -949,17 +949,25 @@ func (f *flusher) addLocalCacheDeletes(cacheCode string, keys ...string) {
 	f.localCacheDeletes[cacheCode] = append(f.localCacheDeletes[cacheCode], keys...)
 }
 
-func (f *flusher) fillLazyQuery(dbCode string, sql string, logEvent []*LogQueueValue, dirtyData []*dirtyQueueValue) {
+func (f *flusher) fillLazyQuery(dbCode string, sql string, insert bool, id uint64, logEvent []*LogQueueValue, dirtyData []*dirtyQueueValue) {
 	lazyMap := f.getLazyMap()
 	updatesMap := lazyMap["q"]
+	idsMap := lazyMap["i"]
 	if updatesMap == nil {
 		updatesMap = make([]interface{}, 0)
 		lazyMap["q"] = updatesMap
+		idsMap = make([]interface{}, 0)
+		lazyMap["i"] = updatesMap
 	}
 	lazyValue := make([]interface{}, 3)
 	lazyValue[0] = dbCode
 	lazyValue[1] = sql
 	lazyMap["q"] = append(updatesMap.([]interface{}), lazyValue)
+	lazyMap["i"] = append(idsMap.([]interface{}), id)
+	lazyMap["o"] = "i"
+	if !insert {
+		lazyMap["o"] = "u"
+	}
 	if len(logEvent) > 0 {
 		lazyMap["l"] = logEvent
 	}
