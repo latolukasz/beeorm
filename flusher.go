@@ -352,18 +352,19 @@ func (f *flusher) executeDeletes(lazy bool) {
 	for typeOf, deleteBinds := range f.deleteBinds {
 		queryExecuted := false
 		schema := getTableSchema(f.engine.registry, typeOf)
-		var logEvents []*LogQueueValue
-		var dirtyEvents []*dirtyQueueValue
 		i := 0
 		f.stringBuilder.WriteString("DELETE FROM `")
 		f.stringBuilder.WriteString(schema.tableName)
 		f.stringBuilder.WriteString("` WHERE `ID` IN (")
-		for id := range deleteBinds {
-			if i > 0 {
-				f.stringBuilder.WriteString(",")
+		deleteSQLPrefix := f.stringBuilder.String()
+		if !lazy {
+			for id := range deleteBinds {
+				if i > 0 {
+					f.stringBuilder.WriteString(",")
+				}
+				f.stringBuilder.WriteString(strconv.FormatUint(id, 10))
+				i++
 			}
-			f.stringBuilder.WriteString(strconv.FormatUint(id, 10))
-			i++
 		}
 		f.stringBuilder.WriteString(")")
 		deleteSQL := f.stringBuilder.String()
@@ -386,6 +387,8 @@ func (f *flusher) executeDeletes(lazy bool) {
 				f.addDirtyQueues(bindBuilder.current, schema, id, "d", lazy)
 				f.addToLogQueue(schema, id, bindBuilder.current, nil, entity.getORM().logMeta, lazy)
 			} else {
+				var logEvents []*LogQueueValue
+				var dirtyEvents []*dirtyQueueValue
 				logEvent := f.addToLogQueue(schema, id, bindBuilder.current, nil, orm.logMeta, lazy)
 				if logEvent != nil {
 					logEvents = append(logEvents, logEvent)
@@ -394,6 +397,7 @@ func (f *flusher) executeDeletes(lazy bool) {
 				if dirtyEvent != nil {
 					dirtyEvents = append(dirtyEvents, dirtyEvent)
 				}
+				f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQLPrefix+strconv.FormatUint(id, 10)+")", false, id, logEvents, dirtyEvents)
 			}
 			if hasLocalCache || hasRedis {
 				cacheKey := schema.getCacheKey(id)
@@ -411,9 +415,6 @@ func (f *flusher) executeDeletes(lazy bool) {
 				key := schema.redisSearchPrefix + strconv.FormatUint(id, 10)
 				f.getRedisFlusher().Del(schema.searchCacheName, key)
 			}
-		}
-		if lazy {
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQL, false, 0, logEvents, dirtyEvents)
 		}
 	}
 }
