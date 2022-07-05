@@ -43,6 +43,7 @@ type BackgroundConsumer struct {
 	garbageCollectorSha1 string
 	consumer             *eventsConsumer
 	lazyFlushModulo      uint64
+	lazyErrorLock        sync.Mutex
 }
 
 func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
@@ -95,6 +96,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 		lazyEvents := make([]Event, 0)
 		lazyEventsData := make([]map[string]interface{}, 0)
 		logEventsData := make(map[string][]*LogQueueValue)
+		var lazyError error
 		for _, event := range events {
 			switch event.Stream() {
 			case LazyChannelName:
@@ -162,6 +164,15 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					ids := insertGroup
 					go func() {
 						defer wg.Done()
+						if rec := recover(); rec != nil {
+							assErr, is := rec.(error)
+							if !is {
+								assErr = fmt.Errorf(fmt.Sprintf("%v", rec))
+							}
+							r.lazyErrorLock.Lock()
+							defer r.lazyErrorLock.Unlock()
+							lazyError = errors.Wrapf(assErr, "error [%s] flushing lazy insert queries", assErr)
+						}
 						for _, i := range ids {
 							r.handleLazy(lazyEvents[i], lazyEventsData[i])
 						}
@@ -179,6 +190,17 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 						wg.Add(1)
 						go func() {
 							defer wg.Done()
+							defer func() {
+								if rec := recover(); rec != nil {
+									assErr, is := rec.(error)
+									if !is {
+										assErr = fmt.Errorf("%v", rec)
+									}
+									r.lazyErrorLock.Lock()
+									defer r.lazyErrorLock.Unlock()
+									lazyError = errors.Wrapf(assErr, "error [%s] flushing lazy queries: %s", assErr, updateSQL)
+								}
+							}()
 							if len(groupEvents[dbCode][key]) == 1 {
 								r.engine.GetMysql(dbCode).Exec(updateSQL)
 							} else {
@@ -198,6 +220,9 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					}
 				}
 				wg.Wait()
+				if lazyError != nil {
+					panic(lazyError)
+				}
 			}
 		}
 		r.handleLog(logEventsData)
