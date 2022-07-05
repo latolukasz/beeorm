@@ -175,21 +175,22 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					for i, sql := range group {
 						key := i
 						updateSQL := sql
+						dbCode := code
 						wg.Add(1)
 						go func() {
 							defer wg.Done()
-							if len(groupEvents[code][key]) == 1 {
-								r.engine.GetMysql(code).Exec(updateSQL)
+							if len(groupEvents[dbCode][key]) == 1 {
+								r.engine.GetMysql(dbCode).Exec(updateSQL)
 							} else {
 								func() {
-									db := r.engine.Clone().GetMysql(code)
+									db := r.engine.Clone().GetMysql(dbCode)
 									db.Begin()
 									defer db.Rollback()
 									db.Exec(updateSQL)
 									db.Commit()
 								}()
 							}
-							for _, k := range groupEvents[code][key] {
+							for _, k := range groupEvents[dbCode][key] {
 								lazyEvents[k].Ack()
 								r.handleCache(lazyEventsData[k], nil)
 							}
