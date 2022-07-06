@@ -204,13 +204,34 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 							if len(groupEvents[dbCode][key]) == 1 {
 								r.engine.GetMysql(dbCode).Exec(updateSQL)
 							} else {
+								deadlock := false
 								func() {
+									defer func() {
+										if rec := recover(); rec != nil {
+											asErr, is := rec.(error)
+											if is && strings.Contains(asErr.Error(), "Deadlock found") {
+												deadlock = true
+											} else {
+												panic(rec)
+											}
+										}
+									}()
 									db := r.engine.Clone().GetMysql(dbCode)
 									db.Begin()
 									defer db.Rollback()
 									db.Exec(updateSQL)
 									db.Commit()
 								}()
+								if deadlock {
+									time.Sleep(time.Millisecond * 30)
+									func() {
+										db := r.engine.Clone().GetMysql(dbCode)
+										db.Begin()
+										defer db.Rollback()
+										db.Exec(updateSQL)
+										db.Commit()
+									}()
+								}
 							}
 							for _, k := range groupEvents[dbCode][key] {
 								lazyEvents[k].Ack()
