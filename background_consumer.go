@@ -3,6 +3,7 @@ package beeorm
 import (
 	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"sync"
@@ -224,6 +225,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 								}()
 								if deadlock {
 									time.Sleep(time.Millisecond * 30)
+									log.Printf("DEADLOCK FOUND\n%s\n", updateSQL)
 									func() {
 										db := r.engine.Clone().GetMysql(dbCode)
 										db.Begin()
