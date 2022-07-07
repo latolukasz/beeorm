@@ -224,7 +224,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		referencesToFlash:   make(map[Entity]Entity),
 	}
 
-	hasDirty := false
 	for _, entity := range entities {
 		initIfNeeded(f.engine.registry, entity)
 		schema := entity.getORM().tableSchema
@@ -240,7 +239,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		if !isDirty {
 			continue
 		}
-		hasDirty = true
 
 		t := orm.tableSchema.t
 		currentID := entity.GetID()
@@ -271,9 +269,6 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 	if f.flushReferences(flushPackage, lazy, transaction, entities) {
 		return !transaction
-	}
-	if !hasDirty {
-		return transaction
 	}
 	if !transaction {
 		diffs := len(flushPackage.insertKeys)
