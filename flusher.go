@@ -224,6 +224,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		referencesToFlash:   make(map[Entity]Entity),
 	}
 
+	hasDirty := false
 	for _, entity := range entities {
 		initIfNeeded(f.engine.registry, entity)
 		schema := entity.getORM().tableSchema
@@ -239,6 +240,7 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 		if !isDirty {
 			continue
 		}
+		hasDirty = true
 
 		t := orm.tableSchema.t
 		currentID := entity.GetID()
@@ -269,6 +271,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 	if f.flushReferences(flushPackage, lazy, transaction, entities) {
 		return !transaction
+	}
+	if !hasDirty {
+		return transaction
 	}
 	if !transaction {
 		diffs := len(flushPackage.insertKeys)
@@ -303,12 +308,13 @@ func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
 	if lazy {
 		lazyMap := f.getLazyMap()
 		deletesRedisCache, has := lazyMap["cr"].(map[string][]string)
-		if !has {
-			deletesRedisCache = make(map[string][]string)
-			lazyMap["cr"] = deletesRedisCache
-		}
 		for cacheCode, commands := range f.getRedisFlusher().pipelines {
 			if commands.deletes != nil {
+				if !has {
+					deletesRedisCache = make(map[string][]string)
+					lazyMap["cr"] = deletesRedisCache
+					has = true
+				}
 				deletesRedisCache[cacheCode] = commands.deletes
 			}
 		}
