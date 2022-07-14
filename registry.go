@@ -11,8 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/golang/groupcache/lru"
-
 	"github.com/pkg/errors"
 
 	"github.com/go-redis/redis/v8"
@@ -264,7 +262,7 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	if r.localCachePools == nil {
 		r.localCachePools = make(map[string]LocalCachePoolConfig)
 	}
-	r.localCachePools[dbCode] = &localCachePoolConfig{code: dbCode, limit: size, lru: lru.New(size)}
+	r.localCachePools[dbCode] = newLocalCacheConfig(dbCode, size)
 }
 
 func (r *Registry) RegisterRedis(address, namespace string, db int, code ...string) {

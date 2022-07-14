@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"hash/fnv"
 	"strings"
 	"sync"
 	"time"
@@ -10,17 +11,22 @@ import (
 )
 
 const requestCacheKey = "_request"
+const localCachePools = 100
 
 type LocalCachePoolConfig interface {
 	GetCode() string
 	GetLimit() int
 }
 
+type localCacheLruMutex struct {
+	Lru *lru.Cache
+	M   sync.Mutex
+}
+
 type localCachePoolConfig struct {
 	code  string
 	limit int
-	lru   *lru.Cache
-	m     sync.Mutex
+	lru   []*localCacheLruMutex
 }
 
 func (p *localCachePoolConfig) GetCode() string {
@@ -34,6 +40,14 @@ func (p *localCachePoolConfig) GetLimit() int {
 type LocalCache struct {
 	engine *Engine
 	config *localCachePoolConfig
+}
+
+func newLocalCacheConfig(dbCode string, limit int) *localCachePoolConfig {
+	pools := make([]*localCacheLruMutex, localCachePools)
+	for i := 0; i < localCachePools; i++ {
+		pools[i] = &localCacheLruMutex{Lru: lru.New(limit)}
+	}
+	return &localCachePoolConfig{code: dbCode, limit: limit, lru: pools}
 }
 
 type ttlValue struct {
@@ -61,10 +75,11 @@ func (c *LocalCache) GetSet(key string, ttl time.Duration, provider func() inter
 }
 
 func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
+	mut := c.getLruMutex(key)
 	func() {
-		c.config.m.Lock()
-		defer c.config.m.Unlock()
-		value, ok = c.config.lru.Get(key)
+		mut.M.Lock()
+		defer mut.M.Unlock()
+		value, ok = mut.Lru.Get(key)
 	}()
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("GET", "GET "+key, !ok)
@@ -87,10 +102,11 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 }
 
 func (c *LocalCache) Set(key string, value interface{}) {
+	mut := c.getLruMutex(key)
 	func() {
-		c.config.m.Lock()
-		defer c.config.m.Unlock()
-		c.config.lru.Add(key, value)
+		mut.M.Lock()
+		defer mut.M.Unlock()
+		mut.Lru.Add(key, value)
 	}()
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("SET", fmt.Sprintf("SET %s %v", key, value), false)
@@ -106,10 +122,11 @@ func (c *LocalCache) MSet(pairs ...interface{}) {
 
 func (c *LocalCache) Remove(keys ...string) {
 	for _, v := range keys {
+		mut := c.getLruMutex(v)
 		func() {
-			c.config.m.Lock()
-			defer c.config.m.Unlock()
-			c.config.lru.Remove(v)
+			mut.M.Lock()
+			defer mut.M.Unlock()
+			mut.Lru.Remove(v)
 		}()
 	}
 	if c.engine.hasLocalCacheLogger {
@@ -118,20 +135,35 @@ func (c *LocalCache) Remove(keys ...string) {
 }
 
 func (c *LocalCache) Clear() {
-	func() {
-		c.config.m.Lock()
-		defer c.config.m.Unlock()
-		c.config.lru.Clear()
-	}()
+	for _, mut := range c.config.lru {
+		func() {
+			mut.M.Lock()
+			defer mut.M.Unlock()
+			mut.Lru.Clear()
+		}()
+	}
 	if c.engine.hasLocalCacheLogger {
 		c.fillLogFields("CLEAR", "CLEAR", false)
 	}
 }
 
 func (c *LocalCache) GetObjectsCount() int {
-	c.config.m.Lock()
-	defer c.config.m.Unlock()
-	return c.config.lru.Len()
+	total := 0
+	for _, mut := range c.config.lru {
+		func() {
+			mut.M.Lock()
+			defer mut.M.Unlock()
+			total += mut.Lru.Len()
+		}()
+	}
+	return total
+}
+
+func (c *LocalCache) getLruMutex(s string) *localCacheLruMutex {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(s))
+	modulo := h.Sum32() % localCachePools
+	return c.config.lru[modulo]
 }
 
 func (c *LocalCache) fillLogFields(operation, query string, cacheMiss bool) {

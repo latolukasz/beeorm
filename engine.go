@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"reflect"
 	"sync"
-
-	"github.com/golang/groupcache/lru"
 )
 
 type Engine struct {
@@ -87,7 +85,7 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 		config, has := e.registry.localCacheServers[dbCode]
 		if !has {
 			if dbCode == requestCacheKey {
-				cache = &LocalCache{config: &localCachePoolConfig{code: dbCode, limit: 5000, lru: lru.New(5000)}, engine: e}
+				cache = &LocalCache{config: newLocalCacheConfig(dbCode, 5000), engine: e}
 				if e.localCache == nil {
 					e.localCache = map[string]*LocalCache{dbCode: cache}
 				} else {
