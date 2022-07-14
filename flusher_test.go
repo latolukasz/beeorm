@@ -1115,6 +1115,7 @@ func BenchmarkIsDirty(b *testing.B) {
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	engine, def := prepareTables(nil, registry, 5, "", "2.0",
 		entity, &flushEntity{}, &flushEntityReference{})
+	defer def()
 	entity = &benchmarkIsDirtyEntity{}
 
 	t := time.Now()
@@ -1358,12 +1359,10 @@ func BenchmarkIsDirty(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		//entity.Gold = uint64(n + 1)
+		entity.Gold = uint64(n + 1)
 		engine.EnableQueryDebug()
-		engine.FlushLazy(entity)
-		//entity.IsDirty()
+		entity.IsDirty()
 	}
-	defer def()
 }
 
 func benchmarkFlusher(b *testing.B, useLocalCache, useRedisCache bool) {
