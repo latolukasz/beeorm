@@ -43,9 +43,13 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 	where := NewWhere(definition.Query, arguments...)
 	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
 
-	minCachePage := float64((pager.GetCurrentPage() - 1) * pager.GetPageSize() / idsOnCachePage)
+	pageSize := idsOnCachePage
+	if hasLocalCache {
+		pageSize = definition.Max
+	}
+	minCachePage := float64((pager.GetCurrentPage() - 1) * pager.GetPageSize() / pageSize)
 	minCachePageCeil := minCachePage
-	maxCachePage := float64((pager.GetCurrentPage()-1)*pager.GetPageSize()+pager.GetPageSize()) / float64(idsOnCachePage)
+	maxCachePage := float64((pager.GetCurrentPage()-1)*pager.GetPageSize()+pager.GetPageSize()) / float64(pageSize)
 	maxCachePageCeil := math.Ceil(maxCachePage)
 	pages := make([]string, int(maxCachePageCeil-minCachePageCeil))
 	j := 0
@@ -59,11 +63,12 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 	var nilsKeys []string
 	if hasLocalCache {
 		nilsKeys = make([]string, 0)
-		fromCache = localCache.HMGet(cacheKey, pages...)
-		for key, val := range fromCache {
-			if val == nil {
-				nilsKeys = append(nilsKeys, key)
-			}
+		fromCacheLocal, hasInLocalCache := localCache.Get(cacheKey)
+		if hasInLocalCache {
+			fromCache = map[string]interface{}{"1": fromCacheLocal}
+		} else {
+			fromCache = map[string]interface{}{"1": nil}
+			nilsKeys = append(nilsKeys, "1")
 		}
 		if hasRedis && len(nilsKeys) > 0 {
 			fromRedis := redisCache.HMGet(cacheKey, nilsKeys...)
@@ -116,9 +121,8 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 			}
 		}
 	}
-
 	if hasNil {
-		searchPager := NewPager(minPage, maxPage*idsOnCachePage)
+		searchPager := NewPager(minPage, maxPage*pageSize)
 		results, total := searchIDsWithCount(false, engine, where, searchPager, entityType)
 		totalRows = total
 		cacheFields := make([]interface{}, 0)
@@ -126,12 +130,12 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 			if ids == nil {
 				page := key
 				pageInt, _ := strconv.Atoi(page)
-				sliceStart := (pageInt - minPage) * idsOnCachePage
+				sliceStart := (pageInt - minPage) * pageSize
 				if sliceStart > total {
 					cacheFields = append(cacheFields, page, total)
 					continue
 				}
-				sliceEnd := sliceStart + idsOnCachePage
+				sliceEnd := sliceStart + pageSize
 				if sliceEnd > total {
 					sliceEnd = total
 				}
@@ -162,7 +166,7 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 			values = append(values, filledPages[v]...)
 			fields[v] = values
 		}
-		localCache.HMSet(cacheKey, fields)
+		localCache.Set(cacheKey, fields["1"])
 	}
 
 	resultsIDs := make([]uint64, 0)
@@ -170,7 +174,7 @@ func cachedSearch(serializer *serializer, engine *Engine, entities interface{}, 
 		resultsIDs = append(resultsIDs, filledPages[strconv.Itoa(int(i)+1)]...)
 	}
 	sliceStart := (pager.GetCurrentPage() - 1) * pager.GetPageSize()
-	diff := int(minCachePageCeil) * idsOnCachePage
+	diff := int(minCachePageCeil) * pageSize
 	sliceStart -= diff
 	if sliceStart > totalRows {
 		return totalRows, []uint64{}
@@ -212,7 +216,12 @@ func cachedSearchOne(serializer *serializer, engine *Engine, entity Entity, inde
 	cacheKey := getCacheKeySearch(schema, indexName, Where.GetParameters()...)
 	var fromCache map[string]interface{}
 	if hasLocalCache {
-		fromCache = localCache.HMGet(cacheKey, "1")
+		fromLocalCache, hasInLocalCache := localCache.Get(cacheKey)
+		if hasInLocalCache {
+			fromCache = map[string]interface{}{"1": fromLocalCache}
+		} else {
+			fromCache = map[string]interface{}{"1": nil}
+		}
 	}
 	if fromCache["1"] == nil && hasRedis {
 		fromCache = redisCache.HMGet(cacheKey, "1")
@@ -227,7 +236,7 @@ func cachedSearchOne(serializer *serializer, engine *Engine, entity Entity, inde
 			value += " " + strconv.FormatUint(results[0], 10)
 		}
 		if hasLocalCache {
-			localCache.HMSet(cacheKey, map[string]interface{}{"1": value})
+			localCache.Set(cacheKey, value)
 		}
 		if hasRedis {
 			redisCache.HSet(cacheKey, "1", value)

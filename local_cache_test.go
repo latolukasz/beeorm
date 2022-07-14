@@ -69,25 +69,19 @@ func TestLocalCache(t *testing.T) {
 	assert.Len(t, values, 2)
 	assert.Nil(t, values[0])
 	assert.Nil(t, values[1])
+}
 
-	c.HMSet("test_h", map[string]interface{}{"a": "a1", "b": "b1"})
-	valuesMap := c.HMGet("test_h", "a", "b", "c")
-	assert.Len(t, valuesMap, 3)
-	assert.Equal(t, "a1", valuesMap["a"])
-	assert.Equal(t, "b1", valuesMap["b"])
-	assert.Nil(t, valuesMap["c"])
-
-	valuesMap = c.HMGet("test_h2", "a", "b")
-	assert.Len(t, valuesMap, 2)
-	assert.Nil(t, valuesMap["a"])
-	assert.Nil(t, valuesMap["v"])
-
-	total := c.GetObjectsCount()
-	assert.Equal(t, 3, total)
-
-	c.Clear()
-	valuesMap = c.HMGet("test_h", "a", "b")
-	assert.Len(t, valuesMap, 2)
-	assert.Nil(t, valuesMap["a"])
-	assert.Nil(t, valuesMap["b"])
+func BenchmarkLocalCache(b *testing.B) {
+	registry := &Registry{}
+	registry.RegisterLocalCache(100)
+	validatedRegistry, def, _ := registry.Validate()
+	defer def()
+	engine := validatedRegistry.CreateEngine()
+	c := engine.GetLocalCache()
+	c.Set("test", "Hello")
+	b.ResetTimer()
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		c.Get("test")
+	}
 }
