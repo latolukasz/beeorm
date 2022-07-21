@@ -622,10 +622,10 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 				}
 				current, has := indexes[indexColumn[0]]
 				if !has {
-					current = &index{Unique: unique, Columns: map[int]string{location: field.Name}}
+					current = &index{Unique: unique, Columns: map[int]string{location: prefix + field.Name}}
 					indexes[indexColumn[0]] = current
 				} else {
-					current.Columns[location] = field.Name
+					current.Columns[location] = prefix + field.Name
 				}
 			}
 		}
