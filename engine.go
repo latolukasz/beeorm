@@ -186,6 +186,10 @@ func (e *Engine) FlushWithCheck(entity ...Entity) error {
 	return e.NewFlusher().Track(entity...).FlushWithCheck()
 }
 
+func (e *Engine) FlushWithFullCheck(entity ...Entity) error {
+	return e.NewFlusher().Track(entity...).FlushWithFullCheck()
+}
+
 func (e *Engine) Delete(entity Entity) {
 	entity.markToDelete()
 	e.Flush(entity)
