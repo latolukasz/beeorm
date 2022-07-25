@@ -92,6 +92,7 @@ type TableSchema interface {
 	GetRedisSearch(engine *Engine) (search *RedisSearch, has bool)
 	GetReferences() []string
 	GetColumns() []string
+	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(engine *Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
 }
@@ -256,6 +257,17 @@ func (tableSchema *tableSchema) GetReferences() []string {
 
 func (tableSchema *tableSchema) GetColumns() []string {
 	return tableSchema.columnNames
+}
+
+func (tableSchema *tableSchema) GetUniqueIndexes() map[string][]string {
+	data := make(map[string][]string)
+	for k, v := range tableSchema.uniqueIndices {
+		data[k] = v
+	}
+	for k, v := range tableSchema.uniqueIndicesGlobal {
+		data[k] = v
+	}
+	return data
 }
 
 func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alters []Alter) {
