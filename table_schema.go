@@ -669,7 +669,7 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
-		tags := schemaTags[f.Name]
+		tags := schemaTags[prefix+f.Name]
 		_, has := tags["ignore"]
 		if has {
 			continue

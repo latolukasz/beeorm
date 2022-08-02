@@ -17,9 +17,10 @@ type obj struct {
 }
 
 type flushStruct struct {
-	Name2 string
-	Age   int
-	Sub   flushSubStruct
+	Name2    string
+	Age      int
+	Sub      flushSubStruct
+	TestTime *time.Time `orm:"time=true"`
 }
 
 type flushSubStruct struct {
@@ -427,11 +428,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.StringSlice = []string{"a", "b"}
 	entity.StringSliceNotNull = []string{"c", "d"}
 	entity.SetNotNull = []string{"d", "e"}
-	entity.FlushStructPtr = &flushStruct{"A", 12, flushSubStruct{Age3: 11, Name3: "G"}}
+	entity.FlushStructPtr = &flushStruct{"A", 12, flushSubStruct{Age3: 11, Name3: "G"}, nil}
 	entity.EnumNotNull = "a"
 	entity.FlushStruct.Name2 = "Ita"
 	entity.FlushStruct.Sub.Age3 = 13
 	entity.FlushStruct.Sub.Name3 = "Nanami"
+	entity.FlushStruct.TestTime = &now
 	entity.TimeWithTime = now
 	entity.Float64 = 2.12
 	entity.Decimal = 6.15
@@ -486,6 +488,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
 	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
+	assert.Equal(t, now.Format(timeFormat), entity.FlushStruct.TestTime.Format(timeFormat))
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
