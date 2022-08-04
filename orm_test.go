@@ -223,6 +223,11 @@ func TestORM(t *testing.T) {
 	err = entity.SetField("TimeNullable", nil)
 	assert.NoError(t, err)
 	assert.Nil(t, entity.TimeNullable)
+
+	err = entity.SetField("TimeNullable", "2022-03-02T13:34:17Z")
+	assert.NoError(t, err)
+	assert.Equal(t, "2022-03-02 13:34:17", entity.TimeNullable.Format(timeFormat))
+
 	err = entity.SetField("TimeNullable", "hello")
 	assert.EqualError(t, err, "TimeNullable value hello is not valid")
 
@@ -230,6 +235,16 @@ func TestORM(t *testing.T) {
 	err = entity.SetField("Time", timeNotNull)
 	assert.NoError(t, err)
 	assert.Equal(t, timeNotNull, entity.Time)
+
+	timeNotNullString := timeNotNull.Format(timeFormat)
+	err = entity.SetField("Time", timeNotNullString)
+	assert.NoError(t, err)
+	assert.Equal(t, timeNotNull.Format(timeFormat), entity.Time.Format(timeFormat))
+
+	err = entity.SetField("Time", "2022-03-02T13:34:17Z")
+	assert.NoError(t, err)
+	assert.Equal(t, "2022-03-02 13:34:17", entity.Time.Format(timeFormat))
+
 	err = entity.SetField("Time", "hello")
 	assert.EqualError(t, err, "Time value hello is not valid")
 

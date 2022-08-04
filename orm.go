@@ -17,6 +17,8 @@ import (
 const timeFormat = "2006-01-02 15:04:05"
 const dateformat = "2006-01-02"
 
+var timeSupportedLayouts = []string{timeFormat, dateformat, time.RFC3339}
+
 var disableCacheHashCheck bool
 
 type Entity interface {
@@ -692,8 +694,8 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 func (orm *ORM) SetField(field string, value interface{}) error {
 	asString, isString := value.(string)
 	if isString {
-		asString = strings.ToLower(asString)
-		if asString == "nil" || asString == "null" {
+		asStringLower := strings.ToLower(asString)
+		if asStringLower == "nil" || asStringLower == "null" {
 			value = nil
 		}
 	}
@@ -906,6 +908,16 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		if value == nil || valueOf.IsZero() {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
+			if isString {
+				for _, layout := range timeSupportedLayouts {
+					asTime, err := time.ParseInLocation(layout, asString, time.Local)
+					if err == nil {
+						f.Set(reflect.ValueOf(&asTime))
+						return nil
+					}
+				}
+				return fmt.Errorf("%s value %v is not valid", field, asString)
+			}
 			_, ok := value.(*time.Time)
 			if !ok {
 				return fmt.Errorf("%s value %v is not valid", field, value)
@@ -913,6 +925,16 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 			f.Set(reflect.ValueOf(value))
 		}
 	case "time.Time":
+		if isString {
+			for _, layout := range timeSupportedLayouts {
+				asTime, err := time.ParseInLocation(layout, asString, time.Local)
+				if err == nil {
+					f.Set(reflect.ValueOf(asTime))
+					return nil
+				}
+			}
+			return fmt.Errorf("%s value %v is not valid", field, asString)
+		}
 		_, ok := value.(time.Time)
 		if !ok {
 			return fmt.Errorf("%s value %v is not valid", field, value)
