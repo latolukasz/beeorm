@@ -47,7 +47,7 @@ help: ## Show help
 cover: ## Run tests with coverage and creates cover.out profile
 	@mkdir -p ./resources/cover
 	@rm -f ./resources/cover/tmp-cover.log;
-	@go get github.com/ory/go-acc
+	@go get -u github.com/ory/go-acc
 	@${GOPATH}/bin/go-acc ./... --output=resources/cover/cover.out --covermode=atomic
 
 git-tag-patch: ## Push new tag to repository with patch number incremented
