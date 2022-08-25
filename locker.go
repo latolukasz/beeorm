@@ -54,8 +54,14 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 	if waitTimeout == 0 {
 		mutex, err = l.locker.Obtain(ctx, key, redsync.WithExpiry(ttl), redsync.WithTries(1))
 	} else {
-		factor := float64(waitTimeout.Nanoseconds()) / float64(ttl.Nanoseconds())
-		mutex, err = l.locker.Obtain(ctx, key, redsync.WithExpiry(ttl), redsync.WithTimeoutFactor(factor))
+		minDelay := 50 * time.Millisecond
+		tries := 10
+		delay := time.Duration(waitTimeout.Nanoseconds() / int64(tries))
+		if delay < minDelay {
+			delay = minDelay
+			tries = int(waitTimeout.Nanoseconds()/minDelay.Nanoseconds()) + 1
+		}
+		mutex, err = l.locker.Obtain(ctx, key, redsync.WithExpiry(ttl), redsync.WithTries(tries), redsync.WithRetryDelay(delay))
 	}
 	if err != nil {
 		if err == redsync.ErrFailed {

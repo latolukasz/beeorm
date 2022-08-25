@@ -34,7 +34,7 @@ func testLocker(t *testing.T, namespace string) {
 	has = lock.Refresh(context.Background())
 	assert.True(t, has)
 
-	_, has = l.Obtain(context.Background(), "test_key", time.Second, time.Millisecond)
+	_, has = l.Obtain(context.Background(), "test_key", time.Second, time.Millisecond*100)
 	assert.False(t, has)
 
 	left := lock.TTL()
