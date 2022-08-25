@@ -10,33 +10,13 @@ import (
 	"github.com/shamaton/msgpack"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redis_rate/v9"
 )
 
 type RedisCache struct {
-	engine  *Engine
-	client  *redis.Client
-	limiter *redis_rate.Limiter
-	locker  *Locker
-	config  RedisPoolConfig
-}
-
-func (r *RedisCache) RateLimit(key string, period time.Duration, limit int) bool {
-	if r.limiter == nil {
-		r.limiter = redis_rate.NewLimiter(r.client)
-	}
-	key = r.addNamespacePrefix(key)
-	start := getNow(r.engine.hasRedisLogger)
-	res, err := r.limiter.Allow(r.client.Context(), key, redis_rate.Limit{
-		Rate:   limit,
-		Period: period,
-		Burst:  limit,
-	})
-	if r.engine.hasRedisLogger {
-		r.fillLogFields("RATE", "RATE "+key+" "+period.String(), start, false, err)
-	}
-	checkError(err)
-	return res.Allowed > 0
+	engine *Engine
+	client *redis.Client
+	locker *Locker
+	config RedisPoolConfig
 }
 
 func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interface{}) interface{} {

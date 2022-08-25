@@ -207,7 +207,7 @@ func (r *eventsConsumer) ConsumeMany(ctx context.Context, nr, count int, handler
 func (r *eventsConsumer) consume(ctx context.Context, name string, count int, handler EventConsumerHandler) (finished bool) {
 	lockKey := r.group + "_" + name
 	locker := r.redis.GetLocker()
-	lock, has := locker.Obtain(lockKey, r.lockTTL, 0)
+	lock, has := locker.Obtain(ctx, lockKey, r.lockTTL, 0)
 	if !has {
 		return false
 	}
@@ -239,7 +239,7 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		case <-ctx.Done():
 			return true
 		case <-timer.C:
-			if !lock.Refresh(r.lockTTL) {
+			if !lock.Refresh(ctx) {
 				return false
 			}
 			timer.Reset(r.lockTick)
