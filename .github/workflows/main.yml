@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis:
-        image: redis:6.27
+        image: redis:6.2.7
         ports:
           - 6382:6379
       mysql:
