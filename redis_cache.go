@@ -947,10 +947,6 @@ func (r *RedisCache) FlushDB() {
 			r.fillLogFields("FLUSHDB EVAL", "EVAL REMOVE KEYS WITH PREFIX "+r.config.GetNamespace(), start, false, err)
 		}
 		checkError(err)
-		s := r.engine.GetRedisSearch(r.config.GetCode())
-		for _, indexName := range s.ListIndices() {
-			s.dropIndex(indexName, false)
-		}
 		return
 	}
 	_, err := r.client.FlushDB(context.Background()).Result()

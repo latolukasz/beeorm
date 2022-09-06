@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"fmt"
 	"reflect"
 	"sync"
@@ -12,7 +11,6 @@ type Engine struct {
 	dbs                       map[string]*DB
 	localCache                map[string]*LocalCache
 	redis                     map[string]*RedisCache
-	redisSearch               map[string]*RedisSearch
 	logMetaData               Bind
 	hasRequestCache           bool
 	queryLoggersDB            []LogHandler
@@ -123,31 +121,6 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 			e.redis = map[string]*RedisCache{dbCode: cache}
 		} else {
 			e.redis[dbCode] = cache
-		}
-	}
-	return cache
-}
-
-func (e *Engine) GetRedisSearch(code ...string) *RedisSearch {
-	dbCode := "default"
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	cache, has := e.redisSearch[dbCode]
-	if !has {
-		config, has := e.registry.redisServers[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
-		}
-		client := config.getClient()
-		redisClient := &RedisCache{engine: e, config: config, client: client}
-		cache = &RedisSearch{engine: e, redis: redisClient, ctx: context.Background()}
-		if e.redisSearch == nil {
-			e.redisSearch = map[string]*RedisSearch{dbCode: cache}
-		} else {
-			e.redisSearch[dbCode] = cache
 		}
 	}
 	return cache
@@ -306,10 +279,6 @@ func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...str
 
 func (e *Engine) GetAlters() (alters []Alter) {
 	return getAlters(e)
-}
-
-func (e *Engine) GetRedisSearchIndexAlters() (alters []RedisSearchIndexAlter) {
-	return getRedisSearchAlters(e)
 }
 
 func (e *Engine) load(serializer *serializer, entity Entity, references ...string) bool {

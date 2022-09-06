@@ -412,10 +412,6 @@ func (f *flusher) executeDeletes(lazy bool) {
 					f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 				}
 			}
-			if schema.hasSearchCache {
-				key := schema.redisSearchPrefix + strconv.FormatUint(id, 10)
-				f.getRedisFlusher().Del(schema.searchCacheName, key)
-			}
 		}
 	}
 }
@@ -470,7 +466,7 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 		sql := f.stringBuilder.String()
 		f.stringBuilder.Reset()
 		db := schema.GetMysql(f.engine)
-		if lazy && !schema.hasSearchCache {
+		if lazy {
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
 			for key, entity := range flushPackage.insertReflectValues[typeOf] {
@@ -755,7 +751,6 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 		}
 	}
-	f.fillRedisSearchFromBind(schema, bind, id, true)
 	return f.addToLogQueue(schema, id, nil, bind, entity.getORM().logMeta, lazy), f.addDirtyQueues(bind, schema, id, "i", lazy)
 }
 
@@ -799,7 +794,6 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 			redisFlusher.Del(redisCache.config.GetCode(), keysNew...)
 		}
 	}
-	f.fillRedisSearchFromBind(schema, bind, entity.GetID(), false)
 	dirtyValue := f.addDirtyQueues(bind, schema, currentID, "u", lazy)
 	if schema.hasLog {
 		return f.addToLogQueue(schema, currentID, current, bind, entity.getORM().logMeta, lazy), dirtyValue
@@ -866,42 +860,6 @@ func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before, cha
 		f.getRedisFlusher().Publish(LogChannelName, val)
 	}
 	return val
-}
-
-func (f *flusher) fillRedisSearchFromBind(schema *tableSchema, bind Bind, id uint64, insert bool) {
-	if schema.hasSearchCache {
-		values := make([]interface{}, 0)
-		hasChangedField := false
-		if schema.hasFakeDelete {
-			val, has := bind["FakeDelete"]
-			if has && val.(uint64) > 0 {
-				if !schema.hasSearchableFakeDelete {
-					f.getRedisFlusher().Del(schema.searchCacheName, schema.redisSearchPrefix+strconv.FormatUint(id, 10))
-				} else {
-					values = append(values, "FakeDelete", "true")
-					hasChangedField = true
-				}
-			}
-		}
-
-		idMap, has := schema.mapBindToRedisSearch["ID"]
-		if has {
-			values = append(values, "ID", idMap(id))
-			if !hasChangedField {
-				hasChangedField = insert
-			}
-		}
-		for k, f := range schema.mapBindToRedisSearch {
-			v, has := bind[k]
-			if has {
-				values = append(values, k, f(v))
-				hasChangedField = true
-			}
-		}
-		if hasChangedField {
-			f.getRedisFlusher().HSet(schema.searchCacheName, schema.redisSearchPrefix+strconv.FormatUint(id, 10), values...)
-		}
-	}
 }
 
 func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, old, addedDeleted bool) (keys []string) {

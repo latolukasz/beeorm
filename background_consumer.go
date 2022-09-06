@@ -18,7 +18,6 @@ import (
 
 const LazyChannelName = "orm-lazy-channel"
 const LogChannelName = "orm-log-channel"
-const RedisSearchIndexerChannelName = "orm-redis-search-channel"
 const RedisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
 const AsyncConsumerGroupName = "orm-async-consumer"
 
@@ -113,8 +112,6 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					logEventsData[data.PoolName] = make([]*LogQueueValue, 0)
 				}
 				logEventsData[data.PoolName] = append(logEventsData[data.PoolName], &data)
-			case RedisSearchIndexerChannelName:
-				r.handleRedisIndexerEvent(event)
 			case RedisStreamGarbageCollectorChannelName:
 				r.handleRedisChannelGarbageCollector(event)
 			}
@@ -413,57 +410,6 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 			}
 		}
 		r.redisFlusher.Flush()
-	}
-}
-
-func (r *BackgroundConsumer) handleRedisIndexerEvent(event Event) {
-	indexEvent := &redisIndexerEvent{}
-	event.Unserialize(indexEvent)
-	var indexDefinition *RedisSearchIndex
-	redisPool := ""
-	for pool, list := range r.engine.registry.redisSearchIndexes {
-		val, has := list[indexEvent.Index]
-		if has {
-			indexDefinition = val
-			redisPool = pool
-			break
-		}
-	}
-	if indexDefinition == nil {
-		event.Ack()
-		return
-	}
-	search := r.engine.GetRedisSearch(redisPool)
-	pusher := &redisSearchIndexPusher{pipeline: search.redis.PipeLine()}
-	id := uint64(0)
-	idRedisKey := redisSearchForceIndexLastIDKeyPrefix + indexEvent.Index
-	idInRedis, has := search.redis.Get(idRedisKey)
-	if has {
-		id, _ = strconv.ParseUint(idInRedis, 10, 64)
-	}
-	for {
-		hasMore := false
-		nextID := uint64(0)
-		if indexDefinition.Indexer != nil {
-			newID, hasNext := indexDefinition.Indexer(r.engine, id, pusher)
-			hasMore = hasNext
-			nextID = newID
-			if pusher.pipeline.commands > 0 {
-				pusher.Flush()
-			}
-			if hasMore {
-				search.redis.Set(idRedisKey, strconv.FormatUint(nextID, 10), 86400)
-			}
-		}
-
-		if !hasMore {
-			search.redis.Del(idRedisKey)
-			break
-		}
-		if nextID <= id {
-			panic(errors.Errorf("loop detected in indexer for index %s in pool %s", indexDefinition.Name, redisPool))
-		}
-		id = nextID
 	}
 }
 

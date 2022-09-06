@@ -18,17 +18,16 @@ import (
 )
 
 type Registry struct {
-	mysqlPools         map[string]MySQLPoolConfig
-	localCachePools    map[string]LocalCachePoolConfig
-	redisPools         map[string]RedisPoolConfig
-	entities           map[string]reflect.Type
-	redisSearchIndices map[string]map[string]*RedisSearchIndex
-	enums              map[string]Enum
-	defaultEncoding    string
-	defaultCollate     string
-	redisStreamGroups  map[string]map[string]map[string]bool
-	redisStreamPools   map[string]string
-	forcedEntityLog    string
+	mysqlPools        map[string]MySQLPoolConfig
+	localCachePools   map[string]LocalCachePoolConfig
+	redisPools        map[string]RedisPoolConfig
+	entities          map[string]reflect.Type
+	enums             map[string]Enum
+	defaultEncoding   string
+	defaultCollate    string
+	redisStreamGroups map[string]map[string]map[string]bool
+	redisStreamPools  map[string]string
+	forcedEntityLog   string
 }
 
 func NewRegistry() *Registry {
@@ -119,13 +118,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	for k, v := range r.enums {
 		registry.enums[k] = v
 	}
-	registry.redisSearchIndexes = make(map[string]map[string]*RedisSearchIndex)
-	for k, v := range r.redisSearchIndices {
-		registry.redisSearchIndexes[k] = make(map[string]*RedisSearchIndex)
-		for k2, v2 := range v {
-			registry.redisSearchIndexes[k][k2] = v2
-		}
-	}
 	hasLog := r.forcedEntityLog != ""
 	for name, entityType := range r.entities {
 		tableSchema := &tableSchema{}
@@ -136,13 +128,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 		}
 		registry.tableSchemas[entityType] = tableSchema
 		registry.entities[name] = entityType
-		if tableSchema.redisSearchIndex != nil {
-			index := tableSchema.redisSearchIndex
-			if registry.redisSearchIndexes[index.RedisPool] == nil {
-				registry.redisSearchIndexes[index.RedisPool] = make(map[string]*RedisSearchIndex)
-			}
-			registry.redisSearchIndexes[index.RedisPool][index.Name] = index
-		}
 		if tableSchema.hasLog {
 			hasLog = true
 		}
@@ -155,12 +140,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 		_, has = r.redisStreamPools[LogChannelName]
 		if !has {
 			r.RegisterRedisStream(LogChannelName, "default", []string{AsyncConsumerGroupName})
-		}
-	}
-	if len(registry.redisSearchIndexes) > 0 {
-		_, has = r.redisStreamPools[RedisSearchIndexerChannelName]
-		if !has {
-			r.RegisterRedisStream(RedisSearchIndexerChannelName, "default", []string{AsyncConsumerGroupName})
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
@@ -180,14 +159,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 			return nil, nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
 		schema.registry = registry
-		if schema.hasSearchCache {
-			prefix := registry.redisServers[schema.searchCacheName].GetNamespace()
-			if prefix != "" {
-				prefix += ":"
-			}
-			prefix += schema.redisSearchPrefix
-			schema.redisSearchPrefixLen = len(prefix)
-		}
 	}
 	return registry, deferFunc, nil
 }
@@ -210,18 +181,6 @@ func (r *Registry) RegisterEntity(entity ...Entity) {
 			t = t.Elem()
 		}
 		r.entities[t.String()] = t
-	}
-}
-
-func (r *Registry) RegisterRedisSearchIndex(index ...*RedisSearchIndex) {
-	if r.redisSearchIndices == nil {
-		r.redisSearchIndices = make(map[string]map[string]*RedisSearchIndex)
-	}
-	for _, i := range index {
-		if r.redisSearchIndices[i.RedisPool] == nil {
-			r.redisSearchIndices[i.RedisPool] = make(map[string]*RedisSearchIndex)
-		}
-		r.redisSearchIndices[i.RedisPool][i.Name] = i
 	}
 }
 

@@ -16,7 +16,6 @@ type ValidatedRegistry interface {
 	GetMySQLPools() map[string]MySQLPoolConfig
 	GetLocalCachePools() map[string]LocalCachePoolConfig
 	GetRedisPools() map[string]RedisPoolConfig
-	GetRedisSearchIndices() map[string][]*RedisSearchIndex
 	GetEntities() map[string]reflect.Type
 }
 
@@ -24,7 +23,6 @@ type validatedRegistry struct {
 	registry           *Registry
 	tableSchemas       map[reflect.Type]*tableSchema
 	entities           map[string]reflect.Type
-	redisSearchIndexes map[string]map[string]*RedisSearchIndex
 	localCacheServers  map[string]LocalCachePoolConfig
 	mySQLServers       map[string]MySQLPoolConfig
 	redisServers       map[string]RedisPoolConfig
@@ -41,17 +39,6 @@ func (r *validatedRegistry) GetSourceRegistry() *Registry {
 
 func (r *validatedRegistry) GetEntities() map[string]reflect.Type {
 	return r.entities
-}
-
-func (r *validatedRegistry) GetRedisSearchIndices() map[string][]*RedisSearchIndex {
-	indices := make(map[string][]*RedisSearchIndex)
-	for pool, list := range r.redisSearchIndexes {
-		indices[pool] = make([]*RedisSearchIndex, 0)
-		for _, index := range list {
-			indices[pool] = append(indices[pool], index)
-		}
-	}
-	return indices
 }
 
 func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {

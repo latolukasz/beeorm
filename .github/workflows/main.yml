@@ -36,14 +36,10 @@ jobs:
     name: Test & coverage
     runs-on: ubuntu-latest
     services:
-      redis_search:
-        image: redislabs/redisearch:2.0.15
+      redis:
+        image: redis:6.27
         ports:
           - 6382:6379
-      redis_search_22:
-        image: redislabs/redisearch:2.2.7
-        ports:
-          - 6383:6379
       mysql:
         image: mysql:5.7
         env:
