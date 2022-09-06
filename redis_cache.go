@@ -13,7 +13,7 @@ import (
 )
 
 type RedisCache struct {
-	engine *Engine
+	engine *engineImplementation
 	client *redis.Client
 	locker *Locker
 	config RedisPoolConfig

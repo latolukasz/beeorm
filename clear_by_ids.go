@@ -1,6 +1,6 @@
 package beeorm
 
-func clearByIDs(engine *Engine, entity Entity, ids ...uint64) {
+func clearByIDs(engine *engineImplementation, entity Entity, ids ...uint64) {
 	schema := initIfNeeded(engine.registry, entity).tableSchema
 	cacheKeys := make([]string, len(ids))
 	for i, id := range ids {

@@ -22,7 +22,7 @@ func TestRedisFlusher(t *testing.T) {
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 
-	flusher := &redisFlusher{engine: engine}
+	flusher := &redisFlusher{engine: engine.(*engineImplementation)}
 
 	flusher.Del("default")
 	flusher.Del("default", "del_key")

@@ -95,7 +95,7 @@ type Lock struct {
 	ttl    time.Duration
 	locker *Locker
 	has    bool
-	engine *Engine
+	engine *engineImplementation
 }
 
 func (l *Lock) Release() {

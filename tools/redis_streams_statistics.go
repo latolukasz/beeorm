@@ -32,7 +32,7 @@ type RedisStreamConsumerStatistics struct {
 	Pending uint64
 }
 
-func GetRedisStreamsStatistics(engine *orm.Engine) []*RedisStreamStatistics {
+func GetRedisStreamsStatistics(engine orm.Engine) []*RedisStreamStatistics {
 	now := time.Now()
 	results := make([]*RedisStreamStatistics, 0)
 	for redisPool, channels := range engine.GetRegistry().GetRedisStreams() {

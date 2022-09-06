@@ -73,17 +73,17 @@ type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
 	NewEntity() Entity
-	DropTable(engine *Engine)
-	TruncateTable(engine *Engine)
-	UpdateSchema(engine *Engine)
-	UpdateSchemaAndTruncateTable(engine *Engine)
-	GetMysql(engine *Engine) *DB
-	GetLocalCache(engine *Engine) (cache *LocalCache, has bool)
-	GetRedisCache(engine *Engine) (cache *RedisCache, has bool)
+	DropTable(engine Engine)
+	TruncateTable(engine Engine)
+	UpdateSchema(engine Engine)
+	UpdateSchemaAndTruncateTable(engine Engine)
+	GetMysql(engine Engine) *DB
+	GetLocalCache(engine Engine) (cache *LocalCache, has bool)
+	GetRedisCache(engine Engine) (cache *RedisCache, has bool)
 	GetReferences() []string
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
-	GetSchemaChanges(engine *Engine) (has bool, alters []Alter)
+	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
 }
 
@@ -176,18 +176,18 @@ func (tableSchema *tableSchema) GetType() reflect.Type {
 	return tableSchema.t
 }
 
-func (tableSchema *tableSchema) DropTable(engine *Engine) {
+func (tableSchema *tableSchema) DropTable(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) TruncateTable(engine *Engine) {
+func (tableSchema *tableSchema) TruncateTable(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
+func (tableSchema *tableSchema) UpdateSchema(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	has, alters := tableSchema.GetSchemaChanges(engine)
 	if has {
@@ -197,25 +197,25 @@ func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
 	}
 }
 
-func (tableSchema *tableSchema) UpdateSchemaAndTruncateTable(engine *Engine) {
+func (tableSchema *tableSchema) UpdateSchemaAndTruncateTable(engine Engine) {
 	tableSchema.UpdateSchema(engine)
 	pool := tableSchema.GetMysql(engine)
 	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) GetMysql(engine *Engine) *DB {
+func (tableSchema *tableSchema) GetMysql(engine Engine) *DB {
 	return engine.GetMysql(tableSchema.mysqlPoolName)
 }
 
-func (tableSchema *tableSchema) GetLocalCache(engine *Engine) (cache *LocalCache, has bool) {
+func (tableSchema *tableSchema) GetLocalCache(engine Engine) (cache *LocalCache, has bool) {
 	if !tableSchema.hasLocalCache {
 		return nil, false
 	}
 	return engine.GetLocalCache(tableSchema.localCacheName), true
 }
 
-func (tableSchema *tableSchema) GetRedisCache(engine *Engine) (cache *RedisCache, has bool) {
+func (tableSchema *tableSchema) GetRedisCache(engine Engine) (cache *RedisCache, has bool) {
 	if !tableSchema.hasRedisCache {
 		return nil, false
 	}
@@ -241,8 +241,8 @@ func (tableSchema *tableSchema) GetUniqueIndexes() map[string][]string {
 	return data
 }
 
-func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alters []Alter) {
-	return getSchemaChanges(engine, tableSchema)
+func (tableSchema *tableSchema) GetSchemaChanges(engine Engine) (has bool, alters []Alter) {
+	return getSchemaChanges(engine.(*engineImplementation), tableSchema)
 }
 
 func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {

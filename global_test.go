@@ -22,7 +22,7 @@ func (h *testLogHandler) clear() {
 	h.Logs = nil
 }
 
-func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisNamespace, redisSearchVersion string, entities ...Entity) (engine *Engine, def func()) {
+func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisNamespace, redisSearchVersion string, entities ...Entity) (engine *engineImplementation, def func()) {
 	if mySQLVersion == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -52,7 +52,7 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisName
 		panic(err)
 	}
 
-	engine = vRegistry.CreateEngine()
+	engine = vRegistry.CreateEngine().(*engineImplementation)
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}

@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities reflect.Value, references []string) (schema *tableSchema, hasMissing bool) {
+func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *tableSchema, hasMissing bool) {
 	lenIDs := len(ids)
 	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
 	if lenIDs == 0 {
@@ -166,7 +166,7 @@ func tryByIDs(serializer *serializer, engine *Engine, ids []uint64, entities ref
 	return
 }
 
-func warmUpReferences(serializer *serializer, engine *Engine, schema *tableSchema, rows reflect.Value, references []string, many bool) {
+func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string, many bool) {
 	dbMap := make(map[string]map[*tableSchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
 	var redisMap map[string]map[string][]Entity
@@ -385,7 +385,7 @@ func fillRef(key string, localMap map[string]map[string][]Entity,
 	}
 }
 
-func fillRefMap(engine *Engine, id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *tableSchema,
+func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *tableSchema,
 	dbMap map[string]map[*tableSchema]map[string][]Entity,
 	localMap map[string]map[string][]Entity, redisMap map[string]map[string][]Entity) {
 	_, has := referencesNextEntities[refName]

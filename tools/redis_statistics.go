@@ -12,7 +12,7 @@ type RedisStatistics struct {
 	Info      map[string]string
 }
 
-func GetRedisStatistics(engine *orm.Engine) []*RedisStatistics {
+func GetRedisStatistics(engine orm.Engine) []*RedisStatistics {
 	pools := getRedisPools(engine)
 	results := make([]*RedisStatistics, len(pools))
 	for i, pool := range pools {
@@ -36,7 +36,7 @@ func GetRedisStatistics(engine *orm.Engine) []*RedisStatistics {
 	return results
 }
 
-func getRedisPools(engine *orm.Engine) []string {
+func getRedisPools(engine orm.Engine) []string {
 	pools := make([]string, 0)
 	groupedByAddress := make(map[string][]string)
 	for code, v := range engine.GetRegistry().GetRedisPools() {

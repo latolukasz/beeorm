@@ -14,7 +14,7 @@ type Alter struct {
 	SQL    string
 	Safe   bool
 	Pool   string
-	engine *Engine
+	engine *engineImplementation
 }
 
 type indexDB struct {
@@ -49,7 +49,7 @@ func (a Alter) Exec() {
 	a.engine.GetMysql(a.Pool).Exec(a.SQL)
 }
 
-func getAlters(engine *Engine) (alters []Alter) {
+func getAlters(engine *engineImplementation) (alters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
@@ -158,7 +158,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 	return final
 }
 
-func isTableEmptyInPool(engine *Engine, poolName string, tableName string) bool {
+func isTableEmptyInPool(engine *engineImplementation, poolName string, tableName string) bool {
 	return isTableEmpty(engine.GetMysql(poolName).client, tableName)
 }
 
@@ -181,7 +181,7 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alters []Alter) {
+func getSchemaChanges(engine *engineImplementation, tableSchema *tableSchema) (has bool, alters []Alter) {
 	indexes := make(map[string]*index)
 	foreignKeys := make(map[string]*foreignIndex)
 	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, nil, "")
@@ -504,7 +504,7 @@ OUTER:
 	return has, alters
 }
 
-func getForeignKeys(engine *Engine, createTableDB string, tableName string, poolName string) map[string]*foreignIndex {
+func getForeignKeys(engine *engineImplementation, createTableDB string, tableName string, poolName string) map[string]*foreignIndex {
 	var rows2 []foreignKeyDB
 	query := "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_TABLE_SCHEMA " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
@@ -537,7 +537,7 @@ func getForeignKeys(engine *Engine, createTableDB string, tableName string, pool
 	return foreignKeysDB
 }
 
-func getDropForeignKeysAlter(engine *Engine, tableName string, poolName string) string {
+func getDropForeignKeysAlter(engine *engineImplementation, tableName string, poolName string) string {
 	var skip string
 	var createTableDB string
 	pool := engine.GetMysql(poolName)
@@ -572,7 +572,7 @@ func buildCreateForeignKeySQL(keyName string, definition *foreignIndex) string {
 		keyName, definition.Column, definition.ParentDatabase, definition.Table, definition.OnDelete)
 }
 
-func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField, indexes map[string]*index,
+func checkColumn(engine *engineImplementation, schema *tableSchema, field *reflect.StructField, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, prefix string) ([][2]string, error) {
 	var definition string
 	var addNotNullIfNotSet bool
@@ -945,7 +945,7 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 	}
 }
 
-func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, indexes map[string]*index,
+func checkStruct(tableSchema *tableSchema, engine *engineImplementation, t reflect.Type, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
 	columns := make([][2]string, 0, t.NumField())
 	max := t.NumField() - 1

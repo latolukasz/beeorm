@@ -267,7 +267,7 @@ type SQLRow interface {
 }
 
 type DB struct {
-	engine        *Engine
+	engine        *engineImplementation
 	client        sqlClient
 	config        MySQLPoolConfig
 	inTransaction bool

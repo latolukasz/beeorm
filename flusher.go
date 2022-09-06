@@ -40,7 +40,7 @@ type Flusher interface {
 }
 
 type flusher struct {
-	engine                 *Engine
+	engine                 *engineImplementation
 	trackedEntities        []Entity
 	trackedEntitiesCounter int
 	redisFlusher           *redisFlusher

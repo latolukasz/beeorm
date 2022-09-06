@@ -15,7 +15,7 @@ type redisFlusherCommands struct {
 }
 
 type redisFlusher struct {
-	engine    *Engine
+	engine    *engineImplementation
 	pipelines map[string]*redisFlusherCommands
 }
 

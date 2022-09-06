@@ -6,7 +6,52 @@ import (
 	"sync"
 )
 
-type Engine struct {
+type Engine interface {
+	Clone() Engine
+	EnableRequestCache()
+	SetQueryTimeLimit(seconds int)
+	GetMysql(code ...string) *DB
+	GetLocalCache(code ...string) *LocalCache
+	GetRedis(code ...string) *RedisCache
+	SetLogMetaData(key string, value interface{})
+	NewFlusher() Flusher
+	Flush(entity Entity)
+	FlushLazy(entity Entity)
+	FlushMany(entities ...Entity)
+	FlushLazyMany(entities ...Entity)
+	FlushWithCheck(entity ...Entity) error
+	FlushWithFullCheck(entity ...Entity) error
+	Delete(entity Entity)
+	DeleteLazy(entity Entity)
+	ForceDelete(entity Entity)
+	ForceDeleteMany(entities ...Entity)
+	DeleteMany(entities ...Entity)
+	MarkDirty(entity Entity, queueCode string, ids ...uint64)
+	GetRegistry() ValidatedRegistry
+	SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int)
+	Search(where *Where, pager *Pager, entities interface{}, references ...string)
+	SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string)
+	SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int)
+	SearchIDs(where *Where, pager *Pager, entity Entity) []uint64
+	SearchOne(where *Where, entity Entity, references ...string) (found bool)
+	CachedSearchOne(entity Entity, indexName string, arguments ...interface{}) (found bool)
+	CachedSearchOneWithReferences(entity Entity, indexName string, arguments []interface{}, references []string) (found bool)
+	CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int)
+	CachedSearchIDs(entity Entity, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64)
+	CachedSearchCount(entity Entity, indexName string, arguments ...interface{}) int
+	CachedSearchWithReferences(entities interface{}, indexName string, pager *Pager, arguments []interface{}, references []string) (totalRows int)
+	ClearCacheByIDs(entity Entity, ids ...uint64)
+	LoadByID(id uint64, entity Entity, references ...string) (found bool)
+	Load(entity Entity, references ...string) (found bool)
+	LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool)
+	GetAlters() (alters []Alter)
+	GetEventBroker() EventBroker
+	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
+	EnableQueryDebug()
+	EnableQueryDebugCustom(mysql, redis, local bool)
+}
+
+type engineImplementation struct {
 	registry                  *validatedRegistry
 	dbs                       map[string]*DB
 	localCache                map[string]*LocalCache
@@ -26,8 +71,8 @@ type Engine struct {
 	sync.Mutex
 }
 
-func (e *Engine) Clone() *Engine {
-	return &Engine{
+func (e *engineImplementation) Clone() Engine {
+	return &engineImplementation{
 		registry:               e.registry,
 		logMetaData:            e.logMetaData,
 		hasRequestCache:        e.hasRequestCache,
@@ -40,15 +85,15 @@ func (e *Engine) Clone() *Engine {
 	}
 }
 
-func (e *Engine) EnableRequestCache() {
+func (e *engineImplementation) EnableRequestCache() {
 	e.hasRequestCache = true
 }
 
-func (e *Engine) SetQueryTimeLimit(seconds int) {
+func (e *engineImplementation) SetQueryTimeLimit(seconds int) {
 	e.queryTimeLimit = uint16(seconds)
 }
 
-func (e *Engine) GetMysql(code ...string) *DB {
+func (e *engineImplementation) GetMysql(code ...string) *DB {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
@@ -71,7 +116,7 @@ func (e *Engine) GetMysql(code ...string) *DB {
 	return db
 }
 
-func (e *Engine) GetLocalCache(code ...string) *LocalCache {
+func (e *engineImplementation) GetLocalCache(code ...string) *LocalCache {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
@@ -102,7 +147,7 @@ func (e *Engine) GetLocalCache(code ...string) *LocalCache {
 	return cache
 }
 
-func (e *Engine) GetRedis(code ...string) *RedisCache {
+func (e *engineImplementation) GetRedis(code ...string) *RedisCache {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
@@ -126,7 +171,7 @@ func (e *Engine) GetRedis(code ...string) *RedisCache {
 	return cache
 }
 
-func (e *Engine) SetLogMetaData(key string, value interface{}) {
+func (e *engineImplementation) SetLogMetaData(key string, value interface{}) {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	if e.logMetaData == nil {
@@ -135,64 +180,64 @@ func (e *Engine) SetLogMetaData(key string, value interface{}) {
 	e.logMetaData[key] = value
 }
 
-func (e *Engine) NewFlusher() Flusher {
+func (e *engineImplementation) NewFlusher() Flusher {
 	return &flusher{engine: e}
 }
 
-func (e *Engine) Flush(entity Entity) {
+func (e *engineImplementation) Flush(entity Entity) {
 	e.FlushMany(entity)
 }
 
-func (e *Engine) FlushLazy(entity Entity) {
+func (e *engineImplementation) FlushLazy(entity Entity) {
 	e.FlushLazyMany(entity)
 }
 
-func (e *Engine) FlushMany(entities ...Entity) {
+func (e *engineImplementation) FlushMany(entities ...Entity) {
 	e.NewFlusher().Track(entities...).Flush()
 }
 
-func (e *Engine) FlushLazyMany(entities ...Entity) {
+func (e *engineImplementation) FlushLazyMany(entities ...Entity) {
 	e.NewFlusher().Track(entities...).FlushLazy()
 }
 
-func (e *Engine) FlushWithCheck(entity ...Entity) error {
+func (e *engineImplementation) FlushWithCheck(entity ...Entity) error {
 	return e.NewFlusher().Track(entity...).FlushWithCheck()
 }
 
-func (e *Engine) FlushWithFullCheck(entity ...Entity) error {
+func (e *engineImplementation) FlushWithFullCheck(entity ...Entity) error {
 	return e.NewFlusher().Track(entity...).FlushWithFullCheck()
 }
 
-func (e *Engine) Delete(entity Entity) {
+func (e *engineImplementation) Delete(entity Entity) {
 	entity.markToDelete()
 	e.Flush(entity)
 }
 
-func (e *Engine) DeleteLazy(entity Entity) {
+func (e *engineImplementation) DeleteLazy(entity Entity) {
 	entity.markToDelete()
 	e.FlushLazy(entity)
 }
 
-func (e *Engine) ForceDelete(entity Entity) {
+func (e *engineImplementation) ForceDelete(entity Entity) {
 	entity.forceMarkToDelete()
 	e.Flush(entity)
 }
 
-func (e *Engine) ForceDeleteMany(entities ...Entity) {
+func (e *engineImplementation) ForceDeleteMany(entities ...Entity) {
 	for _, entity := range entities {
 		entity.forceMarkToDelete()
 	}
 	e.FlushMany(entities...)
 }
 
-func (e *Engine) DeleteMany(entities ...Entity) {
+func (e *engineImplementation) DeleteMany(entities ...Entity) {
 	for _, entity := range entities {
 		entity.markToDelete()
 	}
 	e.FlushMany(entities...)
 }
 
-func (e *Engine) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
+func (e *engineImplementation) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
 	entityName := e.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
 	flusher := e.GetEventBroker().NewFlusher()
 	for _, id := range ids {
@@ -201,87 +246,87 @@ func (e *Engine) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
 	flusher.Flush()
 }
 
-func (e *Engine) GetRegistry() ValidatedRegistry {
+func (e *engineImplementation) GetRegistry() ValidatedRegistry {
 	return e.registry
 }
 
-func (e *Engine) SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
+func (e *engineImplementation) SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
 	return search(newSerializer(nil), true, e, where, pager, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
-func (e *Engine) Search(where *Where, pager *Pager, entities interface{}, references ...string) {
+func (e *engineImplementation) Search(where *Where, pager *Pager, entities interface{}, references ...string) {
 	search(newSerializer(nil), true, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
-func (e *Engine) SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string) {
+func (e *engineImplementation) SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string) {
 	search(newSerializer(nil), false, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
-func (e *Engine) SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int) {
+func (e *engineImplementation) SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int) {
 	return searchIDsWithCount(true, e, where, pager, reflect.TypeOf(entity).Elem())
 }
 
-func (e *Engine) SearchIDs(where *Where, pager *Pager, entity Entity) []uint64 {
+func (e *engineImplementation) SearchIDs(where *Where, pager *Pager, entity Entity) []uint64 {
 	results, _ := searchIDs(true, e, where, pager, false, reflect.TypeOf(entity).Elem())
 	return results
 }
 
-func (e *Engine) SearchOne(where *Where, entity Entity, references ...string) (found bool) {
+func (e *engineImplementation) SearchOne(where *Where, entity Entity, references ...string) (found bool) {
 	found, _, _ = searchOne(newSerializer(nil), true, e, where, entity, references)
 	return found
 }
 
-func (e *Engine) CachedSearchOne(entity Entity, indexName string, arguments ...interface{}) (found bool) {
+func (e *engineImplementation) CachedSearchOne(entity Entity, indexName string, arguments ...interface{}) (found bool) {
 	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, arguments, nil)
 }
 
-func (e *Engine) CachedSearchOneWithReferences(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
+func (e *engineImplementation) CachedSearchOneWithReferences(entity Entity, indexName string, arguments []interface{}, references []string) (found bool) {
 	return cachedSearchOne(newSerializer(nil), e, entity, indexName, true, arguments, references)
 }
 
-func (e *Engine) CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
+func (e *engineImplementation) CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
 	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, true, nil)
 	return total
 }
 
-func (e *Engine) CachedSearchIDs(entity Entity, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64) {
+func (e *engineImplementation) CachedSearchIDs(entity Entity, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64) {
 	return cachedSearch(newSerializer(nil), e, entity, indexName, pager, arguments, false, nil)
 }
 
-func (e *Engine) CachedSearchCount(entity Entity, indexName string, arguments ...interface{}) int {
+func (e *engineImplementation) CachedSearchCount(entity Entity, indexName string, arguments ...interface{}) int {
 	total, _ := cachedSearch(newSerializer(nil), e, entity, indexName, NewPager(1, 1), arguments, false, nil)
 	return total
 }
 
-func (e *Engine) CachedSearchWithReferences(entities interface{}, indexName string, pager *Pager,
+func (e *engineImplementation) CachedSearchWithReferences(entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int) {
 	total, _ := cachedSearch(newSerializer(nil), e, entities, indexName, pager, arguments, true, references)
 	return total
 }
 
-func (e *Engine) ClearCacheByIDs(entity Entity, ids ...uint64) {
+func (e *engineImplementation) ClearCacheByIDs(entity Entity, ids ...uint64) {
 	clearByIDs(e, entity, ids...)
 }
 
-func (e *Engine) LoadByID(id uint64, entity Entity, references ...string) (found bool) {
+func (e *engineImplementation) LoadByID(id uint64, entity Entity, references ...string) (found bool) {
 	found, _ = loadByID(newSerializer(nil), e, id, entity, true, references...)
 	return found
 }
 
-func (e *Engine) Load(entity Entity, references ...string) (found bool) {
+func (e *engineImplementation) Load(entity Entity, references ...string) (found bool) {
 	return e.load(newSerializer(nil), entity, references...)
 }
 
-func (e *Engine) LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool) {
+func (e *engineImplementation) LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool) {
 	_, hasMissing := tryByIDs(newSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
 	return !hasMissing
 }
 
-func (e *Engine) GetAlters() (alters []Alter) {
+func (e *engineImplementation) GetAlters() (alters []Alter) {
 	return getAlters(e)
 }
 
-func (e *Engine) load(serializer *serializer, entity Entity, references ...string) bool {
+func (e *engineImplementation) load(serializer *serializer, entity Entity, references ...string) bool {
 	if entity.IsLoaded() {
 		if len(references) > 0 {
 			orm := entity.getORM()

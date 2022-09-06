@@ -153,7 +153,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	engine := registry.CreateEngine()
 	for _, schema := range registry.tableSchemas {
-		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
+		_, err := checkStruct(schema, engine.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
 		if err != nil {
 			deferFunc()
 			return nil, nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())

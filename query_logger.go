@@ -65,7 +65,7 @@ type LogHandler interface {
 	Handle(log map[string]interface{})
 }
 
-func (e *Engine) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
+func (e *engineImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
 	if mysql {
 		e.hasDBLogger = true
 		e.queryLoggersDB = e.appendLog(e.queryLoggersDB, handler)
@@ -80,11 +80,11 @@ func (e *Engine) RegisterQueryLogger(handler LogHandler, mysql, redis, local boo
 	}
 }
 
-func (e *Engine) EnableQueryDebug() {
+func (e *engineImplementation) EnableQueryDebug() {
 	e.EnableQueryDebugCustom(true, true, true)
 }
 
-func (e *Engine) EnableQueryDebugCustom(mysql, redis, local bool) {
+func (e *engineImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
 	e.RegisterQueryLogger(e.registry.defaultQueryLogger, mysql, redis, local)
 }
 
@@ -96,7 +96,7 @@ func getNow(has bool) *time.Time {
 	return &s
 }
 
-func (e *Engine) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
+func (e *engineImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
 	for _, v := range logs {
 		if v == toAdd {
 			return logs

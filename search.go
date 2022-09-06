@@ -7,7 +7,7 @@ import (
 	"strconv"
 )
 
-func searchIDsWithCount(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
+func searchIDsWithCount(skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
 	return searchIDs(skipFakeDelete, engine, where, pager, true, entityType)
 }
 
@@ -125,7 +125,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.tableSchema
 	whereQuery := where.String()
@@ -152,7 +152,7 @@ func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, wher
 	return true, schema, pointers
 }
 
-func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -196,11 +196,11 @@ func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *
 	return totalRows
 }
 
-func searchOne(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchOne(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
 	return searchRow(serializer, skipFakeDelete, engine, where, entity, references)
 }
 
-func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
+func searchIDs(skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -229,7 +229,7 @@ func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, 
 	return result, totalRows
 }
 
-func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, schema *tableSchema, foundRows int) int {
+func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, where *Where, schema *tableSchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows

@@ -84,7 +84,7 @@ type eventFlusher struct {
 }
 
 type eventBroker struct {
-	engine *Engine
+	engine *engineImplementation
 }
 
 func createEventSlice(body interface{}, meta []string) []string {
@@ -127,7 +127,7 @@ func (ef *eventFlusher) Flush() {
 	ef.events = make(map[string][][]string)
 }
 
-func (e *Engine) GetEventBroker() EventBroker {
+func (e *engineImplementation) GetEventBroker() EventBroker {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	if e.eventBroker == nil {
@@ -144,7 +144,7 @@ func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) 
 	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(body, meta))
 }
 
-func getRedisForStream(engine *Engine, stream string) *RedisCache {
+func getRedisForStream(engine *engineImplementation, stream string) *RedisCache {
 	pool, has := engine.registry.redisStreamPools[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
@@ -177,7 +177,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	engine    *Engine
+	engine    *engineImplementation
 	loop      bool
 	blockTime time.Duration
 }

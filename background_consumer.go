@@ -46,9 +46,9 @@ type BackgroundConsumer struct {
 	lazyErrorLock        sync.Mutex
 }
 
-func NewBackgroundConsumer(engine *Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine}}
-	c.engine = engine
+func NewBackgroundConsumer(engine Engine) *BackgroundConsumer {
+	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine.(*engineImplementation)}}
+	c.engine = engine.(*engineImplementation)
 	c.loop = true
 	c.blockTime = time.Second * 30
 	c.lazyFlushModulo = 11
@@ -297,7 +297,7 @@ func (r *BackgroundConsumer) handleLazy(event Event, data map[string]interface{}
 	event.Ack()
 }
 
-func (r *BackgroundConsumer) handleQueries(engine *Engine, validMap map[string]interface{}) []uint64 {
+func (r *BackgroundConsumer) handleQueries(engine *engineImplementation, validMap map[string]interface{}) []uint64 {
 	queries, has := validMap["q"]
 	var ids []uint64
 	if has {
