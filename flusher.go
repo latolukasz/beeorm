@@ -432,8 +432,9 @@ func (f *flusher) executeUpdates() {
 func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 	for typeOf, values := range flushPackage.insertKeys {
 		schema := getTableSchema(f.engine.registry, typeOf)
-		f.stringBuilder.WriteString("INSERT INTO ")
+		f.stringBuilder.WriteString("INSERT INTO `")
 		f.stringBuilder.WriteString(schema.tableName)
+		f.stringBuilder.WriteString("`")
 		l := len(values)
 		if l > 0 {
 			f.stringBuilder.WriteString("(")
@@ -575,9 +576,9 @@ func (f *flusher) flushUpdate(entity Entity, bindBuilder *bindBuilder, currentID
 	if !entity.IsLoaded() {
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
 	}
-	f.stringBuilder.WriteString("UPDATE ")
+	f.stringBuilder.WriteString("UPDATE `")
 	f.stringBuilder.WriteString(schema.GetTableName())
-	f.stringBuilder.WriteString(" SET ")
+	f.stringBuilder.WriteString("` SET ")
 	first := true
 	for key, value := range bindBuilder.sqlBind {
 		if !first {
