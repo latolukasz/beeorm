@@ -868,8 +868,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	if local {
 		assert.Len(t, testLogger.Logs, 3)
 		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
-		assert.Equal(t, "UPDATE flushEntity SET `Age`=99 WHERE `ID` = 10;UPDATE flushEntity SET `Uint`=99 "+
-			"WHERE `ID` = 11;UPDATE flushEntity SET `Name`='sss' WHERE `ID` = 12;", testLogger.Logs[1]["query"])
+		assert.Equal(t, "UPDATE `flushEntity` SET `Age`=99 WHERE `ID` = 10;UPDATE `flushEntity` SET `Uint`=99 "+
+			"WHERE `ID` = 11;UPDATE `flushEntity` SET `Name`='sss' WHERE `ID` = 12;", testLogger.Logs[1]["query"])
 		assert.Equal(t, "COMMIT", testLogger.Logs[2]["query"])
 	}
 
