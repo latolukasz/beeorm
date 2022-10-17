@@ -879,12 +879,14 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		val := float64(0)
 		if value != nil {
 			valueString := fmt.Sprintf("%v", value)
-			valueString = strings.ReplaceAll(valueString, ",", ".")
-			parsed, err := strconv.ParseFloat(valueString, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v is not valid", field, value)
+			if valueString != "" {
+				valueString = strings.ReplaceAll(valueString, ",", ".")
+				parsed, err := strconv.ParseFloat(valueString, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v is not valid", field, value)
+				}
+				val = parsed
 			}
-			val = parsed
 		}
 		f.SetFloat(val)
 	case "*float32",
@@ -895,12 +897,14 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		} else {
 			val := float64(0)
 			valueString := fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface())
-			valueString = strings.ReplaceAll(valueString, ",", ".")
-			parsed, err := strconv.ParseFloat(valueString, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v is not valid", field, value)
+			if valueString != "" {
+				valueString = strings.ReplaceAll(valueString, ",", ".")
+				parsed, err := strconv.ParseFloat(valueString, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v is not valid", field, value)
+				}
+				val = parsed
 			}
-			val = parsed
 			f.Set(reflect.ValueOf(&val))
 		}
 	case "*time.Time":
