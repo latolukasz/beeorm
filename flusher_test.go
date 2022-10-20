@@ -1103,6 +1103,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	err = flusher.FlushWithCheck()
 	assert.NotNil(t, err)
 	assert.Equal(t, "ROLLBACK", testLogger.Logs[len(testLogger.Logs)-1]["query"])
+
+	entity = schema.NewEntity().(*flushEntity)
+	entity.Name = "WithID"
+	err = entity.SetField("ID", 676)
+	assert.NoError(t, err)
+	engine.Flush(entity)
+	entity = &flushEntity{}
+	assert.True(t, engine.LoadByID(676, entity))
 }
 
 // 17 allocs/op - 6 for Exec
