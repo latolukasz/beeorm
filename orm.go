@@ -729,7 +729,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 					valid = false
 				}
 			}
-			if !valid {
+			if !valid && asString != "" {
 				parsed, err := strconv.ParseUint(fmt.Sprintf("%v", value), 10, 64)
 				if err != nil {
 					return fmt.Errorf("%s value %v not valid", field, value)
@@ -796,7 +796,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 					valid = false
 				}
 			}
-			if !valid {
+			if !valid && asString != "" {
 				parsed, err := strconv.ParseInt(fmt.Sprintf("%v", value), 10, 64)
 				if err != nil {
 					return fmt.Errorf("%s value %v not valid", field, value)
