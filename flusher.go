@@ -313,6 +313,9 @@ func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
 				deletesRedisCache[cacheCode] = commands.deletes
 			}
 		}
+		if transaction {
+			f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
+		}
 	} else if transaction {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
 	}

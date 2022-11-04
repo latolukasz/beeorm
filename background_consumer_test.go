@@ -159,4 +159,23 @@ func TestBackgroundConsumer(t *testing.T) {
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(100, e))
+
+	e2 = &lazyReceiverEntity{}
+	e3 = &lazyReceiverEntity{}
+	engine.LoadByID(2, e2)
+	engine.LoadByID(3, e3)
+	e2.Name = "John"
+	e3.Name = "Ivona"
+	engine.GetMysql().Begin()
+	engine.FlushLazyMany(e2, e3)
+	engine.GetMysql().Commit()
+	receiver.Digest(context.Background())
+	engine.GetLocalCache().Clear()
+	engine.GetRedis().FlushDB()
+	e2 = &lazyReceiverEntity{}
+	e3 = &lazyReceiverEntity{}
+	engine.LoadByID(2, e2)
+	engine.LoadByID(3, e3)
+	assert.Equal(t, "John", e2.Name)
+	assert.Equal(t, "Ivona", e3.Name)
 }
