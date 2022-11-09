@@ -260,6 +260,16 @@ func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, u
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
 }
 
+func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
+	opts.DB = db
+	opts.SentinelAddrs = sentinels
+	if opts.MaxConnAge == 0 {
+		opts.MaxConnAge = time.Minute * 2
+	}
+	client := redis.NewFailoverClient(&opts)
+	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
+}
+
 func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []string) {
 	if r.redisStreamGroups == nil {
 		r.redisStreamGroups = make(map[string]map[string]map[string]bool)
