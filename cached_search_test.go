@@ -263,6 +263,19 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		receiver.Digest(context.Background())
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
+
+	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
+	assert.Equal(t, 1, totalRows)
+	assert.NotNil(t, rows[0])
+	e := &cachedSearchEntity{ID: 4}
+	engine.Load(e)
+	engine.DeleteLazy(e)
+	receiver := NewBackgroundConsumer(engine)
+	receiver.DisableLoop()
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
+	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
+	assert.Equal(t, 0, totalRows)
 }
 
 func TestCachedSearchErrors(t *testing.T) {
