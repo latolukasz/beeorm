@@ -15,7 +15,7 @@ func TestRegisterRedisSentinelWithOptions(t *testing.T) {
 	opt.Password = "test_pass"
 	sentinels := []string{"127.0.0.1:23", "127.0.0.1:24"}
 
-	registry.RegisterRedisSentinelWithOptions("my_namespoace", opt, 0, sentinels)
+	registry.RegisterRedisSentinelWithOptions("my_namespace", opt, 0, sentinels)
 	vRegistry, f, err := registry.Validate()
 	assert.NoError(t, err)
 	assert.NotNil(t, f)
