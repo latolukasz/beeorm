@@ -32,6 +32,7 @@ type Entity interface {
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
+	Clone() Entity
 }
 
 type ORM struct {
@@ -62,6 +63,23 @@ func (orm *ORM) GetID() uint64 {
 		return 0
 	}
 	return orm.idElem.Uint()
+}
+
+func (orm *ORM) Clone() Entity {
+	newEntity := orm.tableSchema.NewEntity()
+	for i, field := range orm.tableSchema.fields.fields {
+		if i == 1 {
+			continue
+		}
+		if field.IsExported() {
+			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
+		} else {
+			for k := 0; k < orm.getORM().elem.Field(i).Type().NumField(); k++ {
+				newEntity.getORM().elem.Field(i).Field(k).Set(orm.getORM().elem.Field(i).Field(k))
+			}
+		}
+	}
+	return newEntity
 }
 
 func (orm *ORM) copyBinary() []byte {

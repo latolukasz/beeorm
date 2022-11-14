@@ -1111,6 +1111,28 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	assert.True(t, engine.LoadByID(676, entity))
+
+	entity = &flushEntity{}
+	engine.LoadByID(13, entity)
+	entity.City = "Warsaw"
+	entity.SubName = "testSub"
+	engine.Flush(entity)
+	clonedEntity := entity.Clone().(*flushEntity)
+	assert.Equal(t, uint(0), clonedEntity.ID)
+	assert.False(t, clonedEntity.IsLoaded())
+	assert.True(t, clonedEntity.IsDirty())
+	assert.Equal(t, "Warsaw", clonedEntity.City)
+	assert.Equal(t, "1335", clonedEntity.Name)
+	assert.Equal(t, "testSub", clonedEntity.SubName)
+	assert.Equal(t, 38, clonedEntity.Age)
+	clonedEntity.Name = "Cloned"
+	clonedEntity.City = "Cracow"
+	clonedEntity.ReferenceOne = nil
+	engine.Flush(clonedEntity)
+	entity = &flushEntity{}
+	assert.True(t, engine.LoadByID(677, entity))
+	assert.Equal(t, 38, clonedEntity.Age)
+	assert.Equal(t, "testSub", clonedEntity.SubName)
 }
 
 // 17 allocs/op - 6 for Exec
