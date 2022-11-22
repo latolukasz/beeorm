@@ -65,8 +65,8 @@ func TestBackgroundConsumer(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
 	assert.True(t, loaded)
-	assert.Equal(t, "Tom", e.Name)
-	assert.Equal(t, uint64(30), e.Age)
+	assert.Equal(t, "John", e.Name)
+	assert.Equal(t, uint64(18), e.Age)
 
 	engine.GetLocalCache().Clear()
 	e = &lazyReceiverEntity{}
@@ -79,7 +79,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
 	assert.True(t, loaded)
-	assert.Equal(t, "John", e.Name)
+	assert.Equal(t, "Tom", e.Name)
 
 	e = &lazyReceiverEntity{}
 	e.Name = "Monica"

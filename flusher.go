@@ -342,7 +342,12 @@ func (f *flusher) updateLocalCache(lazy bool, transaction bool) {
 	for cacheCode, keys := range f.localCacheSets {
 		cache := f.engine.GetLocalCache(cacheCode)
 		if !transaction {
-			cache.MSet(keys...)
+			if lazy {
+				lazyMap := f.getLazyMap()
+				lazyMap["sl"] = f.localCacheSets
+			} else {
+				cache.MSet(keys...)
+			}
 		} else {
 			if f.engine.afterCommitLocalCacheSets == nil {
 				f.engine.afterCommitLocalCacheSets = make(map[string][]interface{})

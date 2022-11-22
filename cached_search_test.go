@@ -33,6 +33,14 @@ type cachedSearchRefEntity struct {
 	IndexAll  *CachedQuery `query:""`
 }
 
+type cachedSearchEntityNotDefaultPool struct {
+	ORM
+	ID             uint
+	Name           string                 `orm:"length=100"`
+	ReferenceOne   *cachedSearchRefEntity `orm:"index=IndexReference"`
+	IndexReference *CachedQuery           `query:":ReferenceOne = ?"`
+}
+
 func TestCachedSearchLocal(t *testing.T) {
 	testCachedSearch(t, true, false)
 }
@@ -47,20 +55,31 @@ func TestCachedSearchLocalRedis(t *testing.T) {
 
 func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
+	var entityNotDefaultPool *cachedSearchEntityNotDefaultPool
 	var entityRef *cachedSearchRefEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entityRef, entity)
+	registry := &Registry{}
+	registry.RegisterLocalCache(1000, "second")
+	registry.RegisterRedis("localhost:6382", "", 13, "second")
+	engine, def := prepareTables(t, registry, 5, "", "2.0", entityRef, entity, entityNotDefaultPool)
 	defer def()
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	schemaNotDefaultPool := engine.GetRegistry().GetTableSchemaForEntity(entityNotDefaultPool).(*tableSchema)
 	if localCache {
 		schema.localCacheName = "default"
 		schema.hasLocalCache = true
+		schemaNotDefaultPool.localCacheName = "second"
+		schemaNotDefaultPool.hasLocalCache = true
 	} else {
 		schema.localCacheName = ""
 		schema.hasLocalCache = false
+		schemaNotDefaultPool.localCacheName = ""
+		schemaNotDefaultPool.hasLocalCache = false
 	}
 	if redisCache {
 		schema.redisCacheName = "default"
 		schema.hasRedisCache = true
+		schemaNotDefaultPool.redisCacheName = "second"
+		schemaNotDefaultPool.hasRedisCache = true
 	}
 
 	flusher := engine.NewFlusher()
@@ -269,13 +288,47 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.NotNil(t, rows[0])
 	e := &cachedSearchEntity{ID: 4}
 	engine.Load(e)
-	engine.DeleteLazy(e)
+	flusher = engine.NewFlusher()
+	flusher.Delete(e)
+	flusher.FlushLazy()
+	if localCache {
+		totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
+		assert.Equal(t, 1, totalRows)
+		assert.NotNil(t, rows[0])
+		assert.Equal(t, "Name 4", rows[0].Name)
+	}
 	receiver := NewBackgroundConsumer(engine)
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 0, totalRows)
+
+	engine.Flush(&cachedSearchEntityNotDefaultPool{Name: "A", ReferenceOne: &cachedSearchRefEntity{ID: 2}})
+	engine.Flush(&cachedSearchEntityNotDefaultPool{Name: "B", ReferenceOne: &cachedSearchRefEntity{ID: 2}})
+	var rows2 []*cachedSearchEntityNotDefaultPool
+	totalRows = engine.CachedSearch(&rows2, "IndexReference", nil, 2)
+	assert.Equal(t, 2, totalRows)
+	e2 := &cachedSearchEntityNotDefaultPool{ID: 1}
+	engine.Load(e2)
+	flusher = engine.NewFlusher()
+	flusher.Delete(e2)
+	flusher.FlushLazy()
+	if localCache {
+		totalRows = engine.CachedSearch(&rows2, "IndexReference", nil, 2)
+		assert.Equal(t, 2, totalRows)
+		assert.NotNil(t, rows2[0])
+		assert.Equal(t, "A", rows2[0].Name)
+		assert.Equal(t, "B", rows2[1].Name)
+	}
+	receiver = NewBackgroundConsumer(engine)
+	receiver.DisableLoop()
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
+	totalRows = engine.CachedSearch(&rows2, "IndexReference", nil, 2)
+	assert.Equal(t, 1, totalRows)
+	assert.NotNil(t, rows2[0])
+	assert.Equal(t, "B", rows2[0].Name)
 }
 
 func TestCachedSearchErrors(t *testing.T) {

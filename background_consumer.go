@@ -367,7 +367,14 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 			cache.Del(stringKeys...)
 		}
 	}
-	localCache, has := validMap["cl"]
+	localCache, has := validMap["sl"]
+	if has {
+		validKeys := localCache.(map[interface{}]interface{})
+		for cacheCode, allKeys := range validKeys {
+			r.engine.GetLocalCache(cacheCode.(string)).MSet(allKeys.([]interface{})...)
+		}
+	}
+	localCache, has = validMap["cl"]
 	if has {
 		validKeys := localCache.(map[interface{}]interface{})
 		for cacheCode, allKeys := range validKeys {
