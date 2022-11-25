@@ -186,8 +186,32 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	}
 	idsToReturn := resultsIDs[sliceStart:sliceEnd]
 	_, is := entities.(Entity)
-	if !is {
-		tryByIDs(serializer, engine, idsToReturn, value.Elem(), references)
+	if !is && len(idsToReturn) > 0 {
+		elem := value.Elem()
+		_, missing := tryByIDs(serializer, engine, idsToReturn, elem, references)
+		if missing {
+			l := elem.Len()
+			missingCounter := 0
+			for i := 0; i < l; i++ {
+				if elem.Index(i).IsNil() {
+					missingCounter++
+				}
+			}
+			if missingCounter > 0 {
+				newLength := l - missingCounter
+				newSlice := reflect.MakeSlice(elem.Type(), newLength, newLength)
+				k := 0
+				for i := 0; i < l; i++ {
+					val := elem.Index(i)
+					if !val.IsNil() {
+						newSlice.Index(k).Set(val)
+						k++
+					}
+				}
+				totalRows -= missingCounter
+				elem.Set(newSlice)
+			}
+		}
 	}
 	return totalRows, idsToReturn
 }
