@@ -7,7 +7,7 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0")
+	engine, def := prepareTables(t, &Registry{}, 5, "")
 	defer def()
 	source := engine.GetRegistry().GetSourceRegistry()
 	assert.NotNil(t, source)

@@ -2,7 +2,7 @@ package beeorm
 
 import (
 	"database/sql"
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 
@@ -30,11 +30,11 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entity)
+	engine, def := prepareTables(t, &Registry{}, 5, "", entity)
 	defer def()
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
 	engine.RegisterQueryLogger(testQueryLog, true, false, false)
 
 	db := engine.GetMysql()
@@ -111,7 +111,7 @@ func TestDB(t *testing.T) {
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entity)
+	engine, def := prepareTables(t, &Registry{}, 5, "", entity)
 	defer def()
 	db := engine.GetMysql()
 	logger := &testLogHandler{}

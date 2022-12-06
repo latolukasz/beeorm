@@ -402,7 +402,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterEnumStruct("beeorm.TestSet", TestSet)
-	engine, def := prepareTables(t, registry, 5, "", "2.0", entity, reference)
+	engine, def := prepareTables(t, registry, 5, "", entity, reference)
 	defer def()
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
@@ -1146,8 +1146,7 @@ func BenchmarkIsDirty(b *testing.B) {
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
 	registry.RegisterEnum("beeorm.TestSet", []string{"a", "b", "c"})
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
-	engine, def := prepareTables(nil, registry, 5, "", "2.0",
-		entity, &flushEntity{}, &flushEntityReference{})
+	engine, def := prepareTables(nil, registry, 5, "", entity, &flushEntity{}, &flushEntityReference{})
 	defer def()
 	entity = &benchmarkIsDirtyEntity{}
 
@@ -1403,7 +1402,7 @@ func benchmarkFlusher(b *testing.B, useLocalCache, useRedisCache bool) {
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
 	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine, def := prepareTables(nil, registry, 5, "", "2.0", entity)
+	engine, def := prepareTables(nil, registry, 5, "", entity)
 	defer def()
 
 	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)

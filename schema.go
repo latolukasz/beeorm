@@ -190,7 +190,9 @@ func getSchemaChanges(engine *engineImplementation, tableSchema *tableSchema) (h
 	pool := engine.GetMysql(tableSchema.mysqlPoolName)
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
-	columns[0][1] += " AUTO_INCREMENT"
+	if !tableSchema.hasUUID {
+		columns[0][1] += " AUTO_INCREMENT"
+	}
 	for _, value := range columns {
 		createTableSQL += fmt.Sprintf("  %s,\n", value[1])
 	}
@@ -596,7 +598,7 @@ func checkColumn(engine *engineImplementation, schema *tableSchema, field *refle
 		unique := key == "unique"
 		if key == "index" && field.Type.Kind() == reflect.Ptr {
 			refOneSchema = getTableSchema(engine.registry, field.Type.Elem())
-			if refOneSchema != nil {
+			if refOneSchema != nil && !refOneSchema.hasUUID {
 				_, hasSkipFK := attributes["skip_FK"]
 				if !hasSkipFK {
 					pool := refOneSchema.GetMysql(engine)
@@ -631,7 +633,7 @@ func checkColumn(engine *engineImplementation, schema *tableSchema, field *refle
 		}
 	}
 
-	if refOneSchema != nil {
+	if refOneSchema != nil && !refOneSchema.hasUUID {
 		hasValidIndex := false
 		for _, i := range indexes {
 			if i.Columns[1] == columnName {
