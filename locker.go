@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/go-redsync/redsync/v4"
 	"github.com/go-redsync/redsync/v4/redis/goredis/v8"
 	"github.com/pkg/errors"
@@ -71,8 +69,8 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 			}
 			return nil, false
 		}
-		multiError, is := err.(*multierror.Error)
-		if is && multiError.Errors[0].Error() == "context deadline exceeded" {
+		_, is := err.(redsync.ErrTaken)
+		if is {
 			if l.r.engine.hasRedisLogger {
 				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
 				l.fillLogFields("LOCK OBTAIN", message, start, true, nil)
@@ -105,8 +103,8 @@ func (l *Lock) Release() {
 	l.has = false
 	start := getNow(l.engine.hasRedisLogger)
 	ok, err := l.lock.UnlockContext(context.Background())
-	multiError, is := err.(*multierror.Error)
-	if is && (multiError.Errors[0].Error() == "context canceled" || multiError.Errors[0].Error() == "context deadline exceeded") {
+	_, is := err.(redsync.ErrTaken)
+	if is {
 		err = nil
 	}
 	if l.engine.hasRedisLogger {
@@ -136,8 +134,8 @@ func (l *Lock) Refresh(ctx context.Context) bool {
 			err = nil
 			l.has = false
 		} else {
-			multiError, is := err.(*multierror.Error)
-			if is && (multiError.Errors[0].Error() == "context canceled" || multiError.Errors[0].Error() == "context deadline exceeded") {
+			_, is := err.(redsync.ErrTaken)
+			if is {
 				ok = false
 				err = nil
 				l.has = false
