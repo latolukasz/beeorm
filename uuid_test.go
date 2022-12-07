@@ -42,12 +42,19 @@ func TestUUIDLocalRedisCache(t *testing.T) {
 	testUUID(t, true, true)
 }
 
-func TestUuidInvalidSchema(t *testing.T) {
+func TestUUIDInvalidSchema(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
 	registry.RegisterEntity(&uuidEntityInvalid{})
 	_, _, err := registry.Validate()
 	assert.EqualError(t, err, "entity beeorm.uuidEntityInvalid with uuid enabled must be unit64")
+}
+
+func TestUUIDServerID(t *testing.T) {
+	id := uuid()
+	SetUUIDServerID(1)
+	id2 := uuid()
+	assert.Equal(t, uint64(72057594037927937), id2-id)
 }
 
 func testUUID(t *testing.T, local bool, redis bool) {
