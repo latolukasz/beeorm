@@ -4,6 +4,7 @@ const (
 	commandDelete = iota
 	commandXAdd   = iota
 	commandHSet   = iota
+	commandSet    = iota
 )
 
 type redisFlusherCommands struct {
@@ -11,6 +12,7 @@ type redisFlusherCommands struct {
 	usePool bool
 	deletes []string
 	hSets   map[string][]interface{}
+	sets    map[string]interface{}
 	events  map[string][][]string
 }
 
@@ -34,6 +36,20 @@ func (f *redisFlusher) Del(redisPool string, keys ...string) {
 	}
 	commands.diffs[commandDelete] = true
 	commands.deletes = append(commands.deletes, keys...)
+}
+
+func (f *redisFlusher) Set(redisPool string, key string, value interface{}) {
+	if f.pipelines == nil {
+		f.pipelines = make(map[string]*redisFlusherCommands)
+	}
+	commands, has := f.pipelines[redisPool]
+	if !has {
+		commands = &redisFlusherCommands{sets: map[string]interface{}{key: value}, diffs: map[int]bool{commandSet: true}}
+		f.pipelines[redisPool] = commands
+		return
+	}
+	commands.diffs[commandSet] = true
+	commands.sets[key] = value
 }
 
 func (f *redisFlusher) Publish(stream string, body interface{}, meta ...string) {
@@ -83,7 +99,8 @@ func (f *redisFlusher) HSet(redisPool, key string, values ...interface{}) {
 func (f *redisFlusher) Flush() {
 	if len(f.pipelines) <= 1 {
 		for poolCode, commands := range f.pipelines {
-			usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1 || len(commands.hSets) > 1
+			usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.events) > 1 ||
+				len(commands.hSets) > 1 || len(commands.sets) > 1
 			if usePool {
 				p := f.engine.GetRedis(poolCode).PipeLine()
 				if commands.deletes != nil {
@@ -96,6 +113,9 @@ func (f *redisFlusher) Flush() {
 					for _, e := range events {
 						p.XAdd(stream, e)
 					}
+				}
+				for key, value := range commands.sets {
+					p.Set(key, value, 0)
 				}
 				p.Exec()
 			} else {
@@ -113,13 +133,18 @@ func (f *redisFlusher) Flush() {
 						r.xAdd(stream, e)
 					}
 				}
+				if commands.sets != nil {
+					for key, value := range commands.sets {
+						r.Set(key, value, 0)
+					}
+				}
 			}
 		}
 		f.pipelines = nil
 		return
 	}
 	for poolCode, commands := range f.pipelines {
-		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.hSets) > 1
+		usePool := commands.usePool || len(commands.diffs) > 1 || len(commands.hSets) > 1 || len(commands.sets) > 1
 		if usePool {
 			p := f.engine.GetRedis(poolCode).PipeLine()
 			has := false
@@ -129,6 +154,10 @@ func (f *redisFlusher) Flush() {
 			}
 			for key, values := range commands.hSets {
 				p.HSet(key, values...)
+				has = true
+			}
+			for key, value := range commands.sets {
+				p.Set(key, value, 0)
 				has = true
 			}
 			if has {
@@ -142,6 +171,11 @@ func (f *redisFlusher) Flush() {
 			if commands.hSets != nil {
 				for key, values := range commands.hSets {
 					r.HSet(key, values...)
+				}
+			}
+			if commands.sets != nil {
+				for key, value := range commands.sets {
+					r.Set(key, value, 0)
 				}
 			}
 		}

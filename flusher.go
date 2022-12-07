@@ -474,7 +474,10 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 			var logEvents []*LogQueueValue
 			var dirtyEvents []*dirtyQueueValue
 			for key, entity := range flushPackage.insertReflectValues[typeOf] {
-				logEvent, dirtyEvent := f.updateCacheForInserted(entity, lazy, 0, flushPackage.insertBinds[typeOf][key])
+				if schema.hasUUID {
+					entity.getORM().serialize(f.getSerializer())
+				}
+				logEvent, dirtyEvent := f.updateCacheForInserted(entity, lazy, entity.GetID(), flushPackage.insertBinds[typeOf][key])
 				if logEvent != nil {
 					logEvents = append(logEvents, logEvent)
 				}
@@ -743,7 +746,7 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 		cacheKey := schema.getCacheKey(id)
 		keys := f.getCacheQueriesKeys(schema, bind, nil, false, true)
 		if hasLocalCache {
-			if !lazy {
+			if !lazy || schema.hasUUID {
 				f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
 			} else {
 				f.addLocalCacheDeletes(localCache.config.GetCode(), schema.getCacheKey(id))
@@ -751,7 +754,11 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 		}
 		if hasRedis {
-			f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
+			if schema.hasUUID {
+				f.getRedisFlusher().Set(redisCache.config.GetCode(), cacheKey, entity.getORM().binary)
+			} else {
+				f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
+			}
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 		}
 	}
