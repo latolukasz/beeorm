@@ -353,7 +353,12 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 		}
 		values := make([]interface{}, 0)
 		for cacheKey, refs := range v {
-			values = append(values, cacheKey, refs[0].getORM().binary)
+			cacheValue := refs[0].getORM().binary
+			if len(cacheValue) == 0 {
+				values = append(values, cacheKey, cacheNilValue)
+			} else {
+				values = append(values, cacheKey, cacheValue)
+			}
 		}
 		engine.GetLocalCache(pool).MSet(values...)
 	}
