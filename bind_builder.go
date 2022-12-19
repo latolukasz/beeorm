@@ -216,7 +216,7 @@ func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, va
 			if old == zeroDateSeconds {
 				old = 0
 			} else {
-				old -= 62167219200
+				old -= timeStampSeconds
 			}
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
@@ -244,7 +244,7 @@ func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, va
 			if old == zeroDateSeconds {
 				old = 0
 			} else {
-				old -= 62167219200
+				old -= timeStampSeconds
 			}
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
@@ -691,7 +691,7 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
 			}
 			if old {
-				oldVal := serializer.DeserializeInteger() - 62167219200
+				oldVal := serializer.DeserializeInteger() - timeStampSeconds
 				if b.hasCurrent {
 					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(timeFormat)
 				}
@@ -734,7 +734,7 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
 			}
 			if old {
-				oldVal := serializer.DeserializeInteger() - 62167219200
+				oldVal := serializer.DeserializeInteger() - timeStampSeconds
 				if b.hasCurrent {
 					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(dateformat)
 				}
