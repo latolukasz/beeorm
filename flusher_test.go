@@ -420,7 +420,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		schema2.redisCacheName = ""
 	}
 
-	now := time.Now()
+	date := time.Date(2049, 1, 12, 18, 34, 40, 0, time.Local)
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
 	entity.NameTranslated = map[string]string{"pl": "kot", "en": "cat"}
 	entity.ReferenceOne = &flushEntityReference{Name: "John", Age: 30}
@@ -433,11 +433,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.FlushStruct.Name2 = "Ita"
 	entity.FlushStruct.Sub.Age3 = 13
 	entity.FlushStruct.Sub.Name3 = "Nanami"
-	entity.FlushStruct.TestTime = &now
-	entity.TimeWithTime = now
+	entity.FlushStruct.TestTime = &date
+	entity.TimeWithTime = date
 	entity.Float64 = 2.12
 	entity.Decimal = 6.15
-	entity.TimeWithTimeNullable = &now
+	entity.TimeWithTimeNullable = &date
 	entity.Images = []obj{{ID: 1, StorageKey: "aaa", Data: map[string]string{"sss": "vv", "bb": "cc"}}}
 	entity.flushStructAnonymous = flushStructAnonymous{"Adam", 39.123}
 	entity.AttributesValues = attributesValues{12: []interface{}{"a", "b"}}
@@ -477,10 +477,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
-	assert.Equal(t, now.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
-	assert.Equal(t, now.Unix(), entity.TimeWithTimeNullable.Unix())
+	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
+
+	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
+	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
+	assert.Equal(t, date.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
 	assert.NotNil(t, entity.FlushStructPtr)
@@ -488,7 +489,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
 	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
-	assert.Equal(t, now.Format(timeFormat), entity.FlushStruct.TestTime.Format(timeFormat))
+	assert.Equal(t, date.Format(timeFormat), entity.FlushStruct.TestTime.Format(timeFormat))
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
@@ -626,7 +627,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.Name = "Tom"
 	var uIntNullable *uint
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": uIntNullable,
-		"BoolNullable": nil, "TimeWithTime": now, "Time": now})
+		"BoolNullable": nil, "TimeWithTime": date, "Time": date})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint(1), entity2.ID)
@@ -638,8 +639,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.UintNullable)
 	assert.Equal(t, 40, entity.Age)
 	assert.Equal(t, uint(1), entity.ID)
-	assert.Equal(t, now.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, entity.Time.Format(dateformat), now.Format(dateformat))
+	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
+	assert.Equal(t, entity.Time.Format(dateformat), date.Format(dateformat))
 
 	entity2 = &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
@@ -660,8 +661,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(1, entity)
 
 	entity.Bool = false
-	now = now.Add(time.Hour * 40)
-	entity.TimeWithTime = now
+	date = date.Add(time.Hour * 40)
+	entity.TimeWithTime = date
 	entity.Name = ""
 	entity.IntNullable = nil
 	entity.EnumNullable = "b"
@@ -670,7 +671,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
-	assert.Equal(t, now.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
+	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
 	assert.Equal(t, "", entity.Name)
 	assert.Equal(t, "b", entity.EnumNullable)
 	assert.Nil(t, entity.IntNullable)
@@ -1037,10 +1038,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, entity.IsDirty())
 	engine.ForceDelete(entity)
 
-	now = time.Unix(1, 0).UTC()
+	date = time.Unix(1, 0).UTC()
 	entity = &flushEntity{}
 	engine.LoadByID(11, entity)
-	entity.TimeWithTime = now
+	entity.TimeWithTime = date
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	i2 = 13
@@ -1057,7 +1058,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.Interface = "ss"
 	entity.ReferenceMany = []*flushEntityReference{}
 	engine.LoadByID(11, entity)
-	assert.Equal(t, now, entity.TimeWithTime.UTC())
+	assert.Equal(t, date, entity.TimeWithTime.UTC())
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.Int8Nullable)
 	assert.Nil(t, entity.BoolNullable)

@@ -1090,7 +1090,7 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		name := subFieldPrefix + fields.fields[i].Name
 		columns = append(columns, name)
 		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
-			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
+			fieldsQuery += ",TO_SECONDS(`" + name + "`)"
 		} else {
 			fieldsQuery += ",`" + name + "`"
 		}
