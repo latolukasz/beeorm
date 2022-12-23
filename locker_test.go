@@ -19,9 +19,8 @@ func TestLockerNamespace(t *testing.T) {
 func testLocker(t *testing.T, namespace string) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", namespace, 15)
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	defer def()
 	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
 	testLogger := &testLogHandler{}

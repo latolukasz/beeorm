@@ -22,7 +22,7 @@ func (h *testLogHandler) clear() {
 	h.Logs = nil
 }
 
-func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisNamespace string, entities ...Entity) (engine *engineImplementation, def func()) {
+func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisNamespace string, entities ...Entity) (engine *engineImplementation) {
 	if mySQLVersion == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -37,11 +37,11 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisName
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)
-	vRegistry, def, err := registry.Validate()
+	vRegistry, err := registry.Validate()
 	if err != nil {
 		if t != nil {
 			assert.NoError(t, err)
-			return nil, def
+			return nil
 		}
 		panic(err)
 	}
@@ -83,7 +83,7 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion int, redisName
 	indexer.blockTime = time.Millisecond
 	indexer.Digest(context.Background())
 
-	return engine, def
+	return engine
 }
 
 type mockDBClient struct {

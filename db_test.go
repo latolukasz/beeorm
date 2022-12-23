@@ -30,8 +30,7 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", entity)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, "", entity)
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
 	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
@@ -111,8 +110,7 @@ func TestDB(t *testing.T) {
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", entity)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, "", entity)
 	db := engine.GetMysql()
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)

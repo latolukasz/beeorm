@@ -26,10 +26,9 @@ func testRedis(t *testing.T, namespace string) {
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
-	def()
 
 	r := engine.GetRedis()
 
@@ -333,9 +332,8 @@ func testRedis(t *testing.T, namespace string) {
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6399", "", 15)
-	validatedRegistry, def, err = registry.Validate()
+	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
-	defer def()
 	engine = validatedRegistry.CreateEngine()
 	testLogger = &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
@@ -345,9 +343,8 @@ func testRedis(t *testing.T, namespace string) {
 
 	registry = &Registry{}
 	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
-	validatedRegistry, def, err = registry.Validate()
+	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
-	def()
 	engine = validatedRegistry.CreateEngine()
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
 		engine.GetRedis().Incr("test")

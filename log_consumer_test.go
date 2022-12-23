@@ -37,8 +37,7 @@ func TestLogReceiver(t *testing.T) {
 	var entity3 *logReceiverEntity3
 	registry := &Registry{}
 	registry.ForceEntityLogInAllEntities("default")
-	engine, def := prepareTables(t, registry, 5, "", entity1, entity2, entity3)
-	defer def()
+	engine := prepareTables(t, registry, 5, "", entity1, entity2, entity3)
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity3`")

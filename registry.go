@@ -34,7 +34,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), err error) {
+func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -89,11 +89,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
 	}
-	deferFunc = func() {
-		for _, v := range registry.mySQLServers {
-			_ = v.(*mySQLPoolConfig).client.Close()
-		}
-	}
 	if registry.localCacheServers == nil {
 		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
@@ -123,8 +118,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 		tableSchema := &tableSchema{}
 		err := tableSchema.init(r, entityType)
 		if err != nil {
-			deferFunc()
-			return nil, nil, err
+			return nil, err
 		}
 		registry.tableSchemas[entityType] = tableSchema
 		registry.entities[name] = entityType
@@ -155,12 +149,11 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	for _, schema := range registry.tableSchemas {
 		_, err := checkStruct(schema, engine.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
 		if err != nil {
-			deferFunc()
-			return nil, nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
+			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
 		schema.registry = registry
 	}
-	return registry, deferFunc, nil
+	return registry, nil
 }
 
 func (r *Registry) SetDefaultEncoding(encoding string) {

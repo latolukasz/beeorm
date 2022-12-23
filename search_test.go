@@ -25,8 +25,7 @@ type searchEntityReference struct {
 func TestSearch(t *testing.T) {
 	var entity *searchEntity
 	var reference *searchEntityReference
-	engine, def := prepareTables(t, &Registry{}, 5, "", entity, reference)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, "", entity, reference)
 
 	flusher := engine.NewFlusher()
 	for i := 1; i <= 10; i++ {
@@ -80,7 +79,7 @@ func TestSearch(t *testing.T) {
 	assert.True(t, entity.ReferenceMany[1].IsLoaded())
 	assert.True(t, entity.ReferenceMany[2].IsLoaded())
 
-	engine, _ = prepareTables(t, &Registry{}, 5, "")
+	engine = prepareTables(t, &Registry{}, 5, "")
 	assert.PanicsWithError(t, "entity 'beeorm.searchEntity' is not registered", func() {
 		engine.Search(NewWhere("ID > 0"), nil, &rows)
 	})

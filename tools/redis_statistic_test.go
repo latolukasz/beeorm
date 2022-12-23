@@ -11,9 +11,8 @@ func TestRedisStatistics(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
 	registry.RegisterRedis("localhost:6382", "", 14, "another")
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
-	defer def()
 	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
