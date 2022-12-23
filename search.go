@@ -7,8 +7,8 @@ import (
 	"strconv"
 )
 
-func searchIDsWithCount(skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
-	return searchIDs(skipFakeDelete, engine, where, pager, true, entityType)
+func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
+	return searchIDs(engine, where, pager, true, entityType)
 }
 
 func prepareScan(schema *tableSchema) (pointers []interface{}) {
@@ -125,11 +125,11 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.tableSchema
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 	}
 	/* #nosec */
@@ -152,7 +152,7 @@ func searchRow(serializer *serializer, skipFakeDelete bool, engine *engineImplem
 	return true, schema, pointers
 }
 
-func search(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(serializer *serializer, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -163,7 +163,7 @@ func search(serializer *serializer, skipFakeDelete bool, engine *engineImplement
 	}
 	schema := getTableSchema(engine.registry, entityType)
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 		where = NewWhere(whereQuery, where.parameters)
 	}
@@ -196,17 +196,17 @@ func search(serializer *serializer, skipFakeDelete bool, engine *engineImplement
 	return totalRows
 }
 
-func searchOne(serializer *serializer, skipFakeDelete bool, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
-	return searchRow(serializer, skipFakeDelete, engine, where, entity, references)
+func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+	return searchRow(serializer, engine, where, entity, references)
 }
 
-func searchIDs(skipFakeDelete bool, engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
+func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
 	schema := getTableSchema(engine.registry, entityType)
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		/* #nosec */
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 		where = NewWhere(whereQuery, where.parameters)

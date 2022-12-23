@@ -123,7 +123,7 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	}
 	if hasNil {
 		searchPager := NewPager(minPage, maxPage*pageSize)
-		results, total := searchIDsWithCount(false, engine, where, searchPager, entityType)
+		results, total := searchIDsWithCount(engine, where, searchPager, entityType)
 		totalRows = total
 		cacheFields := make([]interface{}, 0)
 		for key, ids := range fromCache {
@@ -227,7 +227,7 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))
 	}
-	Where := NewWhere(definition.Query, arguments...)
+	where := NewWhere(definition.Query, arguments...)
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
 	if !hasLocalCache && engine.hasRequestCache {
 		hasLocalCache = true
@@ -237,7 +237,7 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))
 	}
-	cacheKey := getCacheKeySearch(schema, indexName, Where.GetParameters()...)
+	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
 	var fromCache map[string]interface{}
 	if hasLocalCache {
 		fromLocalCache, hasInLocalCache := localCache.Get(cacheKey)
@@ -252,7 +252,7 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	}
 	id := uint64(0)
 	if fromCache["1"] == nil {
-		results, _ := searchIDs(true, engine, Where, NewPager(1, 1), false, entityType)
+		results, _ := searchIDs(engine, where, NewPager(1, 1), false, entityType)
 		l := len(results)
 		value := strconv.Itoa(l)
 		if l > 0 {

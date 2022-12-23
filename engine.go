@@ -30,7 +30,6 @@ type Engine interface {
 	GetRegistry() ValidatedRegistry
 	SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int)
 	Search(where *Where, pager *Pager, entities interface{}, references ...string)
-	SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string)
 	SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int)
 	SearchIDs(where *Where, pager *Pager, entity Entity) []uint64
 	SearchOne(where *Where, entity Entity, references ...string) (found bool)
@@ -251,28 +250,24 @@ func (e *engineImplementation) GetRegistry() ValidatedRegistry {
 }
 
 func (e *engineImplementation) SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	return search(newSerializer(nil), true, e, where, pager, true, true, reflect.ValueOf(entities).Elem(), references...)
+	return search(newSerializer(nil), e, where, pager, true, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *engineImplementation) Search(where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(newSerializer(nil), true, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
-}
-
-func (e *engineImplementation) SearchWithFakeDeleted(where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(newSerializer(nil), false, e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
+	search(newSerializer(nil), e, where, pager, false, true, reflect.ValueOf(entities).Elem(), references...)
 }
 
 func (e *engineImplementation) SearchIDsWithCount(where *Where, pager *Pager, entity Entity) (results []uint64, totalRows int) {
-	return searchIDsWithCount(true, e, where, pager, reflect.TypeOf(entity).Elem())
+	return searchIDsWithCount(e, where, pager, reflect.TypeOf(entity).Elem())
 }
 
 func (e *engineImplementation) SearchIDs(where *Where, pager *Pager, entity Entity) []uint64 {
-	results, _ := searchIDs(true, e, where, pager, false, reflect.TypeOf(entity).Elem())
+	results, _ := searchIDs(e, where, pager, false, reflect.TypeOf(entity).Elem())
 	return results
 }
 
 func (e *engineImplementation) SearchOne(where *Where, entity Entity, references ...string) (found bool) {
-	found, _, _ = searchOne(newSerializer(nil), true, e, where, entity, references)
+	found, _, _ = searchOne(newSerializer(nil), e, where, entity, references)
 	return found
 }
 
