@@ -50,7 +50,7 @@ type ormEntity struct {
 
 func TestORM(t *testing.T) {
 	var entity *ormEntity
-	engine := prepareTables(t, &Registry{}, 5, "", entity, &ormEntityRef{})
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, &ormEntityRef{})
 
 	entity = &ormEntity{nameUnset: ""}
 	id := entity.GetID()

@@ -7,22 +7,34 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRedis(t *testing.T) {
-	testRedis(t, "")
+func TestRedis6(t *testing.T) {
+	testRedis(t, "", 6)
 }
 
-func TestRedisNamespaces(t *testing.T) {
-	testRedis(t, "test")
+func TestRedis7(t *testing.T) {
+	testRedis(t, "", 7)
 }
 
-func testRedis(t *testing.T, namespace string) {
+func TestRedis6Namespaces(t *testing.T) {
+	testRedis(t, "test", 6)
+}
+
+func TestRedis7Namespaces(t *testing.T) {
+	testRedis(t, "test", 7)
+}
+
+func testRedis(t *testing.T, namespace string, version int) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", namespace, 15)
+	url := "localhost:6382"
+	if version == 7 {
+		url = "localhost:6381"
+	}
+	registry.RegisterRedis(url, namespace, 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
@@ -131,7 +143,7 @@ func testRedis(t *testing.T, namespace string) {
 	time.Sleep(time.Millisecond * 1200)
 	assert.Equal(t, int64(0), r.Exists("test_map"))
 
-	added := r.ZAdd("test_z", &redis.Z{Member: "a", Score: 10}, &redis.Z{Member: "b", Score: 20})
+	added := r.ZAdd("test_z", redis.Z{Member: "a", Score: 10}, redis.Z{Member: "b", Score: 20})
 	assert.Equal(t, int64(2), added)
 	assert.Equal(t, []string{"b", "a"}, r.ZRevRange("test_z", 0, 3))
 	assert.Equal(t, float64(10), r.ZScore("test_z", "a"))

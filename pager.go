@@ -1,5 +1,7 @@
 package beeorm
 
+import "strconv"
+
 // Pager represents a paginated list of results.
 type Pager struct {
 	// CurrentPage is the current page number.
@@ -30,4 +32,9 @@ func (pager *Pager) GetCurrentPage() int {
 // IncrementPage increments the current page number of the Pager.
 func (pager *Pager) IncrementPage() {
 	pager.CurrentPage++
+}
+
+// String returns SQL 'LIMIT X,Y'.
+func (pager *Pager) String() string {
+	return "LIMIT " + strconv.Itoa((pager.CurrentPage-1)*pager.PageSize) + "," + strconv.Itoa(pager.PageSize)
 }

@@ -103,7 +103,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	var subReference2 *loadByIDSubReference2
 	var subReference *loadByIDSubReference
 	var refMany *loadByIDReferenceMany
-	engine := prepareTables(t, &Registry{}, 5, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2, refMany)
 
 	schemas := make([]TableSchema, 0)
@@ -248,7 +248,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 		assert.False(t, engine.LoadByID(999, entityLocalCache))
 	}
 
-	engine = prepareTables(t, &Registry{}, 5, "")
+	engine = prepareTables(t, &Registry{}, 5, 6, "")
 	entity = &loadByIDEntity{}
 	assert.PanicsWithError(t, "entity 'beeorm.loadByIDEntity' is not registered", func() {
 		engine.LoadByID(1, entity)
@@ -265,7 +265,7 @@ func benchmarkLoadByIDLocalCache(b *testing.B, local, redis bool) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
-	engine := prepareTables(nil, registry, 5, "", entity)
+	engine := prepareTables(nil, registry, 5, 6, "", entity)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	if local {
 		schema.localCacheName = "default"

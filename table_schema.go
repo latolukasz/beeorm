@@ -9,6 +9,9 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type CachedQuery struct{}
@@ -69,6 +72,15 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 	return enum
 }
 
+type EntityLog struct {
+	LogID    uint64
+	EntityID uint64
+	Date     time.Time
+	Meta     map[string]interface{}
+	Before   map[string]interface{}
+	Changes  map[string]interface{}
+}
+
 type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
@@ -85,6 +97,7 @@ type TableSchema interface {
 	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
+	GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog
 }
 
 type tableSchema struct {
@@ -257,6 +270,56 @@ func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect
 	return results
 }
 
+func (tableSchema *tableSchema) GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog {
+	var results []EntityLog
+	if !tableSchema.hasLog {
+		return results
+	}
+	db := engine.GetMysql(tableSchema.logPoolName)
+	if pager == nil {
+		pager = NewPager(1, 1000)
+	}
+	if where == nil {
+		where = NewWhere("1")
+	}
+	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableSchema.logTableName + " WHERE "
+	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
+	fullQuery += "AND " + where.String() + " " + pager.String()
+	rows, closeF := db.Query(fullQuery, where.GetParameters()...)
+	defer closeF()
+	id := uint64(0)
+	addedAt := ""
+	meta := sql.NullString{}
+	before := sql.NullString{}
+	changes := sql.NullString{}
+	for rows.Next() {
+		rows.Scan(&id, &addedAt, &meta, &before, &changes)
+		log := EntityLog{}
+		log.LogID = id
+		log.EntityID = entityID
+		if meta.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if before.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(before.String, &log.Before)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if changes.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(changes.String, &log.Changes)
+			if err != nil {
+				panic(err)
+			}
+		}
+		results = append(results, log)
+	}
+	return results
+}
+
 func (tableSchema *tableSchema) getUsage(fields *tableFields, t reflect.Type, prefix string, results map[reflect.Type][]string) {
 	tName := tableSchema.t.String()
 	for i, fieldID := range fields.refs {
@@ -402,9 +465,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		}
 	}
 	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
-	if logPoolName == "" && registry.forcedEntityLog != "" {
-		logPoolName = registry.forcedEntityLog
-	}
 	hasUUID := tableSchema.getTag("uuid", "true", "false") == "true"
 	if hasUUID {
 		idField, is := entityType.FieldByName("ID")

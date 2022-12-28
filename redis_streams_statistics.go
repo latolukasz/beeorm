@@ -1,12 +1,10 @@
-package tools
+package beeorm
 
 import (
 	"math"
 	"strconv"
 	"strings"
 	"time"
-
-	orm "github.com/latolukasz/beeorm"
 )
 
 type RedisStreamStatistics struct {
@@ -19,6 +17,7 @@ type RedisStreamStatistics struct {
 
 type RedisStreamGroupStatistics struct {
 	Group                 string
+	Lag                   int64
 	Pending               uint64
 	LastDeliveredID       string
 	LastDeliveredDuration time.Duration
@@ -32,26 +31,60 @@ type RedisStreamConsumerStatistics struct {
 	Pending uint64
 }
 
-func GetRedisStreamsStatistics(engine orm.Engine) []*RedisStreamStatistics {
+func (eb *eventBroker) GetStreamStatistics(stream string) *RedisStreamStatistics {
+	stats := eb.GetStreamsStatistics(stream)
+	if len(stats) > 0 {
+		return stats[0]
+	}
+	return nil
+}
+
+func (eb *eventBroker) GetStreamGroupStatistics(stream, group string) *RedisStreamGroupStatistics {
+	stats := eb.GetStreamStatistics(stream)
+	for _, groupStats := range stats.Groups {
+		if groupStats.Group == group {
+			return groupStats
+		}
+	}
+	return &RedisStreamGroupStatistics{
+		Group: group,
+		Lag:   int64(stats.Len),
+	}
+}
+
+func (eb *eventBroker) GetStreamsStatistics(stream ...string) []*RedisStreamStatistics {
 	now := time.Now()
 	results := make([]*RedisStreamStatistics, 0)
-	for redisPool, channels := range engine.GetRegistry().GetRedisStreams() {
-		r := engine.GetRedis(redisPool)
-		for stream := range channels {
-			stat := &RedisStreamStatistics{Stream: stream, RedisPool: redisPool}
+	for redisPool, channels := range eb.engine.GetRegistry().GetRedisStreams() {
+		r := eb.engine.GetRedis(redisPool)
+		for streamName := range channels {
+			validName := len(stream) == 0
+			if !validName {
+				for _, name := range stream {
+					if name == streamName {
+						validName = true
+						break
+					}
+				}
+			}
+			if !validName {
+				continue
+			}
+			stat := &RedisStreamStatistics{Stream: streamName, RedisPool: redisPool}
 			results = append(results, stat)
 			stat.Groups = make([]*RedisStreamGroupStatistics, 0)
-			stat.Len = uint64(r.XLen(stream))
+			stat.Len = uint64(r.XLen(streamName))
 			minPending := -1
-			for _, group := range r.XInfoGroups(stream) {
+			for _, group := range r.XInfoGroups(streamName) {
 				groupStats := &RedisStreamGroupStatistics{Group: group.Name, Pending: uint64(group.Pending)}
 				groupStats.LastDeliveredID = group.LastDeliveredID
+				groupStats.Lag = group.Lag
 				groupStats.LastDeliveredDuration, _ = idToSince(group.LastDeliveredID, now)
 				groupStats.Consumers = make([]*RedisStreamConsumerStatistics, 0)
 
-				pending := r.XPending(stream, group.Name)
+				pending := r.XPending(streamName, group.Name)
+				groupStats.LowerID = pending.Lower
 				if pending.Count > 0 {
-					groupStats.LowerID = pending.Lower
 					lower, t := idToSince(pending.Lower, now)
 					groupStats.LowerDuration = lower
 					if lower != 0 {

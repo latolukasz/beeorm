@@ -61,7 +61,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	registry := &Registry{}
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
-	engine := prepareTables(t, registry, 8, "", entity, referenceEntity)
+	engine := prepareTables(t, registry, 8, 6, "", entity, referenceEntity)
 	engine.GetMysql().Query("DROP TABLE `uuidReferenceEntity`")
 	engine.GetMysql().Query("DROP TABLE `uuidEntity`")
 	alters := engine.GetAlters()

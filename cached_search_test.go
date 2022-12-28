@@ -57,7 +57,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityNoFakeDelete *cachedSearchEntityNoFakeDelete
 	var entityRef *cachedSearchRefEntity
-	engine := prepareTables(t, &Registry{}, 5, "", entityRef, entity, entityNoFakeDelete)
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	schemaNoFakeDelete := engine.GetRegistry().GetTableSchemaForEntity(entityNoFakeDelete).(*tableSchema)
 	if localCache {
@@ -310,7 +310,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 }
 
 func TestCachedSearchErrors(t *testing.T) {
-	engine := prepareTables(t, &Registry{}, 5, "")
+	engine := prepareTables(t, &Registry{}, 5, 6, "")
 	var rows []*cachedSearchEntity
 	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_ = engine.CachedSearch(&rows, "IndexAge", nil, 10)
@@ -322,7 +322,7 @@ func TestCachedSearchErrors(t *testing.T) {
 
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
-	engine = prepareTables(t, &Registry{}, 5, "", entity, entityRef)
+	engine = prepareTables(t, &Registry{}, 5, 6, "", entity, entityRef)
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
 		_ = engine.CachedSearch(&rows, "InvalidIndex", nil, 10)
 	})
@@ -353,7 +353,7 @@ func BenchmarkCachedSearch(b *testing.B) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
-	engine := prepareTables(nil, registry, 5, "", entity, ref)
+	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
 	flusher := engine.NewFlusher()
 	for i := 0; i < 1000; i++ {
 		e := &schemaEntity{}

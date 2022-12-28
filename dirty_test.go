@@ -21,7 +21,7 @@ func TestDirtyConsumer(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default_queue", []string{"test-group-1"})
 	registry.RegisterRedisStream("name_changed", "default_queue", []string{"test-group-2"})
-	engine := prepareTables(t, registry, 5, "", entity)
+	engine := prepareTables(t, registry, 5, 6, "", entity)
 
 	channels := engine.GetRegistry().GetRedisStreams()
 	assert.Len(t, channels, 2)

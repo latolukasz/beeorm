@@ -9,7 +9,7 @@ import (
 
 	"github.com/shamaton/msgpack"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 )
 
 type RedisCache struct {
@@ -33,7 +33,7 @@ func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interfac
 }
 
 func (r *RedisCache) PipeLine() *RedisPipeLine {
-	return &RedisPipeLine{ctx: r.client.Context(), pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
+	return &RedisPipeLine{pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
 }
 
 func (r *RedisCache) Info(section ...string) string {
@@ -432,7 +432,7 @@ func (r *RedisCache) Expire(key string, expiration time.Duration) bool {
 	return val
 }
 
-func (r *RedisCache) ZAdd(key string, members ...*redis.Z) int64 {
+func (r *RedisCache) ZAdd(key string, members ...redis.Z) int64 {
 	key = r.addNamespacePrefix(key)
 	start := getNow(r.engine.hasRedisLogger)
 	val, err := r.client.ZAdd(context.Background(), key, members...).Result()
@@ -679,6 +679,9 @@ func (r *RedisCache) XInfoGroups(stream string) []redis.XInfoGroup {
 	stream = r.addNamespacePrefix(stream)
 	start := getNow(r.engine.hasRedisLogger)
 	info, err := r.client.XInfoGroups(context.Background(), stream).Result()
+	if err == redis.Nil {
+		err = nil
+	}
 	if err != nil && err.Error() == "ERR no such key" {
 		if r.engine.hasRedisLogger {
 			r.fillLogFields("XINFOGROUPS", "XINFOGROUPS "+stream, start, false, err)

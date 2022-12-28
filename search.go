@@ -168,9 +168,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
-	pageStart := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
-	pageEnd := strconv.Itoa(pager.PageSize)
-	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT " + pageStart + "," + pageEnd
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()
@@ -212,9 +210,7 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
-	startPage := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
-	endPage := strconv.Itoa(pager.PageSize)
-	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT " + startPage + "," + endPage
+	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()

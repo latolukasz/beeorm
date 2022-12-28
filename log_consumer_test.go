@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 )
 
 type logReceiverEntity1 struct {
-	ORM      `orm:"log;redisCache"`
+	ORM      `orm:"log=log;redisCache"`
 	ID       uint
 	Name     string
 	LastName string
@@ -25,22 +24,37 @@ type logReceiverEntity2 struct {
 }
 
 type logReceiverEntity3 struct {
+	ORM  `orm:"log=log"`
+	ID   uint
+	Name string
+	Age  uint64
+}
+
+type logReceiverEntity4 struct {
 	ORM
 	ID   uint
 	Name string
 	Age  uint64
 }
 
-func TestLogReceiver(t *testing.T) {
+func TestLogReceiverRedis6(t *testing.T) {
+	testLogReceiver(t, 6)
+}
+
+func TestLogReceiverRedis7(t *testing.T) {
+	testLogReceiver(t, 7)
+}
+
+func testLogReceiver(t *testing.T, redisVersion int) {
 	var entity1 *logReceiverEntity1
 	var entity2 *logReceiverEntity2
 	var entity3 *logReceiverEntity3
+	var entity4 *logReceiverEntity4
 	registry := &Registry{}
-	registry.ForceEntityLogInAllEntities("default")
-	engine := prepareTables(t, registry, 5, "", entity1, entity2, entity3)
-	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
+	engine := prepareTables(t, registry, 5, redisVersion, "", entity1, entity2, entity3, entity4)
+	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
-	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity3`")
+	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity3`")
 	engine.GetRedis().FlushDB()
 
 	consumer := NewBackgroundConsumer(engine)
@@ -52,25 +66,39 @@ func TestLogReceiver(t *testing.T) {
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
 	engine.Flush(e2)
 
+	engine.GetEventBroker()
+	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	assert.Equal(t, int64(2), statistics.Lag)
+	assert.Equal(t, uint64(0), statistics.Pending)
+
 	consumer.Digest(context.Background())
 
-	var entityID int
-	var meta sql.NullString
-	var before sql.NullString
-	var changes string
-	where1 := NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 1")
-	engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.Equal(t, 1, entityID)
-	assert.False(t, meta.Valid)
-	assert.False(t, before.Valid)
-	assert.Equal(t, "{\"Name\": \"John\", \"Country\": \"Poland\", \"LastName\": \"Smith\"}", changes)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	assert.Equal(t, int64(0), statistics.Lag)
+	assert.Equal(t, uint64(0), statistics.Pending)
 
-	where2 := NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity2` WHERE `ID` = 1")
-	engine.GetMysql().QueryRow(where2, &entityID, &meta, &before, &changes)
-	assert.Equal(t, 1, entityID)
-	assert.False(t, meta.Valid)
-	assert.False(t, before.Valid)
-	assert.Equal(t, "{\"Age\": 18, \"Name\": \"Tom\"}", changes)
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity1)
+	logs := schema.GetEntityLogs(engine, 1, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Nil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, uint64(1), logs[0].LogID)
+	assert.Equal(t, uint64(1), logs[0].EntityID)
+	assert.Equal(t, "John", logs[0].Changes["Name"])
+	assert.Equal(t, "Poland", logs[0].Changes["Country"])
+	assert.Equal(t, "Smith", logs[0].Changes["LastName"])
+
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(entity2)
+	logs = schema2.GetEntityLogs(engine, 1, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Nil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, uint64(1), logs[0].LogID)
+	assert.Equal(t, uint64(1), logs[0].EntityID)
+	assert.Equal(t, float64(18), logs[0].Changes["Age"])
+	assert.Equal(t, "Tom", logs[0].Changes["Name"])
 
 	engine.SetLogMetaData("user_id", 12)
 	flusher := engine.NewFlusher()
@@ -81,50 +109,75 @@ func TestLogReceiver(t *testing.T) {
 	flusher.Track(e2)
 	flusher.Flush()
 
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	if redisVersion == 7 {
+		assert.Equal(t, int64(2), statistics.Lag)
+	}
+	assert.Equal(t, uint64(0), statistics.Pending)
+
 	consumer.Digest(context.Background())
 
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 2")
-	engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.Equal(t, 2, entityID)
-	assert.Equal(t, "{\"Name\": \"John2\", \"Country\": null, \"LastName\": null}", changes)
-	assert.False(t, before.Valid)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	if redisVersion == 7 {
+		assert.Equal(t, int64(0), statistics.Lag)
+	}
+	assert.Equal(t, uint64(0), statistics.Pending)
 
-	where2 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity2` WHERE `ID` = 2")
-	engine.GetMysql().QueryRow(where2, &entityID, &meta, &before, &changes)
-	assert.Equal(t, 2, entityID)
-	assert.Equal(t, "{\"Age\": 18, \"Name\": \"Tom2\"}", changes)
-	assert.False(t, before.Valid)
-	assert.Equal(t, "{\"user_id\": 12, \"admin_id\": \"10\"}", meta.String)
+	logs = schema.GetEntityLogs(engine, 2, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Equal(t, uint64(2), logs[0].LogID)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, "John2", logs[0].Changes["Name"])
+	assert.Nil(t, logs[0].Changes["Country"])
+	assert.Nil(t, logs[0].Changes["LastName"])
+	assert.Equal(t, float64(12), logs[0].Meta["user_id"])
+
+	logs = schema2.GetEntityLogs(engine, 2, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Equal(t, uint64(2), logs[0].LogID)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, "Tom2", logs[0].Changes["Name"])
+	assert.Equal(t, float64(18), logs[0].Changes["Age"])
+	assert.Equal(t, float64(12), logs[0].Meta["user_id"])
+	assert.Equal(t, "10", logs[0].Meta["admin_id"])
 
 	e1.Country = "Germany"
 	engine.Flush(e1)
 	consumer.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
-	found := engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.False(t, found)
+	logs = schema.GetEntityLogs(engine, 2, nil, nil)
+	assert.Len(t, logs, 1)
 
 	e1.LastName = "Summer"
 	engine.Flush(e1)
 	consumer.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 3")
-	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.True(t, found)
-	assert.Equal(t, 2, entityID)
-	assert.Equal(t, "{\"LastName\": \"Summer\"}", changes)
-	assert.Equal(t, "{\"Name\": \"John2\", \"Country\": \"Germany\", \"LastName\": null}", before.String)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+
+	logs = schema.GetEntityLogs(engine, 2, nil, nil)
+	assert.Len(t, logs, 2)
+	assert.Equal(t, uint64(2), logs[0].LogID)
+	assert.Equal(t, uint64(3), logs[1].LogID)
+	assert.NotNil(t, logs[1].Changes)
+	assert.NotNil(t, logs[1].Before)
+	assert.NotNil(t, logs[1].Meta)
+	assert.Equal(t, "Summer", logs[1].Changes["LastName"])
+	assert.Equal(t, "John2", logs[1].Before["Name"])
+	assert.Equal(t, "Germany", logs[1].Before["Country"])
+	assert.Nil(t, logs[1].Before["LastName"])
+	assert.Equal(t, float64(12), logs[1].Meta["user_id"])
 
 	engine.Delete(e1)
 	consumer.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 4")
-	var changesNullable sql.NullString
-	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNullable)
-	assert.True(t, found)
-	assert.Equal(t, 2, entityID)
-	assert.False(t, changesNullable.Valid)
-	assert.Equal(t, "{\"Name\": \"John2\", \"Country\": \"Germany\", \"LastName\": \"Summer\"}", before.String)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+	logs = schema.GetEntityLogs(engine, 2, nil, NewWhere("`ID` = ?", 4))
+	assert.Len(t, logs, 1)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Equal(t, float64(12), logs[0].Meta["user_id"])
+	assert.Nil(t, logs[0].Changes)
+	assert.Equal(t, "John2", logs[0].Before["Name"])
+	assert.Equal(t, "Germany", logs[0].Before["Country"])
+	assert.Equal(t, "Summer", logs[0].Before["LastName"])
 
 	e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	engine.FlushLazy(e3)
@@ -132,40 +185,60 @@ func TestLogReceiver(t *testing.T) {
 	receiver.DisableLoop()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 5")
-	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.True(t, found)
-	assert.Equal(t, 3, entityID)
-	assert.False(t, before.Valid)
-	assert.Equal(t, "{\"Name\": \"Adam\", \"Country\": \"Brazil\", \"LastName\": \"Pol\"}", changes)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+
+	logs = schema.GetEntityLogs(engine, 3, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Equal(t, uint64(3), logs[0].EntityID)
+	assert.Equal(t, "Adam", logs[0].Changes["Name"])
+	assert.Equal(t, "Brazil", logs[0].Changes["Country"])
+	assert.Equal(t, "Pol", logs[0].Changes["LastName"])
 
 	engine.LoadByID(3, e3)
 	e3.Name = "Eva"
 	engine.FlushLazy(e3)
 	receiver.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 6")
-	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changes)
-	assert.True(t, found)
-	assert.Equal(t, 3, entityID)
-	assert.True(t, before.Valid)
-	assert.Equal(t, "{\"Name\": \"Eva\"}", changes)
-	assert.Equal(t, "{\"Name\": \"Adam\", \"Country\": \"Brazil\", \"LastName\": \"Pol\"}", before.String)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+
+	logs = schema.GetEntityLogs(engine, 3, nil, nil)
+	assert.Len(t, logs, 2)
+	assert.NotNil(t, logs[1].Changes)
+	assert.NotNil(t, logs[1].Before)
+	assert.NotNil(t, logs[1].Meta)
+	assert.Equal(t, uint64(3), logs[1].EntityID)
+	assert.Equal(t, "Eva", logs[1].Changes["Name"])
+	assert.Equal(t, "Adam", logs[1].Before["Name"])
+	assert.Equal(t, "Brazil", logs[1].Before["Country"])
+	assert.Equal(t, "Pol", logs[1].Before["LastName"])
 
 	engine.LoadByID(3, e3)
 	flusher = engine.NewFlusher()
 	flusher.Delete(e3)
 	flusher.FlushLazy()
 	receiver.Digest(context.Background())
-	where1 = NewWhere("SELECT `entity_id`, `meta`, `before`, `changes` FROM `_log_default_logReceiverEntity1` WHERE `ID` = 7")
-	var changesNull sql.NullString
-	found = engine.GetMysql().QueryRow(where1, &entityID, &meta, &before, &changesNull)
-	assert.True(t, found)
-	assert.Equal(t, 3, entityID)
-	assert.False(t, changesNull.Valid)
-	assert.Equal(t, "{\"Name\": \"Eva\", \"Country\": \"Brazil\", \"LastName\": \"Pol\"}", before.String)
-	assert.Equal(t, "{\"user_id\": 12}", meta.String)
+
+	logs = schema.GetEntityLogs(engine, 3, nil, nil)
+	assert.Len(t, logs, 3)
+	assert.Nil(t, logs[2].Changes)
+	assert.NotNil(t, logs[2].Before)
+	assert.NotNil(t, logs[2].Meta)
+	assert.Equal(t, uint64(3), logs[2].EntityID)
+	assert.Equal(t, "Eva", logs[2].Before["Name"])
+	assert.Equal(t, "Brazil", logs[2].Before["Country"])
+	assert.Equal(t, "Pol", logs[2].Before["LastName"])
+
+	logs = schema.GetEntityLogs(engine, 3, nil, NewWhere("ID IN ? ORDER BY ID DESC", []int{4, 5, 6}))
+	assert.Len(t, logs, 2)
+	assert.Equal(t, uint64(6), logs[0].LogID)
+	assert.Equal(t, uint64(5), logs[1].LogID)
+
+	logs = schema.GetEntityLogs(engine, 3, NewPager(2, 2), nil)
+	assert.Len(t, logs, 1)
+	assert.Equal(t, uint64(7), logs[0].LogID)
+
+	logs = engine.GetRegistry().GetTableSchemaForEntity(entity3).GetEntityLogs(engine, 1, nil, nil)
+	assert.Len(t, logs, 0)
 
 	e4 := &logReceiverEntity2{}
 	e5 := &logReceiverEntity2{}
@@ -201,4 +274,17 @@ func TestLogReceiver(t *testing.T) {
 	assert.Len(t, logger.Logs, 2)
 	assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
 	assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
+
+	engine.LoadByID(2, e1)
+	e1.LastName = "Winter"
+	engine.Flush(e1)
+	engine.GetMysql("log").Exec("DROP TABLE `_log_default_logReceiverEntity1`")
+	assert.NotPanics(t, func() {
+		receiver.Digest(context.Background())
+	})
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	if redisVersion == 7 {
+		assert.Equal(t, int64(0), statistics.Lag)
+	}
+	assert.Equal(t, uint64(0), statistics.Pending)
 }

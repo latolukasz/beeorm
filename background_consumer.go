@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
+
 	"github.com/shamaton/msgpack"
 
 	jsoniter "github.com/json-iterator/go"
@@ -278,16 +280,27 @@ func (r *BackgroundConsumer) handleLog(values map[string][]*LogQueueValue) {
 			}
 			query += ");"
 		}
-		if len(rows) > 1 {
-			func() {
-				poolDB.Begin()
-				defer poolDB.Rollback()
-				poolDB.Exec(query)
-				poolDB.Commit()
+		func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
+					if isMySQLError && asMySQLError.Number == 1146 { // table was removed
+						return
+					}
+					panic(rec)
+				}
 			}()
-		} else {
-			poolDB.Exec(query)
-		}
+			if len(rows) > 1 {
+				func() {
+					poolDB.Begin()
+					defer poolDB.Rollback()
+					poolDB.Exec(query)
+					poolDB.Commit()
+				}()
+			} else {
+				poolDB.Exec(query)
+			}
+		}()
 	}
 }
 

@@ -40,6 +40,10 @@ jobs:
         image: redis:6.2.7
         ports:
           - 6382:6379
+      redis7:
+        image: redis:7.0.7
+        ports:
+          - 6381:6379
       mysql:
         image: mysql:5.7
         env:
@@ -47,7 +51,6 @@ jobs:
         ports:
           - 3311:3306
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
-
       mysql8:
         image: mysql:8
         env:

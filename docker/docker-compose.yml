@@ -17,9 +17,13 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
   redis:
-    image: redis:6.2.7
+    image: redis:6.2.8
     ports:
       - ${LOCAL_IP}:${REDIS_PORT}:6379
+  redis7:
+    image: redis:7.0.7
+    ports:
+      - ${LOCAL_IP}:${REDIS7_PORT}:6379
 volumes:
   orm_data_mysql: {}
   orm_data_mysql8: {}

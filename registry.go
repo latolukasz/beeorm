@@ -13,7 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
 )
 
@@ -27,7 +27,6 @@ type Registry struct {
 	defaultCollate    string
 	redisStreamGroups map[string]map[string]map[string]bool
 	redisStreamPools  map[string]string
-	forcedEntityLog   string
 }
 
 func NewRegistry() *Registry {
@@ -113,7 +112,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	for k, v := range r.enums {
 		registry.enums[k] = v
 	}
-	hasLog := r.forcedEntityLog != ""
+	hasLog := false
 	for name, entityType := range r.entities {
 		tableSchema := &tableSchema{}
 		err := tableSchema.init(r, entityType)
@@ -223,11 +222,11 @@ func (r *Registry) RegisterRedis(address, namespace string, db int, code ...stri
 
 func (r *Registry) RegisterRedisWithCredentials(address, namespace, user, password string, db int, code ...string) {
 	options := &redis.Options{
-		Addr:       address,
-		DB:         db,
-		MaxConnAge: time.Minute * 2,
-		Username:   user,
-		Password:   password,
+		Addr:            address,
+		DB:              db,
+		ConnMaxIdleTime: time.Minute * 2,
+		Username:        user,
+		Password:        password,
 	}
 	if strings.HasSuffix(address, ".sock") {
 		options.Network = "unix"
@@ -242,12 +241,12 @@ func (r *Registry) RegisterRedisSentinel(masterName, namespace string, db int, s
 
 func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, user, password string, db int, sentinels []string, code ...string) {
 	options := &redis.FailoverOptions{
-		MasterName:    masterName,
-		SentinelAddrs: sentinels,
-		DB:            db,
-		MaxConnAge:    time.Minute * 2,
-		Username:      user,
-		Password:      password,
+		MasterName:      masterName,
+		SentinelAddrs:   sentinels,
+		DB:              db,
+		ConnMaxIdleTime: time.Minute * 2,
+		Username:        user,
+		Password:        password,
 	}
 	client := redis.NewFailoverClient(options)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
@@ -256,8 +255,8 @@ func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, u
 func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
 	opts.DB = db
 	opts.SentinelAddrs = sentinels
-	if opts.MaxConnAge == 0 {
-		opts.MaxConnAge = time.Minute * 2
+	if opts.ConnMaxIdleTime == 0 {
+		opts.ConnMaxIdleTime = time.Minute * 2
 	}
 	client := redis.NewFailoverClient(&opts)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
@@ -281,10 +280,6 @@ func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []s
 		groupsMap[group] = true
 	}
 	r.redisStreamGroups[redisPool][name] = groupsMap
-}
-
-func (r *Registry) ForceEntityLogInAllEntities(dbPool string) {
-	r.forcedEntityLog = dbPool
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
