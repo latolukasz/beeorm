@@ -127,18 +127,18 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	}
 	_, has := r.redisStreamPools[LazyChannelName]
 	if !has {
-		r.RegisterRedisStream(LazyChannelName, "default", []string{AsyncConsumerGroupName})
+		r.RegisterRedisStream(LazyChannelName, "default", []string{BackgroundConsumerGroupName})
 	}
 	if hasLog {
 		_, has = r.redisStreamPools[LogChannelName]
 		if !has {
-			r.RegisterRedisStream(LogChannelName, "default", []string{AsyncConsumerGroupName})
+			r.RegisterRedisStream(LogChannelName, "default", []string{BackgroundConsumerGroupName})
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
 		_, has = r.redisStreamPools[RedisStreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{AsyncConsumerGroupName})
+			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{BackgroundConsumerGroupName})
 		}
 	}
 	registry.redisStreamGroups = r.redisStreamGroups

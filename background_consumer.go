@@ -21,7 +21,7 @@ import (
 const LazyChannelName = "orm-lazy-channel"
 const LogChannelName = "orm-log-channel"
 const RedisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
-const AsyncConsumerGroupName = "orm-async-consumer"
+const BackgroundConsumerGroupName = "orm-async-consumer"
 
 type LogQueueValue struct {
 	PoolName  string
@@ -92,7 +92,7 @@ func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
 }
 
 func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
-	r.consumer = r.engine.GetEventBroker().Consumer(AsyncConsumerGroupName).(*eventsConsumer)
+	r.consumer = r.engine.GetEventBroker().Consumer(BackgroundConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
 	return r.consumer.Consume(ctx, 500, func(events []Event) {
 		lazyEvents := make([]Event, 0)

@@ -67,13 +67,13 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	engine.Flush(e2)
 
 	engine.GetEventBroker()
-	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	assert.Equal(t, int64(2), statistics.Lag)
 	assert.Equal(t, uint64(0), statistics.Pending)
 
 	consumer.Digest(context.Background())
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	assert.Equal(t, int64(0), statistics.Lag)
 	assert.Equal(t, uint64(0), statistics.Pending)
 
@@ -109,7 +109,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	flusher.Track(e2)
 	flusher.Flush()
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(2), statistics.Lag)
 	}
@@ -117,7 +117,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 
 	consumer.Digest(context.Background())
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(0), statistics.Lag)
 	}
@@ -282,7 +282,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.NotPanics(t, func() {
 		receiver.Digest(context.Background())
 	})
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, AsyncConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(0), statistics.Lag)
 	}
