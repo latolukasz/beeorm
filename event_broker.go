@@ -208,7 +208,7 @@ func (r *eventsConsumer) ConsumeMany(ctx context.Context, nr, count int, handler
 }
 
 func (r *eventsConsumer) consume(ctx context.Context, name string, count int, handler EventConsumerHandler) (finished bool) {
-	lockKey := r.redis.config.GetNamespace() + "_" + r.group + "_" + name
+	lockKey := r.redis.config.GetNamespace() + r.group + "_" + name
 	locker := r.redis.GetLocker()
 	lock, has := locker.Obtain(ctx, lockKey, r.lockTTL, 0)
 	if !has {
