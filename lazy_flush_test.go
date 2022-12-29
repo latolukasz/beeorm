@@ -122,7 +122,6 @@ func TestLazyFlush(t *testing.T) {
 	e2.Name = "Tommy2"
 	e3.Name = "Tommy3"
 	engine.FlushLazy(e1, e2, e3)
-	receiver.SetLazyFlushWorkers(2)
 	receiver.Digest(context.Background())
 	e1 = &lazyReceiverEntity{}
 	e2 = &lazyReceiverEntity{}

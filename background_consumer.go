@@ -58,10 +58,6 @@ func NewBackgroundConsumer(engine Engine) *BackgroundConsumer {
 
 type LazyFlushQueryErrorResolver func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error
 
-func (r *BackgroundConsumer) SetLazyFlushWorkers(workers int) {
-	r.lazyFlushModulo = uint64(workers)
-}
-
 func (r *BackgroundConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
 	r.lazyFlushQueryErrorResolvers = append(r.lazyFlushQueryErrorResolvers, resolver)
 }

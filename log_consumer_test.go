@@ -66,7 +66,6 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
 	engine.Flush(e2)
 
-	engine.GetEventBroker()
 	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
 	assert.Equal(t, int64(2), statistics.Lag)
 	assert.Equal(t, uint64(0), statistics.Pending)
