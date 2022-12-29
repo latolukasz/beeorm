@@ -15,17 +15,13 @@ type Engine interface {
 	GetRedis(code ...string) *RedisCache
 	SetLogMetaData(key string, value interface{})
 	NewFlusher() Flusher
-	Flush(entity Entity)
-	FlushLazy(entity Entity)
-	FlushMany(entities ...Entity)
-	FlushLazyMany(entities ...Entity)
+	Flush(entity ...Entity)
+	FlushLazy(entity ...Entity)
 	FlushWithCheck(entity ...Entity) error
 	FlushWithFullCheck(entity ...Entity) error
-	Delete(entity Entity)
-	DeleteLazy(entity Entity)
-	ForceDelete(entity Entity)
-	ForceDeleteMany(entities ...Entity)
-	DeleteMany(entities ...Entity)
+	Delete(entity ...Entity)
+	DeleteLazy(entity ...Entity)
+	ForceDelete(entity ...Entity)
 	MarkDirty(entity Entity, queueCode string, ids ...uint64)
 	GetRegistry() ValidatedRegistry
 	SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int)
@@ -183,20 +179,12 @@ func (e *engineImplementation) NewFlusher() Flusher {
 	return &flusher{engine: e}
 }
 
-func (e *engineImplementation) Flush(entity Entity) {
-	e.FlushMany(entity)
+func (e *engineImplementation) Flush(entity ...Entity) {
+	e.NewFlusher().Track(entity...).Flush()
 }
 
-func (e *engineImplementation) FlushLazy(entity Entity) {
-	e.FlushLazyMany(entity)
-}
-
-func (e *engineImplementation) FlushMany(entities ...Entity) {
-	e.NewFlusher().Track(entities...).Flush()
-}
-
-func (e *engineImplementation) FlushLazyMany(entities ...Entity) {
-	e.NewFlusher().Track(entities...).FlushLazy()
+func (e *engineImplementation) FlushLazy(entity ...Entity) {
+	e.NewFlusher().Track(entity...).FlushLazy()
 }
 
 func (e *engineImplementation) FlushWithCheck(entity ...Entity) error {
@@ -207,33 +195,25 @@ func (e *engineImplementation) FlushWithFullCheck(entity ...Entity) error {
 	return e.NewFlusher().Track(entity...).FlushWithFullCheck()
 }
 
-func (e *engineImplementation) Delete(entity Entity) {
-	entity.markToDelete()
-	e.Flush(entity)
+func (e *engineImplementation) Delete(entity ...Entity) {
+	for _, e := range entity {
+		e.markToDelete()
+	}
+	e.Flush(entity...)
 }
 
-func (e *engineImplementation) DeleteLazy(entity Entity) {
-	entity.markToDelete()
-	e.FlushLazy(entity)
+func (e *engineImplementation) DeleteLazy(entity ...Entity) {
+	for _, e := range entity {
+		e.markToDelete()
+	}
+	e.FlushLazy(entity...)
 }
 
-func (e *engineImplementation) ForceDelete(entity Entity) {
-	entity.forceMarkToDelete()
-	e.Flush(entity)
-}
-
-func (e *engineImplementation) ForceDeleteMany(entities ...Entity) {
-	for _, entity := range entities {
+func (e *engineImplementation) ForceDelete(entity ...Entity) {
+	for _, entity := range entity {
 		entity.forceMarkToDelete()
 	}
-	e.FlushMany(entities...)
-}
-
-func (e *engineImplementation) DeleteMany(entities ...Entity) {
-	for _, entity := range entities {
-		entity.markToDelete()
-	}
-	e.FlushMany(entities...)
+	e.Flush(entity...)
 }
 
 func (e *engineImplementation) MarkDirty(entity Entity, queueCode string, ids ...uint64) {

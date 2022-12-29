@@ -14,8 +14,6 @@ import (
 	"github.com/shamaton/msgpack"
 
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/pkg/errors"
 )
 
 const LazyChannelName = "orm-lazy-channel"
@@ -41,24 +39,31 @@ type dirtyQueueValue struct {
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	redisFlusher         *redisFlusher
-	garbageCollectorSha1 string
-	consumer             *eventsConsumer
-	lazyFlushModulo      uint64
-	lazyErrorLock        sync.Mutex
+	redisFlusher                 *redisFlusher
+	garbageCollectorSha1         string
+	consumer                     *eventsConsumer
+	lazyFlushModulo              uint64
+	lazyErrorLock                sync.Mutex
+	lazyFlushQueryErrorResolvers []LazyFlushQueryErrorResolver
 }
 
 func NewBackgroundConsumer(engine Engine) *BackgroundConsumer {
 	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine.(*engineImplementation)}}
 	c.engine = engine.(*engineImplementation)
-	c.loop = true
+	c.block = true
 	c.blockTime = time.Second * 30
 	c.lazyFlushModulo = 11
 	return c
 }
 
+type LazyFlushQueryErrorResolver func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error
+
 func (r *BackgroundConsumer) SetLazyFlushWorkers(workers int) {
 	r.lazyFlushModulo = uint64(workers)
+}
+
+func (r *BackgroundConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
+	r.lazyFlushQueryErrorResolvers = append(r.lazyFlushQueryErrorResolvers, resolver)
 }
 
 func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
@@ -164,21 +169,26 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 					ids := insertGroup
 					go func() {
 						defer wg.Done()
-						if rec := recover(); rec != nil {
-							assErr, is := rec.(error)
-							if !is {
-								assErr = fmt.Errorf(fmt.Sprintf("%v", rec))
+						defer func() {
+							if rec := recover(); rec != nil {
+								assErr, is := rec.(error)
+								if !is {
+									assErr = fmt.Errorf(fmt.Sprintf("%v", rec))
+								}
+								r.lazyErrorLock.Lock()
+								defer r.lazyErrorLock.Unlock()
+								lazyError = assErr
 							}
-							r.lazyErrorLock.Lock()
-							defer r.lazyErrorLock.Unlock()
-							lazyError = errors.Wrapf(assErr, "error [%s] flushing lazy insert queries", assErr)
-						}
+						}()
 						for _, i := range ids {
 							r.handleLazy(lazyEvents[i], lazyEventsData[i])
 						}
 					}()
 				}
 				wg.Wait()
+				if lazyError != nil {
+					panic(lazyError)
+				}
 			}
 			if len(groupQueries) > 0 {
 				wg := &sync.WaitGroup{}
@@ -194,11 +204,11 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 								if rec := recover(); rec != nil {
 									assErr, is := rec.(error)
 									if !is {
-										assErr = fmt.Errorf("%v", rec)
+										assErr = fmt.Errorf(fmt.Sprintf("%v", rec))
 									}
 									r.lazyErrorLock.Lock()
 									defer r.lazyErrorLock.Unlock()
-									lazyError = errors.Wrapf(assErr, "error [%s] flushing lazy queries: %s", assErr, updateSQL)
+									lazyError = assErr
 								}
 							}()
 							if len(groupEvents[dbCode][key]) == 1 {
@@ -305,23 +315,36 @@ func (r *BackgroundConsumer) handleLog(values map[string][]*LogQueueValue) {
 }
 
 func (r *BackgroundConsumer) handleLazy(event Event, data map[string]interface{}) {
-	ids := r.handleQueries(r.engine, data)
+	ids, err := r.handleQueries(r.engine, data)
+	if err != nil {
+		panic(err)
+	}
 	r.handleCache(data, ids)
 	event.Ack()
 }
 
-func (r *BackgroundConsumer) handleQueries(engine *engineImplementation, validMap map[string]interface{}) []uint64 {
+func (r *BackgroundConsumer) handleQueries(engine *engineImplementation, validMap map[string]interface{}) ([]uint64, error) {
 	queries, has := validMap["q"]
 	var ids []uint64
 	if has {
 		validQueries := queries.([]interface{})
 		ids = make([]uint64, len(validQueries))
+	MAIN:
 		for i, query := range validQueries {
 			validInsert := query.([]interface{})
 			code := validInsert[0].(string)
 			db := engine.GetMysql(code)
 			sql := validInsert[1].(string)
-			res := db.Exec(sql)
+			res, err := db.exec(sql)
+			if err != nil {
+				for _, resolver := range r.lazyFlushQueryErrorResolvers {
+					resolverError := resolver(r.engine, db, sql, err.(*mysql.MySQLError))
+					if resolverError == nil {
+						continue MAIN
+					}
+				}
+				return nil, err
+			}
 			operation := validMap["o"]
 			isInsert := operation == "i"
 			if isInsert {
@@ -341,12 +364,10 @@ func (r *BackgroundConsumer) handleQueries(engine *engineImplementation, validMa
 						id += db.GetPoolConfig().getAutoincrement()
 					}
 				}
-			} else {
-				ids[i] = 0
 			}
 		}
 	}
-	return ids
+	return ids, nil
 }
 
 func (r *BackgroundConsumer) convertMap(value map[interface{}]interface{}) map[string]interface{} {

@@ -58,7 +58,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	engine.GetRedis().FlushDB()
 
 	consumer := NewBackgroundConsumer(engine)
-	consumer.DisableLoop()
+	consumer.DisableBlockMode()
 	consumer.blockTime = time.Millisecond
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
@@ -182,7 +182,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	engine.FlushLazy(e3)
 	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableLoop()
+	receiver.DisableBlockMode()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
 

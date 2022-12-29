@@ -845,7 +845,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 2, entity2.Age)
 
 	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableLoop()
+	receiver.DisableBlockMode()
 	receiver.blockTime = time.Millisecond
 
 	testLogger := &testLogHandler{}
@@ -1069,14 +1069,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{}
 	engine.LoadByID(101, entity)
-	engine.DeleteMany(entity)
+	engine.Delete(entity)
 	entity = &flushEntity{}
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.True(t, engine.LoadByID(101, entity))
 	assert.True(t, entity.FakeDelete)
 	assert.False(t, entity.IsDirty())
-	engine.ForceDeleteMany(entity)
+	engine.ForceDelete(entity)
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(101, entity))

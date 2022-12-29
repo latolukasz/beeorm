@@ -161,7 +161,7 @@ type EventsConsumer interface {
 	Consume(ctx context.Context, count int, handler EventConsumerHandler) bool
 	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
-	DisableLoop()
+	DisableBlockMode()
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
@@ -171,7 +171,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	}
 	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
 	return &eventsConsumer{
-		eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, blockTime: time.Second * 30},
+		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 30},
 		redis:             eb.engine.GetRedis(redisPool),
 		streams:           streams,
 		group:             group,
@@ -181,7 +181,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 
 type eventConsumerBase struct {
 	engine    *engineImplementation
-	loop      bool
+	block     bool
 	blockTime time.Duration
 }
 
@@ -195,8 +195,8 @@ type eventsConsumer struct {
 	garbageLastTick int64
 }
 
-func (b *eventConsumerBase) DisableLoop() {
-	b.loop = false
+func (b *eventConsumerBase) DisableBlockMode() {
+	b.block = false
 }
 
 func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {
@@ -267,7 +267,7 @@ type consumeAttributes struct {
 
 func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes) (stop bool) {
 	finished := r.digestKeys(ctx, attributes)
-	if !r.loop && finished {
+	if !r.block && finished {
 		return true
 	}
 	return false
@@ -303,7 +303,7 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 	if totalMessages == 0 {
 		if attributes.Pending {
 			attributes.Pending = false
-			if r.loop {
+			if r.block {
 				attributes.BlockTime = r.blockTime
 			}
 			return false

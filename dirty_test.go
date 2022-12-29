@@ -29,10 +29,10 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.Len(t, channels["default"], 2)
 
 	consumer := engine.GetEventBroker().Consumer("test-group-1")
-	consumer.DisableLoop()
+	consumer.DisableBlockMode()
 	consumer.(*eventsConsumer).blockTime = time.Millisecond
 	consumer2 := engine.GetEventBroker().Consumer("test-group-2")
-	consumer2.DisableLoop()
+	consumer2.DisableBlockMode()
 	consumer2.(*eventsConsumer).blockTime = time.Millisecond
 
 	e := &dirtyReceiverEntity{Name: "John", Age: 18}
@@ -183,7 +183,7 @@ func TestDirtyConsumer(t *testing.T) {
 	assert.False(t, valid)
 
 	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableLoop()
+	receiver.DisableBlockMode()
 	receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
 
@@ -275,7 +275,7 @@ func TestDirtyConsumer(t *testing.T) {
 	e2.Age = 100
 	customLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(customLogger, true, true, false)
-	engine.FlushMany(e, e2)
+	engine.Flush(e, e2)
 	assert.Len(t, customLogger.Logs, 6)
 	assert.Equal(t, "BEGIN", customLogger.Logs[0]["operation"])
 	assert.Equal(t, "COMMIT", customLogger.Logs[2]["operation"])

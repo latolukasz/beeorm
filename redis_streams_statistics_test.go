@@ -59,7 +59,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	assert.True(t, valid)
 
 	consumer := engine.GetEventBroker().Consumer("test-group")
-	consumer.DisableLoop()
+	consumer.DisableBlockMode()
 	consumer.Consume(context.Background(), 11000, func(events []Event) {
 		engine.GetRedis().Get("hello")
 		engine.GetRedis().Get("hello2")

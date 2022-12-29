@@ -42,7 +42,7 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, uint64(1), row.RowsAffected())
 
 	engine.SetQueryTimeLimit(1)
-	assert.PanicsWithError(t, "query exceeded limit of 1 seconds", func() {
+	assert.PanicsWithError(t, "Error 1969: query exceeded limit of 1 seconds", func() {
 		db.Exec("SELECT SLEEP(5)")
 	})
 	engine.SetQueryTimeLimit(0)

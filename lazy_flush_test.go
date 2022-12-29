@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-sql-driver/mysql"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -24,7 +26,7 @@ type lazyReceiverReference struct {
 	Name string
 }
 
-func TestBackgroundConsumer(t *testing.T) {
+func TestLazyFlush(t *testing.T) {
 	var entity *lazyReceiverEntity
 	var ref *lazyReceiverReference
 
@@ -34,7 +36,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	engine.GetRedis().FlushDB()
 
 	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableLoop()
+	receiver.DisableBlockMode()
 	receiver.blockTime = time.Millisecond
 
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
@@ -119,7 +121,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	e1.Name = "Tommy"
 	e2.Name = "Tommy2"
 	e3.Name = "Tommy3"
-	engine.FlushLazyMany(e1, e2, e3)
+	engine.FlushLazy(e1, e2, e3)
 	receiver.SetLazyFlushWorkers(2)
 	receiver.Digest(context.Background())
 	e1 = &lazyReceiverEntity{}
@@ -166,7 +168,7 @@ func TestBackgroundConsumer(t *testing.T) {
 	e2.Name = "John"
 	e3.Name = "Ivona"
 	engine.GetMysql().Begin()
-	engine.FlushLazyMany(e2, e3)
+	engine.FlushLazy(e2, e3)
 	engine.GetMysql().Commit()
 	receiver.Digest(context.Background())
 	engine.GetLocalCache().Clear()
@@ -177,4 +179,38 @@ func TestBackgroundConsumer(t *testing.T) {
 	engine.LoadByID(3, e3)
 	assert.Equal(t, "John", e2.Name)
 	assert.Equal(t, "Ivona", e3.Name)
+
+	e1 = &lazyReceiverEntity{}
+	e1.Name = "Ivona"
+	e1.Age = 20
+	engine.FlushLazy(e1)
+	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
+		receiver.Digest(context.Background())
+	})
+	valid := false
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {
+		valid = true
+		assert.NotNil(t, db)
+		assert.Equal(t, "default", db.GetPoolConfig().GetCode())
+		assert.Contains(t, sql, "INSERT INTO `lazyReceiverEntity`")
+		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
+		return queryError
+	})
+	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
+		receiver.Digest(context.Background())
+	})
+	assert.True(t, valid)
+	valid = false
+	valid2 := false
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {
+		valid2 = true
+		assert.NotNil(t, db)
+		assert.Equal(t, "default", db.GetPoolConfig().GetCode())
+		assert.Contains(t, sql, "INSERT INTO `lazyReceiverEntity`")
+		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
+		return nil
+	})
+	receiver.Digest(context.Background())
+	assert.True(t, valid)
+	assert.True(t, valid2)
 }

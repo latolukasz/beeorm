@@ -85,7 +85,7 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
 
 	indexer := NewBackgroundConsumer(engine)
-	indexer.DisableLoop()
+	indexer.DisableBlockMode()
 	indexer.blockTime = time.Millisecond
 	indexer.Digest(context.Background())
 
