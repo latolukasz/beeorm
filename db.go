@@ -503,6 +503,29 @@ func (db *DB) convertToError(err error) error {
 	return err
 }
 
+func escapeSQLValue(val interface{}) string {
+	if val == nil {
+		return "NULL"
+	}
+	asString, isString := val.(string)
+	if isString {
+		return escapeSQLString(asString)
+	}
+	asTime, isTime := val.(time.Time)
+	if isTime {
+		return "'" + asTime.Format(timeFormat) + "'"
+	}
+	asTimePointer, isTimePointer := val.(*time.Time)
+	if isTimePointer {
+		return "'" + asTimePointer.Format(timeFormat) + "'"
+	}
+	asString = fmt.Sprintf("%v", val)
+	if asString == "<nil>" {
+		return "NULL"
+	}
+	return asString
+}
+
 func escapeSQLString(val string) string {
 	dest := make([]byte, 0, 2*len(val))
 	var escape byte
@@ -532,27 +555,4 @@ func escapeSQLString(val string) string {
 		}
 	}
 	return "'" + string(dest) + "'"
-}
-
-func escapeSQLValue(val interface{}) string {
-	if val == nil {
-		return "NULL"
-	}
-	asString, isString := val.(string)
-	if isString {
-		return escapeSQLString(asString)
-	}
-	asTime, isTime := val.(time.Time)
-	if isTime {
-		return "'" + asTime.Format(timeFormat) + "'"
-	}
-	asTimePointer, isTimePointer := val.(*time.Time)
-	if isTimePointer {
-		return "'" + asTimePointer.Format(timeFormat) + "'"
-	}
-	asString = fmt.Sprintf("%v", val)
-	if asString == "<nil>" {
-		return "NULL"
-	}
-	return asString
 }
