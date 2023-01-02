@@ -255,7 +255,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	})
 }
 
-// BenchmarkLoadByIDdLocalCache-12    	 5869000	       203.3 ns/op	       8 B/op	       1 allocs/op
+// BenchmarkLoadByIDdLocalCache-10    	 3674497	       323.8 ns/op	     152 B/op	       6 allocs/op
 func BenchmarkLoadByIDdLocalCache(b *testing.B) {
 	benchmarkLoadByIDLocalCache(b, true, false)
 }
