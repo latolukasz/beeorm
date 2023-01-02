@@ -22,7 +22,6 @@ type Engine interface {
 	Delete(entity ...Entity)
 	DeleteLazy(entity ...Entity)
 	ForceDelete(entity ...Entity)
-	MarkDirty(entity Entity, queueCode string, ids ...uint64)
 	GetRegistry() ValidatedRegistry
 	SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int)
 	Search(where *Where, pager *Pager, entities interface{}, references ...string)
@@ -214,15 +213,6 @@ func (e *engineImplementation) ForceDelete(entity ...Entity) {
 		entity.forceMarkToDelete()
 	}
 	e.Flush(entity...)
-}
-
-func (e *engineImplementation) MarkDirty(entity Entity, queueCode string, ids ...uint64) {
-	entityName := e.GetRegistry().GetTableSchemaForEntity(entity).GetType().String()
-	flusher := e.GetEventBroker().NewFlusher()
-	for _, id := range ids {
-		flusher.Publish(queueCode, dirtyEvent{A: "u", I: id, E: entityName})
-	}
-	flusher.Flush()
 }
 
 func (e *engineImplementation) GetRegistry() ValidatedRegistry {

@@ -311,7 +311,7 @@ func (av attributesValues) UnmarshalJSON(data []byte) error {
 }
 
 type flushEntity struct {
-	ORM                   `orm:"localCache;redisCache;dirty=entity_changed"`
+	ORM                   `orm:"localCache;redisCache"`
 	ID                    uint
 	City                  string `orm:"unique=city"`
 	Name                  string `orm:"unique=name;required"`
@@ -946,7 +946,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		assert.Equal(t, "EXEC", testLogger2.Logs[1]["operation"])
 		assert.Equal(t, "EXEC", testLogger2.Logs[2]["operation"])
 		assert.Equal(t, "COMMIT", testLogger2.Logs[3]["operation"])
-		assert.Equal(t, "PIPELINE EXEC", testLogger2.Logs[4]["operation"])
+		assert.Equal(t, "DEL", testLogger2.Logs[4]["operation"])
 	}
 
 	entity = &flushEntity{}

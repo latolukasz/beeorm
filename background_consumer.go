@@ -32,11 +32,6 @@ type LogQueueValue struct {
 	Updated   time.Time
 }
 
-type dirtyQueueValue struct {
-	Event   *dirtyEvent
-	Streams []string
-}
-
 type BackgroundConsumer struct {
 	eventConsumerBase
 	redisFlusher                 *redisFlusher
@@ -353,13 +348,6 @@ func (r *BackgroundConsumer) handleQueries(engine *engineImplementation, validMa
 						id += db.GetPoolConfig().getAutoincrement()
 					}
 				}
-				dirtyEvents, has := validMap["d"]
-				if has {
-					for _, row := range dirtyEvents.([]interface{}) {
-						row.(map[interface{}]interface{})["Event"].(map[interface{}]interface{})["I"] = id
-						id += db.GetPoolConfig().getAutoincrement()
-					}
-				}
 			}
 		}
 	}
@@ -429,17 +417,6 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 			}
 			r.handleLog(map[string][]*LogQueueValue{logEvent.PoolName: {logEvent}})
 		}
-	}
-	dirtyEvents, has := validMap["d"]
-	if has {
-		for _, row := range dirtyEvents.([]interface{}) {
-			asMap := row.(map[interface{}]interface{})
-			e := asMap["Event"].(map[interface{}]interface{})
-			for _, stream := range asMap["Streams"].([]interface{}) {
-				r.redisFlusher.Publish(stream.(string), e)
-			}
-		}
-		r.redisFlusher.Flush()
 	}
 }
 

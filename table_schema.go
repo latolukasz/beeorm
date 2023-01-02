@@ -115,7 +115,6 @@ type tableSchema struct {
 	columnMapping           map[string]int
 	uniqueIndices           map[string][]string
 	uniqueIndicesGlobal     map[string][]string
-	dirtyFields             map[string][]string
 	refOne                  []string
 	refMany                 []string
 	idIndex                 int
@@ -372,7 +371,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
-	dirtyFields := make(map[string][]string)
 	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
 	if has && fakeDeleteField.Type.String() == "bool" {
 		tableSchema.hasFakeDelete = true
@@ -456,12 +454,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		_, has = values["refs"]
 		if has {
 			manyRefs = append(manyRefs, key)
-		}
-		dirtyValues, has := values["dirty"]
-		if has {
-			for _, v := range strings.Split(dirtyValues, ",") {
-				dirtyFields[v] = append(dirtyFields[v], key)
-			}
 		}
 	}
 	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
@@ -569,7 +561,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.cachedIndexes = cachedQueries
 	tableSchema.cachedIndexesOne = cachedQueriesOne
 	tableSchema.cachedIndexesAll = cachedQueriesAll
-	tableSchema.dirtyFields = dirtyFields
 	tableSchema.localCacheName = localCache
 	tableSchema.hasLocalCache = localCache != ""
 	tableSchema.redisCacheName = redisCache
