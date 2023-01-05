@@ -171,7 +171,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	}
 	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
 	return &eventsConsumer{
-		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 30},
+		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 5},
 		redis:             eb.engine.GetRedis(redisPool),
 		streams:           streams,
 		group:             group,
