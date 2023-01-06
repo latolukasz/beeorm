@@ -93,22 +93,34 @@ func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableField
 	}
 }
 
-func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.refs {
+type fieldGetter func(field reflect.Value) interface{}
+type serializeGetter func() interface{}
+type bindSetter func(val interface{}) string
+type bindCompare func(old, new interface{}) bool
+
+func (b *entityFlushDataBuilder) build(
+	serializer *serializer,
+	value reflect.Value,
+	indexes []int,
+	fGetter fieldGetter,
+	sGetter serializeGetter,
+	bSetter bindSetter,
+	bCompare bindCompare) {
+	for _, i := range indexes {
 		b.index++
 		f := value.Field(i)
-		val := uint64(0)
+		var val interface{}
 		if !f.IsNil() {
-			val = f.Elem().Field(1).Uint()
+			val = fGetter(f.Elem())
 		}
 		if b.fillOld {
-			old := serializer.DeserializeUInteger()
-			same := old == val
+			old := sGetter()
+			same := bCompare(old, value)
 			if b.forceFillOld || !same {
 				if old == 0 {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
 				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(old, 10)
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = bSetter(old)
 				}
 			}
 			if same {
@@ -117,13 +129,76 @@ func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *table
 		}
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
-			if val == 0 {
+			b.Update[name] = bSetter(val)
+		}
+	}
+}
+
+func (b *entityFlushDataBuilder) buildNullable(
+	serializer *serializer,
+	value reflect.Value,
+	indexes []int,
+	fGetter fieldGetter,
+	sGetter serializeGetter,
+	bSetter bindSetter,
+	bCompare bindCompare) {
+	for _, i := range indexes {
+		b.index++
+		f := value.Field(i)
+		isNil := f.IsNil()
+		var val interface{}
+		if !isNil {
+			val = fGetter(f.Elem())
+		}
+		if b.fillOld {
+			old := serializer.DeserializeBool()
+			var oldVal interface{}
+			same := old == isNil
+			if same && !isNil {
+				oldVal = sGetter()
+				same = bCompare(oldVal, val)
+			}
+			if b.forceFillOld || !same {
+				if old {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
+				} else {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = bSetter(oldVal)
+				}
+			}
+			if same {
+				continue
+			}
+		}
+		if b.fillNew {
+			name := b.orm.tableSchema.columnNames[b.index]
+			if isNil {
 				b.Update[name] = "NULL"
 			} else {
-				b.Update[name] = strconv.FormatUint(val, 10)
+				b.Update[name] = bSetter(val)
 			}
 		}
 	}
+}
+
+func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *tableFields, value reflect.Value) {
+	b.buildNullable(serializer,
+		value,
+		fields.uintegersNullable,
+		func(field reflect.Value) interface{} {
+			return field.Field(1).Uint()
+		},
+		func() interface{} {
+			return serializer.DeserializeUInteger()
+		},
+		func(val interface{}) string {
+			if val == 0 {
+				return "NULL"
+			}
+			return strconv.FormatUint(val.(uint64), 10)
+		},
+		func(old, new interface{}) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildUIntegers(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
@@ -335,49 +410,6 @@ func (b *entityFlushDataBuilder) buildStrings(serializer *serializer, fields *ta
 	}
 }
 
-type fieldGetter func(field reflect.Value) interface{}
-type serializeGetter func() interface{}
-type bindSetter func(val interface{}) string
-
-func (b *entityFlushDataBuilder) buildNullable(serializer *serializer, value reflect.Value, indexes []int, fGetter fieldGetter, sGetter serializeGetter, bSetter bindSetter) {
-	for _, i := range indexes {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		var val interface{}
-		if !isNil {
-			val = fGetter(f.Elem())
-		}
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			var oldVal interface{}
-			same := old == isNil
-			if same && !isNil {
-				oldVal = sGetter()
-				same = oldVal == val
-			}
-			if b.forceFillOld || !same {
-				if old {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
-				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = bSetter(oldVal)
-				}
-			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			name := b.orm.tableSchema.columnNames[b.index]
-			if isNil {
-				b.Update[name] = "NULL"
-			} else {
-				b.Update[name] = bSetter(val)
-			}
-		}
-	}
-}
-
 func (b *entityFlushDataBuilder) buildUIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(serializer,
 		value,
@@ -390,6 +422,8 @@ func (b *entityFlushDataBuilder) buildUIntegersNullable(serializer *serializer, 
 		},
 		func(val interface{}) string {
 			return strconv.FormatUint(val.(uint64), 10)
+		}, func(old, new interface{}) bool {
+			return old == new
 		})
 }
 
@@ -405,6 +439,8 @@ func (b *entityFlushDataBuilder) buildIntegersNullable(serializer *serializer, f
 		},
 		func(val interface{}) string {
 			return strconv.FormatInt(val.(int64), 10)
+		}, func(old, new interface{}) bool {
+			return old == new
 		})
 }
 
