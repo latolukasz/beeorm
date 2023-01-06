@@ -15,38 +15,50 @@ import (
 	"github.com/pkg/errors"
 )
 
-type bindBuilder struct {
-	id         uint64
-	orm        *ORM
-	bind       Bind
-	current    Bind
-	sqlBind    map[string]string
-	index      int
-	buildSQL   bool
-	hasCurrent bool
+type EntitySQLFlushData struct {
+	Action            FlushType
+	EntityName        string
+	ID                uint64
+	Old               BindSQL
+	Update            BindSQL
+	UpdateOnDuplicate BindSQL
 }
 
-func newBindBuilder(id uint64, orm *ORM) *bindBuilder {
-	b := &bindBuilder{
-		id:       id,
-		orm:      orm,
-		buildSQL: !orm.delete,
-		bind:     Bind{},
-		index:    -1,
-	}
+type entityFlushDataBuilder struct {
+	*EntitySQLFlushData
+	orm          *ORM
+	index        int
+	fillOld      bool
+	forceFillOld bool
+	fillNew      bool
+}
+
+func newEntitySQLFlushDataBuilder(orm *ORM) *entityFlushDataBuilder {
+	action := Insert
 	if orm.delete {
-		b.sqlBind = nil
-	} else {
-		b.sqlBind = make(map[string]string)
+		action = Delete
+	} else if orm.onDuplicateKeyUpdate != nil {
+		action = InsertUpdate
+	} else if orm.inDB {
+		action = Update
 	}
-	if orm.delete || orm.tableSchema.hasLog || len(orm.tableSchema.cachedIndexesAll) > 0 {
-		b.hasCurrent = true
-		b.current = Bind{}
+	schema := orm.tableSchema
+	flushData := &EntitySQLFlushData{}
+	flushData.Action = action
+	flushData.EntityName = schema.t.String()
+	flushData.ID = orm.GetID()
+	b := &entityFlushDataBuilder{
+		EntitySQLFlushData: flushData,
+		orm:                orm,
+		index:              -1,
 	}
+	b.fillOld = action == Update || action == Delete
+	b.forceFillOld = action == Delete
+	b.fillNew = !b.forceFillOld
 	return b
 }
 
-func (b *bindBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
+func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
 	if root {
 		serializer.DeserializeUInteger()
 	}
@@ -71,11 +83,17 @@ func (b *bindBuilder) build(serializer *serializer, fields *tableFields, value r
 	b.buildJSONs(serializer, fields, value)
 	b.buildRefsMany(serializer, fields, value)
 	for k, i := range fields.structs {
-		b.build(serializer, fields.structsFields[k], value.Field(i), false)
+		b.fill(serializer, fields.structsFields[k], value.Field(i), false)
+	}
+	if root && b.orm.onDuplicateKeyUpdate != nil {
+		b.UpdateOnDuplicate = map[string]string{}
+		for k, v := range b.orm.onDuplicateKeyUpdate {
+			b.UpdateOnDuplicate[k] = escapeSQLValue(v)
+		}
 	}
 }
 
-func (b *bindBuilder) buildRefs(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.refs {
 		b.index++
 		f := value.Field(i)
@@ -83,35 +101,32 @@ func (b *bindBuilder) buildRefs(serializer *serializer, fields *tableFields, val
 		if !f.IsNil() {
 			val = f.Elem().Field(1).Uint()
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeUInteger()
-			if b.hasCurrent {
+			same := old == val
+			if b.forceFillOld || !same {
 				if old == 0 {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = nil
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
 				} else {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = old
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(old, 10)
 				}
 			}
-			if old == val {
+			if same {
 				continue
 			}
 		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if val == 0 {
-			b.bind[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			b.bind[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = strconv.FormatUint(val, 10)
+		if b.fillNew {
+			name := b.orm.tableSchema.columnNames[b.index]
+			if val == 0 {
+				b.Update[name] = "NULL"
+			} else {
+				b.Update[name] = strconv.FormatUint(val, 10)
 			}
 		}
 	}
 }
 
-func (b *bindBuilder) buildUIntegers(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
+func (b *entityFlushDataBuilder) buildUIntegers(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
 	for _, i := range fields.uintegers {
 		b.index++
 		val := value.Field(i).Uint()
@@ -119,314 +134,281 @@ func (b *bindBuilder) buildUIntegers(serializer *serializer, fields *tableFields
 			serializer.DeserializeUInteger()
 			continue
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeUInteger()
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = old
+			same := old == val
+			if b.forceFillOld || !same {
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(old, 10)
 			}
-			if old == val {
+			if same {
 				continue
 			}
 		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		b.bind[name] = val
-		if b.buildSQL {
-			b.sqlBind[name] = strconv.FormatUint(val, 10)
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(val, 10)
 		}
 	}
 }
 
-func (b *bindBuilder) buildIntegers(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildIntegers(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.integers {
 		b.index++
 		val := value.Field(i).Int()
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeInteger()
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = old
+			same := old == val
+			if b.forceFillOld || !same {
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatInt(old, 10)
 			}
-			if old == val {
+			if same {
 				continue
 			}
 		}
-
-		name := b.orm.tableSchema.columnNames[b.index]
-		b.bind[name] = val
-		if b.buildSQL {
-			b.sqlBind[name] = strconv.FormatInt(val, 10)
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatInt(val, 10)
 		}
 	}
 }
 
-func (b *bindBuilder) buildBooleans(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildBooleans(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.booleans {
 		b.index++
 		val := value.Field(i).Bool()
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = old
+			same := old == val
+			if b.forceFillOld || !same {
+				oldValue := "0"
+				if old {
+					oldValue = "1"
+				}
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = oldValue
 			}
-			if old == val {
+			if same {
 				continue
 			}
 		}
-
-		name := b.orm.tableSchema.columnNames[b.index]
-		b.bind[name] = val
-		if b.buildSQL {
+		if b.fillNew {
+			name := b.orm.tableSchema.columnNames[b.index]
+			b.Update[name] = "0"
 			if val {
-				b.sqlBind[name] = "1"
-			} else {
-				b.sqlBind[name] = "0"
+				b.Update[name] = "0"
 			}
 		}
 	}
 }
 
-func (b *bindBuilder) buildFloats(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildFloats(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for k, i := range fields.floats {
 		b.index++
 		val := value.Field(i).Float()
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeFloat()
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = old
+			same := math.Abs(val-old) < (1 / math.Pow10(fields.floatsPrecision[k]))
+			if b.forceFillOld || !same {
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatFloat(old, 'f', -1, 64)
 			}
-			if math.Abs(val-old) < (1 / math.Pow10(fields.floatsPrecision[k])) {
+			if same {
 				continue
 			}
 		}
-
-		name := b.orm.tableSchema.columnNames[b.index]
-		b.bind[name] = val
-		if b.buildSQL {
-			b.sqlBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatFloat(val, 'f', -1, 64)
 		}
 	}
 }
 
-func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildTimes(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.times {
 		b.index++
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeInteger()
 			if old == zeroDateSeconds {
 				old = 0
 			} else {
 				old -= timeStampSeconds
 			}
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
+			same := (old == 0 && f.IsZero()) || (old == t.Unix())
+			if b.forceFillOld || !same {
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
 			}
-			if (old == 0 && f.IsZero()) || (old == t.Unix()) {
+			if same {
 				continue
 			}
 		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		asString := t.Format(timeFormat)
-		b.bind[name] = asString
-		if b.buildSQL {
-			b.sqlBind[name] = "'" + asString + "'"
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = t.Format(timeFormat)
 		}
 	}
 }
 
-func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildDates(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.dates {
 		b.index++
 		t := value.Field(i).Interface().(time.Time)
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeInteger()
 			if old == zeroDateSeconds {
 				old = 0
 			} else {
 				old -= timeStampSeconds
 			}
-			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
+			same := old == 0 && t.IsZero() || old == t.Unix()
+			if b.forceFillOld || !same {
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
 			}
-			if old == 0 && t.IsZero() || old == t.Unix() {
+			if same {
 				continue
 			}
 		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		asString := t.Format(dateformat)
-		b.bind[name] = asString
-		if b.buildSQL {
-			b.sqlBind[name] = "'" + asString + "'"
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = t.Format(dateformat)
 		}
 	}
 }
 
-func (b *bindBuilder) buildFakeDelete(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildFakeDelete(serializer *serializer, fields *tableFields, value reflect.Value) {
 	if fields.fakeDelete > 0 {
 		b.index++
 		val := value.Field(fields.fakeDelete).Bool()
-		fakeID := uint64(0)
-		if val {
-			fakeID = b.id
-		}
-		if b.hasCurrent && b.orm.inDB {
-			b.current[b.orm.tableSchema.columnNames[b.index]] = fakeID
-		}
-		add := true
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
-			if b.hasCurrent {
+			same := val == old
+			if b.forceFillOld || !same {
 				if old {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = b.id
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(b.ID, 10)
 				} else {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = uint64(0)
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = "0"
 				}
 			}
-			if old == val {
-				add = false
+			if same {
+				return
 			}
 		}
-		if add {
-			name := b.orm.tableSchema.columnNames[b.index]
-			b.bind[name] = fakeID
-			if b.buildSQL {
-				b.sqlBind[name] = strconv.FormatUint(fakeID, 10)
-			}
+		if b.fillNew {
+			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(b.ID, 10)
 		}
 	}
 }
 
-func (b *bindBuilder) buildStrings(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildStrings(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.strings {
 		b.index++
 		val := value.Field(i).String()
 		name := b.orm.tableSchema.columnNames[b.index]
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeString()
-			if b.hasCurrent {
+			same := val == old
+			if b.forceFillOld || !same {
 				if old == "" {
 					attributes := b.orm.tableSchema.tags[name]
 					required, hasRequired := attributes["required"]
 					if hasRequired && required == "true" {
-						b.current[b.orm.tableSchema.columnNames[b.index]] = ""
+						b.Old[b.orm.tableSchema.columnNames[b.index]] = ""
 					} else {
-						b.current[b.orm.tableSchema.columnNames[b.index]] = nil
+						b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
 					}
 				} else {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = old
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = old
 				}
 			}
-			if old == val {
+			if same {
 				continue
 			}
 		}
-		if val != "" {
-			b.bind[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = escapeSQLString(val)
-			}
-		} else {
-			attributes := b.orm.tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				b.bind[name] = ""
-				if b.buildSQL {
-					b.sqlBind[name] = "''"
-				}
+		if b.fillNew {
+			if val != "" {
+				b.Update[name] = val
 			} else {
-				b.bind[name] = nil
-				if b.buildSQL {
-					b.sqlBind[name] = "NULL"
+				attributes := b.orm.tableSchema.tags[name]
+				required, hasRequired := attributes["required"]
+				if hasRequired && required == "true" {
+					b.Update[name] = ""
+				} else {
+					b.Update[name] = "NULL"
 				}
 			}
 		}
 	}
 }
 
-func (b *bindBuilder) buildUIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.uintegersNullable {
+type fieldGetter func(field reflect.Value) interface{}
+type serializeGetter func() interface{}
+type bindSetter func(val interface{}) string
+
+func (b *entityFlushDataBuilder) buildNullable(serializer *serializer, value reflect.Value, indexes []int, fGetter fieldGetter, sGetter serializeGetter, bSetter bindSetter) {
+	for _, i := range indexes {
 		b.index++
 		f := value.Field(i)
 		isNil := f.IsNil()
-		val := uint64(0)
+		var val interface{}
 		if !isNil {
-			val = f.Elem().Uint()
+			val = fGetter(f.Elem())
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
+			var oldVal interface{}
+			same := old == isNil
+			if same && !isNil {
+				oldVal = sGetter()
+				same = oldVal == val
 			}
-			if old {
-				oldVal := serializer.DeserializeUInteger()
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = oldVal
+			if b.forceFillOld || !same {
+				if old {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
+				} else {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = bSetter(oldVal)
 				}
-				if oldVal == val && !isNil {
-					continue
-				}
-			} else if isNil {
+			}
+			if same {
 				continue
 			}
 		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
-			b.bind[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			b.bind[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = strconv.FormatUint(val, 10)
+		if b.fillNew {
+			name := b.orm.tableSchema.columnNames[b.index]
+			if isNil {
+				b.Update[name] = "NULL"
+			} else {
+				b.Update[name] = bSetter(val)
 			}
 		}
 	}
 }
 
-func (b *bindBuilder) buildIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.integersNullable {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		val := int64(0)
-		if !isNil {
-			val = f.Elem().Int()
-		}
-		if b.orm.inDB {
-			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-			}
-			if old {
-				oldVal := serializer.DeserializeInteger()
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = oldVal
-				}
-				if oldVal == val && !isNil {
-					continue
-				}
-			} else if isNil {
-				continue
-			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
-			b.bind[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			b.bind[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = strconv.FormatInt(val, 10)
-			}
-		}
-	}
+func (b *entityFlushDataBuilder) buildUIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+	b.buildNullable(serializer,
+		value,
+		fields.uintegersNullable,
+		func(field reflect.Value) interface{} {
+			return field.Uint()
+		},
+		func() interface{} {
+			return serializer.DeserializeUInteger()
+		},
+		func(val interface{}) string {
+			return strconv.FormatUint(val.(uint64), 10)
+		})
 }
 
-func (b *bindBuilder) buildEnums(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+	b.buildNullable(serializer,
+		value,
+		fields.integersNullable,
+		func(field reflect.Value) interface{} {
+			return field.Int()
+		},
+		func() interface{} {
+			return serializer.DeserializeInteger()
+		},
+		func(val interface{}) string {
+			return strconv.FormatInt(val.(int64), 10)
+		})
+}
+
+func (b *entityFlushDataBuilder) buildEnums(serializer *serializer, fields *tableFields, value reflect.Value) {
 	k := 0
 	for _, i := range fields.stringsEnums {
 		b.index++
@@ -434,7 +416,7 @@ func (b *bindBuilder) buildEnums(serializer *serializer, fields *tableFields, va
 		enum := fields.enums[k]
 		name := b.orm.tableSchema.columnNames[b.index]
 		k++
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeUInteger()
 			if b.hasCurrent {
 				if old == 0 {
@@ -451,7 +433,7 @@ func (b *bindBuilder) buildEnums(serializer *serializer, fields *tableFields, va
 			if !enum.Has(val) {
 				panic(errors.New("unknown enum value for " + name + " - " + val))
 			}
-			b.bind[name] = val
+			b.Update[name] = val
 			if b.buildSQL {
 				b.sqlBind[name] = "'" + val + "'"
 			}
@@ -459,15 +441,15 @@ func (b *bindBuilder) buildEnums(serializer *serializer, fields *tableFields, va
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				if b.orm.inDB {
+				if b.fillOld {
 					panic(fmt.Errorf("empty enum value for %s", name))
 				}
-				b.bind[name] = enum.GetDefault()
+				b.Update[name] = enum.GetDefault()
 				if b.buildSQL {
 					b.sqlBind[name] = "'" + enum.GetDefault() + "'"
 				}
 			} else {
-				b.bind[name] = nil
+				b.Update[name] = nil
 				if b.buildSQL {
 					b.sqlBind[name] = "NULL"
 				}
@@ -476,11 +458,11 @@ func (b *bindBuilder) buildEnums(serializer *serializer, fields *tableFields, va
 	}
 }
 
-func (b *bindBuilder) buildBytes(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildBytes(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.bytes {
 		b.index++
 		val := string(value.Field(i).Bytes())
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeString()
 			if b.hasCurrent {
 				if old != "" {
@@ -495,12 +477,12 @@ func (b *bindBuilder) buildBytes(serializer *serializer, fields *tableFields, va
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		if val != "" {
-			b.bind[name] = val
+			b.Update[name] = val
 			if b.buildSQL {
-				b.sqlBind[name] = escapeSQLString(val)
+				b.sqlBind[name] = EscapeSQLString(val)
 			}
 		} else {
-			b.bind[name] = nil
+			b.Update[name] = nil
 			if b.buildSQL {
 				b.sqlBind[name] = "NULL"
 			}
@@ -508,7 +490,7 @@ func (b *bindBuilder) buildBytes(serializer *serializer, fields *tableFields, va
 	}
 }
 
-func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildSets(serializer *serializer, fields *tableFields, value reflect.Value) {
 	k := 0
 	for _, i := range fields.sliceStringsSets {
 		b.index++
@@ -517,7 +499,7 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 		l := len(val)
 		k++
 		name := b.orm.tableSchema.columnNames[b.index]
-		if b.orm.inDB {
+		if b.fillOld {
 			old := int(serializer.DeserializeUInteger())
 			if b.hasCurrent {
 				attributes := b.orm.tableSchema.tags[name]
@@ -568,7 +550,7 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 		}
 		if l > 0 {
 			valAsString := strings.Join(val, ",")
-			b.bind[name] = valAsString
+			b.Update[name] = valAsString
 			if b.buildSQL {
 				b.sqlBind[name] = "'" + valAsString + "'"
 			}
@@ -576,12 +558,12 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				b.bind[name] = ""
+				b.Update[name] = ""
 				if b.buildSQL {
 					b.sqlBind[name] = "''"
 				}
 			} else {
-				b.bind[name] = nil
+				b.Update[name] = nil
 				if b.buildSQL {
 					b.sqlBind[name] = "NULL"
 				}
@@ -590,7 +572,7 @@ func (b *bindBuilder) buildSets(serializer *serializer, fields *tableFields, val
 	}
 }
 
-func (b *bindBuilder) buildBooleansNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildBooleansNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.booleansNullable {
 		b.index++
 		f := value.Field(i)
@@ -599,7 +581,7 @@ func (b *bindBuilder) buildBooleansNullable(serializer *serializer, fields *tabl
 		if !isNil {
 			val = f.Elem().Bool()
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -618,12 +600,12 @@ func (b *bindBuilder) buildBooleansNullable(serializer *serializer, fields *tabl
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
-			b.bind[name] = nil
+			b.Update[name] = nil
 			if b.buildSQL {
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
-			b.bind[name] = val
+			b.Update[name] = val
 			if b.buildSQL {
 				if val {
 					b.sqlBind[name] = "1"
@@ -635,7 +617,7 @@ func (b *bindBuilder) buildBooleansNullable(serializer *serializer, fields *tabl
 	}
 }
 
-func (b *bindBuilder) buildFloatsNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildFloatsNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for k, i := range fields.floatsNullable {
 		b.index++
 		f := value.Field(i)
@@ -644,7 +626,7 @@ func (b *bindBuilder) buildFloatsNullable(serializer *serializer, fields *tableF
 		if !isNil {
 			val = f.Elem().Float()
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -663,12 +645,12 @@ func (b *bindBuilder) buildFloatsNullable(serializer *serializer, fields *tableF
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
-			b.bind[name] = nil
+			b.Update[name] = nil
 			if b.buildSQL {
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
-			b.bind[name] = val
+			b.Update[name] = val
 			if b.buildSQL {
 				b.sqlBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
 			}
@@ -676,7 +658,7 @@ func (b *bindBuilder) buildFloatsNullable(serializer *serializer, fields *tableF
 	}
 }
 
-func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildTimesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.timesNullable {
 		b.index++
 		f := value.Field(i)
@@ -685,7 +667,7 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 		if !isNil {
 			val = f.Interface().(*time.Time)
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -704,13 +686,13 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		if val == nil {
-			b.bind[name] = nil
+			b.Update[name] = nil
 			if b.buildSQL {
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			asString := val.Format(timeFormat)
-			b.bind[name] = asString
+			b.Update[name] = asString
 			if b.buildSQL {
 				b.sqlBind[name] = "'" + asString + "'"
 			}
@@ -718,7 +700,7 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 	}
 }
 
-func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildDatesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.datesNullable {
 		b.index++
 		f := value.Field(i)
@@ -728,7 +710,7 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 			val = *f.Interface().(*time.Time)
 			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBool()
 			if !old && b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
@@ -747,13 +729,13 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 		}
 		name := b.orm.tableSchema.columnNames[b.index]
 		if isNil {
-			b.bind[name] = nil
+			b.Update[name] = nil
 			if b.buildSQL {
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
 			asString := val.Format(dateformat)
-			b.bind[name] = asString
+			b.Update[name] = asString
 			if b.buildSQL {
 				b.sqlBind[name] = "'" + asString + "'"
 			}
@@ -761,7 +743,7 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 	}
 }
 
-func (b *bindBuilder) buildJSONs(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildJSONs(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.jsons {
 		b.index++
 		f := value.Field(i)
@@ -773,7 +755,7 @@ func (b *bindBuilder) buildJSONs(serializer *serializer, fields *tableFields, va
 		if !isNil {
 			val = f.Interface()
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			old := serializer.DeserializeBytes()
 			if len(old) == 0 {
 				if b.hasCurrent {
@@ -810,20 +792,20 @@ func (b *bindBuilder) buildJSONs(serializer *serializer, fields *tableFields, va
 				v, _ := jsoniter.ConfigFastest.Marshal(val)
 				asString = string(v)
 			}
-			b.bind[name] = asString
+			b.Update[name] = asString
 			if b.buildSQL {
-				b.sqlBind[name] = escapeSQLString(asString)
+				b.sqlBind[name] = EscapeSQLString(asString)
 			}
 		} else {
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				b.bind[name] = ""
+				b.Update[name] = ""
 				if b.buildSQL {
 					b.sqlBind[name] = "''"
 				}
 			} else {
-				b.bind[name] = nil
+				b.Update[name] = nil
 				if b.buildSQL {
 					b.sqlBind[name] = "NULL"
 				}
@@ -832,7 +814,7 @@ func (b *bindBuilder) buildJSONs(serializer *serializer, fields *tableFields, va
 	}
 }
 
-func (b *bindBuilder) buildRefsMany(serializer *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushDataBuilder) buildRefsMany(serializer *serializer, fields *tableFields, value reflect.Value) {
 	for _, i := range fields.refsMany {
 		b.index++
 		f := value.Field(i)
@@ -850,7 +832,7 @@ func (b *bindBuilder) buildRefsMany(serializer *serializer, fields *tableFields,
 				val = string(encoded)
 			}
 		}
-		if b.orm.inDB {
+		if b.fillOld {
 			l := int(serializer.DeserializeUInteger())
 			if l == 0 {
 				if b.hasCurrent {
@@ -884,7 +866,7 @@ func (b *bindBuilder) buildRefsMany(serializer *serializer, fields *tableFields,
 			}
 		}
 		if val != "" {
-			b.bind[name] = val
+			b.Update[name] = val
 			if b.buildSQL {
 				b.sqlBind[name] = "'" + val + "'"
 			}
@@ -892,12 +874,12 @@ func (b *bindBuilder) buildRefsMany(serializer *serializer, fields *tableFields,
 			attributes := b.orm.tableSchema.tags[name]
 			required, hasRequired := attributes["required"]
 			if hasRequired && required == "true" {
-				b.bind[name] = ""
+				b.Update[name] = ""
 				if b.buildSQL {
 					b.sqlBind[name] = "'[]'"
 				}
 			} else {
-				b.bind[name] = nil
+				b.Update[name] = nil
 				if b.buildSQL {
 					b.sqlBind[name] = "NULL"
 				}

@@ -509,7 +509,7 @@ func escapeSQLValue(val interface{}) string {
 	}
 	asString, isString := val.(string)
 	if isString {
-		return escapeSQLString(asString)
+		return EscapeSQLString(asString)
 	}
 	asTime, isTime := val.(time.Time)
 	if isTime {
@@ -526,7 +526,7 @@ func escapeSQLValue(val interface{}) string {
 	return asString
 }
 
-func escapeSQLString(val string) string {
+func EscapeSQLString(val string) string {
 	dest := make([]byte, 0, 2*len(val))
 	var escape byte
 	for i := 0; i < len(val); i++ {

@@ -13,7 +13,6 @@ type Engine interface {
 	GetMysql(code ...string) *DB
 	GetLocalCache(code ...string) *LocalCache
 	GetRedis(code ...string) *RedisCache
-	SetLogMetaData(key string, value interface{})
 	NewFlusher() Flusher
 	Flush(entity ...Entity)
 	FlushLazy(entity ...Entity)
@@ -43,6 +42,8 @@ type Engine interface {
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
+	SetOption(plugin, key string, value interface{})
+	GetOption(plugin, key string) interface{}
 }
 
 type engineImplementation struct {
@@ -50,7 +51,6 @@ type engineImplementation struct {
 	dbs                       map[string]*DB
 	localCache                map[string]*LocalCache
 	redis                     map[string]*RedisCache
-	logMetaData               Bind
 	hasRequestCache           bool
 	queryLoggersDB            []LogHandler
 	queryLoggersRedis         []LogHandler
@@ -59,16 +59,16 @@ type engineImplementation struct {
 	hasDBLogger               bool
 	hasLocalCacheLogger       bool
 	afterCommitLocalCacheSets map[string][]interface{}
-	afterCommitRedisFlusher   *redisFlusher
+	afterCommitDataFlusher    *DataFlusher
 	eventBroker               *eventBroker
 	queryTimeLimit            uint16
+	options                   map[string]map[string]interface{}
 	sync.Mutex
 }
 
 func (e *engineImplementation) Clone() Engine {
 	return &engineImplementation{
 		registry:               e.registry,
-		logMetaData:            e.logMetaData,
 		hasRequestCache:        e.hasRequestCache,
 		queryLoggersDB:         e.queryLoggersDB,
 		queryLoggersRedis:      e.queryLoggersRedis,
@@ -77,6 +77,30 @@ func (e *engineImplementation) Clone() Engine {
 		hasDBLogger:            e.hasDBLogger,
 		hasLocalCacheLogger:    e.hasLocalCacheLogger,
 	}
+}
+
+func (e *engineImplementation) SetOption(plugin, key string, value interface{}) {
+	if e.options == nil {
+		e.options = map[string]map[string]interface{}{plugin: {key: value}}
+	} else {
+		before, has := e.options[plugin]
+		if !has {
+			e.options[plugin] = map[string]interface{}{key: value}
+		} else {
+			before[key] = value
+		}
+	}
+}
+
+func (e *engineImplementation) GetOption(plugin, key string) interface{} {
+	if e.options == nil {
+		return nil
+	}
+	values, has := e.options[plugin]
+	if !has {
+		return nil
+	}
+	return values[key]
 }
 
 func (e *engineImplementation) EnableRequestCache() {
@@ -163,15 +187,6 @@ func (e *engineImplementation) GetRedis(code ...string) *RedisCache {
 		}
 	}
 	return cache
-}
-
-func (e *engineImplementation) SetLogMetaData(key string, value interface{}) {
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	if e.logMetaData == nil {
-		e.logMetaData = make(Bind)
-	}
-	e.logMetaData[key] = value
 }
 
 func (e *engineImplementation) NewFlusher() Flusher {

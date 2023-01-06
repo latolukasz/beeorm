@@ -2,13 +2,12 @@ package beeorm
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Bind map[string]interface{}
+type BindSQL map[string]string
 
 type DuplicatedKeyError struct {
 	Message string
@@ -19,6 +18,15 @@ func (err *DuplicatedKeyError) Error() string {
 	return err.Message
 }
 
+type FlushType int
+
+const (
+	Insert FlushType = iota
+	InsertUpdate
+	Update
+	Delete
+)
+
 type ForeignKeyError struct {
 	Message    string
 	Constraint string
@@ -26,6 +34,60 @@ type ForeignKeyError struct {
 
 func (err *ForeignKeyError) Error() string {
 	return err.Message
+}
+
+type DataFlusher struct {
+	Events map[string][]*EntityCacheFlushData
+	Parent *flusher
+}
+
+func (df *DataFlusher) AddEvent(flushData *EntityCacheFlushData) {
+	if df.Events == nil {
+		df.Events = map[string][]*EntityCacheFlushData{flushData.EntityName: {flushData}}
+	} else {
+		df.Events[flushData.EntityName] = append(df.Events[flushData.EntityName], flushData)
+	}
+}
+
+func (df *DataFlusher) Execute(engine Engine, lazy bool) {
+	//TODO
+}
+
+type EntityCacheFlushData struct {
+	*EntitySQLFlushData
+	RedisDeletes      map[string][]string
+	LocalCacheDeletes map[string][]string
+}
+
+func (el *EntityCacheFlushData) PublishToStream(stream string, event interface{}) {
+	//TODO
+}
+
+func (el *EntityCacheFlushData) DeleteInRedis(pool string, key ...string) {
+	if len(key) > 0 {
+		deletes, has := el.RedisDeletes[pool]
+		if !has {
+			el.RedisDeletes[pool] = key
+		} else {
+			el.RedisDeletes[pool] = append(deletes, key...)
+		}
+	}
+
+}
+
+func (el *EntityCacheFlushData) DeleteInLocalCache(pool string, key ...string) {
+	if len(key) > 0 {
+		deletes, has := el.LocalCacheDeletes[pool]
+		if !has {
+			el.LocalCacheDeletes[pool] = key
+		} else {
+			el.LocalCacheDeletes[pool] = append(deletes, key...)
+		}
+	}
+}
+
+func (el *EntityCacheFlushData) AddInLocalCache(pool, key string, value interface{}) {
+	// TODO
 }
 
 type Flusher interface {
@@ -43,29 +105,22 @@ type flusher struct {
 	engine                 *engineImplementation
 	trackedEntities        []Entity
 	trackedEntitiesCounter int
-	redisFlusher           *redisFlusher
-	updateSQLs             map[string][]string
-	deleteBinds            map[reflect.Type]map[uint64]Entity
-	lazyMap                map[string]interface{}
-	localCacheDeletes      map[string][]string
-	localCacheSets         map[string][]interface{}
-	stringBuilder          strings.Builder
 	serializer             *serializer
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
 main:
-	for _, entity := range entity {
-		initIfNeeded(f.engine.registry, entity)
+	for _, e := range entity {
+		initIfNeeded(f.engine.registry, e)
 		if f.trackedEntities == nil {
-			f.trackedEntities = []Entity{entity}
+			f.trackedEntities = []Entity{e}
 		} else {
 			for _, old := range f.trackedEntities {
-				if old == entity {
+				if old == e {
 					continue main
 				}
 			}
-			f.trackedEntities = append(f.trackedEntities, entity)
+			f.trackedEntities = append(f.trackedEntities, e)
 		}
 		f.trackedEntitiesCounter++
 		if f.trackedEntitiesCounter == 10001 {
@@ -92,11 +147,11 @@ func (f *flusher) ForceDelete(entity ...Entity) Flusher {
 }
 
 func (f *flusher) Flush() {
-	f.flushTrackedEntities(false, false)
+	f.flushTrackedEntities(false)
 }
 
 func (f *flusher) FlushWithCheck() error {
-	return f.flushWithCheck(false)
+	return f.flushWithCheck()
 }
 
 func (f *flusher) FlushWithFullCheck() error {
@@ -109,73 +164,29 @@ func (f *flusher) FlushWithFullCheck() error {
 				err = asErr
 			}
 		}()
-		f.flushTrackedEntities(false, false)
+		f.flushTrackedEntities(false)
 	}()
 	return err
 }
 
 func (f *flusher) FlushLazy() {
-	f.flushTrackedEntities(true, false)
+	f.flushTrackedEntities(true)
 }
 
 func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
-	f.clear()
 }
 
-func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
+func (f *flusher) flushTrackedEntities(lazy bool) {
 	if f.trackedEntitiesCounter == 0 {
 		return
 	}
-	var dbPools map[string]*DB
-	executed := false
-	if transaction {
-		dbPools = make(map[string]*DB)
-		for _, entity := range f.trackedEntities {
-			db := entity.getORM().tableSchema.GetMysql(f.engine)
-			dbPools[db.GetPoolConfig().GetCode()] = db
-		}
-		for _, db := range dbPools {
-			db.Begin()
-		}
-	}
-	defer func() {
-		if !executed {
-			if dbPools == nil {
-				dbPools = make(map[string]*DB)
-				for _, entity := range f.trackedEntities {
-					db := entity.getORM().tableSchema.GetMysql(f.engine)
-					dbPools[db.GetPoolConfig().GetCode()] = db
-				}
-			}
-			for _, db := range dbPools {
-				db.Rollback()
-			}
-		}
-	}()
-	useTransaction := f.flush(true, lazy, transaction, f.trackedEntities...)
-	if transaction {
-		for _, db := range dbPools {
-			db.Commit()
-		}
-	} else if useTransaction {
-		if dbPools == nil {
-			dbPools = make(map[string]*DB)
-			for _, entity := range f.trackedEntities {
-				db := entity.getORM().tableSchema.GetMysql(f.engine)
-				dbPools[db.GetPoolConfig().GetCode()] = db
-			}
-		}
-		for _, db := range dbPools {
-			db.Commit()
-		}
-	}
-	executed = true
-	f.clear()
+	dataFlusher := f.buildDataFlasher()
+	dataFlusher.Execute(f.engine, lazy)
 }
 
-func (f *flusher) flushWithCheck(transaction bool) error {
+func (f *flusher) flushWithCheck() error {
 	var err error
 	func() {
 		defer func() {
@@ -195,7 +206,7 @@ func (f *flusher) flushWithCheck(transaction bool) error {
 				panic(asErr)
 			}
 		}()
-		f.flushTrackedEntities(false, transaction)
+		f.flushTrackedEntities(false)
 	}()
 	return err
 }
@@ -207,96 +218,38 @@ func (f *flusher) getSerializer() *serializer {
 	return f.serializer
 }
 
-type flushPackage struct {
-	insertKeys          map[reflect.Type][]string
-	insertBinds         map[reflect.Type][]Bind
-	insertSQLBinds      map[reflect.Type][]map[string]string
-	insertReflectValues map[reflect.Type][]Entity
-	referencesToFlash   map[Entity]Entity
-}
-
-func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Entity) (useTransaction bool) {
-	flushPackage := &flushPackage{
-		insertKeys:          make(map[reflect.Type][]string),
-		insertBinds:         make(map[reflect.Type][]Bind),
-		insertSQLBinds:      make(map[reflect.Type][]map[string]string),
-		insertReflectValues: make(map[reflect.Type][]Entity),
-		referencesToFlash:   make(map[Entity]Entity),
-	}
-
-	for _, entity := range entities {
+func (f *flusher) buildDataFlasher() *DataFlusher {
+	dataFlusher := &DataFlusher{}
+	for _, entity := range f.trackedEntities {
 		initIfNeeded(f.engine.registry, entity)
-		schema := entity.getORM().tableSchema
-		if !transaction && schema.GetMysql(f.engine).inTransaction {
-			transaction = true
-		}
-		if f.checkReferences(schema, entity, flushPackage) {
-			continue
-		}
+		f.buildReferences(entity, dataFlusher)
 
 		orm := entity.getORM()
-		bindBuilder, isDirty := orm.buildDirtyBind(f.getSerializer())
+		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer())
 		if !isDirty {
 			continue
 		}
+		entityCacheFlushData := &EntityCacheFlushData{EntitySQLFlushData: entitySQLFlushData}
 
-		t := orm.tableSchema.t
 		currentID := entity.GetID()
 		if orm.fakeDelete && !orm.tableSchema.hasFakeDelete {
 			orm.delete = true
 		}
 		if orm.delete {
-			f.flushDelete(t, currentID, entity)
+			f.fillCacheFlushDataForDelete(entity, entityCacheFlushData)
 		} else if !orm.inDB {
-			if currentID == 0 && schema.hasUUID {
+			if currentID == 0 && orm.tableSchema.hasUUID {
 				currentID = uuid()
 				orm.idElem.SetUint(currentID)
 			}
 			if currentID > 0 {
-				bindBuilder.bind["ID"] = currentID
-				if bindBuilder.buildSQL {
-					bindBuilder.sqlBind["ID"] = strconv.FormatUint(currentID, 10)
-				}
+				entityCacheFlushData.EntitySQLFlushData.Update["ID"] = strconv.FormatUint(currentID, 10)
 			}
-			if f.flushOnDuplicateKey(lazy, bindBuilder, schema, entity) {
-				continue
-			}
-			f.flushInsert(t, bindBuilder, flushPackage, entity)
 		} else {
-			f.flushUpdate(entity, bindBuilder, currentID, schema, lazy)
+			f.fillCacheFlushDataForUpdate(entity, entityCacheFlushData)
 		}
+		dataFlusher.AddEvent(entityCacheFlushData)
 	}
-
-	if f.flushReferences(flushPackage, lazy, transaction, entities) {
-		return !transaction
-	}
-	if !transaction {
-		diffs := len(flushPackage.insertKeys)
-		if diffs <= 1 {
-			diffs += len(f.updateSQLs)
-			if diffs <= 1 {
-				diffs += len(f.deleteBinds)
-				if diffs <= 1 && len(f.updateSQLs) == 1 {
-					for _, queries := range f.updateSQLs {
-						diffs = len(queries)
-					}
-				}
-			}
-		}
-		if diffs > 1 {
-			f.startTransaction()
-			useTransaction = true
-		}
-	}
-
-	f.executeInserts(flushPackage, lazy)
-	if root {
-		f.executeUpdates()
-		f.executeDeletes(lazy)
-		f.updateLocalCache(lazy, useTransaction || transaction)
-	}
-	f.updateRedisCache(root, lazy, useTransaction || transaction)
-	return useTransaction
 }
 
 func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
@@ -319,9 +272,8 @@ func (f *flusher) updateRedisCache(root bool, lazy bool, transaction bool) {
 	} else if transaction {
 		f.engine.afterCommitRedisFlusher = f.getRedisFlusher()
 	}
-	if len(f.lazyMap) > 0 {
-		f.getRedisFlusher().Publish(LazyChannelName, f.lazyMap)
-		f.lazyMap = nil
+	for _, lazyEvent := range f.lazyEvents {
+		f.getRedisFlusher().Publish(LazyChannelName, lazyEvent)
 	}
 	if f.redisFlusher != nil && !transaction && root {
 		f.redisFlusher.Flush()
@@ -348,67 +300,6 @@ func (f *flusher) updateLocalCache(lazy bool, transaction bool) {
 				f.engine.afterCommitLocalCacheSets = make(map[string][]interface{})
 			}
 			f.engine.afterCommitLocalCacheSets[cacheCode] = append(f.engine.afterCommitLocalCacheSets[cacheCode], keys...)
-		}
-	}
-}
-
-func (f *flusher) executeDeletes(lazy bool) {
-	for typeOf, deleteBinds := range f.deleteBinds {
-		queryExecuted := false
-		schema := getTableSchema(f.engine.registry, typeOf)
-		i := 0
-		f.stringBuilder.WriteString("DELETE FROM `")
-		f.stringBuilder.WriteString(schema.tableName)
-		f.stringBuilder.WriteString("` WHERE `ID` IN (")
-		deleteSQLPrefix := f.stringBuilder.String()
-		if !lazy {
-			for id := range deleteBinds {
-				if i > 0 {
-					f.stringBuilder.WriteString(",")
-				}
-				f.stringBuilder.WriteString(strconv.FormatUint(id, 10))
-				i++
-			}
-		}
-		f.stringBuilder.WriteString(")")
-		deleteSQL := f.stringBuilder.String()
-		f.stringBuilder.Reset()
-		db := schema.GetMysql(f.engine)
-		localCache, hasLocalCache := schema.GetLocalCache(f.engine)
-		redisCache, hasRedis := schema.GetRedisCache(f.engine)
-		if !hasLocalCache && f.engine.hasRequestCache {
-			hasLocalCache = true
-			localCache = f.engine.GetLocalCache(requestCacheKey)
-		}
-		for id, entity := range deleteBinds {
-			orm := entity.getORM()
-			bindBuilder, _ := orm.buildDirtyBind(f.getSerializer())
-			if !lazy {
-				if !queryExecuted {
-					_ = db.Exec(deleteSQL)
-					queryExecuted = true
-				}
-				f.addToLogQueue(schema, id, bindBuilder.current, nil, entity.getORM().logMeta, lazy)
-			} else {
-				var logEvents []*LogQueueValue
-				logEvent := f.addToLogQueue(schema, id, bindBuilder.current, nil, orm.logMeta, lazy)
-				if logEvent != nil {
-					logEvents = append(logEvents, logEvent)
-				}
-				f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQLPrefix+strconv.FormatUint(id, 10)+")", false, id, logEvents)
-			}
-			if hasLocalCache || hasRedis {
-				cacheKey := schema.getCacheKey(id)
-				keys := f.getCacheQueriesKeys(schema, bindBuilder.bind, bindBuilder.current, true, true)
-				if hasLocalCache {
-					f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cacheNilValue)
-					f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
-				}
-				if hasRedis {
-					f.getRedisFlusher().Del(redisCache.config.GetCode(), cacheKey)
-					f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
-				}
-			}
 		}
 	}
 }
@@ -465,17 +356,13 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 		f.stringBuilder.Reset()
 		db := schema.GetMysql(f.engine)
 		if lazy {
-			var logEvents []*LogQueueValue
 			for key, entity := range flushPackage.insertReflectValues[typeOf] {
 				if schema.hasUUID {
 					entity.getORM().serialize(f.getSerializer())
 				}
-				logEvent := f.updateCacheForInserted(entity, lazy, entity.GetID(), flushPackage.insertBinds[typeOf][key])
-				if logEvent != nil {
-					logEvents = append(logEvents, logEvent)
-				}
+				f.updateCacheForInserted(entity, lazy, entity.GetID(), flushPackage.insertBinds[typeOf][key])
 			}
-			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, true, 0, logEvents)
+			f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, true, 0)
 		} else {
 			res := db.Exec(sql)
 			id := res.LastInsertId()
@@ -497,213 +384,73 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 	}
 }
 
-func (f *flusher) flushInsert(t reflect.Type, bindBuilder *bindBuilder, flushPackage *flushPackage, entity Entity) {
-	if flushPackage.insertKeys[t] == nil {
-		fields := make([]string, len(bindBuilder.bind))
-		i := 0
-		for key := range bindBuilder.bind {
-			fields[i] = key
-			i++
-		}
-		flushPackage.insertKeys[t] = fields
-	}
-	_, has := flushPackage.insertBinds[t]
-	if !has {
-		flushPackage.insertBinds[t] = make([]Bind, 0)
-		flushPackage.insertSQLBinds[t] = make([]map[string]string, 0)
-	}
-	flushPackage.insertReflectValues[t] = append(flushPackage.insertReflectValues[t], entity)
-	flushPackage.insertBinds[t] = append(flushPackage.insertBinds[t], bindBuilder.bind)
-	flushPackage.insertSQLBinds[t] = append(flushPackage.insertSQLBinds[t], bindBuilder.sqlBind)
-}
-
-func (f *flusher) flushDelete(t reflect.Type, currentID uint64, entity Entity) {
-	if f.deleteBinds == nil {
-		f.deleteBinds = make(map[reflect.Type]map[uint64]Entity)
-	}
-	if f.deleteBinds[t] == nil {
-		f.deleteBinds[t] = make(map[uint64]Entity)
-	}
-	f.deleteBinds[t][currentID] = entity
-}
-
-func (f *flusher) startTransaction() {
-	dbPools := make(map[string]*DB)
-	for _, entity := range f.trackedEntities {
-		db := entity.getORM().tableSchema.GetMysql(f.engine)
-		dbPools[db.GetPoolConfig().GetCode()] = db
-	}
-	for _, db := range dbPools {
-		db.Begin()
-	}
-}
-
-func (f *flusher) flushReferences(flushPackage *flushPackage, lazy bool, transaction bool, entities []Entity) bool {
-	if len(flushPackage.referencesToFlash) > 0 {
-		if lazy {
-			panic(fmt.Errorf("lazy flush for unsaved references is not supported"))
-		}
-		if !transaction {
-			f.startTransaction()
-		}
-		toFlush := make([]Entity, len(flushPackage.referencesToFlash))
-		i := 0
-		for _, v := range flushPackage.referencesToFlash {
-			toFlush[i] = v
-			i++
-		}
-		f.flush(false, false, transaction, toFlush...)
-		rest := make([]Entity, 0)
-		for _, v := range entities {
-			_, has := flushPackage.referencesToFlash[v]
-			if !has {
-				rest = append(rest, v)
-			}
-		}
-		if len(rest) > 0 {
-			f.flush(true, false, transaction, rest...)
-		}
-		return true
-	}
-	return false
-}
-
-func (f *flusher) flushUpdate(entity Entity, bindBuilder *bindBuilder, currentID uint64, schema *tableSchema, lazy bool) {
+func (f *flusher) fillCacheFlushDataForUpdate(entity Entity, entityFlushData *EntityCacheFlushData) {
 	if !entity.IsLoaded() {
-		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
+		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
 	}
-	f.stringBuilder.WriteString("UPDATE `")
-	f.stringBuilder.WriteString(schema.GetTableName())
-	f.stringBuilder.WriteString("` SET ")
-	first := true
-	for key, value := range bindBuilder.sqlBind {
-		if !first {
-			f.stringBuilder.WriteString(",")
-		}
-		first = false
-		f.stringBuilder.WriteString("`" + key + "`=" + value)
+	schema := entity.getORM().tableSchema
+	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
+	redisCache, hasRedis := schema.GetRedisCache(f.engine)
+	if !hasLocalCache && f.engine.hasRequestCache {
+		hasLocalCache = true
+		localCache = f.engine.GetLocalCache(requestCacheKey)
 	}
-	f.stringBuilder.WriteString(" WHERE `ID` = ")
-	f.stringBuilder.WriteString(strconv.FormatUint(currentID, 10))
-	sql := f.stringBuilder.String()
-	f.stringBuilder.Reset()
-	db := schema.GetMysql(f.engine)
-	if lazy {
-		var logEvents []*LogQueueValue
-		entity.getORM().serialize(f.getSerializer())
-		logEvent := f.updateCacheAfterUpdate(entity, bindBuilder.bind, bindBuilder.current, schema, currentID, true)
-		if logEvent != nil {
-			logEvents = append(logEvents, logEvent)
+	if hasLocalCache || hasRedis {
+		cacheKey := schema.getCacheKey(entity.GetID())
+		keysOld := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, true, false)
+		keysNew := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, false, false)
+		if hasLocalCache {
+			entityFlushData.AddInLocalCache(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
+			entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keysOld...)
+			entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keysNew...)
 		}
-		f.fillLazyQuery(db.GetPoolConfig().GetCode(), sql, false, currentID, logEvents)
-	} else {
-		if f.updateSQLs == nil {
-			f.updateSQLs = make(map[string][]string)
+		if hasRedis {
+
+			entityFlushData.DeleteInRedis(redisCache.config.GetCode(), cacheKey)
+			entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keysOld...)
+			entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keysNew...)
 		}
-		f.updateSQLs[schema.mysqlPoolName] = append(f.updateSQLs[schema.mysqlPoolName], sql)
-		entity.getORM().serialize(f.getSerializer())
-		f.updateCacheAfterUpdate(entity, bindBuilder.bind, bindBuilder.current, schema, currentID, false)
 	}
 }
 
-func (f *flusher) flushOnDuplicateKey(lazy bool, bindBuilder *bindBuilder, schema *tableSchema, entity Entity) bool {
-	onUpdate := entity.getORM().onDuplicateKeyUpdate
-	if onUpdate == nil {
-		return false
+func (f *flusher) fillCacheFlushDataForDelete(entity Entity, entityFlushData *EntityCacheFlushData) {
+	schema := entity.getORM().tableSchema
+	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
+	redisCache, hasRedis := schema.GetRedisCache(f.engine)
+	if !hasLocalCache && f.engine.hasRequestCache {
+		hasLocalCache = true
+		localCache = f.engine.GetLocalCache(requestCacheKey)
 	}
-	if lazy {
-		panic(fmt.Errorf("lazy flush on duplicate key is not supported"))
-	}
-	bindLength := len(bindBuilder.bind)
-	values := make([]string, bindLength)
-	columns := make([]string, bindLength)
-	i := 0
 
-	for key, val := range bindBuilder.sqlBind {
-		columns[i] = "`" + key + "`"
-		values[i] = val
-		i++
-	}
-	f.stringBuilder.WriteString("INSERT INTO ")
-	f.stringBuilder.WriteString(schema.tableName)
-	f.stringBuilder.WriteString("(")
-	f.stringBuilder.WriteString(strings.Join(columns, ","))
-	f.stringBuilder.WriteString(") VALUES (")
-	f.stringBuilder.WriteString(strings.Join(values, ","))
-	f.stringBuilder.WriteString(")")
-	/* #nosec */
-	f.stringBuilder.WriteString(" ON DUPLICATE KEY UPDATE ")
-	first := true
-	for k, v := range onUpdate {
-		if !first {
-			f.stringBuilder.WriteString(",")
+	if hasLocalCache || hasRedis {
+		cacheKey := schema.getCacheKey(entity.GetID())
+		keys := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, true, true)
+		if hasLocalCache {
+			entityFlushData.AddInLocalCache(localCache.config.GetCode(), cacheKey, cacheNilValue)
+			entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keys...)
 		}
-		f.stringBuilder.WriteString("`")
-		f.stringBuilder.WriteString(k)
-		f.stringBuilder.WriteString("` = ")
-		f.stringBuilder.WriteString(escapeSQLValue(v))
-		first = false
-	}
-	if len(onUpdate) == 0 {
-		f.stringBuilder.WriteString("ID = ID")
-	}
-	sql := f.stringBuilder.String()
-	f.stringBuilder.Reset()
-	db := schema.GetMysql(f.engine)
-	result := db.Exec(sql)
-	affected := result.RowsAffected()
-	if affected > 0 {
-		orm := entity.getORM()
-		lastID := result.LastInsertId()
-		orm.inDB = true
-		orm.loaded = true
-		orm.idElem.SetUint(lastID)
-		orm.serialize(f.getSerializer())
-		if affected == 1 {
-			f.updateCacheForInserted(entity, lazy, lastID, bindBuilder.bind)
-		} else {
-			for k, v := range onUpdate {
-				err := entity.SetField(k, v)
-				checkError(err)
-			}
-			bindBuilderNew, _ := orm.buildDirtyBind(f.getSerializer())
-			_, _ = loadByID(f.getSerializer(), f.engine, lastID, entity, false)
-			f.updateCacheAfterUpdate(entity, bindBuilderNew.bind, bindBuilderNew.current, schema, lastID, false)
-		}
-	} else {
-	OUTER:
-		for _, index := range schema.uniqueIndices {
-			fields := make([]string, 0)
-			binds := make([]interface{}, 0)
-			for _, column := range index {
-				if bindBuilder.bind[column] == nil {
-					continue OUTER
-				}
-				fields = append(fields, "`"+column+"` = ?")
-				binds = append(binds, bindBuilder.bind[column])
-			}
-			findWhere := NewWhere(strings.Join(fields, " AND "), binds)
-			f.engine.SearchOne(findWhere, entity)
-			break
+		if hasRedis {
+			entityFlushData.DeleteInRedis(redisCache.config.GetCode(), cacheKey)
+			entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keys...)
 		}
 	}
-	return true
 }
 
-func (f *flusher) checkReferences(schema *tableSchema, entity Entity, flushPackage *flushPackage) bool {
-	has := false
-	for _, refName := range schema.refOne {
+func (f *flusher) buildReferences(entity Entity, dataFlusher *DataFlusher) {
+	for _, refName := range entity.getORM().tableSchema.refOne {
 		refValue := entity.getORM().elem.FieldByName(refName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
 			initIfNeeded(f.engine.registry, refEntity)
 			if refEntity.GetID() == 0 {
-				flushPackage.referencesToFlash[refEntity] = refEntity
-				has = true
+				if dataFlusher.Parent == nil {
+					dataFlusher.Parent = &flusher{engine: f.engine}
+				}
+				dataFlusher.Parent.Track(refEntity)
 			}
 		}
 	}
-	for _, refName := range schema.refMany {
+	for _, refName := range entity.getORM().tableSchema.refMany {
 		refValue := entity.getORM().elem.FieldByName(refName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			length := refValue.Len()
@@ -711,16 +458,17 @@ func (f *flusher) checkReferences(schema *tableSchema, entity Entity, flushPacka
 				refEntity := refValue.Index(i).Interface().(Entity)
 				initIfNeeded(f.engine.registry, refEntity)
 				if refEntity.GetID() == 0 {
-					flushPackage.referencesToFlash[refEntity] = refEntity
-					has = true
+					if dataFlusher.Parent == nil {
+						dataFlusher.Parent = f.engine.NewFlusher().(*flusher)
+					}
+					dataFlusher.Parent.Track(refEntity)
 				}
 			}
 		}
 	}
-	return has
 }
 
-func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bind Bind) *LogQueueValue {
+func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bind Bind) {
 	schema := entity.getORM().tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 	if !hasLocalCache && f.engine.hasRequestCache {
@@ -748,88 +496,9 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 			f.getRedisFlusher().Del(redisCache.config.GetCode(), keys...)
 		}
 	}
-	return f.addToLogQueue(schema, id, nil, bind, entity.getORM().logMeta, lazy)
 }
 
-func (f *flusher) getRedisFlusher() *redisFlusher {
-	if f.redisFlusher == nil {
-		f.redisFlusher = f.engine.afterCommitRedisFlusher
-		if f.redisFlusher == nil {
-			f.redisFlusher = &redisFlusher{engine: f.engine}
-		}
-	}
-	return f.redisFlusher
-}
-
-func (f *flusher) getLazyMap() map[string]interface{} {
-	if f.lazyMap == nil {
-		f.lazyMap = make(map[string]interface{})
-	}
-	return f.lazyMap
-}
-
-func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, schema *tableSchema, currentID uint64, lazy bool) *LogQueueValue {
-	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
-	redisCache, hasRedis := schema.GetRedisCache(f.engine)
-	if !hasLocalCache && f.engine.hasRequestCache {
-		hasLocalCache = true
-		localCache = f.engine.GetLocalCache(requestCacheKey)
-	}
-	if hasLocalCache || hasRedis {
-		cacheKey := schema.getCacheKey(currentID)
-		keysOld := f.getCacheQueriesKeys(schema, bind, current, true, false)
-		keysNew := f.getCacheQueriesKeys(schema, bind, current, false, false)
-		if hasLocalCache {
-			f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
-			f.addLocalCacheDeletes(localCache.config.GetCode(), keysOld...)
-			f.addLocalCacheDeletes(localCache.config.GetCode(), keysNew...)
-		}
-		if hasRedis {
-			redisFlusher := f.getRedisFlusher()
-			redisFlusher.Del(redisCache.config.GetCode(), cacheKey)
-			redisFlusher.Del(redisCache.config.GetCode(), keysOld...)
-			redisFlusher.Del(redisCache.config.GetCode(), keysNew...)
-		}
-	}
-	if schema.hasLog {
-		return f.addToLogQueue(schema, currentID, current, bind, entity.getORM().logMeta, lazy)
-	}
-	return nil
-}
-
-func (f *flusher) addToLogQueue(tableSchema *tableSchema, id uint64, before, changes, entityMeta Bind, lazy bool) *LogQueueValue {
-	if !tableSchema.hasLog {
-		return nil
-	}
-	if changes != nil && len(tableSchema.skipLogs) > 0 {
-		skipped := 0
-		for _, skip := range tableSchema.skipLogs {
-			_, has := changes[skip]
-			if has {
-				skipped++
-			}
-		}
-		if skipped == len(changes) {
-			return nil
-		}
-	}
-	val := &LogQueueValue{TableName: tableSchema.logTableName, ID: id,
-		PoolName: tableSchema.logPoolName, Before: before,
-		Changes: changes, Updated: time.Now(), Meta: entityMeta}
-	if val.Meta == nil {
-		val.Meta = f.engine.logMetaData
-	} else {
-		for k, v := range f.engine.logMetaData {
-			val.Meta[k] = v
-		}
-	}
-	if !lazy {
-		f.getRedisFlusher().Publish(LogChannelName, val)
-	}
-	return val
-}
-
-func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
+func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current BindSQL, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.cachedIndexesAll {
 		if !addedDeleted && schema.hasFakeDelete {
@@ -859,24 +528,7 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, o
 	return
 }
 
-func (f *flusher) addLocalCacheSet(cacheCode string, keys ...interface{}) {
-	if f.localCacheSets == nil {
-		f.localCacheSets = make(map[string][]interface{})
-	}
-	f.localCacheSets[cacheCode] = append(f.localCacheSets[cacheCode], keys...)
-}
-
-func (f *flusher) addLocalCacheDeletes(cacheCode string, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-	if f.localCacheDeletes == nil {
-		f.localCacheDeletes = make(map[string][]string)
-	}
-	f.localCacheDeletes[cacheCode] = append(f.localCacheDeletes[cacheCode], keys...)
-}
-
-func (f *flusher) fillLazyQuery(dbCode string, sql string, insert bool, id uint64, logEvent []*LogQueueValue) {
+func (f *flusher) fillLazyQuery(dbCode string, sql string, insert bool, id uint64) {
 	lazyMap := f.getLazyMap()
 	updatesMap := lazyMap["q"]
 	idsMap := lazyMap["i"]
@@ -895,14 +547,4 @@ func (f *flusher) fillLazyQuery(dbCode string, sql string, insert bool, id uint6
 	if !insert {
 		lazyMap["o"] = "u"
 	}
-	if len(logEvent) > 0 {
-		lazyMap["l"] = logEvent
-	}
-}
-
-func (f *flusher) clear() {
-	f.updateSQLs = nil
-	f.deleteBinds = nil
-	f.localCacheDeletes = nil
-	f.localCacheSets = nil
 }

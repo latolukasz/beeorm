@@ -1,37 +1,37 @@
-package beeorm
+package log_tables
 
 import (
 	"context"
-	"testing"
-	"time"
-
+	orm "github.com/latolukasz/beeorm"
 	"github.com/stretchr/testify/assert"
+	"reflect"
+	"testing"
 )
 
 type logReceiverEntity1 struct {
-	ORM      `orm:"log=log;redisCache"`
+	orm.ORM  `orm:"log=log;redisCache"`
 	ID       uint
 	Name     string
 	LastName string
-	Country  string `orm:"skip-log"`
+	Country  string `orm:"skip-table-log"`
 }
 
 type logReceiverEntity2 struct {
-	ORM  `orm:"redisCache;log"`
-	ID   uint
-	Name string
-	Age  uint64
+	orm.ORM `orm:"redisCache;log"`
+	ID      uint
+	Name    string
+	Age     uint64
 }
 
 type logReceiverEntity3 struct {
-	ORM  `orm:"log=log"`
-	ID   uint
-	Name string
-	Age  uint64
+	orm.ORM `orm:"log=log"`
+	ID      uint
+	Name    string
+	Age     uint64
 }
 
 type logReceiverEntity4 struct {
-	ORM
+	orm.ORM
 	ID   uint
 	Name string
 	Age  uint64
@@ -50,29 +50,30 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	var entity2 *logReceiverEntity2
 	var entity3 *logReceiverEntity3
 	var entity4 *logReceiverEntity4
-	registry := &Registry{}
-	engine := prepareTables(t, registry, 5, redisVersion, "", entity1, entity2, entity3, entity4)
+	registry := &orm.Registry{}
+	registry.RegisterPlugin(Init())
+	engine := prepareTables(t, registry, redisVersion, entity1, entity2, entity3, entity4)
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity3`")
 	engine.GetRedis().FlushDB()
 
-	consumer := NewBackgroundConsumer(engine)
+	consumer := orm.NewBackgroundConsumer(engine)
 	consumer.DisableBlockMode()
-	consumer.blockTime = time.Millisecond
+	//consumer.blockTime = time.Millisecond
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
 	engine.Flush(e1)
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
 	engine.Flush(e2)
 
-	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
+	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
 	assert.Equal(t, int64(2), statistics.Lag)
 	assert.Equal(t, uint64(0), statistics.Pending)
 
 	consumer.Digest(context.Background())
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
 	assert.Equal(t, int64(0), statistics.Lag)
 	assert.Equal(t, uint64(0), statistics.Pending)
 
@@ -108,7 +109,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	flusher.Track(e2)
 	flusher.Flush()
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(2), statistics.Lag)
 	}
@@ -116,7 +117,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 
 	consumer.Digest(context.Background())
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(0), statistics.Lag)
 	}
@@ -169,7 +170,7 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 
 	engine.Delete(e1)
 	consumer.Digest(context.Background())
-	logs = schema.GetEntityLogs(engine, 2, nil, NewWhere("`ID` = ?", 4))
+	logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
 	assert.Len(t, logs, 1)
 	assert.NotNil(t, logs[0].Meta)
 	assert.Equal(t, float64(12), logs[0].Meta["user_id"])
@@ -180,9 +181,9 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 
 	e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	engine.FlushLazy(e3)
-	receiver := NewBackgroundConsumer(engine)
+	receiver := orm.NewBackgroundConsumer(engine)
 	receiver.DisableBlockMode()
-	receiver.blockTime = time.Millisecond
+	//receiver.blockTime = time.Millisecond
 	receiver.Digest(context.Background())
 
 	logs = schema.GetEntityLogs(engine, 3, nil, nil)
@@ -227,12 +228,12 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.Equal(t, "Brazil", logs[2].Before["Country"])
 	assert.Equal(t, "Pol", logs[2].Before["LastName"])
 
-	logs = schema.GetEntityLogs(engine, 3, nil, NewWhere("ID IN ? ORDER BY ID DESC", []int{4, 5, 6}))
+	logs = schema.GetEntityLogs(engine, 3, nil, orm.NewWhere("ID IN ? ORDER BY ID DESC", []int{4, 5, 6}))
 	assert.Len(t, logs, 2)
 	assert.Equal(t, uint64(6), logs[0].LogID)
 	assert.Equal(t, uint64(5), logs[1].LogID)
 
-	logs = schema.GetEntityLogs(engine, 3, NewPager(2, 2), nil)
+	logs = schema.GetEntityLogs(engine, 3, orm.NewPager(2, 2), nil)
 	assert.Len(t, logs, 1)
 	assert.Equal(t, uint64(7), logs[0].LogID)
 
@@ -281,9 +282,77 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.NotPanics(t, func() {
 		receiver.Digest(context.Background())
 	})
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogChannelName, BackgroundConsumerGroupName)
+	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
 	if redisVersion == 7 {
 		assert.Equal(t, int64(0), statistics.Lag)
 	}
 	assert.Equal(t, uint64(0), statistics.Pending)
+}
+
+func prepareTables(t *testing.T, registry *orm.Registry, redisVersion int, entities ...orm.Entity) (engine orm.Engine) {
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
+	if redisVersion == 6 {
+		registry.RegisterRedis("localhost:6382", "", 15)
+		registry.RegisterRedis("localhost:6382", "", 14, "default_queue")
+	} else {
+		registry.RegisterRedis("localhost:6381", "", 15)
+		registry.RegisterRedis("localhost:6381", "", 14, "default_queue")
+	}
+
+	registry.RegisterEntity(entities...)
+	vRegistry, err := registry.Validate()
+	if err != nil {
+		assert.NoError(t, err)
+		return nil
+	}
+
+	engine = vRegistry.CreateEngine()
+	if t != nil {
+		assert.Equal(t, engine.GetRegistry(), vRegistry)
+	}
+	redisCache := engine.GetRedis()
+	redisCache.FlushDB()
+	redisCache = engine.GetRedis("default_queue")
+	redisCache.FlushDB()
+
+	alters := engine.GetAlters()
+	for _, alter := range alters {
+		alter.Exec()
+	}
+
+	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 0")
+	for _, entity := range entities {
+		eType := reflect.TypeOf(entity)
+		if eType.Kind() == reflect.Ptr {
+			eType = eType.Elem()
+		}
+		tableSchema := vRegistry.GetTableSchema(eType.String())
+		tableSchema.TruncateTable(engine)
+		tableSchema.UpdateSchema(engine)
+		localCache, has := tableSchema.GetLocalCache(engine)
+		if has {
+			localCache.Clear()
+		}
+	}
+	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
+
+	indexer := orm.NewBackgroundConsumer(engine)
+	indexer.DisableBlockMode()
+	//indexer.blockTime = time.Millisecond
+	indexer.Digest(context.Background())
+
+	return engine
+}
+
+type testLogHandler struct {
+	Logs []orm.Bind
+}
+
+func (h *testLogHandler) Handle(log map[string]interface{}) {
+	h.Logs = append(h.Logs, log)
+}
+
+func (h *testLogHandler) clear() {
+	h.Logs = nil
 }

@@ -9,9 +9,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"time"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 type CachedQuery struct{}
@@ -72,15 +69,6 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 	return enum
 }
 
-type EntityLog struct {
-	LogID    uint64
-	EntityID uint64
-	Date     time.Time
-	Meta     map[string]interface{}
-	Before   map[string]interface{}
-	Changes  map[string]interface{}
-}
-
 type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
@@ -97,7 +85,14 @@ type TableSchema interface {
 	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
-	GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog
+	GetTag(field, key, trueValue, defaultValue string) string
+	GetOption(plugin, key string) interface{}
+	GetOptionString(plugin, key string) string
+}
+
+type SettableTableSchema interface {
+	TableSchema
+	SetOption(plugin, key string, value interface{})
 }
 
 type tableSchema struct {
@@ -127,13 +122,11 @@ type tableSchema struct {
 	structureHash           uint64
 	hasFakeDelete           bool
 	hasSearchableFakeDelete bool
-	hasLog                  bool
-	logPoolName             string //name of redis
-	logTableName            string
 	skipLogs                []string
 	hasUUID                 bool
 	mapBindToScanPointer    mapBindToScanPointer
 	mapPointerToValue       mapPointerToValue
+	options                 map[string]map[string]interface{}
 }
 
 type mapBindToScanPointer map[string]func() interface{}
@@ -265,56 +258,6 @@ func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect
 			schema := getTableSchema(vRegistry, t)
 			tableSchema.getUsage(schema.fields, schema.t, "", results)
 		}
-	}
-	return results
-}
-
-func (tableSchema *tableSchema) GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog {
-	var results []EntityLog
-	if !tableSchema.hasLog {
-		return results
-	}
-	db := engine.GetMysql(tableSchema.logPoolName)
-	if pager == nil {
-		pager = NewPager(1, 1000)
-	}
-	if where == nil {
-		where = NewWhere("1")
-	}
-	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableSchema.logTableName + " WHERE "
-	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
-	fullQuery += "AND " + where.String() + " " + pager.String()
-	rows, closeF := db.Query(fullQuery, where.GetParameters()...)
-	defer closeF()
-	id := uint64(0)
-	addedAt := ""
-	meta := sql.NullString{}
-	before := sql.NullString{}
-	changes := sql.NullString{}
-	for rows.Next() {
-		rows.Scan(&id, &addedAt, &meta, &before, &changes)
-		log := EntityLog{}
-		log.LogID = id
-		log.EntityID = entityID
-		if meta.Valid {
-			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if before.Valid {
-			err := jsoniter.ConfigFastest.UnmarshalFromString(before.String, &log.Before)
-			if err != nil {
-				panic(err)
-			}
-		}
-		if changes.Valid {
-			err := jsoniter.ConfigFastest.UnmarshalFromString(changes.String, &log.Changes)
-			if err != nil {
-				panic(err)
-			}
-		}
-		results = append(results, log)
 	}
 	return results
 }
@@ -456,7 +399,15 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			manyRefs = append(manyRefs, key)
 		}
 	}
-	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
+	for _, plugin := range registry.plugins {
+		interfaceInitTableSchema, isInterfaceInitTableSchema := plugin.(PluginInterfaceInitTableSchema)
+		if isInterfaceInitTableSchema {
+			err := interfaceInitTableSchema.InterfaceInitTableSchema(tableSchema, registry)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	hasUUID := tableSchema.getTag("uuid", "true", "false") == "true"
 	if hasUUID {
 		idField, is := entityType.FieldByName("ID")
@@ -468,7 +419,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
 	indices := make(map[string]map[int]string)
-	skipLogs := make([]string, 0)
 	uniqueGlobal := tableSchema.getTag("unique", "", "")
 	if uniqueGlobal != "" {
 		parts := strings.Split(uniqueGlobal, "|")
@@ -519,10 +469,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 				indices[parts[0]][int(id)] = k
 			}
 		}
-		_, has = v["skip-log"]
-		if has {
-			skipLogs = append(skipLogs, k)
-		}
 	}
 	for _, ref := range oneRefs {
 		has := false
@@ -570,12 +516,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.cachePrefix = cachePrefix
 	tableSchema.uniqueIndices = uniqueIndicesSimple
 	tableSchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
-	tableSchema.hasLog = logPoolName != ""
 	tableSchema.hasUUID = hasUUID
-	tableSchema.logPoolName = logPoolName
-	tableSchema.logTableName = fmt.Sprintf("_log_%s_%s", tableSchema.mysqlPoolName, tableSchema.tableName)
-	tableSchema.skipLogs = skipLogs
-
 	return tableSchema.validateIndexes(uniqueIndices, indices)
 }
 
@@ -681,7 +622,50 @@ func (tableSchema *tableSchema) getTag(key, trueValue, defaultValue string) stri
 		}
 		return userValue
 	}
+	return tableSchema.GetTag("ORM", key, trueValue, defaultValue)
+}
+
+func (tableSchema *tableSchema) GetTag(field, key, trueValue, defaultValue string) string {
+	userValue, has := tableSchema.tags[field][key]
+	if has {
+		if userValue == "true" {
+			return trueValue
+		}
+		return userValue
+	}
 	return defaultValue
+}
+
+func (tableSchema *tableSchema) GetOption(plugin, key string) interface{} {
+	if tableSchema.options == nil {
+		return nil
+	}
+	values, has := tableSchema.options[plugin]
+	if !has {
+		return nil
+	}
+	return values[key]
+}
+
+func (tableSchema *tableSchema) GetOptionString(plugin, key string) string {
+	val := tableSchema.GetOption(plugin, key)
+	if val == nil {
+		return ""
+	}
+	return val.(string)
+}
+
+func (tableSchema *tableSchema) SetOption(plugin, key string, value interface{}) {
+	if tableSchema.options == nil {
+		tableSchema.options = map[string]map[string]interface{}{plugin: {key: value}}
+	} else {
+		before, has := tableSchema.options[plugin]
+		if !has {
+			tableSchema.options[plugin] = map[string]interface{}{key: value}
+		} else {
+			before[key] = value
+		}
+	}
 }
 
 func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Registry,

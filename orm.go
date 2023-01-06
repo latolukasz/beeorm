@@ -32,7 +32,6 @@ type Entity interface {
 	IsDirty() bool
 	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
-	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
 	Clone() Entity
 }
@@ -49,7 +48,6 @@ type ORM struct {
 	value                reflect.Value
 	elem                 reflect.Value
 	idElem               reflect.Value
-	logMeta              map[string]interface{}
 }
 
 func DisableCacheHashCheck() {
@@ -106,13 +104,6 @@ func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
 	orm.onDuplicateKeyUpdate = bind
 }
 
-func (orm *ORM) SetEntityLogMeta(key string, value interface{}) {
-	if orm.logMeta == nil {
-		orm.logMeta = make(map[string]interface{})
-	}
-	orm.logMeta[key] = value
-}
-
 func (orm *ORM) IsDirty() bool {
 	if !orm.inDB {
 		return true
@@ -121,12 +112,12 @@ func (orm *ORM) IsDirty() bool {
 	return is
 }
 
-func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
+func (orm *ORM) GetDirtyBind() (bind BindSQL, has bool) {
 	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil))
-	return bindBuilder.bind, has
+	return bindBuilder.Update, has
 }
 
-func (orm *ORM) buildDirtyBind(serializer *serializer) (bindBuilder *bindBuilder, has bool) {
+func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *EntitySQLFlushData, has bool) {
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -134,12 +125,11 @@ func (orm *ORM) buildDirtyBind(serializer *serializer) (bindBuilder *bindBuilder
 			orm.delete = true
 		}
 	}
-	id := orm.GetID()
 	serializer.Reset(orm.binary)
-	bindBuilder = newBindBuilder(id, orm)
-	bindBuilder.build(serializer, orm.tableSchema.fields, orm.elem, true)
-	has = !orm.inDB || orm.delete || len(bindBuilder.bind) > 0
-	return bindBuilder, has
+	builder := newEntitySQLFlushDataBuilder(orm)
+	builder.fill(serializer, orm.tableSchema.fields, orm.elem, true)
+	has = !orm.inDB || orm.delete || len(builder.Update) > 0
+	return builder.EntitySQLFlushData, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {

@@ -27,6 +27,7 @@ type Registry struct {
 	defaultCollate    string
 	redisStreamGroups map[string]map[string]map[string]bool
 	redisStreamPools  map[string]string
+	plugins           []Plugin
 }
 
 func NewRegistry() *Registry {
@@ -112,7 +113,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	for k, v := range r.enums {
 		registry.enums[k] = v
 	}
-	hasLog := false
 	for name, entityType := range r.entities {
 		tableSchema := &tableSchema{}
 		err := tableSchema.init(r, entityType)
@@ -121,18 +121,18 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		}
 		registry.tableSchemas[entityType] = tableSchema
 		registry.entities[name] = entityType
-		if tableSchema.hasLog {
-			hasLog = true
-		}
 	}
 	_, has := r.redisStreamPools[LazyChannelName]
 	if !has {
 		r.RegisterRedisStream(LazyChannelName, "default", []string{BackgroundConsumerGroupName})
 	}
-	if hasLog {
-		_, has = r.redisStreamPools[LogChannelName]
-		if !has {
-			r.RegisterRedisStream(LogChannelName, "default", []string{BackgroundConsumerGroupName})
+	for _, plugin := range r.plugins {
+		interfaceRegistryValidate, isInterfaceRegistryValidate := plugin.(PluginInterfaceRegistryValidate)
+		if isInterfaceRegistryValidate {
+			err = interfaceRegistryValidate.InterfaceRegistryValidate(r, registry)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
@@ -144,9 +144,9 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	engine := registry.CreateEngine()
+	e := registry.CreateEngine()
 	for _, schema := range registry.tableSchemas {
-		_, err := checkStruct(schema, engine.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
+		_, err := checkStruct(schema, e.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
@@ -161,6 +161,14 @@ func (r *Registry) SetDefaultEncoding(encoding string) {
 
 func (r *Registry) SetDefaultCollate(collate string) {
 	r.defaultCollate = collate
+}
+
+func (r *Registry) GetDefaultCollate() string {
+	return r.defaultCollate
+}
+
+func (r *Registry) RegisterPlugin(plugin Plugin) {
+	r.plugins = append(r.plugins, plugin)
 }
 
 func (r *Registry) RegisterEntity(entity ...Entity) {
@@ -287,11 +295,6 @@ func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	and := "?"
-	if strings.Index(dataSourceName, "?") > 0 {
-		and = "&"
-	}
-	dataSourceName += and + "multiStatements=true"
 	db := &mySQLPoolConfig{code: dbCode, dataSourceName: dataSourceName}
 	if r.mysqlPools == nil {
 		r.mysqlPools = make(map[string]MySQLPoolConfig)

@@ -61,7 +61,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, "default", mysqlPools["default"].GetCode())
 	assert.Equal(t, "test", mysqlPools["default"].GetDatabase())
 	assert.Equal(t, 5, mysqlPools["default"].GetVersion())
-	assert.Equal(t, "root:root@tcp(localhost:3311)/test?multiStatements=true", mysqlPools["default"].GetDataSourceURI())
+	assert.Equal(t, "root:root@tcp(localhost:3311)/test", mysqlPools["default"].GetDataSourceURI())
 
 	localCachePools := validated.GetLocalCachePools()
 	assert.Len(t, localCachePools, 2)

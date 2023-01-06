@@ -65,7 +65,7 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 
 	alters := engine.GetAlters()
 	for _, alter := range alters {
-		alter.Exec()
+		alter.Exec(engine)
 	}
 
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 0")

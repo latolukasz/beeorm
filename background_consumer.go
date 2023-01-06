@@ -12,29 +12,15 @@ import (
 	"github.com/go-sql-driver/mysql"
 
 	"github.com/shamaton/msgpack"
-
-	jsoniter "github.com/json-iterator/go"
 )
 
 const LazyChannelName = "orm-lazy-channel"
-const LogChannelName = "orm-log-channel"
 const RedisStreamGarbageCollectorChannelName = "orm-stream-garbage-collector"
 const BackgroundConsumerGroupName = "orm-async-consumer"
 
-type LogQueueValue struct {
-	PoolName  string
-	TableName string
-	ID        uint64
-	LogID     uint64
-	Meta      map[string]interface{}
-	Before    map[string]interface{}
-	Changes   map[string]interface{}
-	Updated   time.Time
-}
-
 type BackgroundConsumer struct {
 	eventConsumerBase
-	redisFlusher                 *redisFlusher
+	redisFlusher                 *RedisFlusher
 	garbageCollectorSha1         string
 	consumer                     *eventsConsumer
 	lazyFlushModulo              uint64
@@ -43,7 +29,7 @@ type BackgroundConsumer struct {
 }
 
 func NewBackgroundConsumer(engine Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{redisFlusher: &redisFlusher{engine: engine.(*engineImplementation)}}
+	c := &BackgroundConsumer{redisFlusher: &RedisFlusher{engine: engine.(*engineImplementation)}}
 	c.engine = engine.(*engineImplementation)
 	c.block = true
 	c.blockTime = time.Second * 30
@@ -93,7 +79,6 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	return r.consumer.Consume(ctx, 500, func(events []Event) {
 		lazyEvents := make([]Event, 0)
 		lazyEventsData := make([]map[string]interface{}, 0)
-		logEventsData := make(map[string][]*LogQueueValue)
 		var lazyError error
 		for _, event := range events {
 			switch event.Stream() {
@@ -102,14 +87,6 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 				var data map[string]interface{}
 				event.Unserialize(&data)
 				lazyEventsData = append(lazyEventsData, data)
-			case LogChannelName:
-				var data LogQueueValue
-				event.Unserialize(&data)
-				_, has := logEventsData[data.PoolName]
-				if !has {
-					logEventsData[data.PoolName] = make([]*LogQueueValue, 0)
-				}
-				logEventsData[data.PoolName] = append(logEventsData[data.PoolName], &data)
 			case RedisStreamGarbageCollectorChannelName:
 				r.handleRedisChannelGarbageCollector(event)
 			}
@@ -248,61 +225,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 				}
 			}
 		}
-		r.handleLog(logEventsData)
 	})
-}
-
-func (r *BackgroundConsumer) handleLog(values map[string][]*LogQueueValue) {
-	for poolName, rows := range values {
-		poolDB := r.engine.GetMysql(poolName)
-		query := ""
-		for _, value := range rows {
-			/* #nosec */
-			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(" +
-				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(timeFormat) + "',"
-			var meta, before, changes string
-			if value.Meta != nil {
-				meta, _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
-				query += escapeSQLString(meta) + ","
-			} else {
-				query += "NULL,"
-			}
-			if value.Before != nil {
-				before, _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
-				query += escapeSQLString(before) + ","
-			} else {
-				query += "NULL,"
-			}
-			if value.Changes != nil {
-				changes, _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
-				query += escapeSQLString(changes)
-			} else {
-				query += "NULL"
-			}
-			query += ");"
-		}
-		func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
-					if isMySQLError && asMySQLError.Number == 1146 { // table was removed
-						return
-					}
-					panic(rec)
-				}
-			}()
-			if len(rows) > 1 {
-				func() {
-					poolDB.Begin()
-					defer poolDB.Rollback()
-					poolDB.Exec(query)
-					poolDB.Commit()
-				}()
-			} else {
-				poolDB.Exec(query)
-			}
-		}()
-	}
 }
 
 func (r *BackgroundConsumer) handleLazy(event Event, data map[string]interface{}) {

@@ -4,17 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 )
 
 type Alter struct {
-	SQL    string
-	Safe   bool
-	Pool   string
-	engine *engineImplementation
+	SQL  string
+	Safe bool
+	Pool string
 }
 
 type indexDB struct {
@@ -45,8 +43,8 @@ type foreignKeyDB struct {
 	OnDelete              string
 }
 
-func (a Alter) Exec() {
-	a.engine.GetMysql(a.Pool).Exec(a.SQL)
+func (a Alter) Exec(engine Engine) {
+	engine.GetMysql(a.Pool).Exec(a.SQL)
 }
 
 func getAlters(engine *engineImplementation) (alters []Alter) {
@@ -71,39 +69,19 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 			tableSchema := getTableSchema(engine.registry, t)
 			tablesInEntities[tableSchema.mysqlPoolName][tableSchema.tableName] = true
 			has, newAlters := tableSchema.GetSchemaChanges(engine)
-			if tableSchema.hasLog {
-				logPool := engine.GetMysql(tableSchema.logPoolName)
-				var tableDef string
-				hasLogTable := logPool.QueryRow(NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableSchema.logTableName)), &tableDef)
-				var logTableSchema string
-				if logPool.GetPoolConfig().GetVersion() == 5 {
-					logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,\n  "+
-						"`entity_id` int(10) unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
-						"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName)
-				} else {
-					logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
-						"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
-						"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-						logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName, engine.registry.registry.defaultCollate)
-				}
-
-				if !hasLogTable {
-					alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName, engine: engine})
-				} else {
-					var skip, createTableDB string
-					logPool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableSchema.logTableName)), &skip, &createTableDB)
-					createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", logPool.GetPoolConfig().GetDatabase()), 1) + ";"
-					re := regexp.MustCompile(" AUTO_INCREMENT=[0-9]+ ")
-					createTableDB = re.ReplaceAllString(createTableDB, " ")
-					if logTableSchema != createTableDB {
-						isEmpty := isTableEmptyInPool(engine, tableSchema.logPoolName, tableSchema.logTableName)
-						dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", logPool.GetPoolConfig().GetDatabase(), tableSchema.logTableName)
-						alters = append(alters, Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: tableSchema.logPoolName, engine: engine})
-						alters = append(alters, Alter{SQL: logTableSchema, Safe: true, Pool: tableSchema.logPoolName, engine: engine})
+			for _, plugin := range engine.registry.GetSourceRegistry().plugins {
+				pluginInterfaceSchemaCheck, isPluginInterfaceSchemaCheck := plugin.(PluginInterfaceSchemaCheck)
+				if isPluginInterfaceSchemaCheck {
+					extraAlters, skippedTables := pluginInterfaceSchemaCheck.PluginInterfaceSchemaCheck(engine, tableSchema)
+					if len(extraAlters) > 0 {
+						alters = append(alters, extraAlters...)
+					}
+					for pool, tableNames := range skippedTables {
+						for _, tableName := range tableNames {
+							tablesInEntities[pool][tableName] = true
+						}
 					}
 				}
-				tablesInEntities[tableSchema.logPoolName][tableSchema.logTableName] = true
 			}
 			if !has {
 				continue
@@ -118,12 +96,12 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 			if !has {
 				dropForeignKeyAlter := getDropForeignKeysAlter(engine, tableName, poolName)
 				if dropForeignKeyAlter != "" {
-					alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName, engine: engine})
+					alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName})
 				}
 				pool := engine.GetMysql(poolName)
 				dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 				isEmpty := isTableEmptyInPool(engine, poolName, tableName)
-				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName, engine: engine})
+				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
 			}
 		}
 	}
@@ -222,10 +200,10 @@ func getSchemaChanges(engine *engineImplementation, tableSchema *tableSchema) (h
 	hasTable := pool.QueryRow(NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableSchema.tableName)), &skip)
 
 	if !hasTable {
-		alters = []Alter{{SQL: createTableSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine}}
+		alters = []Alter{{SQL: createTableSQL, Safe: true, Pool: tableSchema.mysqlPoolName}}
 		if len(newForeignKeys) > 0 {
 			createTableForeignKeysSQL = strings.TrimRight(createTableForeignKeysSQL, ",\n") + ";"
-			alters = append(alters, Alter{SQL: createTableForeignKeysSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
+			alters = append(alters, Alter{SQL: createTableForeignKeysSQL, Safe: true, Pool: tableSchema.mysqlPoolName})
 		}
 		has = true
 		return
@@ -484,22 +462,22 @@ OUTER:
 			isEmpty := isTableEmpty(db.client, tableSchema.tableName)
 			safe = isEmpty
 		}
-		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: tableSchema.mysqlPoolName, engine: engine})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: tableSchema.mysqlPoolName})
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
 			collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + engine.registry.registry.defaultCollate
 		}
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
-		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: tableSchema.mysqlPoolName})
 	}
 	if hasAlterRemoveForeignKey {
 		alterSQLRemoveForeignKey = strings.TrimRight(alterSQLRemoveForeignKey, ",\n") + ";"
-		alters = append(alters, Alter{SQL: alterSQLRemoveForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
+		alters = append(alters, Alter{SQL: alterSQLRemoveForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName})
 	}
 	if hasAlterAddForeignKey {
 		alterSQLAddForeignKey = strings.TrimRight(alterSQLAddForeignKey, ",\n") + ";"
-		alters = append(alters, Alter{SQL: alterSQLAddForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName, engine: engine})
+		alters = append(alters, Alter{SQL: alterSQLAddForeignKey, Safe: true, Pool: tableSchema.mysqlPoolName})
 	}
 
 	has = true
