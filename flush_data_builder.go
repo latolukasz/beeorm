@@ -99,7 +99,6 @@ type bindSetter func(val interface{}) string
 type bindCompare func(old, new interface{}) bool
 
 func (b *entityFlushDataBuilder) build(
-	serializer *serializer,
 	value reflect.Value,
 	indexes []int,
 	fGetter fieldGetter,
