@@ -175,6 +175,10 @@ func (b *entityFlushDataBuilder) buildNullable(serializer *serializer, fields *t
 	}
 }
 
+func serializeGetterUint(s *serializer) interface{} {
+	return s.DeserializeUInteger()
+}
+
 func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
 		s,
@@ -185,9 +189,7 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 			fieldGetter: func(field reflect.Value) interface{} {
 				return field.Field(1).Uint()
 			},
-			serializeGetter: func(s *serializer) interface{} {
-				return s.DeserializeUInteger()
-			},
+			serializeGetter: serializeGetterUint,
 			bindSetter: func(val interface{}, _ bool) string {
 				if val == 0 {
 					return "NULL"
@@ -202,9 +204,7 @@ var uIntFieldDataProvider = fieldDataProvider{
 	fieldGetter: func(field reflect.Value) interface{} {
 		return field.Uint()
 	},
-	serializeGetter: func(s *serializer) interface{} {
-		return s.DeserializeUInteger()
-	},
+	serializeGetter: serializeGetterUint,
 	bindSetter: func(val interface{}, _ bool) string {
 		return strconv.FormatUint(val.(uint64), 10)
 	},
@@ -316,81 +316,57 @@ func (b *entityFlushDataBuilder) buildDates(s *serializer, fields *tableFields, 
 
 func (b *entityFlushDataBuilder) buildFakeDelete(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
+		s,
+		fields,
 		value,
 		[]int{fields.fakeDelete},
-		func(field reflect.Value) interface{} {
-			return field.Bool()
+		fieldDataProvider{
+			fieldGetter: func(field reflect.Value) interface{} {
+				return field.Bool()
+			},
+			serializeGetter: func(s *serializer) interface{} {
+				return s.DeserializeBool()
+			},
+			bindSetter: func(val interface{}, _ bool) string {
+				if val.(bool) {
+					return strconv.FormatUint(b.ID, 10)
+				}
+				return "0"
+			},
 		},
-		func() interface{} {
-			return serializer.DeserializeBool()
-		},
-		func(val interface{}, deserialized bool) string {
-			if val.(bool) {
-				return strconv.FormatUint(b.ID, 10)
-			}
-			return "0"
-		},
-		func(old, new interface{}, _ int) bool {
-			return old == new
-		})
+	)
 }
 
 func (b *entityFlushDataBuilder) buildStrings(s *serializer, fields *tableFields, value reflect.Value) {
 	name := b.orm.tableSchema.columnNames[b.index]
 	b.build(
+		s,
+		fields,
 		value,
 		fields.strings,
-		func(field reflect.Value) interface{} {
-			return field.String()
-		},
-		func() interface{} {
-			return serializer.DeserializeString()
-		},
-		func(val interface{}, deserialized bool) string {
-			s := val.(string)
-			if s == "" && b.orm.tableSchema.GetTagBool(name, "required") {
-				return "NULL"
-			}
-			return s
-
-		},
-		func(old, new interface{}, _ int) bool {
-			return old == new
+		fieldDataProvider{
+			fieldGetter: func(field reflect.Value) interface{} {
+				return field.String()
+			},
+			serializeGetter: func(s *serializer) interface{} {
+				return s.DeserializeString()
+			},
+			bindSetter: func(val interface{}, _ bool) string {
+				str := val.(string)
+				if str == "" && b.orm.tableSchema.GetTagBool(name, "required") {
+					return "NULL"
+				}
+				return str
+			},
 		})
 }
 
 func (b *entityFlushDataBuilder) buildUIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(serializer,
-		value,
-		fields.uintegersNullable,
-		func(field reflect.Value) interface{} {
-			return field.Uint()
-		},
-		func() interface{} {
-			return serializer.DeserializeUInteger()
-		},
-		func(val interface{}, _ bool) string {
-			return strconv.FormatUint(val.(uint64), 10)
-		}, func(old, new interface{}, _ int) bool {
-			return old == new
-		})
+	b.buildNullable(s, fields, value, fields.uintegersNullable, uIntFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(serializer,
-		value,
-		fields.integersNullable,
-		func(field reflect.Value) interface{} {
-			return field.Int()
-		},
-		func() interface{} {
-			return serializer.DeserializeInteger()
-		},
-		func(val interface{}, _ bool) string {
-			return strconv.FormatInt(val.(int64), 10)
-		}, func(old, new interface{}, _ int) bool {
-			return old == new
-		})
+	b.buildNullable(s, fields, value, fields.integersNullable, intFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, value reflect.Value) {
@@ -402,9 +378,7 @@ func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, 
 			k++
 			return field.String()
 		},
-		func() interface{} {
-			return serializer.DeserializeUInteger()
-		},
+		serializeGetterUint,
 		func(val interface{}, deserialized bool) string {
 			if deserialized {
 				i := val.(uint64)
@@ -531,97 +505,19 @@ func (b *entityFlushDataBuilder) buildSets(s *serializer, fields *tableFields, v
 }
 
 func (b *entityFlushDataBuilder) buildBooleansNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(serializer,
-		value,
-		fields.booleansNullable,
-		func(field reflect.Value) interface{} {
-			return field.Bool()
-		},
-		func() interface{} {
-			return serializer.DeserializeBool()
-		},
-		func(val interface{}, _ bool) string {
-			if val.(bool) {
-				return "1"
-			}
-			return "0"
-		}, func(old, new interface{}, _ int) bool {
-			return old == new
-		})
+	b.buildNullable(s, fields, value, fields.booleansNullable, boolFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildFloatsNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(serializer,
-		value,
-		fields.floatsNullable,
-		func(field reflect.Value) interface{} {
-			return field.Float()
-		},
-		func() interface{} {
-			return serializer.DeserializeFloat()
-		},
-		func(val interface{}, _ bool) string {
-			return strconv.FormatFloat(val.(float64), 'f', -1, 64)
-		}, func(old, new interface{}, index int) bool {
-			return math.Abs(new.(float64)-old.(float64)) < (1 / math.Pow10(fields.floatsNullablePrecision[index]))
-		})
+	b.buildNullable(s, fields, value, fields.floatsNullable, floatFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildTimesNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(
-		serializer,
-		value,
-		fields.times,
-		func(field reflect.Value) interface{} {
-			return field.Interface()
-		},
-		func() interface{} {
-			return serializer.DeserializeInteger()
-		},
-		func(val interface{}, deserialized bool) string {
-			if deserialized {
-				t := val.(int64)
-				if t == zeroDateSeconds {
-					t = 0
-				} else {
-					t -= timeStampSeconds
-				}
-				return time.Unix(t, 0).Format(timeFormat)
-			}
-			return val.(time.Time).Format(timeFormat)
-		},
-		func(old, new interface{}, _ int) bool {
-			return (old == 0 && new.(time.Time).IsZero()) || (old == new.(time.Time).Unix())
-		})
+	b.buildNullable(s, fields, value, fields.timesNullable, dateTimeFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildDatesNullable(s *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(
-		serializer,
-		value,
-		fields.dates,
-		func(field reflect.Value) interface{} {
-			t := field.Interface().(time.Time)
-			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-		},
-		func() interface{} {
-			return serializer.DeserializeInteger()
-		},
-		func(val interface{}, deserialized bool) string {
-			if deserialized {
-				t := val.(int64)
-				if t == zeroDateSeconds {
-					t = 0
-				} else {
-					t -= timeStampSeconds
-				}
-				return time.Unix(t, 0).Format(dateformat)
-			}
-			return val.(time.Time).Format(dateformat)
-		},
-		func(old, new interface{}, _ int) bool {
-			return (old == 0 && new.(time.Time).IsZero()) || (old == new.(time.Time).Unix())
-		})
+	b.buildNullable(s, fields, value, fields.datesNullable, dateFieldDataProvider)
 }
 
 func (b *entityFlushDataBuilder) buildJSONs(s *serializer, fields *tableFields, value reflect.Value) {
