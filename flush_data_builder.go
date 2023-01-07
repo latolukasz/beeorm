@@ -63,7 +63,7 @@ func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableField
 		serializer.DeserializeUInteger()
 	}
 	b.buildRefs(serializer, fields, value)
-	b.buildUIntegers(serializer, fields, value, root)
+	b.buildUIntegers(serializer, fields, value)
 	b.buildIntegers(serializer, fields, value)
 	b.buildBooleans(serializer, fields, value)
 	b.buildFloats(serializer, fields, value)
@@ -96,7 +96,7 @@ func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableField
 type fieldGetter func(field reflect.Value) interface{}
 type serializeGetter func() interface{}
 type bindSetter func(val interface{}) string
-type bindCompare func(old, new interface{}) bool
+type bindCompare func(old, new interface{}, key int) bool
 
 func (b *entityFlushDataBuilder) build(
 	value reflect.Value,
@@ -105,7 +105,7 @@ func (b *entityFlushDataBuilder) build(
 	sGetter serializeGetter,
 	bSetter bindSetter,
 	bCompare bindCompare) {
-	for _, i := range indexes {
+	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
 		var val interface{}
@@ -114,7 +114,7 @@ func (b *entityFlushDataBuilder) build(
 		}
 		if b.fillOld {
 			old := sGetter()
-			same := bCompare(old, value)
+			same := bCompare(old, value, key)
 			if b.forceFillOld || !same {
 				if old == 0 {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
@@ -141,7 +141,7 @@ func (b *entityFlushDataBuilder) buildNullable(
 	sGetter serializeGetter,
 	bSetter bindSetter,
 	bCompare bindCompare) {
-	for _, i := range indexes {
+	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
 		isNil := f.IsNil()
@@ -155,7 +155,7 @@ func (b *entityFlushDataBuilder) buildNullable(
 			same := old == isNil
 			if same && !isNil {
 				oldVal = sGetter()
-				same = bCompare(oldVal, val)
+				same = bCompare(oldVal, val, key)
 			}
 			if b.forceFillOld || !same {
 				if old {
@@ -180,7 +180,7 @@ func (b *entityFlushDataBuilder) buildNullable(
 }
 
 func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *tableFields, value reflect.Value) {
-	b.buildNullable(serializer,
+	b.build(
 		value,
 		fields.uintegersNullable,
 		func(field reflect.Value) interface{} {
@@ -195,101 +195,84 @@ func (b *entityFlushDataBuilder) buildRefs(serializer *serializer, fields *table
 			}
 			return strconv.FormatUint(val.(uint64), 10)
 		},
-		func(old, new interface{}) bool {
+		func(old, new interface{}, _ int) bool {
 			return old == new
 		})
 }
 
-func (b *entityFlushDataBuilder) buildUIntegers(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
-	for _, i := range fields.uintegers {
-		b.index++
-		val := value.Field(i).Uint()
-		if i == 1 && root {
-			serializer.DeserializeUInteger()
-			continue
-		}
-		if b.fillOld {
-			old := serializer.DeserializeUInteger()
-			same := old == val
-			if b.forceFillOld || !same {
-				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(old, 10)
-			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(val, 10)
-		}
-	}
+func (b *entityFlushDataBuilder) buildUIntegers(serializer *serializer, fields *tableFields, value reflect.Value) {
+	b.build(
+		value,
+		fields.uintegers,
+		func(field reflect.Value) interface{} {
+			return field.Field(1).Uint()
+		},
+		func() interface{} {
+			return serializer.DeserializeUInteger()
+		},
+		func(val interface{}) string {
+			return strconv.FormatUint(val.(uint64), 10)
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildIntegers(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.integers {
-		b.index++
-		val := value.Field(i).Int()
-		if b.fillOld {
-			old := serializer.DeserializeInteger()
-			same := old == val
-			if b.forceFillOld || !same {
-				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatInt(old, 10)
-			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatInt(val, 10)
-		}
-	}
+	b.build(
+		value,
+		fields.integers,
+		func(field reflect.Value) interface{} {
+			return field.Field(1).Int()
+		},
+		func() interface{} {
+			return serializer.DeserializeInteger()
+		},
+		func(val interface{}) string {
+			return strconv.FormatInt(val.(int64), 10)
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildBooleans(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.booleans {
-		b.index++
-		val := value.Field(i).Bool()
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			same := old == val
-			if b.forceFillOld || !same {
-				oldValue := "0"
-				if old {
-					oldValue = "1"
-				}
-				b.Old[b.orm.tableSchema.columnNames[b.index]] = oldValue
+	b.build(
+		value,
+		fields.booleans,
+		func(field reflect.Value) interface{} {
+			return field.Field(1).Bool()
+		},
+		func() interface{} {
+			return serializer.DeserializeBool()
+		},
+		func(val interface{}) string {
+			if val.(bool) {
+				return "1"
 			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			name := b.orm.tableSchema.columnNames[b.index]
-			b.Update[name] = "0"
-			if val {
-				b.Update[name] = "0"
-			}
-		}
-	}
+			return "0"
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildFloats(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for k, i := range fields.floats {
-		b.index++
-		val := value.Field(i).Float()
-		if b.fillOld {
-			old := serializer.DeserializeFloat()
-			same := math.Abs(val-old) < (1 / math.Pow10(fields.floatsPrecision[k]))
-			if b.forceFillOld || !same {
-				b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatFloat(old, 'f', -1, 64)
-			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatFloat(val, 'f', -1, 64)
-		}
-	}
+	b.build(
+		value,
+		fields.floats,
+		func(field reflect.Value) interface{} {
+			return field.Field(1).Float()
+		},
+		func() interface{} {
+			return serializer.DeserializeFloat()
+		},
+		func(val interface{}) string {
+			return strconv.FormatFloat(val.(float64), 'f', -1, 64)
+		},
+		func(old, new interface{}, key int) bool {
+			return math.Abs(new.(float64)-old.(float64)) < (1 / math.Pow10(fields.floatsPrecision[key]))
+		})
 }
 
 func (b *entityFlushDataBuilder) buildTimes(serializer *serializer, fields *tableFields, value reflect.Value) {
