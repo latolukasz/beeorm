@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -11,8 +10,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 
 	jsoniter "github.com/json-iterator/go"
-
-	"github.com/pkg/errors"
 )
 
 type EntitySQLFlushData struct {
@@ -410,53 +407,34 @@ func (b *entityFlushDataBuilder) buildIntegersNullable(serializer *serializer, f
 }
 
 func (b *entityFlushDataBuilder) buildEnums(serializer *serializer, fields *tableFields, value reflect.Value) {
-	k := 0
-	for _, i := range fields.stringsEnums {
-		b.index++
-		val := value.Field(i).String()
-		enum := fields.enums[k]
-		name := b.orm.tableSchema.columnNames[b.index]
-		k++
-		if b.fillOld {
-			old := serializer.DeserializeUInteger()
-			if b.hasCurrent {
-				if old == 0 {
-					b.current[name] = nil
-				} else {
-					b.current[name] = enum.GetFields()[old-1]
+	k := -1
+	b.build(
+		value,
+		fields.stringsEnums,
+		func(field reflect.Value) interface{} {
+			k++
+			return field.String()
+		},
+		func() interface{} {
+			return serializer.DeserializeUInteger()
+		},
+		func(val interface{}, deserialized bool) string {
+			if deserialized {
+				i := val.(uint64)
+				if i == 0 {
+					return "NULL"
 				}
+				return fields.enums[k].GetFields()[i-1]
 			}
-			if old == uint64(enum.Index(val)) {
-				continue
+			s := val.(string)
+			if s == "" && b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+				return "NULL"
 			}
-		}
-		if val != "" {
-			if !enum.Has(val) {
-				panic(errors.New("unknown enum value for " + name + " - " + val))
-			}
-			b.Update[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = "'" + val + "'"
-			}
-		} else {
-			attributes := b.orm.tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				if b.fillOld {
-					panic(fmt.Errorf("empty enum value for %s", name))
-				}
-				b.Update[name] = enum.GetDefault()
-				if b.buildSQL {
-					b.sqlBind[name] = "'" + enum.GetDefault() + "'"
-				}
-			} else {
-				b.Update[name] = nil
-				if b.buildSQL {
-					b.sqlBind[name] = "NULL"
-				}
-			}
-		}
-	}
+			return s
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == uint64(fields.enums[k].Index(new.(string)))
+		})
 }
 
 func (b *entityFlushDataBuilder) buildBytes(serializer *serializer, fields *tableFields, value reflect.Value) {
@@ -603,88 +581,60 @@ func (b *entityFlushDataBuilder) buildFloatsNullable(serializer *serializer, fie
 }
 
 func (b *entityFlushDataBuilder) buildTimesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.timesNullable {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		var val *time.Time
-		if !isNil {
-			val = f.Interface().(*time.Time)
-		}
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-			}
-			if old {
-				oldVal := serializer.DeserializeInteger() - timeStampSeconds
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(timeFormat)
+	b.buildNullable(
+		serializer,
+		value,
+		fields.times,
+		func(field reflect.Value) interface{} {
+			return field.Interface()
+		},
+		func() interface{} {
+			return serializer.DeserializeInteger()
+		},
+		func(val interface{}, deserialized bool) string {
+			if deserialized {
+				t := val.(int64)
+				if t == zeroDateSeconds {
+					t = 0
+				} else {
+					t -= timeStampSeconds
 				}
-				if !isNil && val != nil && oldVal == val.Unix() {
-					continue
-				}
-			} else if isNil {
-				continue
+				return time.Unix(t, 0).Format(timeFormat)
 			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if val == nil {
-			b.Update[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			asString := val.Format(timeFormat)
-			b.Update[name] = asString
-			if b.buildSQL {
-				b.sqlBind[name] = "'" + asString + "'"
-			}
-		}
-	}
+			return val.(time.Time).Format(timeFormat)
+		},
+		func(old, new interface{}, _ int) bool {
+			return (old == 0 && new.(time.Time).IsZero()) || (old == new.(time.Time).Unix())
+		})
 }
 
 func (b *entityFlushDataBuilder) buildDatesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.datesNullable {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		var val time.Time
-		if !isNil {
-			val = *f.Interface().(*time.Time)
-			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
-		}
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-			}
-			if old {
-				oldVal := serializer.DeserializeInteger() - timeStampSeconds
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(dateformat)
+	b.buildNullable(
+		serializer,
+		value,
+		fields.dates,
+		func(field reflect.Value) interface{} {
+			t := field.Interface().(time.Time)
+			return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+		},
+		func() interface{} {
+			return serializer.DeserializeInteger()
+		},
+		func(val interface{}, deserialized bool) string {
+			if deserialized {
+				t := val.(int64)
+				if t == zeroDateSeconds {
+					t = 0
+				} else {
+					t -= timeStampSeconds
 				}
-				if oldVal == val.Unix() && !isNil {
-					continue
-				}
-			} else if isNil {
-				continue
+				return time.Unix(t, 0).Format(dateformat)
 			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
-			b.Update[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			asString := val.Format(dateformat)
-			b.Update[name] = asString
-			if b.buildSQL {
-				b.sqlBind[name] = "'" + asString + "'"
-			}
-		}
-	}
+			return val.(time.Time).Format(dateformat)
+		},
+		func(old, new interface{}, _ int) bool {
+			return (old == 0 && new.(time.Time).IsZero()) || (old == new.(time.Time).Unix())
+		})
 }
 
 func (b *entityFlushDataBuilder) buildJSONs(serializer *serializer, fields *tableFields, value reflect.Value) {
