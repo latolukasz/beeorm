@@ -460,35 +460,27 @@ func (b *entityFlushDataBuilder) buildEnums(serializer *serializer, fields *tabl
 }
 
 func (b *entityFlushDataBuilder) buildBytes(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.bytes {
-		b.index++
-		val := string(value.Field(i).Bytes())
-		if b.fillOld {
-			old := serializer.DeserializeString()
-			if b.hasCurrent {
-				if old != "" {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = val
-				} else {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-				}
+	b.build(
+		value,
+		fields.bytes,
+		func(field reflect.Value) interface{} {
+			if field.IsZero() {
+				return ""
 			}
-			if old == val {
-				continue
+			return string(field.Bytes())
+		},
+		func() interface{} {
+			return serializer.DeserializeString()
+		},
+		func(val interface{}, _ bool) string {
+			s := val.(string)
+			if s == "" {
+				return "NULL"
 			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if val != "" {
-			b.Update[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = EscapeSQLString(val)
-			}
-		} else {
-			b.Update[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		}
-	}
+			return ""
+		}, func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildSets(serializer *serializer, fields *tableFields, value reflect.Value) {
