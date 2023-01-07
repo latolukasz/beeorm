@@ -566,89 +566,40 @@ func (b *entityFlushDataBuilder) buildSets(serializer *serializer, fields *table
 }
 
 func (b *entityFlushDataBuilder) buildBooleansNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.booleansNullable {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		val := false
-		if !isNil {
-			val = f.Elem().Bool()
-		}
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
+	b.buildNullable(serializer,
+		value,
+		fields.booleansNullable,
+		func(field reflect.Value) interface{} {
+			return field.Bool()
+		},
+		func() interface{} {
+			return serializer.DeserializeBool()
+		},
+		func(val interface{}, _ bool) string {
+			if val.(bool) {
+				return "1"
 			}
-			if old {
-				oldVal := serializer.DeserializeBool()
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = oldVal
-				}
-				if oldVal == val && !isNil {
-					continue
-				}
-			} else if isNil {
-				continue
-			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
-			b.Update[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			b.Update[name] = val
-			if b.buildSQL {
-				if val {
-					b.sqlBind[name] = "1"
-				} else {
-					b.sqlBind[name] = "0"
-				}
-			}
-		}
-	}
+			return "0"
+		}, func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildFloatsNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for k, i := range fields.floatsNullable {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		val := float64(0)
-		if !isNil {
-			val = f.Elem().Float()
-		}
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			if !old && b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-			}
-			if old {
-				v := serializer.DeserializeFloat()
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = v
-				}
-				if !isNil && math.Abs(val-v) < (1/math.Pow10(fields.floatsNullablePrecision[k])) {
-					continue
-				}
-			} else if isNil {
-				continue
-			}
-		}
-		name := b.orm.tableSchema.columnNames[b.index]
-		if isNil {
-			b.Update[name] = nil
-			if b.buildSQL {
-				b.sqlBind[name] = "NULL"
-			}
-		} else {
-			b.Update[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = strconv.FormatFloat(val, 'f', -1, 64)
-			}
-		}
-	}
+	b.buildNullable(serializer,
+		value,
+		fields.floatsNullable,
+		func(field reflect.Value) interface{} {
+			return field.Float()
+		},
+		func() interface{} {
+			return serializer.DeserializeFloat()
+		},
+		func(val interface{}, _ bool) string {
+			return strconv.FormatFloat(val.(float64), 'f', -1, 64)
+		}, func(old, new interface{}, index int) bool {
+			return math.Abs(new.(float64)-old.(float64)) < (1 / math.Pow10(fields.floatsNullablePrecision[index]))
+		})
 }
 
 func (b *entityFlushDataBuilder) buildTimesNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
