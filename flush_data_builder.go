@@ -331,27 +331,24 @@ func (b *entityFlushDataBuilder) buildDates(serializer *serializer, fields *tabl
 }
 
 func (b *entityFlushDataBuilder) buildFakeDelete(serializer *serializer, fields *tableFields, value reflect.Value) {
-	if fields.fakeDelete > 0 {
-		b.index++
-		val := value.Field(fields.fakeDelete).Bool()
-		if b.fillOld {
-			old := serializer.DeserializeBool()
-			same := val == old
-			if b.forceFillOld || !same {
-				if old {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(b.ID, 10)
-				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = "0"
-				}
+	b.build(
+		value,
+		[]int{fields.fakeDelete},
+		func(field reflect.Value) interface{} {
+			return field.Bool()
+		},
+		func() interface{} {
+			return serializer.DeserializeBool()
+		},
+		func(val interface{}, deserialized bool) string {
+			if val.(bool) {
+				return strconv.FormatUint(b.ID, 10)
 			}
-			if same {
-				return
-			}
-		}
-		if b.fillNew {
-			b.Update[b.orm.tableSchema.columnNames[b.index]] = strconv.FormatUint(b.ID, 10)
-		}
-	}
+			return "0"
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildStrings(serializer *serializer, fields *tableFields, value reflect.Value) {
@@ -405,9 +402,9 @@ func (b *entityFlushDataBuilder) buildUIntegersNullable(serializer *serializer, 
 		func() interface{} {
 			return serializer.DeserializeUInteger()
 		},
-		func(val interface{}) string {
+		func(val interface{}, _ bool) string {
 			return strconv.FormatUint(val.(uint64), 10)
-		}, func(old, new interface{}) bool {
+		}, func(old, new interface{}, _ int) bool {
 			return old == new
 		})
 }
@@ -422,9 +419,9 @@ func (b *entityFlushDataBuilder) buildIntegersNullable(serializer *serializer, f
 		func() interface{} {
 			return serializer.DeserializeInteger()
 		},
-		func(val interface{}) string {
+		func(val interface{}, _ bool) string {
 			return strconv.FormatInt(val.(int64), 10)
-		}, func(old, new interface{}) bool {
+		}, func(old, new interface{}, _ int) bool {
 			return old == new
 		})
 }
