@@ -636,6 +636,11 @@ func (tableSchema *tableSchema) GetTag(field, key, trueValue, defaultValue strin
 	return defaultValue
 }
 
+func (tableSchema *tableSchema) GetTagBool(field, key string) bool {
+	tag := tableSchema.GetTag(field, key, "1", "")
+	return tag == "1"
+}
+
 func (tableSchema *tableSchema) GetOption(plugin, key string) interface{} {
 	if tableSchema.options == nil {
 		return nil

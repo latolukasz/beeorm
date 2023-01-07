@@ -352,44 +352,27 @@ func (b *entityFlushDataBuilder) buildFakeDelete(serializer *serializer, fields 
 }
 
 func (b *entityFlushDataBuilder) buildStrings(serializer *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.strings {
-		b.index++
-		val := value.Field(i).String()
-		name := b.orm.tableSchema.columnNames[b.index]
-		if b.fillOld {
-			old := serializer.DeserializeString()
-			same := val == old
-			if b.forceFillOld || !same {
-				if old == "" {
-					attributes := b.orm.tableSchema.tags[name]
-					required, hasRequired := attributes["required"]
-					if hasRequired && required == "true" {
-						b.Old[b.orm.tableSchema.columnNames[b.index]] = ""
-					} else {
-						b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
-					}
-				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = old
-				}
+	name := b.orm.tableSchema.columnNames[b.index]
+	b.build(
+		value,
+		fields.strings,
+		func(field reflect.Value) interface{} {
+			return field.String()
+		},
+		func() interface{} {
+			return serializer.DeserializeString()
+		},
+		func(val interface{}, deserialized bool) string {
+			s := val.(string)
+			if s == "" && b.orm.tableSchema.GetTagBool(name, "required") {
+				return "NULL"
 			}
-			if same {
-				continue
-			}
-		}
-		if b.fillNew {
-			if val != "" {
-				b.Update[name] = val
-			} else {
-				attributes := b.orm.tableSchema.tags[name]
-				required, hasRequired := attributes["required"]
-				if hasRequired && required == "true" {
-					b.Update[name] = ""
-				} else {
-					b.Update[name] = "NULL"
-				}
-			}
-		}
-	}
+			return s
+
+		},
+		func(old, new interface{}, _ int) bool {
+			return old == new
+		})
 }
 
 func (b *entityFlushDataBuilder) buildUIntegersNullable(serializer *serializer, fields *tableFields, value reflect.Value) {
