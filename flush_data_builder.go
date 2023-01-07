@@ -372,53 +372,59 @@ func (b *entityFlushDataBuilder) buildIntegersNullable(s *serializer, fields *ta
 func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, value reflect.Value) {
 	k := -1
 	b.build(
+		s,
+		fields,
 		value,
 		fields.stringsEnums,
-		func(field reflect.Value) interface{} {
-			k++
-			return field.String()
-		},
-		serializeGetterUint,
-		func(val interface{}, deserialized bool) string {
-			if deserialized {
-				i := val.(uint64)
-				if i == 0 {
+		fieldDataProvider{
+			fieldGetter: func(field reflect.Value) interface{} {
+				k++
+				return field.String()
+			},
+			serializeGetter: serializeGetterUint,
+			bindSetter: func(val interface{}, deserialized bool) string {
+				if deserialized {
+					i := val.(uint64)
+					if i == 0 {
+						return "NULL"
+					}
+					return fields.enums[k].GetFields()[i-1]
+				}
+				s := val.(string)
+				if s == "" && b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 					return "NULL"
 				}
-				return fields.enums[k].GetFields()[i-1]
-			}
-			s := val.(string)
-			if s == "" && b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
-				return "NULL"
-			}
-			return s
-		},
-		func(old, new interface{}, _ int) bool {
-			return old == uint64(fields.enums[k].Index(new.(string)))
+				return s
+			},
+			bindCompare: func(old, new interface{}, _ int, _ *tableFields) bool {
+				return old == uint64(fields.enums[k].Index(new.(string)))
+			},
 		})
 }
 
 func (b *entityFlushDataBuilder) buildBytes(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
+		s,
+		fields,
 		value,
 		fields.bytes,
-		func(field reflect.Value) interface{} {
-			if field.IsZero() {
+		fieldDataProvider{
+			fieldGetter: func(field reflect.Value) interface{} {
+				if field.IsZero() {
+					return ""
+				}
+				return string(field.Bytes())
+			},
+			serializeGetter: func(s *serializer) interface{} {
+				return s.DeserializeString()
+			},
+			bindSetter: func(val interface{}, _ bool) string {
+				str := val.(string)
+				if str == "" {
+					return "NULL"
+				}
 				return ""
-			}
-			return string(field.Bytes())
-		},
-		func() interface{} {
-			return serializer.DeserializeString()
-		},
-		func(val interface{}, _ bool) string {
-			s := val.(string)
-			if s == "" {
-				return "NULL"
-			}
-			return ""
-		}, func(old, new interface{}, _ int) bool {
-			return old == new
+			},
 		})
 }
 
