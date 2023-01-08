@@ -102,10 +102,7 @@ func (b *entityFlushDataBuilder) build(serializer *serializer, fields *tableFiel
 	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
-		var val interface{}
-		if !f.IsNil() {
-			val = provider.fieldGetter(f.Elem())
-		}
+		val := provider.fieldGetter(f.Elem())
 		if b.fillOld {
 			old := provider.serializeGetter(serializer, f)
 			var same bool
@@ -128,7 +125,11 @@ func (b *entityFlushDataBuilder) build(serializer *serializer, fields *tableFiel
 		}
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
-			b.Update[name] = provider.bindSetter(val, false)
+			if b.Update == nil {
+				b.Update = Bind{name: provider.bindSetter(val, false)}
+			} else {
+				b.Update[name] = provider.bindSetter(val, false)
+			}
 		}
 	}
 }
@@ -185,7 +186,7 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 		s,
 		fields,
 		value,
-		fields.uintegersNullable,
+		fields.refs,
 		fieldDataProvider{
 			fieldGetter: func(field reflect.Value) interface{} {
 				if field.IsNil() {
