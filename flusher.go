@@ -449,22 +449,6 @@ func (f *flusher) buildReferences(entity Entity, dataFlusher *DataFlusher) {
 			}
 		}
 	}
-	for _, refName := range entity.getORM().tableSchema.refMany {
-		refValue := entity.getORM().elem.FieldByName(refName)
-		if refValue.IsValid() && !refValue.IsNil() {
-			length := refValue.Len()
-			for i := 0; i < length; i++ {
-				refEntity := refValue.Index(i).Interface().(Entity)
-				initIfNeeded(f.engine.registry, refEntity)
-				if refEntity.GetID() == 0 {
-					if dataFlusher.Parent == nil {
-						dataFlusher.Parent = f.engine.NewFlusher().(*flusher)
-					}
-					dataFlusher.Parent.Track(refEntity)
-				}
-			}
-		}
-	}
 }
 
 func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bind Bind) {

@@ -166,7 +166,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	return
 }
 
-func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string, many bool) {
+func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string) {
 	dbMap := make(map[string]map[*tableSchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
 	var redisMap map[string]map[string][]Entity
@@ -199,14 +199,6 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			panic(fmt.Errorf("reference %s in %s is not valid", ref, schema.tableName))
 		}
 		parentRef, has := schema.tags[refName]["ref"]
-		manyRef := false
-		if !has {
-			parentRef, has = schema.tags[refName]["refs"]
-			manyRef = true
-			if !has {
-				panic(fmt.Errorf("reference tag %s is not valid", ref))
-			}
-		}
 		parentSchema := engine.registry.tableSchemas[engine.registry.entities[parentRef]]
 		hasLocalCache := parentSchema.hasLocalCache
 		if !hasLocalCache && engine.hasRequestCache {
@@ -219,39 +211,17 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			redisMap = make(map[string]map[string][]Entity)
 		}
 		for i := 0; i < l; i++ {
-			var ref reflect.Value
 			var refEntity reflect.Value
-			if many {
-				refEntity = rows.Index(i)
-				if refEntity.IsZero() {
-					continue
-				}
-				ref = reflect.Indirect(refEntity.Elem()).FieldByName(refName)
-			} else {
-				refEntity = rows
-				ref = reflect.Indirect(refEntity).FieldByName(refName)
-			}
+			ref := reflect.Indirect(refEntity).FieldByName(refName)
+			refEntity = rows
 			if !ref.IsValid() || ref.IsZero() {
 				continue
 			}
-			if manyRef {
-				length := ref.Len()
-				for i := 0; i < length; i++ {
-					e := ref.Index(i).Interface().(Entity)
-					if !e.IsLoaded() {
-						id := e.GetID()
-						if id > 0 {
-							fillRefMap(engine, id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
-						}
-					}
-				}
-			} else {
-				e := ref.Interface().(Entity)
-				if !e.IsLoaded() {
-					id := e.GetID()
-					if id > 0 {
-						fillRefMap(engine, id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
-					}
+			e := ref.Interface().(Entity)
+			if !e.IsLoaded() {
+				id := e.GetID()
+				if id > 0 {
+					fillRefMap(engine, id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
 				}
 			}
 		}

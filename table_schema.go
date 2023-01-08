@@ -111,7 +111,6 @@ type tableSchema struct {
 	uniqueIndices           map[string][]string
 	uniqueIndicesGlobal     map[string][]string
 	refOne                  []string
-	refMany                 []string
 	idIndex                 int
 	localCacheName          string
 	hasLocalCache           bool
@@ -281,7 +280,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.t = entityType
 	tableSchema.tags = extractTags(registry, entityType, "")
 	oneRefs := make([]string, 0)
-	manyRefs := make([]string, 0)
 	tableSchema.mapBindToScanPointer = mapBindToScanPointer{}
 	tableSchema.mapPointerToValue = mapPointerToValue{}
 	tableSchema.mysqlPoolName = tableSchema.getTag("mysql", "default", "default")
@@ -391,10 +389,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		_, has = values["ref"]
 		if has {
 			oneRefs = append(oneRefs, key)
-		}
-		_, has = values["refs"]
-		if has {
-			manyRefs = append(manyRefs, key)
 		}
 	}
 	for _, plugin := range registry.plugins {
@@ -510,7 +504,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.redisCacheName = redisCache
 	tableSchema.hasRedisCache = redisCache != ""
 	tableSchema.refOne = oneRefs
-	tableSchema.refMany = manyRefs
 	tableSchema.cachePrefix = cachePrefix
 	tableSchema.uniqueIndices = uniqueIndicesSimple
 	tableSchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
@@ -995,20 +988,12 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 			continue
 		}
 		refOne := ""
-		refMany := ""
 		hasRef := false
-		hasRefMany := false
 		if field.Type.Kind().String() == "ptr" {
 			refName := field.Type.Elem().String()
 			_, hasRef = registry.entities[refName]
 			if hasRef {
 				refOne = refName
-			}
-		} else if field.Type.String()[0:3] == "[]*" {
-			refName := field.Type.String()[3:]
-			_, hasRefMany = registry.entities[refName]
-			if hasRefMany {
-				refMany = refName
 			}
 		}
 
@@ -1031,12 +1016,6 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 				fields[field.Name] = make(map[string]string)
 			}
 			fields[field.Name]["ref"] = refOne
-		}
-		if hasRefMany {
-			if fields[field.Name] == nil {
-				fields[field.Name] = make(map[string]string)
-			}
-			fields[field.Name]["refs"] = refMany
 		}
 	}
 	return
