@@ -113,7 +113,7 @@ func fillLogFields(handlers []LogHandler, pool, source, operation, query string,
 		"source":    source,
 	}
 	if cacheMiss {
-		fields["miss"] = true
+		fields["miss"] = "TRUE"
 	}
 	if start != nil {
 		now := time.Now()
