@@ -3,13 +3,14 @@ package log_tables
 import (
 	"database/sql"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	jsoniter "github.com/json-iterator/go"
-	orm "github.com/latolukasz/beeorm"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+	jsoniter "github.com/json-iterator/go"
+	orm "github.com/latolukasz/beeorm"
 )
 
 const PluginCodeLog = "beeorm/log_tables"
