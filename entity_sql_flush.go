@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"sort"
@@ -102,7 +101,7 @@ func (b *entityFlushDataBuilder) build(serializer *serializer, fields *tableFiel
 	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
-		val := provider.fieldGetter(f.Elem())
+		val := provider.fieldGetter(f)
 		if b.fillOld {
 			old := provider.serializeGetter(serializer, f)
 			var same bool
@@ -192,7 +191,7 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 				if field.IsNil() {
 					return nil
 				}
-				id := field.Field(1).Uint()
+				id := field.Elem().Field(1).Uint()
 				if id == 0 {
 					return field.Pointer()
 				}
@@ -206,11 +205,11 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 				if val == nil {
 					return "NULL"
 				}
-				_, isUint := val.(uint64)
-				if isUint {
-					return strconv.FormatUint(val.(uint64), 10)
+				p, isPointer := val.(uintptr)
+				if isPointer {
+					return "p:" + strconv.FormatInt(int64(p), 10)
 				}
-				return fmt.Sprintf("%p", val)
+				return strconv.FormatUint(val.(uint64), 10)
 			},
 		},
 	)
