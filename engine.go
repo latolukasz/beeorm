@@ -47,22 +47,21 @@ type Engine interface {
 }
 
 type engineImplementation struct {
-	registry                  *validatedRegistry
-	dbs                       map[string]*DB
-	localCache                map[string]*LocalCache
-	redis                     map[string]*RedisCache
-	hasRequestCache           bool
-	queryLoggersDB            []LogHandler
-	queryLoggersRedis         []LogHandler
-	queryLoggersLocalCache    []LogHandler
-	hasRedisLogger            bool
-	hasDBLogger               bool
-	hasLocalCacheLogger       bool
-	afterCommitLocalCacheSets map[string][]interface{}
-	afterCommitDataFlusher    *DataFlusher
-	eventBroker               *eventBroker
-	queryTimeLimit            uint16
-	options                   map[string]map[string]interface{}
+	registry               *validatedRegistry
+	dbs                    map[string]*DB
+	localCache             map[string]*LocalCache
+	redis                  map[string]*RedisCache
+	hasRequestCache        bool
+	queryLoggersDB         []LogHandler
+	queryLoggersRedis      []LogHandler
+	queryLoggersLocalCache []LogHandler
+	hasRedisLogger         bool
+	hasDBLogger            bool
+	hasLocalCacheLogger    bool
+	afterCommit            func()
+	eventBroker            *eventBroker
+	queryTimeLimit         uint16
+	options                map[string]map[string]interface{}
 	sync.Mutex
 }
 

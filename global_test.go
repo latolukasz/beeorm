@@ -11,10 +11,10 @@ import (
 )
 
 type testLogHandler struct {
-	Logs []Bind
+	Logs []map[string]interface{}
 }
 
-func (h *testLogHandler) Handle(log Bind) {
+func (h *testLogHandler) Handle(log map[string]interface{}) {
 	h.Logs = append(h.Logs, log)
 }
 

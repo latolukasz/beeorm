@@ -299,17 +299,9 @@ func (db *DB) Commit() {
 	}
 	checkError(err)
 	db.inTransaction = false
-	if db.engine.afterCommitLocalCacheSets != nil {
-		for cacheCode, pairs := range db.engine.afterCommitLocalCacheSets {
-			cache := db.engine.GetLocalCache(cacheCode)
-			cache.MSet(pairs...)
-		}
-		db.engine.afterCommitLocalCacheSets = nil
-	}
-
-	if db.engine.afterCommitRedisFlusher != nil {
-		db.engine.afterCommitRedisFlusher.Flush()
-		db.engine.afterCommitRedisFlusher = nil
+	if db.engine.afterCommit != nil {
+		db.engine.afterCommit()
+		db.engine.afterCommit = nil
 	}
 }
 
@@ -322,8 +314,7 @@ func (db *DB) Rollback() {
 		}
 	}
 	checkError(err)
-	db.engine.afterCommitLocalCacheSets = nil
-	db.engine.afterCommitRedisFlusher = nil
+	db.engine.afterCommit = nil
 	db.inTransaction = false
 }
 
