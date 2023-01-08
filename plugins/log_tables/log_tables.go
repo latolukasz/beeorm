@@ -31,7 +31,7 @@ func (p *LogTablesPlugin) GetCode() string {
 	return PluginCodeLog
 }
 
-func (p *LogTablesPlugin) InterfaceInitTableSchema(schema orm.SettableTableSchema, registry *orm.Registry) error {
+func (p *LogTablesPlugin) InterfaceInitTableSchema(schema orm.SettableTableSchema, _ *orm.Registry) error {
 	logPoolName := schema.GetTag("ORM", "log", "default", "")
 	if logPoolName == "" {
 		return nil
@@ -128,22 +128,22 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema o
 	return alters, map[string][]string{poolName: {tableName}}
 }
 
-func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, data *orm.EntityFlushData, dataFlusher *orm.DataFlusher) {
+func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, data *orm.EntityCacheFlush) {
 	tableSchema := engine.GetRegistry().GetTableSchema(data.EntityName)
 	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
 		return
 	}
 	skippedFields := tableSchema.GetOption(PluginCodeLog, skipLogOption)
-	if data.Changes != nil && skippedFields != nil {
+	if data.EntitySQLFlush.Update != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {
-			_, has := data.Changes[skip]
+			_, has := data.EntitySQLFlush.Update[skip]
 			if has {
 				skipped++
 			}
 		}
-		if skipped == len(data.Changes) {
+		if skipped == len(data.EntitySQLFlush.Update) {
 			return
 		}
 	}
@@ -151,14 +151,14 @@ func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, data *
 		TableName: tableSchema.GetOptionString(PluginCodeLog, tableNameOption),
 		ID:        data.ID,
 		PoolName:  poolName,
-		Before:    data.Current,
-		Changes:   data.Changes,
+		Before:    data.EntitySQLFlush.Old,
+		Changes:   data.EntitySQLFlush.Update,
 		Updated:   time.Now()}
 	meta := engine.GetOption(PluginCodeLog, metaOption)
 	if meta != nil {
 		val.Meta = meta.(map[string]interface{})
 	}
-	dataFlusher.PublishToStream(LogTablesChannelName, val)
+	data.PublishToStream(LogTablesChannelName, val)
 }
 
 type LogQueueValue struct {

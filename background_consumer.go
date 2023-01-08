@@ -20,7 +20,6 @@ const BackgroundConsumerGroupName = "orm-async-consumer"
 
 type BackgroundConsumer struct {
 	eventConsumerBase
-	redisFlusher                 *RedisFlusher
 	garbageCollectorSha1         string
 	consumer                     *eventsConsumer
 	lazyFlushModulo              uint64
@@ -29,7 +28,7 @@ type BackgroundConsumer struct {
 }
 
 func NewBackgroundConsumer(engine Engine) *BackgroundConsumer {
-	c := &BackgroundConsumer{redisFlusher: &RedisFlusher{engine: engine.(*engineImplementation)}}
+	c := &BackgroundConsumer{}
 	c.engine = engine.(*engineImplementation)
 	c.block = true
 	c.blockTime = time.Second * 30
@@ -318,27 +317,6 @@ func (r *BackgroundConsumer) handleCache(validMap map[string]interface{}, ids []
 				stringKeys[i] = v.(string)
 			}
 			r.engine.GetLocalCache(cacheCode.(string)).Remove(stringKeys...)
-		}
-	}
-	logEvents, has := validMap["l"]
-	if has {
-		for _, row := range logEvents.([]interface{}) {
-			logEvent := &LogQueueValue{}
-			asMap := row.(map[interface{}]interface{})
-			logEvent.ID, _ = strconv.ParseUint(fmt.Sprintf("%v", asMap["ID"]), 10, 64)
-			logEvent.PoolName = asMap["PoolName"].(string)
-			logEvent.TableName = asMap["TableName"].(string)
-			logEvent.Updated = time.Now()
-			if asMap["Meta"] != nil {
-				logEvent.Meta = r.convertMap(asMap["Meta"].(map[interface{}]interface{}))
-			}
-			if asMap["Before"] != nil {
-				logEvent.Before = r.convertMap(asMap["Before"].(map[interface{}]interface{}))
-			}
-			if asMap["Changes"] != nil {
-				logEvent.Changes = r.convertMap(asMap["Changes"].(map[interface{}]interface{}))
-			}
-			r.handleLog(map[string][]*LogQueueValue{logEvent.PoolName: {logEvent}})
 		}
 	}
 }

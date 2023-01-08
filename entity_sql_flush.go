@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"sort"
@@ -187,14 +188,28 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 		fields.uintegersNullable,
 		fieldDataProvider{
 			fieldGetter: func(field reflect.Value) interface{} {
-				return field.Field(1).Uint()
+				if field.IsNil() {
+					return nil
+				}
+				id := field.Field(1).Uint()
+				if id == 0 {
+					return field.Pointer()
+				}
+				return id
 			},
 			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, _ bool) string {
-				if val == 0 {
+			bindSetter: func(val interface{}, deserialized bool) string {
+				if deserialized {
+					return strconv.FormatUint(val.(uint64), 10)
+				}
+				if val == nil {
 					return "NULL"
 				}
-				return strconv.FormatUint(val.(uint64), 10)
+				_, isUint := val.(uint64)
+				if isUint {
+					return strconv.FormatUint(val.(uint64), 10)
+				}
+				return fmt.Sprintf("%p", val)
 			},
 		},
 	)
