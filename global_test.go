@@ -14,7 +14,7 @@ type testLogHandler struct {
 	Logs []Bind
 }
 
-func (h *testLogHandler) Handle(log map[string]interface{}) {
+func (h *testLogHandler) Handle(log Bind) {
 	h.Logs = append(h.Logs, log)
 }
 

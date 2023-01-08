@@ -134,7 +134,7 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "Tommy3", e3.Name)
 
 	e = &lazyReceiverEntity{Name: "Tom"}
-	e.SetOnDuplicateKeyUpdate(map[string]interface{}{"Age": 38})
+	e.SetOnDuplicateKeyUpdate(Bind{"Age": "38"})
 	assert.PanicsWithError(t, "lazy flush on duplicate key is not supported", func() {
 		engine.FlushLazy(e)
 	})

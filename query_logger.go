@@ -28,7 +28,7 @@ type defaultLogLogger struct {
 	logger     *log.Logger
 }
 
-func (d *defaultLogLogger) Handle(fields map[string]interface{}) {
+func (d *defaultLogLogger) Handle(fields Bind) {
 	row := beeORMLogo
 	switch fields["source"] {
 	case "mysql":
@@ -62,7 +62,7 @@ func (d *defaultLogLogger) Handle(fields map[string]interface{}) {
 }
 
 type LogHandler interface {
-	Handle(log map[string]interface{})
+	Handle(log Bind)
 }
 
 func (e *engineImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
@@ -122,7 +122,7 @@ func fillLogFields(handlers []LogHandler, pool, source, operation, query string,
 		fields["finished"] = now.UnixNano()
 	}
 	if err != nil {
-		fields["error"] = err
+		fields["error"] = err.Error()
 	}
 	for _, handler := range handlers {
 		handler.Handle(fields)

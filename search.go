@@ -114,11 +114,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for range fields.refsMany {
-		v := sql.NullString{}
-		pointers[start] = &v
-		start++
-	}
 	for _, subFields := range fields.structsFields {
 		start = prepareScanForFields(subFields, start, pointers)
 	}
