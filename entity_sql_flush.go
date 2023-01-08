@@ -13,7 +13,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-type EntitySQLFlushData struct {
+type EntitySQLFlush struct {
 	Action            FlushType
 	EntityName        string
 	ID                uint64
@@ -23,7 +23,7 @@ type EntitySQLFlushData struct {
 }
 
 type entityFlushDataBuilder struct {
-	*EntitySQLFlushData
+	*EntitySQLFlush
 	orm          *ORM
 	index        int
 	fillOld      bool
@@ -41,14 +41,14 @@ func newEntitySQLFlushDataBuilder(orm *ORM) *entityFlushDataBuilder {
 		action = Update
 	}
 	schema := orm.tableSchema
-	flushData := &EntitySQLFlushData{}
+	flushData := &EntitySQLFlush{}
 	flushData.Action = action
 	flushData.EntityName = schema.t.String()
 	flushData.ID = orm.GetID()
 	b := &entityFlushDataBuilder{
-		EntitySQLFlushData: flushData,
-		orm:                orm,
-		index:              -1,
+		EntitySQLFlush: flushData,
+		orm:            orm,
+		index:          -1,
 	}
 	b.fillOld = action == Update || action == Delete
 	b.forceFillOld = action == Delete

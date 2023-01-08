@@ -36,13 +36,12 @@ func (err *ForeignKeyError) Error() string {
 }
 
 type DataFlusher struct {
-	Events map[string][]*EntityCacheFlushData
-	Parent *flusher
+	Events map[string][]*EntityCacheFlush
 }
 
-func (df *DataFlusher) AddEvent(flushData *EntityCacheFlushData) {
+func (df *DataFlusher) AddEvent(flushData *EntityCacheFlush) {
 	if df.Events == nil {
-		df.Events = map[string][]*EntityCacheFlushData{flushData.EntityName: {flushData}}
+		df.Events = map[string][]*EntityCacheFlush{flushData.EntityName: {flushData}}
 	} else {
 		df.Events[flushData.EntityName] = append(df.Events[flushData.EntityName], flushData)
 	}
@@ -50,43 +49,6 @@ func (df *DataFlusher) AddEvent(flushData *EntityCacheFlushData) {
 
 func (df *DataFlusher) Execute(engine Engine, lazy bool) {
 	//TODO
-}
-
-type EntityCacheFlushData struct {
-	*EntitySQLFlushData
-	RedisDeletes      map[string][]string
-	LocalCacheDeletes map[string][]string
-}
-
-func (el *EntityCacheFlushData) PublishToStream(stream string, event interface{}) {
-	//TODO
-}
-
-func (el *EntityCacheFlushData) DeleteInRedis(pool string, key ...string) {
-	if len(key) > 0 {
-		deletes, has := el.RedisDeletes[pool]
-		if !has {
-			el.RedisDeletes[pool] = key
-		} else {
-			el.RedisDeletes[pool] = append(deletes, key...)
-		}
-	}
-
-}
-
-func (el *EntityCacheFlushData) DeleteInLocalCache(pool string, key ...string) {
-	if len(key) > 0 {
-		deletes, has := el.LocalCacheDeletes[pool]
-		if !has {
-			el.LocalCacheDeletes[pool] = key
-		} else {
-			el.LocalCacheDeletes[pool] = append(deletes, key...)
-		}
-	}
-}
-
-func (el *EntityCacheFlushData) AddInLocalCache(pool, key string, value interface{}) {
-	// TODO
 }
 
 type Flusher interface {
@@ -102,26 +64,24 @@ type Flusher interface {
 
 type flusher struct {
 	engine                 *engineImplementation
-	trackedEntities        []Entity
+	trackedEntities        map[Entity]Entity
 	trackedEntitiesCounter int
 	serializer             *serializer
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
-main:
 	for _, e := range entity {
 		initIfNeeded(f.engine.registry, e)
 		if f.trackedEntities == nil {
-			f.trackedEntities = []Entity{e}
+			f.trackedEntities = map[Entity]Entity{e: e}
+			f.trackedEntitiesCounter++
 		} else {
-			for _, old := range f.trackedEntities {
-				if old == e {
-					continue main
-				}
+			_, has := f.trackedEntities[e]
+			if !has {
+				f.trackedEntities[e] = e
+				f.trackedEntitiesCounter++
 			}
-			f.trackedEntities = append(f.trackedEntities, e)
 		}
-		f.trackedEntitiesCounter++
 		if f.trackedEntitiesCounter == 10001 {
 			panic(fmt.Errorf("track limit 10000 exceeded"))
 		}
@@ -221,14 +181,14 @@ func (f *flusher) buildDataFlasher() *DataFlusher {
 	dataFlusher := &DataFlusher{}
 	for _, entity := range f.trackedEntities {
 		initIfNeeded(f.engine.registry, entity)
-		f.buildReferences(entity, dataFlusher)
+		f.checkReferencesToInsert(entity)
 
 		orm := entity.getORM()
 		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer())
 		if !isDirty {
 			continue
 		}
-		entityCacheFlushData := &EntityCacheFlushData{EntitySQLFlushData: entitySQLFlushData}
+		entityCacheFlushData := &EntityCacheFlush{EntitySQLFlush: entitySQLFlushData}
 
 		currentID := entity.GetID()
 		if orm.fakeDelete && !orm.tableSchema.hasFakeDelete {
@@ -242,7 +202,7 @@ func (f *flusher) buildDataFlasher() *DataFlusher {
 				orm.idElem.SetUint(currentID)
 			}
 			if currentID > 0 {
-				entityCacheFlushData.EntitySQLFlushData.Update["ID"] = strconv.FormatUint(currentID, 10)
+				entityCacheFlushData.EntitySQLFlush.Update["ID"] = strconv.FormatUint(currentID, 10)
 			}
 		} else {
 			f.fillCacheFlushDataForUpdate(entity, entityCacheFlushData)
@@ -383,7 +343,7 @@ func (f *flusher) executeInserts(flushPackage *flushPackage, lazy bool) {
 	}
 }
 
-func (f *flusher) fillCacheFlushDataForUpdate(entity Entity, entityFlushData *EntityCacheFlushData) {
+func (f *flusher) fillCacheFlushDataForUpdate(entity Entity, entityFlushData *EntityCacheFlush) {
 	if !entity.IsLoaded() {
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
 	}
@@ -412,7 +372,7 @@ func (f *flusher) fillCacheFlushDataForUpdate(entity Entity, entityFlushData *En
 	}
 }
 
-func (f *flusher) fillCacheFlushDataForDelete(entity Entity, entityFlushData *EntityCacheFlushData) {
+func (f *flusher) fillCacheFlushDataForDelete(entity Entity, entityFlushData *EntityCacheFlush) {
 	schema := entity.getORM().tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
@@ -435,17 +395,15 @@ func (f *flusher) fillCacheFlushDataForDelete(entity Entity, entityFlushData *En
 	}
 }
 
-func (f *flusher) buildReferences(entity Entity, dataFlusher *DataFlusher) {
+func (f *flusher) checkReferencesToInsert(entity Entity) {
 	for _, refName := range entity.getORM().tableSchema.refOne {
 		refValue := entity.getORM().elem.FieldByName(refName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
 			initIfNeeded(f.engine.registry, refEntity)
 			if refEntity.GetID() == 0 {
-				if dataFlusher.Parent == nil {
-					dataFlusher.Parent = &flusher{engine: f.engine}
-				}
-				dataFlusher.Parent.Track(refEntity)
+				f.Track(refEntity)
+				f.checkReferencesToInsert(refEntity)
 			}
 		}
 	}

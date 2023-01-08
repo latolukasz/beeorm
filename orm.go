@@ -39,7 +39,7 @@ type Entity interface {
 type ORM struct {
 	binary               []byte
 	tableSchema          *tableSchema
-	onDuplicateKeyUpdate map[string]interface{}
+	onDuplicateKeyUpdate Bind
 	initialised          bool
 	loaded               bool
 	inDB                 bool
@@ -117,7 +117,7 @@ func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
 	return bindBuilder.Update, has
 }
 
-func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *EntitySQLFlushData, has bool) {
+func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *EntitySQLFlush, has bool) {
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -129,7 +129,7 @@ func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *Enti
 	builder := newEntitySQLFlushDataBuilder(orm)
 	builder.fill(serializer, orm.tableSchema.fields, orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.Update) > 0
-	return builder.EntitySQLFlushData, has
+	return builder.EntitySQLFlush, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {
@@ -284,20 +284,6 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 			serializer.SerializeBytes([]byte(v.String))
 		} else {
 			serializer.SerializeBytes(nil)
-		}
-		index++
-	}
-	for range fields.refsMany {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			var slice []uint64
-			_ = jsoniter.ConfigFastest.UnmarshalFromString(v.String, &slice)
-			serializer.SerializeUInteger(uint64(len(slice)))
-			for _, i := range slice {
-				serializer.SerializeUInteger(i)
-			}
-		} else {
-			serializer.SerializeUInteger(0)
 		}
 		index++
 	}
@@ -470,18 +456,6 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		} else {
 			encoded, _ := jsoniter.ConfigFastest.Marshal(f.Interface())
 			serialized.SerializeBytes(encoded)
-		}
-	}
-	for _, i := range fields.refsMany {
-		e := elem.Field(i)
-		if e.IsNil() {
-			serialized.SerializeUInteger(0)
-		} else {
-			l := e.Len()
-			serialized.SerializeUInteger(uint64(l))
-			for k := 0; k < l; k++ {
-				serialized.SerializeUInteger(e.Index(k).Elem().Field(1).Uint())
-			}
 		}
 	}
 	for k, i := range fields.structs {
@@ -699,26 +673,6 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		} else if !f.IsNil() {
 			f.Set(reflect.Zero(f.Type()))
 		}
-	}
-	k = 0
-	for _, i := range fields.refsMany {
-		l := int(serializer.DeserializeUInteger())
-		f := elem.Field(i)
-		refType := fields.refsManyTypes[k]
-		if l > 0 {
-			slice := reflect.MakeSlice(reflect.SliceOf(reflect.PtrTo(refType)), l, l)
-			for j := 0; j < l; j++ {
-				e := getTableSchema(orm.tableSchema.registry, fields.refsManyTypes[k]).NewEntity()
-				o := e.getORM()
-				o.idElem.SetUint(serializer.DeserializeUInteger())
-				o.inDB = true
-				slice.Index(j).Set(o.value)
-			}
-			f.Set(slice)
-		} else if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
-		}
-		k++
 	}
 	for k, i := range fields.structs {
 		orm.deserializeFields(serializer, fields.structsFields[k], elem.Field(i))
