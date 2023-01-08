@@ -166,7 +166,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	return
 }
 
-func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string) {
+func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string, many bool) {
 	dbMap := make(map[string]map[*tableSchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
 	var redisMap map[string]map[string][]Entity
@@ -211,9 +211,18 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			redisMap = make(map[string]map[string][]Entity)
 		}
 		for i := 0; i < l; i++ {
+			var ref reflect.Value
 			var refEntity reflect.Value
-			ref := reflect.Indirect(refEntity).FieldByName(refName)
-			refEntity = rows
+			if many {
+				refEntity = rows.Index(i)
+				if refEntity.IsZero() {
+					continue
+				}
+				ref = reflect.Indirect(refEntity.Elem()).FieldByName(refName)
+			} else {
+				refEntity = rows
+				ref = reflect.Indirect(refEntity).FieldByName(refName)
+			}
 			if !ref.IsValid() || ref.IsZero() {
 				continue
 			}
