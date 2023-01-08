@@ -165,8 +165,6 @@ type tableFields struct {
 	structsFields           []*tableFields
 	refs                    []int
 	refsTypes               []reflect.Type
-	refsMany                []int
-	refsManyTypes           []reflect.Type
 }
 
 func getTableSchema(registry *validatedRegistry, entityType reflect.Type) *tableSchema {
@@ -982,15 +980,6 @@ func (tableSchema *tableSchema) buildPointerField(attributes schemaFieldAttribut
 }
 
 func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAttributes) {
-	if attributes.TypeName[0:3] == "[]*" {
-		modelType := reflect.TypeOf((*Entity)(nil)).Elem()
-		t := attributes.Field.Type.Elem()
-		if t.Implements(modelType) {
-			attributes.Fields.refsMany = append(attributes.Fields.refsMany, attributes.Index)
-			attributes.Fields.refsManyTypes = append(attributes.Fields.refsManyTypes, t.Elem())
-			return
-		}
-	}
 	attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 }
 
@@ -1125,7 +1114,6 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.datesNullable...)
 	timesNullableEnd := len(ids)
 	ids = append(ids, fields.jsons...)
-	ids = append(ids, fields.refsMany...)
 	for k, i := range ids {
 		name := subFieldPrefix + fields.fields[i].Name
 		columns = append(columns, name)

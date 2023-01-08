@@ -6,8 +6,7 @@ import (
 	"strings"
 )
 
-type Bind map[string]interface{}
-type BindSQL map[string]string
+type Bind map[string]string
 
 type DuplicatedKeyError struct {
 	Message string
@@ -498,7 +497,7 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 	}
 }
 
-func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current BindSQL, old, addedDeleted bool) (keys []string) {
+func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.cachedIndexesAll {
 		if !addedDeleted && schema.hasFakeDelete {

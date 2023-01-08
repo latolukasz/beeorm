@@ -17,9 +17,9 @@ type EntitySQLFlushData struct {
 	Action            FlushType
 	EntityName        string
 	ID                uint64
-	Old               BindSQL
-	Update            BindSQL
-	UpdateOnDuplicate BindSQL
+	Old               Bind
+	Update            Bind
+	UpdateOnDuplicate Bind
 }
 
 type entityFlushDataBuilder struct {
@@ -79,7 +79,6 @@ func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableField
 	b.buildTimesNullable(serializer, fields, value)
 	b.buildDatesNullable(serializer, fields, value)
 	b.buildJSONs(serializer, fields, value)
-	b.buildRefsMany(serializer, fields, value)
 	for k, i := range fields.structs {
 		b.fill(serializer, fields.structsFields[k], value.Field(i), false)
 	}
@@ -521,78 +520,4 @@ func (b *entityFlushDataBuilder) buildJSONs(s *serializer, fields *tableFields, 
 				return cmp.Equal(old, new)
 			},
 		})
-}
-
-func (b *entityFlushDataBuilder) buildRefsMany(s *serializer, fields *tableFields, value reflect.Value) {
-	for _, i := range fields.refsMany {
-		b.index++
-		f := value.Field(i)
-		isNil := f.IsNil()
-		var val string
-		name := b.orm.tableSchema.columnNames[b.index]
-		if !isNil {
-			length := f.Len()
-			if length > 0 {
-				ids := make([]uint64, length)
-				for j := 0; j < length; j++ {
-					ids[j] = f.Index(j).Interface().(Entity).GetID()
-				}
-				encoded, _ := jsoniter.ConfigFastest.Marshal(ids)
-				val = string(encoded)
-			}
-		}
-		if b.fillOld {
-			l := int(serializer.DeserializeUInteger())
-			if l == 0 {
-				if b.hasCurrent {
-					attributes := b.orm.tableSchema.tags[name]
-					required, hasRequired := attributes["required"]
-					if hasRequired && required == "true" {
-						b.current[b.orm.tableSchema.columnNames[b.index]] = ""
-					} else {
-						b.current[b.orm.tableSchema.columnNames[b.index]] = nil
-					}
-				}
-				if val == "" {
-					continue
-				}
-			} else if val != "" {
-				old := "[" + strconv.FormatUint(serializer.DeserializeUInteger(), 10)
-				for j := 1; j < l; j++ {
-					old += "," + strconv.FormatUint(serializer.DeserializeUInteger(), 10)
-				}
-				old += "]"
-				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = old
-				}
-				if old == val {
-					continue
-				}
-			} else {
-				for j := 0; j < l; j++ {
-					serializer.DeserializeUInteger()
-				}
-			}
-		}
-		if val != "" {
-			b.Update[name] = val
-			if b.buildSQL {
-				b.sqlBind[name] = "'" + val + "'"
-			}
-		} else {
-			attributes := b.orm.tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				b.Update[name] = ""
-				if b.buildSQL {
-					b.sqlBind[name] = "'[]'"
-				}
-			} else {
-				b.Update[name] = nil
-				if b.buildSQL {
-					b.sqlBind[name] = "NULL"
-				}
-			}
-		}
-	}
 }

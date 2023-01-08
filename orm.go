@@ -30,7 +30,7 @@ type Entity interface {
 	forceMarkToDelete()
 	IsLoaded() bool
 	IsDirty() bool
-	GetDirtyBind() (bind BindSQL, has bool)
+	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetField(field string, value interface{}) error
 	Clone() Entity
@@ -112,7 +112,7 @@ func (orm *ORM) IsDirty() bool {
 	return is
 }
 
-func (orm *ORM) GetDirtyBind() (bind BindSQL, has bool) {
+func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
 	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil))
 	return bindBuilder.Update, has
 }

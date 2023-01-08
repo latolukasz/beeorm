@@ -167,8 +167,8 @@ type LogQueueValue struct {
 	ID        uint64
 	LogID     uint64
 	Meta      map[string]interface{}
-	Before    orm.BindSQL
-	Changes   orm.BindSQL
+	Before    orm.Bind
+	Changes   orm.Bind
 	Updated   time.Time
 }
 
