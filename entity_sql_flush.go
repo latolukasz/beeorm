@@ -330,6 +330,9 @@ func (b *entityFlushDataBuilder) buildDates(s *serializer, fields *tableFields, 
 }
 
 func (b *entityFlushDataBuilder) buildFakeDelete(s *serializer, fields *tableFields, value reflect.Value) {
+	if fields.fakeDelete == 0 {
+		return
+	}
 	b.build(
 		s,
 		fields,
