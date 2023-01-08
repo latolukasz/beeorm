@@ -3,6 +3,7 @@ package beeorm
 import (
 	"math"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -392,7 +393,7 @@ func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, 
 				}
 				s := val.(string)
 				if s == "" && b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
-					return "NULL"
+					return fields.enums[k].GetDefault()
 				}
 				return s
 			},
@@ -429,85 +430,44 @@ func (b *entityFlushDataBuilder) buildBytes(s *serializer, fields *tableFields, 
 }
 
 func (b *entityFlushDataBuilder) buildSets(s *serializer, fields *tableFields, value reflect.Value) {
-	k := 0
-	for _, i := range fields.sliceStringsSets {
-		b.index++
-		val := value.Field(i).Interface().([]string)
-		set := fields.sets[k]
-		l := len(val)
-		k++
-		name := b.orm.tableSchema.columnNames[b.index]
-		if b.fillOld {
-			old := int(serializer.DeserializeUInteger())
-			if b.hasCurrent {
-				attributes := b.orm.tableSchema.tags[name]
-				required, hasRequired := attributes["required"]
-				if hasRequired && required == "true" {
-					b.current[name] = ""
-				} else {
-					b.current[name] = nil
-				}
-			}
-			if l == old {
-				if l == 0 {
-					continue
-				}
-				oldValues := make([]int, l)
-				if b.hasCurrent {
-					b.current[name] = ""
-				}
-				for j := 0; j < old; j++ {
-					oldValues[j] = int(serializer.DeserializeUInteger())
-					if b.hasCurrent {
-						b.current[name] = b.current[name].(string) + "," + set.GetFields()[oldValues[j]-1]
-					}
-				}
-				if b.hasCurrent {
-					b.current[name] = b.current[name].(string)[1:]
-				}
-				valid := true
-			MAIN:
-				for _, v := range val {
-					enumIndex := set.Index(v)
-					for _, o := range oldValues {
-						if o == enumIndex {
-							continue MAIN
+	k := -1
+	b.build(
+		s,
+		fields,
+		value,
+		fields.sliceStringsSets,
+		fieldDataProvider{
+			fieldGetter: func(field reflect.Value) interface{} {
+				k++
+				return field.Interface()
+			},
+			serializeGetter: serializeGetterUint,
+			bindSetter: func(val interface{}, deserialized bool) string {
+				if deserialized {
+					i := int(val.(uint64))
+					if i == 0 {
+						if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+							return ""
 						}
+						return "NULL"
 					}
-					valid = false
-					break
+					values := make([]string, i)
+					for j := 0; j < i; j++ {
+						values[j] = fields.enums[k].GetFields()[s.DeserializeUInteger()-1]
+					}
+					return strings.Join(values, ",")
 				}
-				if valid {
-					continue
+				values := val.([]string)
+				if len(values) == 0 {
+					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+						return ""
+					}
+					return "NULL"
 				}
-			} else {
-				for j := 0; j < old; j++ {
-					serializer.DeserializeUInteger()
-				}
-			}
-		}
-		if l > 0 {
-			valAsString := strings.Join(val, ",")
-			b.Update[name] = valAsString
-			if b.buildSQL {
-				b.sqlBind[name] = "'" + valAsString + "'"
-			}
-		} else {
-			attributes := b.orm.tableSchema.tags[name]
-			required, hasRequired := attributes["required"]
-			if hasRequired && required == "true" {
-				b.Update[name] = ""
-				if b.buildSQL {
-					b.sqlBind[name] = "''"
-				}
-			} else {
-				b.Update[name] = nil
-				if b.buildSQL {
-					b.sqlBind[name] = "NULL"
-				}
-			}
-		}
-	}
+				sort.Strings(values)
+				return strings.Join(values, ",")
+			},
+		})
 }
 
 func (b *entityFlushDataBuilder) buildBooleansNullable(s *serializer, fields *tableFields, value reflect.Value) {

@@ -30,7 +30,7 @@ type Entity interface {
 	forceMarkToDelete()
 	IsLoaded() bool
 	IsDirty() bool
-	GetDirtyBind() (bind Bind, has bool)
+	GetDirtyBind() (bind BindSQL, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetField(field string, value interface{}) error
 	Clone() Entity
