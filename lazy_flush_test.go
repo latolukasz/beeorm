@@ -42,9 +42,6 @@ func TestLazyFlush(t *testing.T) {
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
 	engine.FlushLazy(e)
 
-	sample := receiver.GetLazyFlushEventsSample(1000)
-	assert.Len(t, sample, 1)
-
 	e = &lazyReceiverEntity{}
 	loaded := engine.LoadByID(1, e)
 	assert.False(t, loaded)

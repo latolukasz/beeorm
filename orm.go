@@ -126,7 +126,7 @@ func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *Enti
 		}
 	}
 	serializer.Reset(orm.binary)
-	builder := newEntitySQLFlushDataBuilder(orm)
+	builder := newEntitySQLFlushBuilder(orm)
 	builder.fill(serializer, orm.tableSchema.fields, orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.Update) > 0
 	return builder.EntitySQLFlush, has

@@ -122,9 +122,9 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		registry.tableSchemas[entityType] = tableSchema
 		registry.entities[name] = entityType
 	}
-	_, has := r.redisStreamPools[LazyChannelName]
+	_, has := r.redisStreamPools[LazyFlushChannelName]
 	if !has {
-		r.RegisterRedisStream(LazyChannelName, "default", []string{BackgroundConsumerGroupName})
+		r.RegisterRedisStream(LazyFlushChannelName, "default", []string{LazyFlushGroupName})
 	}
 	for _, plugin := range r.plugins {
 		interfaceRegistryValidate, isInterfaceRegistryValidate := plugin.(PluginInterfaceRegistryValidate)
@@ -136,9 +136,9 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
-		_, has = r.redisStreamPools[RedisStreamGarbageCollectorChannelName]
+		_, has = r.redisStreamPools[StreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{BackgroundConsumerGroupName})
+			r.RegisterRedisStream(StreamGarbageCollectorChannelName, "default", []string{StreamGarbageCollectorGroupName})
 		}
 	}
 	registry.redisStreamGroups = r.redisStreamGroups

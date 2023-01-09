@@ -20,9 +20,11 @@ type EntitySQLFlush struct {
 	Old               Bind
 	Update            Bind
 	UpdateOnDuplicate Bind
+	Address           uintptr
+	References        map[string]uintptr
 }
 
-type entityFlushDataBuilder struct {
+type entityFlushBuilder struct {
 	*EntitySQLFlush
 	orm          *ORM
 	index        int
@@ -31,7 +33,7 @@ type entityFlushDataBuilder struct {
 	fillNew      bool
 }
 
-func newEntitySQLFlushDataBuilder(orm *ORM) *entityFlushDataBuilder {
+func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 	action := Insert
 	if orm.delete {
 		action = Delete
@@ -45,7 +47,8 @@ func newEntitySQLFlushDataBuilder(orm *ORM) *entityFlushDataBuilder {
 	flushData.Action = action
 	flushData.EntityName = schema.t.String()
 	flushData.ID = orm.GetID()
-	b := &entityFlushDataBuilder{
+	flushData.Address = orm.value.Pointer()
+	b := &entityFlushBuilder{
 		EntitySQLFlush: flushData,
 		orm:            orm,
 		index:          -1,
@@ -56,7 +59,7 @@ func newEntitySQLFlushDataBuilder(orm *ORM) *entityFlushDataBuilder {
 	return b
 }
 
-func (b *entityFlushDataBuilder) fill(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
+func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
 	if root {
 		serializer.DeserializeUInteger()
 	}
@@ -97,7 +100,7 @@ type fieldDataProvider struct {
 	bindCompare     func(old, new interface{}, key int, fields *tableFields) bool
 }
 
-func (b *entityFlushDataBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
+func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
@@ -133,7 +136,7 @@ func (b *entityFlushDataBuilder) build(serializer *serializer, fields *tableFiel
 	}
 }
 
-func (b *entityFlushDataBuilder) buildNullable(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
+func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
 		f := value.Field(i)
@@ -180,7 +183,7 @@ func serializeGetterUint(s *serializer, _ reflect.Value) interface{} {
 	return s.DeserializeUInteger()
 }
 
-func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
 		s,
 		fields,
@@ -207,7 +210,7 @@ func (b *entityFlushDataBuilder) buildRefs(s *serializer, fields *tableFields, v
 				}
 				p, isPointer := val.(uintptr)
 				if isPointer {
-					return "p:" + strconv.FormatInt(int64(p), 10)
+					return strconv.FormatInt(int64(p), 10)
 				}
 				return strconv.FormatUint(val.(uint64), 10)
 			},
@@ -225,7 +228,7 @@ var uIntFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushDataBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
 }
 
@@ -241,7 +244,7 @@ var intFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushDataBuilder) buildIntegers(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildIntegers(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.integers, intFieldDataProvider)
 }
 
@@ -260,7 +263,7 @@ var boolFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushDataBuilder) buildBooleans(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildBooleans(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.booleans, boolFieldDataProvider)
 }
 
@@ -279,7 +282,7 @@ var floatFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushDataBuilder) buildFloats(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildFloats(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.floats, floatFieldDataProvider)
 }
 
@@ -311,7 +314,7 @@ var dateTimeFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushDataBuilder) buildTimes(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildTimes(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.times, dateTimeFieldDataProvider)
 }
 
@@ -325,11 +328,11 @@ var dateFieldDataProvider = fieldDataProvider{
 	bindCompare:     dateTimeFieldDataProvider.bindCompare,
 }
 
-func (b *entityFlushDataBuilder) buildDates(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildDates(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.dates, dateFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildFakeDelete(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildFakeDelete(s *serializer, fields *tableFields, value reflect.Value) {
 	if fields.fakeDelete == 0 {
 		return
 	}
@@ -355,7 +358,7 @@ func (b *entityFlushDataBuilder) buildFakeDelete(s *serializer, fields *tableFie
 	)
 }
 
-func (b *entityFlushDataBuilder) buildStrings(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, value reflect.Value) {
 	name := b.orm.tableSchema.columnNames[b.index]
 	b.build(
 		s,
@@ -379,15 +382,15 @@ func (b *entityFlushDataBuilder) buildStrings(s *serializer, fields *tableFields
 		})
 }
 
-func (b *entityFlushDataBuilder) buildUIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildUIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.uintegersNullable, uIntFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.integersNullable, intFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, value reflect.Value) {
 	k := -1
 	b.build(
 		s,
@@ -420,7 +423,7 @@ func (b *entityFlushDataBuilder) buildEnums(s *serializer, fields *tableFields, 
 		})
 }
 
-func (b *entityFlushDataBuilder) buildBytes(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildBytes(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
 		s,
 		fields,
@@ -446,7 +449,7 @@ func (b *entityFlushDataBuilder) buildBytes(s *serializer, fields *tableFields, 
 		})
 }
 
-func (b *entityFlushDataBuilder) buildSets(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value reflect.Value) {
 	k := -1
 	b.build(
 		s,
@@ -487,23 +490,23 @@ func (b *entityFlushDataBuilder) buildSets(s *serializer, fields *tableFields, v
 		})
 }
 
-func (b *entityFlushDataBuilder) buildBooleansNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildBooleansNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.booleansNullable, boolFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildFloatsNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildFloatsNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.floatsNullable, floatFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildTimesNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildTimesNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.timesNullable, dateTimeFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildDatesNullable(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildDatesNullable(s *serializer, fields *tableFields, value reflect.Value) {
 	b.buildNullable(s, fields, value, fields.datesNullable, dateFieldDataProvider)
 }
 
-func (b *entityFlushDataBuilder) buildJSONs(s *serializer, fields *tableFields, value reflect.Value) {
+func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(
 		s,
 		fields,
