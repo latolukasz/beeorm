@@ -112,6 +112,21 @@ MAIN:
 		}
 	}
 	fmt.Printf("START TRANSACTIONS: %v\n\n", startTransaction)
+	f.engine.EnableQueryDebug()
+	func() {
+		for db := range startTransaction {
+			db.Begin()
+		}
+		defer func() {
+			for db := range startTransaction {
+				db.Rollback()
+			}
+		}()
+		for db := range startTransaction {
+			db.Commit()
+		}
+	}()
+
 	f.events = nil
 	os.Exit(0)
 }
