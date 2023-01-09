@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/go-sql-driver/mysql"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -178,6 +179,11 @@ func TestLazyFlush(t *testing.T) {
 		runLazyFlushConsumer(engine)
 	})
 	valid := false
+
+	receiver := NewLazyFlushConsumer(engine)
+	receiver.DisableBlockMode()
+	receiver.blockTime = time.Millisecond
+
 	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {
 		valid = true
 		assert.NotNil(t, db)
