@@ -88,7 +88,7 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 	if root && b.orm.onDuplicateKeyUpdate != nil {
 		b.UpdateOnDuplicate = map[string]string{}
 		for k, v := range b.orm.onDuplicateKeyUpdate {
-			b.UpdateOnDuplicate[k] = escapeSQLValue(v)
+			b.UpdateOnDuplicate[k] = v
 		}
 	}
 }

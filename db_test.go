@@ -103,9 +103,6 @@ func TestDB(t *testing.T) {
 
 	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
 	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())
-
-	value := []byte{0, '\n', '\r', '\\', '\'', '"', '\032'}
-	assert.Equal(t, "'\\0\\n\\r\\\\\\'\\\"\\Z'", EscapeSQLString(string(value)))
 }
 
 func TestDBErrors(t *testing.T) {

@@ -256,49 +256,41 @@ func handleLogEvents(engine orm.Engine, values map[string][]*LogQueueValue) {
 		query := ""
 		for _, value := range rows {
 			/* #nosec */
-			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(" +
+			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)" +
 				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(timeFormat) + "',"
-			var meta, before, changes string
+			params := make([]interface{}, 5)
+			params[0] = value.ID
+			params[1] = value.Updated.Format(timeFormat)
 			if value.Meta != nil {
-				meta, _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
-				query += orm.EscapeSQLString(meta) + ","
-			} else {
-				query += "NULL,"
+				params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
 			}
 			if value.Before != nil {
-				before, _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
-				query += orm.EscapeSQLString(before) + ","
-			} else {
-				query += "NULL,"
+				params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
 			}
 			if value.Changes != nil {
-				changes, _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
-				query += orm.EscapeSQLString(changes)
-			} else {
-				query += "NULL"
+				params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
 			}
-			query += ");"
-		}
-		func() {
-			defer func() {
-				if rec := recover(); rec != nil {
-					asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
-					if isMySQLError && asMySQLError.Number == 1146 { // table was removed
-						return
+			func() {
+				defer func() {
+					if rec := recover(); rec != nil {
+						asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
+						if isMySQLError && asMySQLError.Number == 1146 { // table was removed
+							return
+						}
+						panic(rec)
 					}
-					panic(rec)
+				}()
+				if len(rows) > 1 {
+					func() {
+						poolDB.Begin()
+						defer poolDB.Rollback()
+						poolDB.Exec(query)
+						poolDB.Commit()
+					}()
+				} else {
+					poolDB.Exec(query)
 				}
 			}()
-			if len(rows) > 1 {
-				func() {
-					poolDB.Begin()
-					defer poolDB.Rollback()
-					poolDB.Exec(query)
-					poolDB.Commit()
-				}()
-			} else {
-				poolDB.Exec(query)
-			}
-		}()
+		}
 	}
 }
