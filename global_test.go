@@ -84,12 +84,21 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
 
-	indexer := NewBackgroundConsumer(engine)
-	indexer.DisableBlockMode()
-	indexer.blockTime = time.Millisecond
-	indexer.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 
 	return engine
+}
+
+func runLazyFlushConsumer(engine Engine) {
+	consumer := NewLazyFlushConsumer(engine)
+	consumer.DisableBlockMode()
+	consumer.blockTime = time.Millisecond
+	consumer.Digest(context.Background())
+
+	garbageConsumer := NewStreamGarbageCollectorConsumer(engine)
+	garbageConsumer.DisableBlockMode()
+	garbageConsumer.blockTime = time.Millisecond
+	garbageConsumer.Digest(context.Background())
 }
 
 type mockDBClient struct {

@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"testing"
@@ -272,10 +271,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		engine.FlushLazy(rows[0])
 		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 
-		receiver := NewBackgroundConsumer(engine)
-		receiver.DisableBlockMode()
-		receiver.blockTime = time.Millisecond
-		receiver.Digest(context.Background())
+		runLazyFlushConsumer(engine)
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 
@@ -285,10 +281,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	e := &cachedSearchEntity{ID: 4}
 	engine.Load(e)
 	engine.DeleteLazy(e)
-	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableBlockMode()
-	receiver.blockTime = time.Millisecond
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 0, totalRows)
 

@@ -2,10 +2,8 @@ package beeorm
 
 import (
 	"context"
-	"testing"
-	"time"
-
 	"github.com/go-sql-driver/mysql"
+	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -35,10 +33,6 @@ func TestLazyFlush(t *testing.T) {
 	engine := prepareTables(t, registry, 5, 6, "", entity, ref)
 	engine.GetRedis().FlushDB()
 
-	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableBlockMode()
-	receiver.blockTime = time.Millisecond
-
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
 	engine.FlushLazy(e)
 
@@ -46,7 +40,7 @@ func TestLazyFlush(t *testing.T) {
 	loaded := engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 
 	engine.GetLocalCache().Clear()
 	loaded = engine.LoadByID(1, e)
@@ -72,7 +66,7 @@ func TestLazyFlush(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "John", e.Name)
 
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)
@@ -96,7 +90,7 @@ func TestLazyFlush(t *testing.T) {
 	e.Age = 60
 	engine.FlushLazy(e)
 
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(2, e)
@@ -119,7 +113,7 @@ func TestLazyFlush(t *testing.T) {
 	e2.Name = "Tommy2"
 	e3.Name = "Tommy3"
 	engine.FlushLazy(e1, e2, e3)
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	e1 = &lazyReceiverEntity{}
 	e2 = &lazyReceiverEntity{}
 	e3 = &lazyReceiverEntity{}
@@ -144,7 +138,7 @@ func TestLazyFlush(t *testing.T) {
 	e = &lazyReceiverEntity{}
 	engine.LoadByID(1, e)
 	engine.NewFlusher().Delete(e).FlushLazy()
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
@@ -152,7 +146,7 @@ func TestLazyFlush(t *testing.T) {
 	engine.Flush(e)
 	engine.DeleteLazy(e)
 	e = &lazyReceiverEntity{}
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(100, e))
@@ -166,7 +160,7 @@ func TestLazyFlush(t *testing.T) {
 	engine.GetMysql().Begin()
 	engine.FlushLazy(e2, e3)
 	engine.GetMysql().Commit()
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
 	e2 = &lazyReceiverEntity{}
@@ -181,7 +175,7 @@ func TestLazyFlush(t *testing.T) {
 	e1.Age = 20
 	engine.FlushLazy(e1)
 	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
-		receiver.Digest(context.Background())
+		runLazyFlushConsumer(engine)
 	})
 	valid := false
 	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {

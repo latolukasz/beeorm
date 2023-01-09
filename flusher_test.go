@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"testing"
@@ -843,10 +842,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, 2, entity2.Age)
 
-	receiver := NewBackgroundConsumer(engine)
-	receiver.DisableBlockMode()
-	receiver.blockTime = time.Millisecond
-
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, true, false, false)
 
@@ -863,7 +858,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity1, entity2, entity3)
 	flusher.Flush()
 
-	receiver.Digest(context.Background())
+	runLazyFlushConsumer(engine)
 	if local {
 		assert.Len(t, testLogger.Logs, 3)
 		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
