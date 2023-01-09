@@ -94,6 +94,24 @@ func (f *flusher) execute(lazy bool) {
 		}
 		byTable[e.Action] = append(byTable[e.Action], e)
 	}
+	fmt.Printf("GROUP: %v\n\n", group)
+	startTransaction := make(map[*DB]bool)
+MAIN:
+	for db, byDB := range group {
+		if !db.IsInTransaction() {
+			if len(byDB) > 1 {
+				startTransaction[db] = true
+				continue
+			}
+			for _, byAction := range byDB {
+				if len(byAction) > 1 {
+					startTransaction[db] = true
+					continue MAIN
+				}
+			}
+		}
+	}
+	fmt.Printf("START TRANSACTIONS: %v\n\n", startTransaction)
 	f.events = nil
 	os.Exit(0)
 }
