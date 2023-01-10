@@ -143,7 +143,7 @@ func (f *flusher) execute(lazy bool) {
 				}
 			}
 			if checkReferences {
-				fmt.Printf("TODO\n")
+				fmt.Printf("TODO z events przeniesc ID do f.events\n")
 				checkReferences = false
 			}
 			if !checkReferences {
@@ -159,7 +159,6 @@ func (f *flusher) execute(lazy bool) {
 }
 
 func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {
-	//TODO
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
 	f.stringBuilder.WriteString("(")
@@ -195,7 +194,6 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 			e.ID = newID
 			newID += db.GetPoolConfig().getAutoincrement()
 		}
-
 	}
 }
 
