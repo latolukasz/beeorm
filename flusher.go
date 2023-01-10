@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Bind map[string]string
@@ -52,6 +53,7 @@ type flusher struct {
 	trackedEntitiesCounter int
 	serializer             *serializer
 	events                 []*EntitySQLFlush
+	stringBuilder          strings.Builder
 }
 
 func (f *flusher) addFlushEvent(sqlFlush *EntitySQLFlush) {
@@ -78,57 +80,123 @@ func (f *flusher) execute(lazy bool) {
 		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events)
 		return
 	}
-	group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
-	for _, e := range f.events {
-		schema := f.engine.registry.GetTableSchema(e.EntityName)
-		db := schema.GetMysql(f.engine)
-		byDB, hasDB := group[db]
-		if !hasDB {
-			byDB = make(map[string]map[FlushType][]*EntitySQLFlush)
-			group[db] = byDB
-		}
-		byTable, hasTable := byDB[schema.GetTableName()]
-		if !hasTable {
-			byTable = make(map[FlushType][]*EntitySQLFlush)
-			byDB[schema.GetTableName()] = byTable
-		}
-		byTable[e.Action] = append(byTable[e.Action], e)
-	}
-	fmt.Printf("GROUP: %v\n\n", group)
-	startTransaction := make(map[*DB]bool)
-MAIN:
-	for db, byDB := range group {
-		if !db.IsInTransaction() {
-			if len(byDB) > 1 {
-				startTransaction[db] = true
-				continue
+	checkReferences := true
+	for checkReferences {
+		checkReferences = false
+		group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
+		for _, e := range f.events {
+			if len(e.References) > 0 {
+				checkReferences = true
+			} else {
+				schema := f.engine.registry.GetTableSchema(e.EntityName)
+				db := schema.GetMysql(f.engine)
+				byDB, hasDB := group[db]
+				if !hasDB {
+					byDB = make(map[string]map[FlushType][]*EntitySQLFlush)
+					group[db] = byDB
+				}
+				byTable, hasTable := byDB[schema.GetTableName()]
+				if !hasTable {
+					byTable = make(map[FlushType][]*EntitySQLFlush)
+					byDB[schema.GetTableName()] = byTable
+				}
+				byTable[e.Action] = append(byTable[e.Action], e)
 			}
-			for _, byAction := range byDB {
-				if len(byAction) > 1 {
+		}
+		fmt.Printf("GROUP: %v\n\n", group)
+		startTransaction := make(map[*DB]bool)
+	MAIN:
+		for db, byDB := range group {
+			if !db.IsInTransaction() {
+				if len(byDB) > 1 || checkReferences {
 					startTransaction[db] = true
-					continue MAIN
+					continue
+				}
+				for _, byAction := range byDB {
+					if len(byAction) > 1 {
+						startTransaction[db] = true
+						continue MAIN
+					}
 				}
 			}
 		}
-	}
-	fmt.Printf("START TRANSACTIONS: %v\n\n", startTransaction)
-	f.engine.EnableQueryDebug()
-	func() {
-		for db := range startTransaction {
-			db.Begin()
-		}
-		defer func() {
+		fmt.Printf("START TRANSACTIONS: %v\n\n", startTransaction)
+		f.engine.EnableQueryDebug()
+		func() {
 			for db := range startTransaction {
-				db.Rollback()
+				db.Begin()
+			}
+			defer func() {
+				for db := range startTransaction {
+					db.Rollback()
+				}
+			}()
+			for db, byDB := range group {
+				for tableName, byAction := range byDB {
+					for action, events := range byAction {
+						switch action {
+						case Insert:
+							f.executeInserts(db, tableName, events)
+							break
+						}
+					}
+				}
+			}
+			if checkReferences {
+				fmt.Printf("TODO\n")
+				checkReferences = false
+			}
+			if !checkReferences {
+				for db := range startTransaction {
+					db.Commit()
+				}
 			}
 		}()
-		for db := range startTransaction {
-			db.Commit()
-		}
-	}()
+	}
 
 	f.events = nil
 	os.Exit(0)
+}
+
+func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {
+	//TODO
+	f.stringBuilder.Reset()
+	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
+	f.stringBuilder.WriteString("(")
+	k := 0
+	columns := make([]string, len(events[0].Update))
+	for column := range events[0].Update {
+		if k > 0 {
+			f.stringBuilder.WriteString(",")
+		}
+		f.stringBuilder.WriteString("`" + column + "`")
+		columns[k] = column
+		k++
+	}
+	f.stringBuilder.WriteString(") VALUES")
+	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)-1) + ")"
+	f.stringBuilder.WriteString(valuesPart)
+	f.stringBuilder.WriteString(strings.Repeat(valuesPart, len(events)-1))
+
+	args := make([]interface{}, 0)
+	for _, e := range events {
+		for _, column := range columns {
+			val := e.Update[column]
+			if val == "NULL" {
+				args = append(args, nil)
+			} else {
+				args = append(args, val)
+			}
+		}
+	}
+	newID := db.Exec(f.stringBuilder.String(), args...).LastInsertId()
+	for _, e := range events {
+		if e.ID == 0 {
+			e.ID = newID
+			newID += db.GetPoolConfig().getAutoincrement()
+		}
+
+	}
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
