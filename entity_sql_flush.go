@@ -61,10 +61,11 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 
 func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
 	if root {
+		b.index++
 		serializer.DeserializeUInteger()
 	}
 	b.buildRefs(serializer, fields, value)
-	b.buildUIntegers(serializer, fields, value)
+	b.buildUIntegers(serializer, fields, value, root)
 	b.buildIntegers(serializer, fields, value)
 	b.buildBooleans(serializer, fields, value)
 	b.buildFloats(serializer, fields, value)
@@ -228,8 +229,12 @@ var uIntFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value) {
-	b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
+func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value, root bool) {
+	if root {
+		b.build(s, fields, value, fields.uintegers[1:], uIntFieldDataProvider)
+	} else {
+		b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
+	}
 }
 
 var intFieldDataProvider = fieldDataProvider{
