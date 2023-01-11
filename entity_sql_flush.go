@@ -196,11 +196,7 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				if field.IsNil() {
 					return nil
 				}
-				id := field.Elem().Field(1).Uint()
-				if id == 0 {
-					return field.Pointer()
-				}
-				return id
+				return field.Elem().Field(1).Uint()
 			},
 			serializeGetter: serializeGetterUint,
 			bindSetter: func(val interface{}, deserialized bool) string {
@@ -209,10 +205,6 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				}
 				if val == nil {
 					return "NULL"
-				}
-				p, isPointer := val.(uintptr)
-				if isPointer {
-					return strconv.FormatInt(int64(p), 10)
 				}
 				return strconv.FormatUint(val.(uint64), 10)
 			},
