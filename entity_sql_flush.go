@@ -22,6 +22,7 @@ type EntitySQLFlush struct {
 	UpdateOnDuplicate Bind
 	Address           uintptr
 	References        map[string]uintptr
+	flushed           bool
 }
 
 type entityFlushBuilder struct {

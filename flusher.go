@@ -85,6 +85,9 @@ func (f *flusher) execute(lazy bool) {
 		checkReferences = false
 		group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
 		for _, e := range f.events {
+			if e.flushed {
+				continue
+			}
 			if len(e.References) > 0 {
 				checkReferences = true
 			} else {
@@ -137,14 +140,22 @@ func (f *flusher) execute(lazy bool) {
 						switch action {
 						case Insert:
 							f.executeInserts(db, tableName, events)
+							if checkReferences {
+								for _, e := range f.events {
+									for column, address := range e.References {
+										for _, inserted := range events {
+											if inserted.Address == address {
+												e.Update[column] = strconv.FormatUint(inserted.ID, 10)
+												delete(e.References, column)
+											}
+										}
+									}
+								}
+							}
 							break
 						}
 					}
 				}
-			}
-			if checkReferences {
-				fmt.Printf("TODO z events przeniesc ID do f.events\n")
-				checkReferences = false
 			}
 			if !checkReferences {
 				for db := range startTransaction {
@@ -190,6 +201,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 	}
 	newID := db.Exec(f.stringBuilder.String(), args...).LastInsertId()
 	for _, e := range events {
+		e.flushed = true
 		if e.ID == 0 {
 			e.ID = newID
 			newID += db.GetPoolConfig().getAutoincrement()
