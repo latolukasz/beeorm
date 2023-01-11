@@ -409,11 +409,14 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 					}
 					return fields.enums[k].GetFields()[i-1]
 				}
-				s := val.(string)
-				if s == "" && b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
-					return fields.enums[k].GetDefault()
+				str := val.(string)
+				if str == "" {
+					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+						return fields.enums[k].GetDefault()
+					}
+					return "NULL"
 				}
-				return s
+				return str
 			},
 			bindCompare: func(old, new interface{}, _ int, _ *tableFields) bool {
 				return old == uint64(fields.enums[k].Index(new.(string)))
@@ -509,7 +512,7 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 		s,
 		fields,
 		value,
-		fields.sliceStringsSets,
+		fields.jsons,
 		fieldDataProvider{
 			fieldGetter: func(field reflect.Value) interface{} {
 				return field.Interface()
