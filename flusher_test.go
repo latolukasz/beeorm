@@ -310,57 +310,55 @@ func (av attributesValues) UnmarshalJSON(data []byte) error {
 }
 
 type flushEntity struct {
-	ORM                   `orm:"localCache;redisCache"`
-	ID                    uint
-	City                  string `orm:"unique=city"`
-	Name                  string `orm:"unique=name;required"`
-	NameTranslated        map[string]string
-	Age                   int
-	Uint                  uint
-	UintNullable          *uint
-	IntNullable           *int
-	Year                  uint16  `orm:"year"`
-	YearNullable          *uint16 `orm:"year"`
-	BoolNullable          *bool
-	FloatNullable         *float64              `orm:"precision=10"`
-	Float32Nullable       *float32              `orm:"precision=4"`
-	ReferenceOne          *flushEntityReference `orm:"unique=ReferenceOne"`
-	ReferenceTwo          *flushEntityReference `orm:"unique=ReferenceTwo"`
-	ReferenceMany         []*flushEntityReference
-	ReferenceManyRequired []*flushEntityReference `orm:"required"`
-	StringSlice           []string
-	StringSliceNotNull    []string `orm:"required"`
-	SetNullable           []string `orm:"set=beeorm.TestSet"`
-	SetNotNull            []string `orm:"set=beeorm.TestSet;required"`
-	EnumNullable          string   `orm:"enum=beeorm.TestEnum"`
-	EnumNotNull           string   `orm:"enum=beeorm.TestEnum;required"`
-	Ignored               []string `orm:"ignore"`
-	Blob                  []uint8
-	Bool                  bool
-	FakeDelete            bool
-	Float64               float64  `orm:"precision=10"`
-	Decimal               float64  `orm:"decimal=5,2"`
-	DecimalNullable       *float64 `orm:"decimal=5,2"`
-	Float64Default        float64  `orm:"unsigned"`
-	Float64Signed         float64
-	CachedQuery           *CachedQuery
-	Time                  time.Time
-	TimeWithTime          time.Time `orm:"time"`
-	TimeNullable          *time.Time
-	TimeWithTimeNullable  *time.Time `orm:"time"`
-	Interface             interface{}
-	FlushStruct           flushStruct
-	FlushStructPtr        *flushStruct
-	Int8Nullable          *int8
-	Int16Nullable         *int16
-	Int32Nullable         *int32
-	Int64Nullable         *int64
-	Uint8Nullable         *uint8
-	Uint16Nullable        *uint16
-	Uint32Nullable        *uint32
-	Uint64Nullable        *uint64
-	Images                []obj
-	AttributesValues      attributesValues
+	ORM                  `orm:"localCache;redisCache"`
+	ID                   uint
+	City                 string `orm:"unique=city"`
+	Name                 string `orm:"unique=name;required"`
+	NameTranslated       map[string]string
+	Age                  int
+	Uint                 uint
+	UintNullable         *uint
+	IntNullable          *int
+	Year                 uint16  `orm:"year"`
+	YearNullable         *uint16 `orm:"year"`
+	BoolNullable         *bool
+	FloatNullable        *float64              `orm:"precision=10"`
+	Float32Nullable      *float32              `orm:"precision=4"`
+	ReferenceOne         *flushEntityReference `orm:"unique=ReferenceOne"`
+	ReferenceTwo         *flushEntityReference `orm:"unique=ReferenceTwo"`
+	StringSlice          []string
+	StringSliceNotNull   []string `orm:"required"`
+	SetNullable          []string `orm:"set=beeorm.TestSet"`
+	SetNotNull           []string `orm:"set=beeorm.TestSet;required"`
+	EnumNullable         string   `orm:"enum=beeorm.TestEnum"`
+	EnumNotNull          string   `orm:"enum=beeorm.TestEnum;required"`
+	Ignored              []string `orm:"ignore"`
+	Blob                 []uint8
+	Bool                 bool
+	FakeDelete           bool
+	Float64              float64  `orm:"precision=10"`
+	Decimal              float64  `orm:"decimal=5,2"`
+	DecimalNullable      *float64 `orm:"decimal=5,2"`
+	Float64Default       float64  `orm:"unsigned"`
+	Float64Signed        float64
+	CachedQuery          *CachedQuery
+	Time                 time.Time
+	TimeWithTime         time.Time `orm:"time"`
+	TimeNullable         *time.Time
+	TimeWithTimeNullable *time.Time `orm:"time"`
+	Interface            interface{}
+	FlushStruct          flushStruct
+	FlushStructPtr       *flushStruct
+	Int8Nullable         *int8
+	Int16Nullable        *int16
+	Int32Nullable        *int32
+	Int64Nullable        *int64
+	Uint8Nullable        *uint8
+	Uint16Nullable       *uint16
+	Uint32Nullable       *uint32
+	Uint64Nullable       *uint64
+	Images               []obj
+	AttributesValues     attributesValues
 	flushStructAnonymous
 }
 
@@ -422,7 +420,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
 	entity.NameTranslated = map[string]string{"pl": "kot", "en": "cat"}
 	entity.ReferenceOne = &flushEntityReference{Name: "John", Age: 30}
-	entity.ReferenceMany = []*flushEntityReference{{Name: "Adam", Age: 18}}
 	entity.StringSlice = []string{"a", "b"}
 	entity.StringSliceNotNull = []string{"c", "d"}
 	entity.SetNotNull = []string{"d", "e"}
@@ -454,10 +451,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.NotEqual(t, uint(0), entity.ReferenceOne.ID)
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.NotEqual(t, uint(0), entity.ReferenceMany[0].ID)
-	assert.True(t, entity.ReferenceMany[0].IsLoaded())
 	refOneID := entity.ReferenceOne.ID
-	refManyID := entity.ReferenceMany[0].ID
 
 	entity = &flushEntity{}
 	found := engine.LoadByID(2, entity)
@@ -509,9 +503,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Uint64Nullable)
 	assert.Equal(t, "Adam", entity.SubName)
 	assert.Equal(t, float32(39.123), entity.SubAge)
-	assert.NotNil(t, entity.ReferenceMany)
-	assert.Len(t, entity.ReferenceMany, 1)
-	assert.Equal(t, refManyID, entity.ReferenceMany[0].ID)
 	assert.Equal(t, "Ita", entity.FlushStruct.Name2)
 	assert.Equal(t, 13, entity.FlushStruct.Sub.Age3)
 	assert.Equal(t, "Nanami", entity.FlushStruct.Sub.Name3)
@@ -565,7 +556,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.StringSlice = []string{"a"}
 	entity.DecimalNullable = &entity.Decimal
 	entity.Interface = map[string]int{"test": 12}
-	entity.ReferenceMany = nil
 	engine.Flush(entity)
 
 	reference = &flushEntityReference{}
@@ -598,17 +588,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 134.35, entity.Decimal)
 	assert.Equal(t, 134.35, *entity.DecimalNullable)
 	assert.Equal(t, float32(39.123), entity.SubAge)
-	assert.Nil(t, entity.ReferenceMany)
 	assert.False(t, entity.IsDirty())
 	assert.False(t, reference.IsDirty())
 	assert.True(t, reference.IsLoaded())
-
-	entity.ReferenceMany = []*flushEntityReference{}
-	assert.False(t, entity.IsDirty())
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(1, entity)
-	assert.Nil(t, entity.ReferenceMany)
 
 	entity2 := &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
 	assert.PanicsWithError(t, "Duplicate entry 'Tom' for key 'name'", func() {
@@ -867,17 +849,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		assert.Equal(t, "COMMIT", testLogger.Logs[2]["query"])
 	}
 
-	entity = &flushEntity{Name: "Monica", EnumNotNull: "a", ReferenceMany: []*flushEntityReference{{Name: "Adam Junior"}}}
-	engine.Flush(entity)
-	assert.Equal(t, uint(101), entity.ID)
-	assert.Equal(t, uint(3), entity.ReferenceMany[0].ID)
-
-	entity = &flushEntity{Name: "John", EnumNotNull: "a", ReferenceMany: []*flushEntityReference{}}
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(102, entity)
-	assert.Nil(t, entity.ReferenceMany)
-
 	entity1 = &flushEntity{}
 	engine.LoadByID(13, entity1)
 	entity2 = &flushEntity{}
@@ -1000,37 +971,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.SetNullable = []string{"f", "d"}
 	assert.False(t, entity.IsDirty())
 
-	entity.ReferenceMany = []*flushEntityReference{{ID: 1}, {ID: 2}}
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(102, entity)
-	assert.Len(t, entity.ReferenceMany, 2)
-	assert.True(t, entity.ReferenceMany[0].ID == 1 || entity.ReferenceMany[0].ID == 2)
-	assert.True(t, entity.ReferenceMany[1].ID == 1 || entity.ReferenceMany[1].ID == 2)
-	entity.ReferenceMany = []*flushEntityReference{{ID: 1}, {ID: 3}}
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(102, entity)
-	assert.Len(t, entity.ReferenceMany, 2)
-	assert.True(t, entity.ReferenceMany[0].ID == 1 || entity.ReferenceMany[0].ID == 3)
-	assert.True(t, entity.ReferenceMany[1].ID == 1 || entity.ReferenceMany[1].ID == 3)
-
-	entity.ReferenceManyRequired = []*flushEntityReference{{ID: 1}, {ID: 2}}
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(102, entity)
-	assert.Len(t, entity.ReferenceManyRequired, 2)
-	assert.True(t, entity.ReferenceManyRequired[0].ID == 1 || entity.ReferenceManyRequired[0].ID == 2)
-	assert.True(t, entity.ReferenceManyRequired[1].ID == 1 || entity.ReferenceManyRequired[1].ID == 2)
-	assert.False(t, entity.IsDirty())
-	entity.ReferenceManyRequired = nil
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(102, entity)
-	assert.Len(t, entity.ReferenceManyRequired, 0)
-	assert.False(t, entity.IsDirty())
-	engine.ForceDelete(entity)
-
 	date = time.Unix(1, 0).UTC()
 	entity = &flushEntity{}
 	engine.LoadByID(11, entity)
@@ -1049,7 +989,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeNullable = &n
 	entity.TimeWithTimeNullable = &n
 	entity.Interface = "ss"
-	entity.ReferenceMany = []*flushEntityReference{}
 	engine.LoadByID(11, entity)
 	assert.Equal(t, date, entity.TimeWithTime.UTC())
 	assert.Nil(t, entity.UintNullable)
@@ -1059,7 +998,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.TimeNullable)
 	assert.Nil(t, entity.TimeWithTimeNullable)
 	assert.Nil(t, entity.Interface)
-	assert.Nil(t, entity.ReferenceMany)
 
 	entity = &flushEntity{}
 	engine.LoadByID(101, entity)
