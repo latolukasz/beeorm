@@ -442,8 +442,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Track(entity)
 	flusher.Flush()
-	os.Exit(0)
 	flusher.Flush()
+	os.Exit(0)
 
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())

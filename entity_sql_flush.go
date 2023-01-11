@@ -60,6 +60,9 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 	b.fillOld = action == Update || action == Delete
 	b.forceFillOld = action == Delete
 	b.fillNew = !b.forceFillOld
+	if b.fillNew || b.forceFillOld {
+		b.Old = make(Bind)
+	}
 	return b
 }
 
