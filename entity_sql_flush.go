@@ -13,6 +13,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+const NullBindValue = "NULL"
+
 type EntitySQLFlush struct {
 	Action            FlushType
 	EntityName        string
@@ -118,7 +120,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 
 			if b.forceFillOld || !same {
 				if old == 0 {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
 				} else {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
 				}
@@ -161,7 +163,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			}
 			if b.forceFillOld || !same {
 				if old {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = "NULL"
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
 				} else {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(oldVal, true)
 				}
@@ -173,7 +175,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
 			if isNil {
-				b.Update[name] = "NULL"
+				b.Update[name] = NullBindValue
 			} else {
 				b.Update[name] = provider.bindSetter(val, false)
 			}
@@ -196,17 +198,22 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				if field.IsNil() {
 					return nil
 				}
-				return field.Elem().Field(1).Uint()
+				id := field.Elem().Field(1).Uint()
+				if id == 0 {
+					return nil
+				}
+				return id
 			},
 			serializeGetter: serializeGetterUint,
 			bindSetter: func(val interface{}, deserialized bool) string {
-				if deserialized {
-					return strconv.FormatUint(val.(uint64), 10)
-				}
 				if val == nil {
-					return "NULL"
+					return NullBindValue
 				}
-				return strconv.FormatUint(val.(uint64), 10)
+				id := val.(uint64)
+				if id == 0 {
+					return NullBindValue
+				}
+				return strconv.FormatUint(id, 10)
 			},
 		},
 	)
@@ -373,7 +380,7 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 			bindSetter: func(val interface{}, _ bool) string {
 				str := val.(string)
 				if str == "" && b.orm.tableSchema.GetTagBool(name, "required") {
-					return "NULL"
+					return NullBindValue
 				}
 				return str
 			},
@@ -405,7 +412,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				if deserialized {
 					i := val.(uint64)
 					if i == 0 {
-						return "NULL"
+						return NullBindValue
 					}
 					return fields.enums[k].GetFields()[i-1]
 				}
@@ -414,7 +421,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 						return fields.enums[k].GetDefault()
 					}
-					return "NULL"
+					return NullBindValue
 				}
 				return str
 			},
@@ -443,7 +450,7 @@ func (b *entityFlushBuilder) buildBytes(s *serializer, fields *tableFields, valu
 			bindSetter: func(val interface{}, _ bool) string {
 				str := val.(string)
 				if str == "" {
-					return "NULL"
+					return NullBindValue
 				}
 				return ""
 			},
@@ -470,7 +477,7 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 						if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 							return ""
 						}
-						return "NULL"
+						return NullBindValue
 					}
 					values := make([]string, i)
 					for j := 0; j < i; j++ {
@@ -483,7 +490,7 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 						return ""
 					}
-					return "NULL"
+					return NullBindValue
 				}
 				sort.Strings(values)
 				return strings.Join(values, ",")
@@ -532,7 +539,7 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 						return ""
 					}
-					return "NULL"
+					return NullBindValue
 				}
 				v, err := jsoniter.ConfigFastest.MarshalToString(val)
 				checkError(err)

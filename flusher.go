@@ -116,7 +116,6 @@ func (f *flusher) execute(lazy bool) {
 					byTable[e.Action] = append(byTable[e.Action], e)
 				}
 			}
-			fmt.Printf("GROUP: %v\n\n", group)
 		MAIN:
 			for db, byDB := range group {
 				if !db.IsInTransaction() {
@@ -195,7 +194,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 	for _, e := range events {
 		for _, column := range columns {
 			val := e.Update[column]
-			if val == "NULL" {
+			if val == NullBindValue {
 				args = append(args, nil)
 			} else {
 				args = append(args, val)
