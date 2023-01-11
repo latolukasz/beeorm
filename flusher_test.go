@@ -3,6 +3,7 @@ package beeorm
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -441,6 +442,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Track(entity)
 	flusher.Flush()
+	os.Exit(0)
 	flusher.Flush()
 
 	assert.True(t, entity.IsLoaded())

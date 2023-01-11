@@ -25,6 +25,7 @@ type EntitySQLFlush struct {
 	Address           uintptr
 	References        map[string]uintptr
 	flushed           bool
+	entity            Entity
 }
 
 type entityFlushBuilder struct {

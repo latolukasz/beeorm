@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -168,7 +167,6 @@ func (f *flusher) execute(lazy bool) {
 	}()
 
 	f.events = nil
-	os.Exit(0)
 }
 
 func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {
@@ -204,6 +202,15 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 	newID := db.Exec(f.stringBuilder.String(), args...).LastInsertId()
 	for _, e := range events {
 		e.flushed = true
+		if e.entity != nil {
+			orm := e.entity.getORM()
+			orm.inDB = true
+			orm.loaded = true
+			if e.ID == 0 {
+				orm.idElem.SetUint(newID)
+			}
+			orm.serialize(f.getSerializer())
+		}
 		if e.ID == 0 {
 			e.ID = newID
 			newID += db.GetPoolConfig().getAutoincrement()
@@ -332,6 +339,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 		}
 		orm := entity.getORM()
 		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer())
+		entitySQLFlushData.entity = entity
 		if !isDirty {
 			continue
 		}
