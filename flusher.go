@@ -81,59 +81,62 @@ func (f *flusher) execute(lazy bool) {
 		return
 	}
 	checkReferences := true
-	for checkReferences {
-		checkReferences = false
-		group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
-		for _, e := range f.events {
-			if e.flushed {
-				continue
-			}
-			if len(e.References) > 0 {
-				checkReferences = true
-			} else {
-				schema := f.engine.registry.GetTableSchema(e.EntityName)
-				db := schema.GetMysql(f.engine)
-				byDB, hasDB := group[db]
-				if !hasDB {
-					byDB = make(map[string]map[FlushType][]*EntitySQLFlush)
-					group[db] = byDB
+	startTransaction := make(map[*DB]bool)
+	f.engine.EnableQueryDebug()
+	func() {
+		defer func() {
+			for db := range startTransaction {
+				if db.inTransaction {
+					db.Rollback()
 				}
-				byTable, hasTable := byDB[schema.GetTableName()]
-				if !hasTable {
-					byTable = make(map[FlushType][]*EntitySQLFlush)
-					byDB[schema.GetTableName()] = byTable
-				}
-				byTable[e.Action] = append(byTable[e.Action], e)
 			}
-		}
-		fmt.Printf("GROUP: %v\n\n", group)
-		startTransaction := make(map[*DB]bool)
-	MAIN:
-		for db, byDB := range group {
-			if !db.IsInTransaction() {
-				if len(byDB) > 1 || checkReferences {
-					startTransaction[db] = true
+		}()
+		for checkReferences {
+			checkReferences = false
+			group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
+			for _, e := range f.events {
+				if e.flushed {
 					continue
 				}
-				for _, byAction := range byDB {
-					if len(byAction) > 1 {
+				if len(e.References) > 0 {
+					checkReferences = true
+				} else {
+					schema := f.engine.registry.GetTableSchema(e.EntityName)
+					db := schema.GetMysql(f.engine)
+					byDB, hasDB := group[db]
+					if !hasDB {
+						byDB = make(map[string]map[FlushType][]*EntitySQLFlush)
+						group[db] = byDB
+					}
+					byTable, hasTable := byDB[schema.GetTableName()]
+					if !hasTable {
+						byTable = make(map[FlushType][]*EntitySQLFlush)
+						byDB[schema.GetTableName()] = byTable
+					}
+					byTable[e.Action] = append(byTable[e.Action], e)
+				}
+			}
+			fmt.Printf("GROUP: %v\n\n", group)
+		MAIN:
+			for db, byDB := range group {
+				if !db.IsInTransaction() {
+					if len(byDB) > 1 || checkReferences {
 						startTransaction[db] = true
-						continue MAIN
+						continue
+					}
+					for _, byAction := range byDB {
+						if len(byAction) > 1 {
+							startTransaction[db] = true
+							continue MAIN
+						}
 					}
 				}
 			}
-		}
-		fmt.Printf("START TRANSACTIONS: %v\n\n", startTransaction)
-		f.engine.EnableQueryDebug()
-		func() {
 			for db := range startTransaction {
-				db.Begin()
-			}
-			defer func() {
-				for db := range startTransaction {
-					db.Rollback()
+				if !db.inTransaction {
+					db.Begin()
 				}
-			}()
+			}
 			for db, byDB := range group {
 				for tableName, byAction := range byDB {
 					for action, events := range byAction {
@@ -162,8 +165,8 @@ func (f *flusher) execute(lazy bool) {
 					db.Commit()
 				}
 			}
-		}()
-	}
+		}
+	}()
 
 	f.events = nil
 	os.Exit(0)
