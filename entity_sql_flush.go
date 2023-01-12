@@ -154,9 +154,9 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			val = provider.fieldGetter(f.Elem())
 		}
 		if b.fillOld {
-			old := serializer.DeserializeBool()
+			oldIsNil := !serializer.DeserializeBool()
 			var oldVal interface{}
-			same := old == isNil
+			same := oldIsNil == isNil
 			if same && !isNil {
 				oldVal = provider.serializeGetter(serializer, f)
 				if provider.bindCompare != nil {
@@ -166,7 +166,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 				}
 			}
 			if b.forceFillOld || !same {
-				if old {
+				if oldIsNil {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
 				} else {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(oldVal, true)
