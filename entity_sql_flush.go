@@ -68,11 +68,13 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 
 func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, value reflect.Value, root bool) {
 	if root {
-		b.index++
 		serializer.DeserializeUInteger()
 	}
 	b.buildRefs(serializer, fields, value)
-	b.buildUIntegers(serializer, fields, value, root)
+	b.buildUIntegers(serializer, fields, value)
+	if root && b.Action == Insert && b.ID == 0 {
+		delete(b.Update, "ID")
+	}
 	b.buildIntegers(serializer, fields, value)
 	b.buildBooleans(serializer, fields, value)
 	b.buildFloats(serializer, fields, value)
@@ -154,11 +156,13 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			val = provider.fieldGetter(f.Elem())
 		}
 		if b.fillOld {
-			oldIsNil := !serializer.DeserializeBool()
 			var oldVal interface{}
+			oldIsNil := !serializer.DeserializeBool()
+			if !oldIsNil {
+				oldVal = provider.serializeGetter(serializer, f)
+			}
 			same := oldIsNil == isNil
 			if same && !isNil {
-				oldVal = provider.serializeGetter(serializer, f)
 				if provider.bindCompare != nil {
 					same = provider.bindCompare(oldVal, val, key, fields)
 				} else {
@@ -233,12 +237,8 @@ var uIntFieldDataProvider = fieldDataProvider{
 	},
 }
 
-func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value, root bool) {
-	if root {
-		b.build(s, fields, value, fields.uintegers[1:], uIntFieldDataProvider)
-	} else {
-		b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
-	}
+func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value) {
+	b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
 }
 
 var intFieldDataProvider = fieldDataProvider{
