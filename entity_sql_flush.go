@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"sort"
@@ -46,6 +47,7 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 	} else if orm.inDB {
 		action = Update
 	}
+	fmt.Printf("ACTION %s\n", action)
 	schema := orm.tableSchema
 	flushData := &EntitySQLFlush{}
 	flushData.Action = action
@@ -72,9 +74,6 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 	}
 	b.buildRefs(serializer, fields, value)
 	b.buildUIntegers(serializer, fields, value)
-	if root && b.Action == Insert && b.ID == 0 {
-		delete(b.Update, "ID")
-	}
 	b.buildIntegers(serializer, fields, value)
 	b.buildBooleans(serializer, fields, value)
 	b.buildFloats(serializer, fields, value)
@@ -204,19 +203,12 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 		fieldDataProvider{
 			fieldGetter: func(field reflect.Value) interface{} {
 				if field.IsNil() {
-					return nil
+					return uint64(0)
 				}
-				id := field.Elem().Field(1).Uint()
-				if id == 0 {
-					return nil
-				}
-				return id
+				return field.Elem().Field(1).Uint()
 			},
 			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, deserialized bool) string {
-				if val == nil {
-					return NullBindValue
-				}
+			bindSetter: func(val interface{}, _ bool) string {
 				id := val.(uint64)
 				if id == 0 {
 					return NullBindValue

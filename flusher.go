@@ -26,6 +26,20 @@ const (
 	Delete
 )
 
+func (ft FlushType) String() string {
+	switch ft {
+	case Insert:
+		return "INSERT"
+	case InsertUpdate:
+		return "INSERT ON DUPLICATE KEY UPDATE"
+	case Update:
+		return "UPDATE"
+	case Delete:
+		return "DELETE"
+	}
+	return ""
+}
+
 type ForeignKeyError struct {
 	Message    string
 	Constraint string

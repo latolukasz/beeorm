@@ -442,6 +442,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Track(entity)
 	flusher.Flush()
+	fmt.Printf("START\n")
+	bind, isDirty := entity.GetDirtyBind()
+	fmt.Printf("%v\n", bind)
+	os.Exit(0)
+	assert.False(t, isDirty)
+	assert.Nil(t, bind)
 	flusher.Flush()
 	os.Exit(0)
 
