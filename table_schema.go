@@ -111,7 +111,6 @@ type tableSchema struct {
 	uniqueIndices           map[string][]string
 	uniqueIndicesGlobal     map[string][]string
 	refOne                  []string
-	idIndex                 int
 	localCacheName          string
 	hasLocalCache           bool
 	redisCacheName          string
@@ -488,7 +487,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	for i, name := range tableSchema.columnNames {
 		columnMapping[name] = i
 	}
-	tableSchema.idIndex = columnMapping["ID"]
 	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+tableSchema.fieldsQuery)))
 	cachePrefix = cachePrefix[0:5]
 	h := fnv.New32a()
@@ -1068,8 +1066,8 @@ func (tableSchema *tableSchema) NewEntity() Entity {
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {
 	fieldsQuery := ""
 	columns := make([]string, 0)
-	ids := fields.refs
-	ids = append(ids, fields.uintegers...)
+	ids := fields.uintegers
+	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
 	ids = append(ids, fields.floats...)

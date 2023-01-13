@@ -452,8 +452,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, entity.IsDirty())
 	assert.False(t, entity.ReferenceOne.IsDirty())
 	assert.Equal(t, uint(1), entity.ID)
-	os.Exit(0)
-	assert.NotEqual(t, uint(0), entity.ReferenceOne.ID)
+	assert.Equal(t, uint(1), entity.ReferenceOne.ID)
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	refOneID := entity.ReferenceOne.ID
@@ -462,6 +461,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found := engine.LoadByID(2, entity)
 	assert.False(t, found)
 	found = engine.LoadByID(1, entity)
+	os.Exit(0)
 
 	assert.True(t, found)
 	assert.Equal(t, "Tom", entity.Name)

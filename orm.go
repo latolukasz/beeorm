@@ -138,7 +138,7 @@ func (orm *ORM) serialize(serializer *serializer) {
 }
 
 func (orm *ORM) deserializeFromDB(serializer *serializer, pointers []interface{}) {
-	orm.deserializeStructFromDB(serializer, 0, orm.tableSchema.fields, pointers, true)
+	orm.deserializeStructFromDB(serializer, 1, orm.tableSchema.fields, pointers, true)
 	orm.binary = serializer.Read()
 }
 
@@ -146,13 +146,13 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	if root {
 		serializer.SerializeUInteger(orm.tableSchema.structureHash)
 	}
+	for range fields.uintegers {
+		serializer.SerializeUInteger(*pointers[index].(*uint64))
+		index++
+	}
 	for range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeUInteger(uint64(v.Int64))
-		index++
-	}
-	for range fields.uintegers {
-		serializer.SerializeUInteger(*pointers[index].(*uint64))
 		index++
 	}
 	for range fields.integers {
@@ -297,6 +297,9 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 	if root {
 		serialized.SerializeUInteger(orm.tableSchema.structureHash)
 	}
+	for _, i := range fields.uintegers {
+		serialized.SerializeUInteger(elem.Field(i).Uint())
+	}
 	for _, i := range fields.refs {
 		f := elem.Field(i)
 		id := uint64(0)
@@ -304,9 +307,6 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 			id = f.Elem().Field(1).Uint()
 		}
 		serialized.SerializeUInteger(id)
-	}
-	for _, i := range fields.uintegers {
-		serialized.SerializeUInteger(elem.Field(i).Uint())
 	}
 	for _, i := range fields.integers {
 		serialized.SerializeInteger(elem.Field(i).Int())
@@ -474,6 +474,9 @@ func (orm *ORM) deserialize(serializer *serializer) {
 }
 
 func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
+	for _, i := range fields.uintegers {
+		elem.Field(i).SetUint(serializer.DeserializeUInteger())
+	}
 	k := 0
 	for _, i := range fields.refs {
 		id := serializer.DeserializeUInteger()
@@ -489,9 +492,6 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
 		}
 		k++
-	}
-	for _, i := range fields.uintegers {
-		elem.Field(i).SetUint(serializer.DeserializeUInteger())
 	}
 	for _, i := range fields.integers {
 		elem.Field(i).SetInt(serializer.DeserializeInteger())

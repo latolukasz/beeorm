@@ -12,20 +12,22 @@ func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager
 }
 
 func prepareScan(schema *tableSchema) (pointers []interface{}) {
-	count := len(schema.columnNames)
+	count := len(schema.columnNames) + 1
 	pointers = make([]interface{}, count)
-	prepareScanForFields(schema.fields, 0, pointers)
+	id := uint64(0)
+	pointers[0] = &id
+	prepareScanForFields(schema.fields, 1, pointers)
 	return pointers
 }
 
 func prepareScanForFields(fields *tableFields, start int, pointers []interface{}) int {
-	for range fields.refs {
-		v := sql.NullInt64{}
+	for range fields.uintegers {
+		v := uint64(0)
 		pointers[start] = &v
 		start++
 	}
-	for range fields.uintegers {
-		v := uint64(0)
+	for range fields.refs {
+		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
@@ -128,7 +130,7 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 	}
 	/* #nosec */
-	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
+	query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
 
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
@@ -139,7 +141,7 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	id := *pointers[schema.idIndex].(*uint64)
+	id := *pointers[0].(*uint64)
 	fillFromDBRow(serializer, id, engine.registry, pointers, entity)
 	if len(references) > 0 {
 		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
@@ -175,7 +177,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
-		id := *pointers[schema.idIndex].(*uint64)
+		id := *pointers[0].(*uint64)
 		fillFromDBRow(serializer, id, engine.registry, pointers, value.Interface().(Entity))
 		val = reflect.Append(val, value)
 		i++

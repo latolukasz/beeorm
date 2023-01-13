@@ -69,8 +69,8 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 	if root {
 		serializer.DeserializeUInteger()
 	}
-	b.buildRefs(serializer, fields, value)
 	b.buildUIntegers(serializer, fields, value)
+	b.buildRefs(serializer, fields, value)
 	b.buildIntegers(serializer, fields, value)
 	b.buildBooleans(serializer, fields, value)
 	b.buildFloats(serializer, fields, value)

@@ -110,7 +110,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		}
 	}
 	if len(idsDB) > 0 {
-		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
+		query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
 		for _, id := range idsDB[1:] {
 			query += "," + strconv.FormatUint(id, 10)
 		}
@@ -122,7 +122,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		for results.Next() {
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
-			id := *pointers[schema.idIndex].(*uint64)
+			id := *pointers[0].(*uint64)
 			cacheKey := schema.getCacheKey(id)
 			e := schema.NewEntity()
 			k := cacheKeysMap[cacheKey]
@@ -303,12 +303,12 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				q[i] = keys[i]
 				i++
 			}
-			query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strings.Join(q, ",") + ")"
+			query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strings.Join(q, ",") + ")"
 			results, def := db.Query(query)
 			for results.Next() {
 				pointers := prepareScan(schema)
 				results.Scan(pointers...)
-				id := *pointers[schema.idIndex].(*uint64)
+				id := *pointers[0].(*uint64)
 				for _, r := range v2[schema.getCacheKey(id)] {
 					fillFromDBRow(serializer, id, engine.registry, pointers, r)
 				}
