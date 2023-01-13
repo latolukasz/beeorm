@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -47,7 +46,6 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 	} else if orm.inDB {
 		action = Update
 	}
-	fmt.Printf("ACTION %s\n", action)
 	schema := orm.tableSchema
 	flushData := &EntitySQLFlush{}
 	flushData.Action = action
@@ -466,33 +464,66 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 		fieldDataProvider{
 			fieldGetter: func(field reflect.Value) interface{} {
 				k++
-				return field.Interface()
-			},
-			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, deserialized bool) string {
-				if deserialized {
-					i := int(val.(uint64))
-					if i == 0 {
-						if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
-							return ""
-						}
-						return NullBindValue
-					}
-					values := make([]string, i)
-					for j := 0; j < i; j++ {
-						values[j] = fields.enums[k].GetFields()[s.DeserializeUInteger()-1]
-					}
-					return strings.Join(values, ",")
+				if field.IsNil() {
+					return nil
 				}
-				values := val.([]string)
-				if len(values) == 0 {
+				val := field.Interface().([]string)
+				if len(val) == 0 {
+					return nil
+				}
+				return val
+			},
+			serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
+				l := int(s.DeserializeUInteger())
+				if l == 0 {
+					return nil
+				}
+				res := make([]int, l)
+				for j := 0; j < l; j++ {
+					res[j] = int(s.DeserializeUInteger())
+				}
+				return res
+			},
+			bindSetter: func(val interface{}, deserialized bool) string {
+				if val == nil {
 					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 						return ""
 					}
 					return NullBindValue
 				}
-				sort.Strings(values)
-				return strings.Join(values, ",")
+				if deserialized {
+					ids := val.([]int)
+					values := make([]string, len(ids))
+					for i, id := range ids {
+						values[i] = fields.sets[k].GetFields()[id-1]
+					}
+					return strings.Join(values, ",")
+				}
+				return strings.Join(val.([]string), ",")
+			},
+			bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
+				oldIsNil := old == nil
+				newIsNil := new == nil
+				if oldIsNil != newIsNil {
+					return false
+				} else if oldIsNil {
+					return true
+				}
+				oldSlice := old.([]int)
+				newSlice := new.([]string)
+				if len(oldSlice) != len(newSlice) {
+					return false
+				}
+			MAIN:
+				for _, checkOld := range oldSlice {
+					for _, checkNew := range newSlice {
+						if fields.sets[k].GetFields()[checkOld-1] == checkNew {
+							continue MAIN
+						}
+					}
+					return false
+				}
+				return true
 			},
 		})
 }
