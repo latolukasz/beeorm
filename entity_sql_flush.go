@@ -124,15 +124,12 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			}
 
 			if b.forceFillOld || !same {
-				if old == 0 {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
-				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
-				}
+				b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
 			}
 			if same {
 				continue
 			}
+			fmt.Printf("NULL OLD %s %v == %v\n", b.orm.tableSchema.columnNames[b.index], old, val)
 		}
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
@@ -307,7 +304,13 @@ var dateTimeFieldDataProvider = fieldDataProvider{
 		return field.Interface()
 	},
 	serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
-		return s.DeserializeInteger()
+		val := s.DeserializeInteger()
+		if val == zeroDateSeconds {
+			val = 0
+		} else {
+			val -= timeStampSeconds
+		}
+		return val
 	},
 	bindSetter: dateTimeBindSetter(timeFormat),
 	bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
