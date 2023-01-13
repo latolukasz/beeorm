@@ -101,10 +101,11 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 }
 
 type fieldDataProvider struct {
-	fieldGetter     func(field reflect.Value) interface{}
-	serializeGetter func(s *serializer, field reflect.Value) interface{}
-	bindSetter      func(val interface{}, deserialized bool) string
-	bindCompare     func(old, new interface{}, key int, fields *tableFields) bool
+	fieldGetter          func(field reflect.Value) interface{}
+	serializeGetter      func(s *serializer, field reflect.Value) interface{}
+	bindSetter           func(val interface{}, deserialized bool) string
+	bindCompare          func(old, new interface{}, key int, fields *tableFields) bool
+	bindCompareAndSetter func(old, new interface{}, field reflect.Value) (bool, string, string)
 }
 
 func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
@@ -115,14 +116,20 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 		if b.fillOld {
 			old := provider.serializeGetter(serializer, f)
 			var same bool
-			if provider.bindCompare != nil {
+			if provider.bindCompareAndSetter != nil {
+				same, val, old = provider.bindCompareAndSetter(old, val, f)
+			} else if provider.bindCompare != nil {
 				same = provider.bindCompare(old, val, key, fields)
 			} else {
 				same = old == val
 			}
 
 			if b.forceFillOld || !same {
-				b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
+				if provider.bindCompareAndSetter != nil {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = old.(string)
+				} else {
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
+				}
 			}
 			if same {
 				continue
@@ -132,7 +139,10 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
 			if b.Update == nil {
-				b.Update = Bind{name: provider.bindSetter(val, false)}
+				b.Update = Bind{}
+			}
+			if b.fillOld && provider.bindCompareAndSetter != nil {
+				b.Update[name] = val.(string)
 			} else {
 				b.Update[name] = provider.bindSetter(val, false)
 			}
@@ -544,7 +554,23 @@ func (b *entityFlushBuilder) buildDatesNullable(s *serializer, fields *tableFiel
 	b.buildNullable(s, fields, value, fields.datesNullable, dateFieldDataProvider)
 }
 
+func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized bool) string {
+	if val == nil {
+		if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+			return ""
+		}
+		return NullBindValue
+	}
+	if deserialized {
+		return string(val.([]byte))
+	}
+	v, err := jsoniter.ConfigFastest.MarshalToString(val)
+	checkError(err)
+	return v
+}
+
 func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, value reflect.Value) {
+
 	b.build(
 		s,
 		fields,
@@ -555,28 +581,26 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 				return field.Interface()
 			},
 			serializeGetter: func(s *serializer, field reflect.Value) interface{} {
-				v := s.DeserializeBytes()
-				if v == nil {
-					return nil
-				}
-				oldValue := reflect.New(field.Type()).Elem().Interface()
-				err := jsoniter.ConfigFastest.Unmarshal(v, &oldValue)
-				checkError(err)
-				return oldValue
+				return s.DeserializeBytes()
 			},
-			bindSetter: func(val interface{}, deserialized bool) string {
-				if val == nil {
-					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
-						return ""
-					}
-					return NullBindValue
+			bindSetter: b.bindSetterForJSON,
+			bindCompareAndSetter: func(old, new interface{}, field reflect.Value) (bool, string, string) {
+				oldIsNil := old == nil
+				newIsNil := new == nil
+				if oldIsNil != newIsNil {
+					return false, b.bindSetterForJSON(old, true), b.bindSetterForJSON(new, false)
+				} else if oldIsNil {
+					return true, NullBindValue, NullBindValue
 				}
-				v, err := jsoniter.ConfigFastest.MarshalToString(val)
+				oldInstance := reflect.New(field.Type()).Elem().Interface()
+				err := jsoniter.ConfigFastest.Unmarshal(old.([]byte), &oldInstance)
 				checkError(err)
-				return v
-			},
-			bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
-				return cmp.Equal(old, new)
+				newJSON, err := jsoniter.ConfigFastest.Marshal(new)
+				checkError(err)
+				newInstance := reflect.New(field.Type()).Elem().Interface()
+				err = jsoniter.ConfigFastest.Unmarshal(newJSON, &newInstance)
+				checkError(err)
+				return cmp.Equal(oldInstance, newInstance), string(old.([]byte)), string(newJSON)
 			},
 		})
 }
