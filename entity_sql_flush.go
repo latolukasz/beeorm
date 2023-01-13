@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -134,7 +133,6 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			if same {
 				continue
 			}
-			fmt.Printf("NULL OLD %s %v == %v\n", b.orm.tableSchema.columnNames[b.index], old, val)
 		}
 		if b.fillNew {
 			name := b.orm.tableSchema.columnNames[b.index]
@@ -570,7 +568,6 @@ func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized boo
 }
 
 func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, value reflect.Value) {
-
 	b.build(
 		s,
 		fields,
@@ -581,7 +578,11 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 				return field.Interface()
 			},
 			serializeGetter: func(s *serializer, field reflect.Value) interface{} {
-				return s.DeserializeBytes()
+				v := s.DeserializeBytes()
+				if v == nil {
+					return nil
+				}
+				return v
 			},
 			bindSetter: b.bindSetterForJSON,
 			bindCompareAndSetter: func(old, new interface{}, field reflect.Value) (bool, string, string) {
