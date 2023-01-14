@@ -512,7 +512,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity.FlushStructPtr = nil
 	engine.Flush(entity)
-	os.Exit(0)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Nil(t, entity.FlushStructPtr)
@@ -521,6 +520,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
 		engine.Flush(entity.ReferenceOne)
 	})
+	os.Exit(0)
 
 	i := 42
 	i2 := uint(42)
