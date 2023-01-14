@@ -168,6 +168,9 @@ func (f *flusher) execute(lazy bool) {
 								}
 							}
 							break
+						case Update:
+							f.executeUpdates(db, tableName, events)
+							break
 						}
 					}
 				}
@@ -228,6 +231,46 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 		if e.ID == 0 {
 			e.ID = newID
 			newID += db.GetPoolConfig().getAutoincrement()
+		}
+	}
+}
+
+func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush) {
+	l := len(events)
+	for i, e := range events {
+		if e.flushed {
+			continue
+		}
+		f.stringBuilder.Reset()
+		f.stringBuilder.WriteString("UPDATE `" + table + "` SET ")
+		bind := e.Update
+		for k := i + 1; k < l; k++ {
+			nextEvent := events[k]
+			if nextEvent.ID == e.ID {
+				for key, bindValue := range nextEvent.Update {
+					bind[key] = bindValue
+				}
+				nextEvent.flushed = true
+			}
+		}
+		args := make([]interface{}, len(bind))
+		k := 0
+		for key, value := range bind {
+			if k > 0 {
+				f.stringBuilder.WriteString(",")
+			}
+			f.stringBuilder.WriteString("`" + key + "`=?")
+			args[k] = value
+			k++
+		}
+		f.stringBuilder.WriteString(" WHERE ID=" + strconv.FormatUint(e.ID, 10))
+		db.Exec(f.stringBuilder.String(), args...)
+		e.flushed = true
+		if e.entity != nil {
+			orm := e.entity.getORM()
+			orm.inDB = true
+			orm.loaded = true
+			orm.serialize(f.getSerializer())
 		}
 	}
 }
@@ -477,9 +520,9 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *Ent
 				address := refValue.Pointer()
 				references[address] = refEntity
 				if entitySQLFlushData.References == nil {
-					entitySQLFlushData.References = map[string]uintptr{refName: address}
+					entitySQLFlushData.References = map[string]uint64{refName: uint64(address)}
 				} else {
-					entitySQLFlushData.References[refName] = address
+					entitySQLFlushData.References[refName] = uint64(address)
 				}
 			}
 		}
