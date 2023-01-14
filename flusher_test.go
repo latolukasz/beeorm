@@ -461,7 +461,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found := engine.LoadByID(2, entity)
 	assert.False(t, found)
 	found = engine.LoadByID(1, entity)
-	os.Exit(0)
 
 	assert.True(t, found)
 	assert.Equal(t, "Tom", entity.Name)
@@ -475,7 +474,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
 	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
-
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
 	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTimeNullable.Unix())
@@ -514,6 +512,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity.FlushStructPtr = nil
 	engine.Flush(entity)
+	os.Exit(0)
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Nil(t, entity.FlushStructPtr)
