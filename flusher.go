@@ -83,7 +83,7 @@ func (f *flusher) execute(lazy bool) {
 		fmt.Printf("Action: %v\n", e.Action)
 		fmt.Printf("Update: %v\n", e.Update)
 		fmt.Printf("Old: %v\n", e.Old)
-		fmt.Printf("Address: %v\n", e.Address)
+		fmt.Printf("TempID: %v\n", e.TempID)
 		fmt.Printf("References: %v\n\n", e.References)
 	}
 	if len(f.events) == 0 {
@@ -159,7 +159,7 @@ func (f *flusher) execute(lazy bool) {
 								for _, e := range f.events {
 									for column, address := range e.References {
 										for _, inserted := range events {
-											if inserted.Address == address {
+											if inserted.TempID == address {
 												e.Update[column] = strconv.FormatUint(inserted.ID, 10)
 												delete(e.References, column)
 											}

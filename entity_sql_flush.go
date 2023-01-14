@@ -21,7 +21,7 @@ type EntitySQLFlush struct {
 	Old               Bind
 	Update            Bind
 	UpdateOnDuplicate Bind
-	Address           uintptr
+	TempID            uintptr
 	References        map[string]uintptr
 	flushed           bool
 	entity            Entity
@@ -50,7 +50,7 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 	flushData.Action = action
 	flushData.EntityName = schema.t.String()
 	flushData.ID = orm.GetID()
-	flushData.Address = orm.value.Pointer()
+	flushData.TempID = orm.value.Pointer()
 	b := &entityFlushBuilder{
 		EntitySQLFlush: flushData,
 		orm:            orm,
