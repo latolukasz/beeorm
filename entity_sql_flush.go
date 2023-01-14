@@ -116,7 +116,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			old := provider.serializeGetter(serializer, f)
 			var same bool
 			if provider.bindCompareAndSetter != nil {
-				same, val, old = provider.bindCompareAndSetter(old, val, f)
+				same, old, val = provider.bindCompareAndSetter(old, val, f)
 			} else if provider.bindCompare != nil {
 				same = provider.bindCompare(old, val, key, fields)
 			} else {
