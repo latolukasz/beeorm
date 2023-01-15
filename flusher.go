@@ -260,7 +260,11 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 				f.stringBuilder.WriteString(",")
 			}
 			f.stringBuilder.WriteString("`" + key + "`=?")
-			args[k] = value
+			if value == NullBindValue {
+				args[k] = nil
+			} else {
+				args[k] = value
+			}
 			k++
 		}
 		f.stringBuilder.WriteString(" WHERE ID=" + strconv.FormatUint(e.ID, 10))

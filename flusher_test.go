@@ -439,6 +439,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.AttributesValues = attributesValues{12: []interface{}{"a", "b"}}
 	assert.True(t, entity.IsDirty())
 	assert.True(t, entity.ReferenceOne.IsDirty())
+	// TODO assert EntitySQLFlush
 	flusher := engine.NewFlusher().Track(entity)
 	flusher.Track(entity)
 	flusher.Flush()
@@ -520,7 +521,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
 		engine.Flush(entity.ReferenceOne)
 	})
-	os.Exit(0)
 
 	i := 42
 	i2 := uint(42)
@@ -560,6 +560,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.StringSlice = []string{"a"}
 	entity.DecimalNullable = &entity.Decimal
 	entity.Interface = map[string]int{"test": 12}
+
+	// TODO assert EntitySQLFlush
 	engine.Flush(entity)
 
 	reference = &flushEntityReference{}
@@ -570,6 +572,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
+	os.Exit(0)
 	assert.Equal(t, 42, *entity.IntNullable)
 	assert.Equal(t, int8(4), *entity.Int8Nullable)
 	assert.Equal(t, int16(4), *entity.Int16Nullable)

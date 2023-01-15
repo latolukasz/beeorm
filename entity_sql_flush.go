@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"math"
 	"reflect"
 	"strconv"
@@ -44,6 +45,9 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 		action = InsertUpdate
 	} else if orm.inDB {
 		action = Update
+		if !orm.IsLoaded() {
+			panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", orm.elem.Type().String(), orm.GetID()))
+		}
 	}
 	schema := orm.tableSchema
 	flushData := &EntitySQLFlush{}
