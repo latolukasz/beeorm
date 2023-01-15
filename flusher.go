@@ -284,7 +284,68 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 
 func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*EntitySQLFlush) {
 	for _, e := range events {
-
+		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate))
+		f.stringBuilder.Reset()
+		f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
+		f.stringBuilder.WriteString("(")
+		k := 0
+		for column, value := range events[0].Update {
+			if k > 0 {
+				f.stringBuilder.WriteString(",")
+			}
+			f.stringBuilder.WriteString("`" + column + "`")
+			if value == NullBindValue {
+				args[k] = nil
+			} else {
+				args[k] = value
+			}
+			k++
+		}
+		f.stringBuilder.WriteString(") VALUES(?")
+		f.stringBuilder.WriteString(strings.Repeat(",?", len(events[0].Update)-1))
+		f.stringBuilder.WriteString(") ON DUPLICATE KEY UPDATE ")
+		if len(events[0].UpdateOnDuplicate) == 0 {
+			f.stringBuilder.WriteString("ID=ID")
+		} else {
+			j := 0
+			for column, value := range events[0].UpdateOnDuplicate {
+				if j > 0 {
+					f.stringBuilder.WriteString(",")
+				}
+				f.stringBuilder.WriteString("`" + column + "`=?")
+				if value == NullBindValue {
+					args[k] = nil
+				} else {
+					args[k] = value
+				}
+				j++
+				k++
+			}
+		}
+		result := db.Exec(f.stringBuilder.String(), args...)
+		if result.RowsAffected() == 2 {
+			for column, value := range e.UpdateOnDuplicate {
+				e.Update[column] = value
+				if e.entity != nil {
+					err := e.entity.SetField(column, value)
+					checkError(err)
+				}
+			}
+			e.UpdateOnDuplicate = nil
+		}
+		e.flushed = true
+		if e.entity != nil {
+			orm := e.entity.getORM()
+			orm.inDB = true
+			orm.loaded = true
+			orm.serialize(f.getSerializer())
+			if e.ID == 0 {
+				orm.idElem.SetUint(result.LastInsertId())
+			}
+		}
+		if e.ID == 0 {
+			e.ID = result.LastInsertId()
+		}
 	}
 }
 

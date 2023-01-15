@@ -613,7 +613,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		"BoolNullable": "NULL", "TimeWithTime": date.Format(timeFormat), "Time": date.Format(dateformat)})
 	fmt.Printf("START\n")
 	engine.Flush(entity2)
-	os.Exit(0)
 
 	assert.Equal(t, uint(1), entity2.ID)
 	assert.Equal(t, 40, entity2.Age)
@@ -634,6 +633,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, uint(1), entity.ID)
+	os.Exit(0)
 
 	entity2 = &flushEntity{Name: "Arthur", Age: 18, EnumNotNull: "a"}
 	entity2.ReferenceTwo = reference
