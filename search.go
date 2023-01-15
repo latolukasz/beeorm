@@ -246,15 +246,15 @@ func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistr
 	orm.inDB = true
 	orm.loaded = true
 	orm.deserializeFromDB(serializer, pointers)
-	orm.deserialize(serializer)
+	orm.deserialize(id, serializer)
 }
 
-func fillFromBinary(serializer *serializer, registry *validatedRegistry, binary []byte, entity Entity) {
+func fillFromBinary(serializer *serializer, id uint64, registry *validatedRegistry, binary []byte, entity Entity) {
 	orm := initIfNeeded(registry, entity)
 	orm.inDB = true
 	orm.loaded = true
 	orm.binary = binary
-	orm.deserialize(serializer)
+	orm.deserialize(id, serializer)
 }
 
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {

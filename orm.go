@@ -463,12 +463,13 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 	}
 }
 
-func (orm *ORM) deserialize(serializer *serializer) {
+func (orm *ORM) deserialize(id uint64, serializer *serializer) {
 	serializer.Reset(orm.binary)
 	hash := serializer.DeserializeUInteger()
 	if !disableCacheHashCheck && hash != orm.tableSchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.tableSchema.t.String()))
 	}
+	orm.idElem.SetUint(id)
 	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
 	orm.loaded = true
 }
