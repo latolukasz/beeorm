@@ -171,6 +171,9 @@ func (f *flusher) execute(lazy bool) {
 						case Update:
 							f.executeUpdates(db, tableName, events)
 							break
+						case InsertUpdate:
+							f.executeInsertOnDuplicateKeyUpdates(db, tableName, events)
+							break
 						}
 					}
 				}
@@ -276,6 +279,12 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 			orm.loaded = true
 			orm.serialize(f.getSerializer())
 		}
+	}
+}
+
+func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*EntitySQLFlush) {
+	for _, e := range events {
+
 	}
 }
 

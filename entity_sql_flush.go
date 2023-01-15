@@ -461,7 +461,7 @@ func (b *entityFlushBuilder) buildBytes(s *serializer, fields *tableFields, valu
 				if str == "" {
 					return NullBindValue
 				}
-				return ""
+				return str
 			},
 		})
 }
