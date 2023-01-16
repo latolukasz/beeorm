@@ -628,7 +628,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(1), entity2.ID)
-	return
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, uint(1), entity.ID)
@@ -638,6 +637,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(6), entity2.ID)
+	return
 
 	entity = &flushEntity{}
 	engine.LoadByID(6, entity)
