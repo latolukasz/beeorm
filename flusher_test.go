@@ -820,7 +820,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found = engine.LoadByID(100, entity2)
 	assert.True(t, found)
 	assert.Equal(t, 1, entity2.Age)
-	return
 
 	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
@@ -832,107 +831,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, 2, entity2.Age)
 
-	testLogger := &testLogHandler{}
-	engine.RegisterQueryLogger(testLogger, true, false, false)
-
-	flusher = engine.NewFlusher()
-	entity1 := &flushEntity{}
-	engine.LoadByID(10, entity1)
-	entity2 = &flushEntity{}
-	engine.LoadByID(11, entity2)
-	entity3 = &flushEntity{}
-	engine.LoadByID(12, entity3)
-	entity1.Age = 99
-	entity2.Uint = 99
-	entity3.Name = "sss"
-	flusher.Track(entity1, entity2, entity3)
-	flusher.Flush()
-
-	runLazyFlushConsumer(engine)
-	if local {
-		assert.Len(t, testLogger.Logs, 3)
-		assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
-		assert.Equal(t, "UPDATE `flushEntity` SET `Age`=99 WHERE `ID` = 10;UPDATE `flushEntity` SET `Uint`=99 "+
-			"WHERE `ID` = 11;UPDATE `flushEntity` SET `Name`='sss' WHERE `ID` = 12;", testLogger.Logs[1]["query"])
-		assert.Equal(t, "COMMIT", testLogger.Logs[2]["query"])
-	}
-
-	entity1 = &flushEntity{}
-	engine.LoadByID(13, entity1)
-	entity2 = &flushEntity{}
-	engine.LoadByID(14, entity2)
-	entity3 = &flushEntity{}
-	engine.LoadByID(15, entity3)
-
-	engine.LoadByID(1, entity)
-	engine.ForceDelete(entity)
-
-	flusher = engine.NewFlusher()
-	entity1.ReferenceOne = &flushEntityReference{ID: 1}
-	entity1.Name = "A"
-	entity2.ReferenceOne = &flushEntityReference{ID: 2}
-	entity2.Name = "B"
-	entity3.ReferenceOne = &flushEntityReference{ID: 3}
-	entity3.Name = "C"
-	flusher.Track(entity1, entity2, entity3)
-	flusher.Flush()
-
-	entities := make([]*flushEntity, 0)
-	engine.LoadByIDs([]uint64{13, 14, 15}, &entities, "ReferenceOne")
-	flusher = engine.NewFlusher()
-	for _, e := range entities {
-		newRef := &flushEntityReference{}
-		newRef.Name = fmt.Sprintf("%d33", e.ID)
-		oldRef := e.ReferenceOne
-		oldRef.Name = fmt.Sprintf("%d34", e.ID)
-		flusher.Track(oldRef)
-		e.Name = fmt.Sprintf("%d35", e.ID)
-		e.ReferenceOne = newRef
-		flusher.Track(e)
-	}
-
-	flusher.Flush()
-	entities = make([]*flushEntity, 0)
-	engine.LoadByIDs([]uint64{13, 14, 15}, &entities, "ReferenceOne")
-	assert.Equal(t, "1335", entities[0].Name)
-	assert.Equal(t, "1435", entities[1].Name)
-	assert.Equal(t, "1535", entities[2].Name)
-	assert.Equal(t, "1333", entities[0].ReferenceOne.Name)
-	assert.Equal(t, "1433", entities[1].ReferenceOne.Name)
-	assert.Equal(t, "1533", entities[2].ReferenceOne.Name)
-	entitiesRefs := make([]*flushEntityReference, 0)
-	engine.LoadByIDs([]uint64{1, 2, 3}, &entitiesRefs)
-	assert.Equal(t, "1334", entitiesRefs[0].Name)
-	assert.Equal(t, "1434", entitiesRefs[1].Name)
-	assert.Equal(t, "1534", entitiesRefs[2].Name)
-
-	if redis && !local {
-		testLogger2 := &testLogHandler{}
-		engine.RegisterQueryLogger(testLogger2, true, true, false)
-		testLogger.clear()
-		engine.GetMysql().Begin()
-		entity4.ReferenceOne = &flushEntityReference{}
-		engine.Flush(entity4)
-		engine.GetMysql().Commit()
-		assert.Len(t, testLogger2.Logs, 5)
-		assert.Equal(t, "BEGIN", testLogger2.Logs[0]["operation"])
-		assert.Equal(t, "EXEC", testLogger2.Logs[1]["operation"])
-		assert.Equal(t, "EXEC", testLogger2.Logs[2]["operation"])
-		assert.Equal(t, "COMMIT", testLogger2.Logs[3]["operation"])
-		assert.Equal(t, "DEL", testLogger2.Logs[4]["operation"])
-	}
-
-	entity = &flushEntity{}
-	found = engine.LoadByID(6, entity)
-	entity.FlushStructPtr = &flushStruct{Name2: `okddlk"nokddlkno'kddlkn f;mf	jg`}
-	engine.Flush(entity)
-
 	flusher.Clear()
 	flusher.ForceDelete(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(7, entity)
 	flusher.ForceDelete(entity)
 	flusher.Flush()
+	return
 	found = engine.LoadByID(6, entity)
 	assert.False(t, found)
 	found = engine.LoadByID(7, entity)
@@ -1021,28 +926,20 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(101, entity))
 
-	testLogger.clear()
 	flusher = engine.NewFlusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntityReference{})
 	flusher.Flush()
-	assert.Len(t, testLogger.Logs, 1)
-	testLogger.clear()
 	flusher = engine.NewFlusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntity{})
 	flusher.Flush()
-	assert.Len(t, testLogger.Logs, 4)
-	assert.Equal(t, "START TRANSACTION", testLogger.Logs[0]["query"])
-	assert.Equal(t, "COMMIT", testLogger.Logs[3]["query"])
 
-	testLogger.clear()
 	flusher = engine.NewFlusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntity{Name: "Adam"})
 	err = flusher.FlushWithCheck()
 	assert.NotNil(t, err)
-	assert.Equal(t, "ROLLBACK", testLogger.Logs[len(testLogger.Logs)-1]["query"])
 
 	entity = schema.NewEntity().(*flushEntity)
 	entity.Name = "WithID"

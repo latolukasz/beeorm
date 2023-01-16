@@ -151,30 +151,33 @@ func (f *flusher) execute(lazy bool) {
 			}
 			for db, byDB := range group {
 				for tableName, byAction := range byDB {
-					for action, events := range byAction {
-						switch action {
-						case Insert:
-							f.executeInserts(db, tableName, events)
-							if checkReferences {
-								for _, e := range f.events {
-									for column, address := range e.References {
-										for _, inserted := range events {
-											if inserted.TempID == address {
-												e.Update[column] = strconv.FormatUint(inserted.ID, 10)
-												delete(e.References, column)
-											}
+					deleteEvents, hasDeletes := byAction[Delete]
+					if hasDeletes {
+						f.executeDeletes(db, tableName, deleteEvents)
+					}
+					insertEvents, hasInserts := byAction[Insert]
+					if hasInserts {
+						f.executeInserts(db, tableName, insertEvents)
+						if checkReferences {
+							for _, e := range f.events {
+								for column, address := range e.References {
+									for _, inserted := range insertEvents {
+										if inserted.TempID == address {
+											e.Update[column] = strconv.FormatUint(inserted.ID, 10)
+											delete(e.References, column)
 										}
 									}
 								}
 							}
-							break
-						case Update:
-							f.executeUpdates(db, tableName, events)
-							break
-						case InsertUpdate:
-							f.executeInsertOnDuplicateKeyUpdates(db, tableName, events)
-							break
 						}
+					}
+					insertUpdateEvents, hasInsertUpdates := byAction[InsertUpdate]
+					if hasInsertUpdates {
+						f.executeInsertOnDuplicateKeyUpdates(db, tableName, insertUpdateEvents)
+					}
+					updateEvents, hasUpdates := byAction[Update]
+					if hasUpdates {
+						f.executeUpdates(db, tableName, updateEvents)
 					}
 				}
 			}
@@ -379,6 +382,20 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		if rowsAffected > 0 {
 			e.ID = result.LastInsertId()
 		}
+	}
+}
+
+func (f *flusher) executeDeletes(db *DB, table string, events []*EntitySQLFlush) {
+	f.stringBuilder.Reset()
+	f.stringBuilder.WriteString("DELETE FROM `" + table + "` WHERE ID IN(?")
+	f.stringBuilder.WriteString(strings.Repeat(",?", len(events)-1) + ")")
+	args := make([]interface{}, len(events))
+	for i, e := range events {
+		args[i] = e.ID
+	}
+	db.Exec(f.stringBuilder.String(), args...)
+	for _, e := range events {
+		e.flushed = true
 	}
 }
 
