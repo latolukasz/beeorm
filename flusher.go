@@ -74,18 +74,6 @@ func (f *flusher) addFlushEvent(sqlFlush *EntitySQLFlush) {
 }
 
 func (f *flusher) execute(lazy bool) {
-	//TODO
-	fmt.Printf("EVENTS %d\n", len(f.events))
-	for i, e := range f.events {
-		fmt.Printf("---EVENT %d---\n", i)
-		fmt.Printf("ID: %v\n", e.ID)
-		fmt.Printf("EntityName: %v\n", e.EntityName)
-		fmt.Printf("Action: %v\n", e.Action)
-		fmt.Printf("Update: %v\n", e.Update)
-		fmt.Printf("Old: %v\n", e.Old)
-		fmt.Printf("TempID: %v\n", e.TempID)
-		fmt.Printf("References: %v\n\n", e.References)
-	}
 	if len(f.events) == 0 {
 		return
 	}
@@ -95,7 +83,6 @@ func (f *flusher) execute(lazy bool) {
 	}
 	checkReferences := true
 	startTransaction := make(map[*DB]bool)
-	f.engine.EnableQueryDebug()
 	func() {
 		defer func() {
 			for db := range startTransaction {
