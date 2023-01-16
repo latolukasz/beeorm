@@ -651,7 +651,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.EnumNullable = "b"
 	entity.Blob = nil
 	engine.Flush(entity)
-	return
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
@@ -671,6 +670,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		entity.EnumNotNull = ""
 		engine.Flush(entity)
 	})
+	return
+
 	entity = &flushEntity{Name: "Cat"}
 	engine.Flush(entity)
 	entity = &flushEntity{}
