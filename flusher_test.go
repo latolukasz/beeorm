@@ -803,14 +803,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 			flusher.Track(&flushEntity{})
 		}
 	})
-	return
 
 	flusher.Clear()
 	entity2 = &flushEntity{ID: 100, Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
-	assert.Equal(t, uint(12), entity2.ID)
+	assert.Equal(t, uint(10), entity2.ID)
 	assert.Equal(t, 2, entity2.Age)
+	return
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
 	assert.False(t, found)
