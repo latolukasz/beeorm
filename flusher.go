@@ -271,7 +271,10 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 			k++
 		}
 		f.stringBuilder.WriteString(" WHERE ID=" + strconv.FormatUint(e.ID, 10))
-		db.Exec(f.stringBuilder.String(), args...)
+		results := db.Exec(f.stringBuilder.String(), args...)
+		if results.RowsAffected() == 0 {
+			e.Update = nil
+		}
 		e.flushed = true
 		if e.entity != nil {
 			orm := e.entity.getORM()
@@ -323,8 +326,8 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			}
 		}
 		result := db.Exec(f.stringBuilder.String(), args...)
-		fmt.Printf("AFF %d %d\n", result.RowsAffected(), result.LastInsertId())
-		if result.RowsAffected() == 2 {
+		rowsAffected := result.RowsAffected()
+		if rowsAffected == 2 {
 			for column, value := range e.UpdateOnDuplicate {
 				e.Update[column] = value
 				if e.entity != nil {
@@ -332,6 +335,32 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					checkError(err)
 				}
 			}
+			e.UpdateOnDuplicate = nil
+		} else if rowsAffected == 0 {
+			if e.entity != nil && e.ID == 0 {
+				schema := f.engine.GetRegistry().GetTableSchemaForEntity(e.entity).(*tableSchema)
+			OUTER:
+				for _, uniqueIndex := range schema.uniqueIndices {
+					fields := make([]string, 0)
+					binds := make([]interface{}, 0)
+					for _, column := range uniqueIndex {
+						currentValue, hasCurrent := e.Update[column]
+						if !hasCurrent || currentValue == NullBindValue {
+							continue OUTER
+						}
+						fields = append(fields, "`"+column+"` = ?")
+						binds = append(binds, e.Update[column])
+					}
+					where := NewWhere("SELECT ID FROM `"+table+"` WHERE "+strings.Join(fields, " AND "), binds...)
+					id := uint64(0)
+					if db.QueryRow(where, &id) {
+						e.ID = id
+						e.entity.getORM().idElem.SetUint(id)
+					}
+					break
+				}
+			}
+			e.Update = nil
 			e.UpdateOnDuplicate = nil
 		}
 		e.flushed = true
