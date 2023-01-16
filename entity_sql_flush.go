@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"math"
 	"reflect"
 	"strconv"
@@ -106,7 +107,7 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 type fieldDataProvider struct {
 	fieldGetter          func(field reflect.Value) interface{}
 	serializeGetter      func(s *serializer, field reflect.Value) interface{}
-	bindSetter           func(val interface{}, deserialized bool) string
+	bindSetter           func(val interface{}, deserialized bool, field reflect.Value) string
 	bindCompare          func(old, new interface{}, key int, fields *tableFields) bool
 	bindCompareAndSetter func(old, new interface{}, field reflect.Value) (bool, string, string)
 }
@@ -131,7 +132,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 				if provider.bindCompareAndSetter != nil {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = old.(string)
 				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true)
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true, f)
 				}
 			}
 			if same {
@@ -146,7 +147,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			if b.fillOld && provider.bindCompareAndSetter != nil {
 				b.Update[name] = val.(string)
 			} else {
-				b.Update[name] = provider.bindSetter(val, false)
+				b.Update[name] = provider.bindSetter(val, false, f)
 			}
 		}
 	}
@@ -179,7 +180,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 				if oldIsNil {
 					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
 				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(oldVal, true)
+					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(oldVal, true, f)
 				}
 			}
 			if same {
@@ -191,7 +192,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			if isNil {
 				b.Update[name] = NullBindValue
 			} else {
-				b.Update[name] = provider.bindSetter(val, false)
+				b.Update[name] = provider.bindSetter(val, false, f)
 			}
 		}
 	}
@@ -215,7 +216,7 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				return field.Elem().Field(1).Uint()
 			},
 			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, _ bool) string {
+			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				id := val.(uint64)
 				if id == 0 {
 					return NullBindValue
@@ -231,7 +232,7 @@ var uIntFieldDataProvider = fieldDataProvider{
 		return field.Uint()
 	},
 	serializeGetter: serializeGetterUint,
-	bindSetter: func(val interface{}, _ bool) string {
+	bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 		return strconv.FormatUint(val.(uint64), 10)
 	},
 }
@@ -247,7 +248,7 @@ var intFieldDataProvider = fieldDataProvider{
 	serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 		return s.DeserializeInteger()
 	},
-	bindSetter: func(val interface{}, _ bool) string {
+	bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 		return strconv.FormatInt(val.(int64), 10)
 	},
 }
@@ -263,7 +264,7 @@ var boolFieldDataProvider = fieldDataProvider{
 	serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 		return s.DeserializeBool()
 	},
-	bindSetter: func(val interface{}, _ bool) string {
+	bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 		if val.(bool) {
 			return "1"
 		}
@@ -282,7 +283,7 @@ var floatFieldDataProvider = fieldDataProvider{
 	serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 		return s.DeserializeFloat()
 	},
-	bindSetter: func(val interface{}, _ bool) string {
+	bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 		return strconv.FormatFloat(val.(float64), 'f', -1, 64)
 	},
 	bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
@@ -294,8 +295,8 @@ func (b *entityFlushBuilder) buildFloats(s *serializer, fields *tableFields, val
 	b.build(s, fields, value, fields.floats, floatFieldDataProvider)
 }
 
-func dateTimeBindSetter(format string) func(val interface{}, deserialized bool) string {
-	return func(val interface{}, deserialized bool) string {
+func dateTimeBindSetter(format string) func(val interface{}, deserialized bool, _ reflect.Value) string {
+	return func(val interface{}, deserialized bool, _ reflect.Value) string {
 		if deserialized {
 			t := val.(int64)
 			if t == zeroDateSeconds {
@@ -362,7 +363,7 @@ func (b *entityFlushBuilder) buildFakeDelete(s *serializer, fields *tableFields,
 			serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 				return s.DeserializeBool()
 			},
-			bindSetter: func(val interface{}, _ bool) string {
+			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				if val.(bool) {
 					return strconv.FormatUint(b.ID, 10)
 				}
@@ -385,11 +386,10 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 			serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 				return s.DeserializeString()
 			},
-			bindSetter: func(val interface{}, _ bool) string {
+			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				str := val.(string)
 				name := b.orm.tableSchema.columnNames[b.index]
 				if str == "" && !b.orm.tableSchema.GetTagBool(name, "required") {
-					fmt.Printf("%s\n", name)
 					return NullBindValue
 				}
 				return str
@@ -418,7 +418,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				return field.String()
 			},
 			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, deserialized bool) string {
+			bindSetter: func(val interface{}, deserialized bool, _ reflect.Value) string {
 				if deserialized {
 					i := val.(uint64)
 					if i == 0 {
@@ -428,10 +428,17 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				}
 				str := val.(string)
 				if str == "" {
-					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
+					name := b.orm.tableSchema.columnNames[b.index]
+					if b.orm.tableSchema.GetTagBool(name, "required") {
+						if b.orm.inDB {
+							panic(fmt.Errorf("empty enum value for %s", name))
+						}
 						return fields.enums[k].GetDefault()
 					}
 					return NullBindValue
+				}
+				if !fields.enums[k].Has(str) {
+					panic(errors.New("unknown enum value for " + b.orm.tableSchema.columnNames[b.index] + " - " + str))
 				}
 				return str
 			},
@@ -457,7 +464,7 @@ func (b *entityFlushBuilder) buildBytes(s *serializer, fields *tableFields, valu
 			serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
 				return s.DeserializeString()
 			},
-			bindSetter: func(val interface{}, _ bool) string {
+			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				str := val.(string)
 				if str == "" {
 					return NullBindValue
@@ -497,7 +504,7 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 				}
 				return res
 			},
-			bindSetter: func(val interface{}, deserialized bool) string {
+			bindSetter: func(val interface{}, deserialized bool, _ reflect.Value) string {
 				if val == nil {
 					if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 						return ""
@@ -557,8 +564,8 @@ func (b *entityFlushBuilder) buildDatesNullable(s *serializer, fields *tableFiel
 	b.buildNullable(s, fields, value, fields.datesNullable, dateFieldDataProvider)
 }
 
-func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized bool) string {
-	if val == nil {
+func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized bool, field reflect.Value) string {
+	if val == nil || (!deserialized && field.IsNil()) {
 		if b.orm.tableSchema.GetTagBool(b.orm.tableSchema.columnNames[b.index], "required") {
 			return ""
 		}
@@ -592,9 +599,9 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 			bindSetter: b.bindSetterForJSON,
 			bindCompareAndSetter: func(old, new interface{}, field reflect.Value) (bool, string, string) {
 				oldIsNil := old == nil
-				newIsNil := new == nil
+				newIsNil := field.IsNil()
 				if oldIsNil != newIsNil {
-					return false, b.bindSetterForJSON(old, true), b.bindSetterForJSON(new, false)
+					return false, b.bindSetterForJSON(old, true, field), b.bindSetterForJSON(new, false, field)
 				} else if oldIsNil {
 					return true, NullBindValue, NullBindValue
 				}

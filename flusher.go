@@ -206,7 +206,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 	f.stringBuilder.WriteString(") VALUES")
 	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)-1) + ")"
 	f.stringBuilder.WriteString(valuesPart)
-	f.stringBuilder.WriteString(strings.Repeat(valuesPart, len(events)-1))
+	f.stringBuilder.WriteString(strings.Repeat(","+valuesPart, len(events)-1))
 
 	args := make([]interface{}, 0)
 	for _, e := range events {
@@ -446,6 +446,7 @@ func (f *flusher) FlushLazy() {
 func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
+	f.events = nil
 }
 
 func (f *flusher) flushTrackedEntities(lazy bool) {
