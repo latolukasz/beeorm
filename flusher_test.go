@@ -642,7 +642,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(6, entity)
 	assert.Equal(t, uint(6), entity.ID)
 
-	return
 	engine.LoadByID(1, entity)
 	entity.Bool = false
 	date = date.Add(time.Hour * 40)
@@ -652,6 +651,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.EnumNullable = "b"
 	entity.Blob = nil
 	engine.Flush(entity)
+	return
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)

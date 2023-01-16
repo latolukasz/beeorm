@@ -373,7 +373,6 @@ func (b *entityFlushBuilder) buildFakeDelete(s *serializer, fields *tableFields,
 }
 
 func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, value reflect.Value) {
-	name := b.orm.tableSchema.columnNames[b.index]
 	b.build(
 		s,
 		fields,
@@ -388,7 +387,9 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 			},
 			bindSetter: func(val interface{}, _ bool) string {
 				str := val.(string)
+				name := b.orm.tableSchema.columnNames[b.index]
 				if str == "" && !b.orm.tableSchema.GetTagBool(name, "required") {
+					fmt.Printf("%s\n", name)
 					return NullBindValue
 				}
 				return str
