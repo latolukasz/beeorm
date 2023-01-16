@@ -369,11 +369,11 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			orm.inDB = true
 			orm.loaded = true
 			orm.serialize(f.getSerializer())
-			if e.ID == 0 {
+			if rowsAffected > 0 {
 				orm.idElem.SetUint(result.LastInsertId())
 			}
 		}
-		if e.ID == 0 {
+		if rowsAffected > 0 {
 			e.ID = result.LastInsertId()
 		}
 	}

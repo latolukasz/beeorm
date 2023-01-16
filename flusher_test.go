@@ -810,16 +810,17 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.Flush(entity2)
 	assert.Equal(t, uint(10), entity2.ID)
 	assert.Equal(t, 2, entity2.Age)
-	return
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
 	assert.False(t, found)
 	entity2 = &flushEntity{Name: "Frank", ID: 100, Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
+	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
 	assert.True(t, found)
 	assert.Equal(t, 1, entity2.Age)
+	return
 
 	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
