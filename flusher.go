@@ -192,24 +192,27 @@ func (f *flusher) execute(lazy bool) {
 func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
-	f.stringBuilder.WriteString("(")
+	f.stringBuilder.WriteString("(ID")
 	k := 0
 	columns := make([]string, len(events[0].Update))
 	for column := range events[0].Update {
-		if k > 0 {
-			f.stringBuilder.WriteString(",")
-		}
-		f.stringBuilder.WriteString("`" + column + "`")
+		f.stringBuilder.WriteString(",`" + column + "`")
 		columns[k] = column
 		k++
 	}
 	f.stringBuilder.WriteString(") VALUES")
-	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)-1) + ")"
+	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)) + ")"
 	f.stringBuilder.WriteString(valuesPart)
 	f.stringBuilder.WriteString(strings.Repeat(","+valuesPart, len(events)-1))
 
 	args := make([]interface{}, 0)
 	for _, e := range events {
+		id := e.ID
+		if id > 0 {
+			args = append(args, id)
+		} else {
+			args = append(args, nil)
+		}
 		for _, column := range columns {
 			val := e.Update[column]
 			if val == NullBindValue {

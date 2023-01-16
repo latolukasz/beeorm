@@ -679,7 +679,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2 = &flushEntity{Name: "Adam", Age: 20, ID: 10, EnumNotNull: "a"}
 	engine.Flush(entity2)
-	found = engine.LoadByID(8, entity2)
+	found = engine.LoadByID(10, entity2)
 	assert.True(t, found)
 
 	entity2.Age = 21
@@ -691,17 +691,17 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.Flush(entity2)
 	bind, _ = entity.GetDirtyBind()
 	assert.False(t, entity2.IsDirty())
-	engine.LoadByID(8, entity2)
+	engine.LoadByID(10, entity2)
 	assert.Equal(t, 21, entity2.Age)
 	entity2.City = "War\\'saw"
 	engine.Flush(entity2)
-	engine.LoadByID(8, entity2)
+	engine.LoadByID(10, entity2)
 	assert.Equal(t, "War\\'saw", entity2.City)
 	entity2.Time = time.Now()
 	n := time.Now()
 	entity2.TimeNullable = &n
 	engine.Flush(entity2)
-	engine.LoadByID(8, entity2)
+	engine.LoadByID(10, entity2)
 	assert.NotNil(t, entity2.Time)
 	assert.NotNil(t, entity2.TimeNullable)
 
@@ -713,7 +713,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.Flush(entity2)
 	assert.False(t, entity2.IsDirty())
 	entity2 = &flushEntity{}
-	engine.LoadByID(8, entity2)
+	engine.LoadByID(10, entity2)
 	assert.Nil(t, entity2.UintNullable)
 	assert.Nil(t, entity2.BoolNullable)
 	assert.Nil(t, entity2.FloatNullable)
@@ -722,26 +722,26 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.markToDelete()
 	assert.True(t, entity2.IsDirty())
 	engine.Delete(entity2)
-	found = engine.LoadByID(8, entity2)
+	found = engine.LoadByID(10, entity2)
 	assert.True(t, found)
 	assert.True(t, entity2.FakeDelete)
 
 	engine.Flush(&flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982, EnumNotNull: "a"})
 	entity3 := &flushEntity{}
-	found = engine.LoadByID(9, entity3)
+	found = engine.LoadByID(11, entity3)
 	assert.True(t, found)
 	assert.Nil(t, entity3.NameTranslated)
 
 	engine.Flush(&flushEntity{Name: "Eva", SetNullable: []string{}, EnumNotNull: "a"})
 	entity4 := &flushEntity{}
-	found = engine.LoadByID(10, entity4)
+	found = engine.LoadByID(12, entity4)
 	assert.True(t, found)
 	assert.Nil(t, entity4.SetNotNull)
 	assert.Nil(t, entity4.SetNullable)
 	entity4.SetNullable = []string{"d", "e"}
 	engine.Flush(entity4)
 	entity4 = &flushEntity{}
-	engine.LoadByID(10, entity4)
+	engine.LoadByID(12, entity4)
 	assert.Equal(t, []string{"d", "e"}, entity4.SetNullable)
 
 	engine.GetMysql().Begin()
@@ -751,7 +751,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.Flush(entity5)
 	engine.GetMysql().Commit()
 	entity5 = &flushEntity{}
-	found = engine.LoadByID(11, entity5)
+	found = engine.LoadByID(13, entity5)
 	assert.True(t, found)
 	assert.Equal(t, "test_transaction", entity5.Name)
 	assert.Equal(t, 38, entity5.Age)
@@ -762,7 +762,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity6)
 	flusher.Flush()
 	entity6 = &flushEntity{}
-	found = engine.LoadByID(12, entity6)
+	found = engine.LoadByID(14, entity6)
 	assert.True(t, found)
 	assert.Equal(t, "test_transaction_2", entity6.Name)
 
@@ -771,7 +771,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	err := flusher.FlushWithCheck()
 	assert.NoError(t, err)
 	entity7 = &flushEntity{}
-	found = engine.LoadByID(13, entity7)
+	found = engine.LoadByID(15, entity7)
 	assert.True(t, found)
 	assert.Equal(t, "test_check", entity7.Name)
 
@@ -808,7 +808,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2 = &flushEntity{ID: 100, Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
-	assert.Equal(t, uint(10), entity2.ID)
+	assert.Equal(t, uint(12), entity2.ID)
 	assert.Equal(t, 2, entity2.Age)
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
