@@ -323,6 +323,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			}
 		}
 		result := db.Exec(f.stringBuilder.String(), args...)
+		fmt.Printf("AFF %d %d\n", result.RowsAffected(), result.LastInsertId())
 		if result.RowsAffected() == 2 {
 			for column, value := range e.UpdateOnDuplicate {
 				e.Update[column] = value

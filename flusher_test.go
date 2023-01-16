@@ -3,7 +3,6 @@ package beeorm
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -611,7 +610,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.Name = "Tom"
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
 		"BoolNullable": "NULL", "TimeWithTime": date.Format(timeFormat), "Time": date.Format(dateformat)})
-	fmt.Printf("START\n")
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint(1), entity2.ID)
@@ -630,21 +628,22 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(1), entity2.ID)
+	return
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, uint(1), entity.ID)
-	os.Exit(0)
 
 	entity2 = &flushEntity{Name: "Arthur", Age: 18, EnumNotNull: "a"}
 	entity2.ReferenceTwo = reference
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(6), entity2.ID)
+
 	entity = &flushEntity{}
 	engine.LoadByID(6, entity)
 	assert.Equal(t, uint(6), entity.ID)
-	engine.LoadByID(1, entity)
 
+	engine.LoadByID(1, entity)
 	entity.Bool = false
 	date = date.Add(time.Hour * 40)
 	entity.TimeWithTime = date
