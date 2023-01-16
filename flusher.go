@@ -288,11 +288,10 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 			useTransaction = true
 		}
 	}
-
+	f.executeDeletes(lazy)
 	f.executeInserts(flushPackage, lazy)
 	if root {
 		f.executeUpdates()
-		f.executeDeletes(lazy)
 		f.updateLocalCache(lazy, useTransaction || transaction)
 	}
 	f.updateRedisCache(root, lazy, useTransaction || transaction)
