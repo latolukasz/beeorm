@@ -287,16 +287,16 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 
 func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*EntitySQLFlush) {
 	for _, e := range events {
-		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate))
+		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate)+1)
 		f.stringBuilder.Reset()
 		f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
-		f.stringBuilder.WriteString("(")
-		k := 0
+		f.stringBuilder.WriteString("(ID")
+		if events[0].ID > 0 {
+			args[0] = events[0].ID
+		}
+		k := 1
 		for column, value := range events[0].Update {
-			if k > 0 {
-				f.stringBuilder.WriteString(",")
-			}
-			f.stringBuilder.WriteString("`" + column + "`")
+			f.stringBuilder.WriteString(",`" + column + "`")
 			if value == NullBindValue {
 				args[k] = nil
 			} else {
@@ -305,7 +305,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			k++
 		}
 		f.stringBuilder.WriteString(") VALUES(?")
-		f.stringBuilder.WriteString(strings.Repeat(",?", len(events[0].Update)-1))
+		f.stringBuilder.WriteString(strings.Repeat(",?", len(events[0].Update)))
 		f.stringBuilder.WriteString(") ON DUPLICATE KEY UPDATE ")
 		if len(events[0].UpdateOnDuplicate) == 0 {
 			f.stringBuilder.WriteString("ID=ID")
