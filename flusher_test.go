@@ -637,12 +637,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint(6), entity2.ID)
-	return
 
 	entity = &flushEntity{}
 	engine.LoadByID(6, entity)
 	assert.Equal(t, uint(6), entity.ID)
 
+	return
 	engine.LoadByID(1, entity)
 	entity.Bool = false
 	date = date.Add(time.Hour * 40)

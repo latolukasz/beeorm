@@ -388,7 +388,7 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 			},
 			bindSetter: func(val interface{}, _ bool) string {
 				str := val.(string)
-				if str == "" && b.orm.tableSchema.GetTagBool(name, "required") {
+				if str == "" && !b.orm.tableSchema.GetTagBool(name, "required") {
 					return NullBindValue
 				}
 				return str
