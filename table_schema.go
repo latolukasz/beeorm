@@ -78,7 +78,7 @@ type TableSchema interface {
 	UpdateSchema(engine Engine)
 	UpdateSchemaAndTruncateTable(engine Engine)
 	GetMysql(engine Engine) *DB
-	GetLocalCache(engine Engine) (cache *LocalCache, has bool)
+	GetLocalCache(engine Engine) (cache LocalCache, has bool)
 	GetRedisCache(engine Engine) (cache *RedisCache, has bool)
 	GetReferences() []string
 	GetColumns() []string
@@ -209,7 +209,7 @@ func (tableSchema *tableSchema) GetMysql(engine Engine) *DB {
 	return engine.GetMysql(tableSchema.mysqlPoolName)
 }
 
-func (tableSchema *tableSchema) GetLocalCache(engine Engine) (cache *LocalCache, has bool) {
+func (tableSchema *tableSchema) GetLocalCache(engine Engine) (cache LocalCache, has bool) {
 	if !tableSchema.hasLocalCache {
 		return nil, false
 	}

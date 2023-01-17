@@ -17,5 +17,5 @@ type PluginInterfaceSchemaCheck interface {
 }
 
 type PluginInterfaceEntityFlushed interface {
-	PluginInterfaceEntityFlushed(engine Engine, data *EntityCacheFlush)
+	PluginInterfaceEntityFlushed(engine Engine, data *EntitySQLFlush)
 }

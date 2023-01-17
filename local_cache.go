@@ -37,9 +37,34 @@ func (p *localCachePoolConfig) GetLimit() int {
 	return p.limit
 }
 
-type LocalCache struct {
+type LocalCacheSetter interface {
+	Set(key string, value interface{})
+	MSet(pairs ...interface{})
+	Remove(keys ...string)
+}
+
+type LocalCache interface {
+	LocalCacheSetter
+	GetPoolConfig() LocalCachePoolConfig
+	GetSet(key string, ttl time.Duration, provider func() interface{}) interface{}
+	Get(key string) (value interface{}, ok bool)
+	MGet(keys ...string) []interface{}
+	Clear()
+	GetObjectsCount() int
+}
+
+type localCache struct {
 	engine *engineImplementation
 	config *localCachePoolConfig
+}
+
+type localCacheSetter struct {
+	engine    *engineImplementation
+	code      string
+	setKeys   []string
+	setValues []interface{}
+	removes   []string
+	sync.Mutex
 }
 
 func newLocalCacheConfig(dbCode string, limit int) *localCachePoolConfig {
@@ -55,11 +80,11 @@ type ttlValue struct {
 	time  int64
 }
 
-func (c *LocalCache) GetPoolConfig() LocalCachePoolConfig {
+func (c *localCache) GetPoolConfig() LocalCachePoolConfig {
 	return c.config
 }
 
-func (c *LocalCache) GetSet(key string, ttl time.Duration, provider func() interface{}) interface{} {
+func (c *localCache) GetSet(key string, ttl time.Duration, provider func() interface{}) interface{} {
 	val, has := c.Get(key)
 	if has {
 		ttlVal := val.(ttlValue)
@@ -74,7 +99,7 @@ func (c *LocalCache) GetSet(key string, ttl time.Duration, provider func() inter
 	return userVal
 }
 
-func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
+func (c *localCache) Get(key string) (value interface{}, ok bool) {
 	mut := c.getLruMutex(key)
 	func() {
 		mut.M.Lock()
@@ -87,7 +112,7 @@ func (c *LocalCache) Get(key string) (value interface{}, ok bool) {
 	return
 }
 
-func (c *LocalCache) MGet(keys ...string) []interface{} {
+func (c *localCache) MGet(keys ...string) []interface{} {
 	results := make([]interface{}, len(keys))
 	misses := 0
 	for i, key := range keys {
@@ -101,7 +126,7 @@ func (c *LocalCache) MGet(keys ...string) []interface{} {
 	return results
 }
 
-func (c *LocalCache) Set(key string, value interface{}) {
+func (c *localCache) Set(key string, value interface{}) {
 	mut := c.getLruMutex(key)
 	func() {
 		mut.M.Lock()
@@ -113,14 +138,29 @@ func (c *LocalCache) Set(key string, value interface{}) {
 	}
 }
 
-func (c *LocalCache) MSet(pairs ...interface{}) {
-	max := len(pairs)
-	for i := 0; i < max; i += 2 {
+func (c *localCacheSetter) Set(key string, value interface{}) {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	c.setKeys = append(c.setKeys, key)
+	c.setValues = append(c.setValues, value)
+}
+
+func (c *localCache) MSet(pairs ...interface{}) {
+	for i := 0; i < len(pairs); i += 2 {
 		c.Set(pairs[i].(string), pairs[i+1])
 	}
 }
 
-func (c *LocalCache) Remove(keys ...string) {
+func (c *localCacheSetter) MSet(pairs ...interface{}) {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	for i := 0; i < len(pairs); i += 2 {
+		c.setKeys = append(c.setKeys, pairs[i].(string))
+		c.setValues = append(c.setValues, pairs[i+1])
+	}
+}
+
+func (c *localCache) Remove(keys ...string) {
 	for _, v := range keys {
 		mut := c.getLruMutex(v)
 		func() {
@@ -134,7 +174,29 @@ func (c *LocalCache) Remove(keys ...string) {
 	}
 }
 
-func (c *LocalCache) Clear() {
+func (c *localCacheSetter) Remove(keys ...string) {
+	c.Mutex.Lock()
+	defer c.Mutex.Unlock()
+	c.removes = append(c.removes, keys...)
+}
+
+func (c *localCacheSetter) flush() {
+	if c.setKeys == nil && c.removes == nil {
+		return
+	}
+	cache := c.engine.GetLocalCache(c.code)
+	for i, key := range c.removes {
+		cache.Set(key, c.setValues[i])
+	}
+	if c.removes != nil {
+		cache.Remove(c.removes...)
+	}
+	c.setKeys = nil
+	c.setValues = nil
+	c.removes = nil
+}
+
+func (c *localCache) Clear() {
 	for _, mut := range c.config.lru {
 		func() {
 			mut.M.Lock()
@@ -147,7 +209,7 @@ func (c *LocalCache) Clear() {
 	}
 }
 
-func (c *LocalCache) GetObjectsCount() int {
+func (c *localCache) GetObjectsCount() int {
 	total := 0
 	for _, mut := range c.config.lru {
 		func() {
@@ -159,13 +221,13 @@ func (c *LocalCache) GetObjectsCount() int {
 	return total
 }
 
-func (c *LocalCache) getLruMutex(s string) *localCacheLruMutex {
+func (c *localCache) getLruMutex(s string) *localCacheLruMutex {
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(s))
 	modulo := h.Sum32() % localCachePools
 	return c.config.lru[modulo]
 }
 
-func (c *LocalCache) fillLogFields(operation, query string, cacheMiss bool) {
+func (c *localCache) fillLogFields(operation, query string, cacheMiss bool) {
 	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

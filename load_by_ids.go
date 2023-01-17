@@ -23,7 +23,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	hasLocalCache := schema.hasLocalCache
 	hasRedis := schema.hasRedisCache
 
-	var localCache *LocalCache
+	var localCache LocalCache
 	var redisCache *RedisCache
 	hasValid := false
 

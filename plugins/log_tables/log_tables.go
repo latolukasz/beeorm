@@ -129,37 +129,37 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema o
 	return alters, map[string][]string{poolName: {tableName}}
 }
 
-func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, data *orm.EntityCacheFlush) {
-	tableSchema := engine.GetRegistry().GetTableSchema(data.EntityName)
+func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, flush *orm.EntitySQLFlush) {
+	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
 	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
 		return
 	}
 	skippedFields := tableSchema.GetOption(PluginCodeLog, skipLogOption)
-	if data.EntitySQLFlush.Update != nil && skippedFields != nil {
+	if flush.Update != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {
-			_, has := data.EntitySQLFlush.Update[skip]
+			_, has := flush.Update[skip]
 			if has {
 				skipped++
 			}
 		}
-		if skipped == len(data.EntitySQLFlush.Update) {
+		if skipped == len(flush.Update) {
 			return
 		}
 	}
 	val := &LogQueueValue{
 		TableName: tableSchema.GetOptionString(PluginCodeLog, tableNameOption),
-		ID:        data.ID,
+		ID:        flush.ID,
 		PoolName:  poolName,
-		Before:    data.EntitySQLFlush.Old,
-		Changes:   data.EntitySQLFlush.Update,
+		Before:    flush.Old,
+		Changes:   flush.Update,
 		Updated:   time.Now()}
 	meta := engine.GetOption(PluginCodeLog, metaOption)
 	if meta != nil {
 		val.Meta = meta.(map[string]interface{})
 	}
-	data.PublishToStream(LogTablesChannelName, val)
+	//data.PublishToStream(LogTablesChannelName, val)
 }
 
 type LogQueueValue struct {

@@ -11,7 +11,7 @@ type Engine interface {
 	EnableRequestCache()
 	SetQueryTimeLimit(seconds int)
 	GetMysql(code ...string) *DB
-	GetLocalCache(code ...string) *LocalCache
+	GetLocalCache(code ...string) LocalCache
 	GetRedis(code ...string) *RedisCache
 	NewFlusher() Flusher
 	Flush(entity ...Entity)
@@ -49,7 +49,7 @@ type Engine interface {
 type engineImplementation struct {
 	registry               *validatedRegistry
 	dbs                    map[string]*DB
-	localCache             map[string]*LocalCache
+	localCache             map[string]*localCache
 	redis                  map[string]*RedisCache
 	hasRequestCache        bool
 	queryLoggersDB         []LogHandler
@@ -133,7 +133,7 @@ func (e *engineImplementation) GetMysql(code ...string) *DB {
 	return db
 }
 
-func (e *engineImplementation) GetLocalCache(code ...string) *LocalCache {
+func (e *engineImplementation) GetLocalCache(code ...string) LocalCache {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
@@ -145,9 +145,9 @@ func (e *engineImplementation) GetLocalCache(code ...string) *LocalCache {
 		config, has := e.registry.localCacheServers[dbCode]
 		if !has {
 			if dbCode == requestCacheKey {
-				cache = &LocalCache{config: newLocalCacheConfig(dbCode, 5000), engine: e}
+				cache = &localCache{config: newLocalCacheConfig(dbCode, 5000), engine: e}
 				if e.localCache == nil {
-					e.localCache = map[string]*LocalCache{dbCode: cache}
+					e.localCache = map[string]*localCache{dbCode: cache}
 				} else {
 					e.localCache[dbCode] = cache
 				}
@@ -155,9 +155,9 @@ func (e *engineImplementation) GetLocalCache(code ...string) *LocalCache {
 			}
 			panic(fmt.Errorf("unregistered local cache pool '%s'", dbCode))
 		}
-		cache = &LocalCache{engine: e, config: config.(*localCachePoolConfig)}
+		cache = &localCache{engine: e, config: config.(*localCachePoolConfig)}
 		if e.localCache == nil {
-			e.localCache = make(map[string]*LocalCache)
+			e.localCache = make(map[string]*localCache)
 		}
 		e.localCache[dbCode] = cache
 	}
