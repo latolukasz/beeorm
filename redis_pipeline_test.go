@@ -19,8 +19,8 @@ func TestRedisPipeline(t *testing.T) {
 	r.FlushDB()
 	pipeLine := r.PipeLine()
 
-	r.Set("a", "A", 10)
-	r.Set("c", "C", 10)
+	r.Set("a", "A", 10*time.Second)
+	r.Set("c", "C", 10*time.Second)
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	c1 := pipeLine.Get("a")

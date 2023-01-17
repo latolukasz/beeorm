@@ -94,8 +94,8 @@ func (f *flusher) execute(lazy bool) {
 	startTransaction := make(map[*DB]bool)
 	func() {
 		defer func() {
-			for db := range startTransaction {
-				if db.inTransaction {
+			for db, start := range startTransaction {
+				if start && db.inTransaction {
 					db.Rollback()
 				}
 			}
@@ -127,6 +127,10 @@ func (f *flusher) execute(lazy bool) {
 			}
 		MAIN:
 			for db, byDB := range group {
+				_, has := startTransaction[db]
+				if !has {
+					startTransaction[db] = false
+				}
 				if !db.IsInTransaction() {
 					if len(byDB) > 1 || checkReferences {
 						startTransaction[db] = true
@@ -140,8 +144,8 @@ func (f *flusher) execute(lazy bool) {
 					}
 				}
 			}
-			for db := range startTransaction {
-				if !db.inTransaction {
+			for db, start := range startTransaction {
+				if start && !db.inTransaction {
 					db.Begin()
 				}
 			}
@@ -178,8 +182,10 @@ func (f *flusher) execute(lazy bool) {
 				}
 			}
 			if !checkReferences {
-				for db := range startTransaction {
-					db.Commit()
+				for db, start := range startTransaction {
+					if start {
+						db.Commit()
+					}
 				}
 			}
 		}

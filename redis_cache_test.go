@@ -69,16 +69,16 @@ func testRedis(t *testing.T, namespace string, version int) {
 	val, has := r.Get("test_get")
 	assert.False(t, has)
 	assert.Equal(t, "", val)
-	r.Set("test_get", "hello", 1)
+	r.Set("test_get", "hello", 1*time.Second)
 	val, has = r.Get("test_get")
 	assert.True(t, has)
 	assert.Equal(t, "hello", val)
-	isSet := r.SetNX("test_get_nx", "hello nx", 1)
+	isSet := r.SetNX("test_get_nx", "hello nx", 1*time.Second)
 	assert.True(t, isSet)
 	val, has = r.Get("test_get_nx")
 	assert.True(t, has)
 	assert.Equal(t, "hello nx", val)
-	isSet = r.SetNX("test_get_nx", "hello nx", 1)
+	isSet = r.SetNX("test_get_nx", "hello nx", 1*time.Second)
 	assert.False(t, isSet)
 
 	r.LPush("test_list", "a")
@@ -338,7 +338,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Nil(t, val)
 	assert.False(t, exists)
 
-	r.Set("a", "n", 10)
+	r.Set("a", "n", 10*time.Second)
 	r.FlushAll()
 	assert.Equal(t, int64(0), r.Exists("a"))
 

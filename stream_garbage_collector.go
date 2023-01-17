@@ -43,7 +43,7 @@ func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 	engine := r.engine
 	redisGarbage := engine.GetRedis(garbageEvent.Pool).(*redisCache)
 	streams := engine.registry.getRedisStreamsForGroup(garbageEvent.Group)
-	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
+	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30*time.Second) {
 		event.delete()
 		return
 	}
