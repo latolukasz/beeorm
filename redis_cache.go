@@ -13,22 +13,22 @@ import (
 )
 
 type RedisCacheSetter interface {
-	Set(key string, value interface{}, ttlSeconds int)
+	Set(key string, value interface{}, expiration time.Duration)
 	MSet(pairs ...interface{})
 	Del(keys ...string)
-	xAdd(stream string, value interface{}) (id string)
+	xAdd(stream string, values []string) (id string)
 }
 
 type RedisCache interface {
 	RedisCacheSetter
-	GetSet(key string, ttlSeconds int, provider func() interface{}) interface{}
+	GetSet(key string, expiration time.Duration, provider func() interface{}) interface{}
 	PipeLine() *RedisPipeLine
 	Info(section ...string) string
 	GetPoolConfig() RedisPoolConfig
 	Get(key string) (value string, has bool)
 	Eval(script string, keys []string, args ...interface{}) interface{}
 	EvalSha(sha1 string, keys []string, args ...interface{}) (res interface{}, exists bool)
-	SetNX(key string, value interface{}, ttlSeconds int) bool
+	SetNX(key string, value interface{}, expiration time.Duration) bool
 	ScriptExists(sha1 string) bool
 	ScriptLoad(script string) string
 	LPush(key string, values ...interface{}) int64
@@ -96,22 +96,22 @@ type redisCache struct {
 }
 
 type redisCacheSetter struct {
-	engine     *engineImplementation
-	code       string
-	setKeys    []string
-	setValues  []interface{}
-	setTTLs    []int
-	deletes    []string
-	xAddKeys   []string
-	xAddValues []interface{}
+	engine          *engineImplementation
+	code            string
+	sets            []interface{}
+	setExpireKeys   []string
+	setExpireValues []interface{}
+	setExpireTTLs   []time.Duration
+	deletes         []string
+	xAdds           map[string][]string
 }
 
-func (r *redisCache) GetSet(key string, ttlSeconds int, provider func() interface{}) interface{} {
+func (r *redisCache) GetSet(key string, expiration time.Duration, provider func() interface{}) interface{} {
 	val, has := r.Get(key)
 	if !has {
 		userVal := provider()
 		encoded, _ := msgpack.Marshal(userVal)
-		r.Set(key, string(encoded), ttlSeconds)
+		r.Set(key, string(encoded), expiration)
 		return userVal
 	}
 	var data interface{}
@@ -206,29 +206,29 @@ func (r *redisCache) ScriptLoad(script string) string {
 	return res
 }
 
-func (r *redisCache) Set(key string, value interface{}, ttlSeconds int) {
+func (r *redisCache) Set(key string, value interface{}, expiration time.Duration) {
 	key = r.addNamespacePrefix(key)
 	start := getNow(r.engine.hasRedisLogger)
-	_, err := r.client.Set(context.Background(), key, value, time.Duration(ttlSeconds)*time.Second).Result()
+	_, err := r.client.Set(context.Background(), key, value, expiration).Result()
 	if r.engine.hasRedisLogger {
-		message := fmt.Sprintf("SET %s %v %d", key, value, ttlSeconds)
+		message := fmt.Sprintf("SET %s %v %s", key, value, expiration)
 		r.fillLogFields("SET", message, start, false, err)
 	}
 	checkError(err)
 }
 
-func (r *redisCacheSetter) Set(key string, value interface{}, ttlSeconds int) {
-	r.setKeys = append(r.setKeys, key)
-	r.setValues = append(r.setValues, value)
-	r.setTTLs = append(r.setTTLs, ttlSeconds)
+func (r *redisCacheSetter) Set(key string, value interface{}, expiration time.Duration) {
+	r.setExpireKeys = append(r.setExpireKeys, key)
+	r.setExpireValues = append(r.setExpireValues, value)
+	r.setExpireTTLs = append(r.setExpireTTLs, expiration)
 }
 
-func (r *redisCache) SetNX(key string, value interface{}, ttlSeconds int) bool {
+func (r *redisCache) SetNX(key string, value interface{}, expiration time.Duration) bool {
 	key = r.addNamespacePrefix(key)
 	start := getNow(r.engine.hasRedisLogger)
-	isSet, err := r.client.SetNX(context.Background(), key, value, time.Duration(ttlSeconds)*time.Second).Result()
+	isSet, err := r.client.SetNX(context.Background(), key, value, expiration).Result()
 	if r.engine.hasRedisLogger {
-		message := fmt.Sprintf("SET NX %s %v %d", key, value, ttlSeconds)
+		message := fmt.Sprintf("SET NX %s %v %s", key, value, expiration)
 		r.fillLogFields("SETNX", message, start, false, err)
 	}
 	checkError(err)
@@ -630,9 +630,7 @@ func (r *redisCache) MSet(pairs ...interface{}) {
 }
 
 func (r *redisCacheSetter) MSet(pairs ...interface{}) {
-	for i := 0; i < len(pairs); i += 2 {
-		r.Set(pairs[i].(string), pairs[i+1], 0)
-	}
+	r.sets = append(r.sets, pairs...)
 }
 
 func (r *redisCache) MGet(keys ...string) []interface{} {
@@ -965,23 +963,97 @@ func (r *redisCache) XPendingExt(a *redis.XPendingExtArgs) []redis.XPendingExt {
 	return res
 }
 
-func (r *redisCache) xAdd(stream string, value interface{}) (id string) {
+func (r *redisCache) xAdd(stream string, values []string) (id string) {
 	stream = r.addNamespacePrefix(stream)
-	a := &redis.XAddArgs{Stream: stream, ID: "*", Values: value}
+	a := &redis.XAddArgs{Stream: stream, ID: "*", Values: values}
 	start := getNow(r.engine.hasRedisLogger)
 	id, err := r.client.XAdd(context.Background(), a).Result()
 	if r.engine.hasRedisLogger {
-		message := "XADD " + stream + " " + strings.Join(value.([]string), " ")
+		message := "XADD " + stream + " " + strings.Join(values, " ")
 		r.fillLogFields("XADD", message, start, false, err)
 	}
 	checkError(err)
 	return id
 }
 
-func (r *redisCacheSetter) xAdd(stream string, value interface{}) (id string) {
-	r.xAddKeys = append(r.xAddKeys, stream)
-	r.xAddValues = append(r.xAddValues, value)
+func (r *redisCacheSetter) xAdd(stream string, values []string) (id string) {
+	if r.xAdds == nil {
+		r.xAdds = map[string][]string{stream: values}
+	} else {
+		r.xAdds[stream] = append(r.xAdds[stream], values...)
+	}
 	return ""
+}
+
+func (r *redisCacheSetter) flush() {
+	commands := 0
+	if r.sets != nil {
+		commands++
+	}
+	if r.setExpireKeys != nil {
+		commands++
+	}
+	if r.deletes != nil {
+		commands++
+	}
+	if r.xAdds != nil {
+		commands++
+	}
+	if commands == 0 {
+		return
+	}
+	cache := r.engine.GetRedis(r.code)
+	usePipeLine := commands > 1
+	if !usePipeLine {
+		usePipeLine = len(r.xAdds) > 1 || len(r.setExpireKeys) > 1
+	}
+	if usePipeLine {
+		pipeLine := cache.PipeLine()
+		if r.sets != nil {
+			pipeLine.MSet(r.sets...)
+			r.sets = nil
+		}
+		if r.setExpireKeys != nil {
+			for i, key := range r.setExpireKeys {
+				pipeLine.Set(key, r.setExpireValues[i], r.setExpireTTLs[i])
+			}
+			r.setExpireKeys = nil
+			r.setExpireValues = nil
+			r.setExpireTTLs = nil
+		}
+		if r.deletes != nil {
+			pipeLine.Del(r.deletes...)
+			r.deletes = nil
+		}
+		if r.xAdds != nil {
+			for stream, events := range r.xAdds {
+				pipeLine.XAdd(stream, events)
+			}
+			r.xAdds = nil
+		}
+		pipeLine.Exec()
+		return
+	}
+	if r.sets != nil {
+		cache.MSet(r.sets)
+		r.sets = nil
+	}
+	if r.setExpireKeys != nil {
+		cache.Set(r.setExpireKeys[0], r.setExpireValues[0], r.setExpireTTLs[0])
+		r.setExpireKeys = nil
+		r.setExpireValues = nil
+		r.setExpireTTLs = nil
+	}
+	if r.deletes != nil {
+		cache.Del(r.deletes...)
+		r.deletes = nil
+	}
+	if r.xAdds != nil {
+		for stream, events := range r.xAdds {
+			cache.xAdd(stream, events)
+		}
+		r.xAdds = nil
+	}
 }
 
 func (r *redisCache) XLen(stream string) int64 {

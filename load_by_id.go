@@ -3,6 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"reflect"
+	"time"
 )
 
 const cacheNilValue = ""
@@ -63,7 +64,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 			localCache.Set(cacheKey, cacheNilValue)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, cacheNilValue, 60)
+			redisCache.Set(cacheKey, cacheNilValue, 30*time.Second)
 		}
 		return false, schema
 	}

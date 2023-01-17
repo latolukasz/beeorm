@@ -129,7 +129,7 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema o
 	return alters, map[string][]string{poolName: {tableName}}
 }
 
-func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, flush *orm.EntitySQLFlush) {
+func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, flush *orm.EntitySQLFlush, cacheFlusher orm.FlusherCacheSetter) {
 	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
 	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
@@ -159,7 +159,7 @@ func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, flush 
 	if meta != nil {
 		val.Meta = meta.(map[string]interface{})
 	}
-	//data.PublishToStream(LogTablesChannelName, val)
+	cacheFlusher.PublishToStream(LogTablesChannelName, val)
 }
 
 type LogQueueValue struct {

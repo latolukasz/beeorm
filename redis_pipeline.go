@@ -48,6 +48,23 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 	rp.pipeLine.Set(context.Background(), key, value, expiration)
 }
 
+func (rp *RedisPipeLine) MSet(pairs ...interface{}) {
+	if rp.r.config.HasNamespace() {
+		for i := 0; i < len(pairs); i = i + 2 {
+			pairs[i] = rp.r.addNamespacePrefix(pairs[i].(string))
+		}
+	}
+	rp.commands++
+	if rp.r.engine.hasRedisLogger {
+		message := "MSET"
+		for _, v := range pairs {
+			message += fmt.Sprintf(" %v", v)
+		}
+		rp.log = append(rp.log, "MSET", message)
+	}
+	rp.pipeLine.MSet(context.Background(), pairs...)
+}
+
 func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
