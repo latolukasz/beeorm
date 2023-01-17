@@ -94,8 +94,8 @@ func (f *flusher) execute(lazy bool) {
 	startTransaction := make(map[*DB]bool)
 	func() {
 		defer func() {
-			for db, start := range startTransaction {
-				if start && db.inTransaction {
+			for db := range startTransaction {
+				if db.inTransaction {
 					db.Rollback()
 				}
 			}
@@ -127,10 +127,6 @@ func (f *flusher) execute(lazy bool) {
 			}
 		MAIN:
 			for db, byDB := range group {
-				_, has := startTransaction[db]
-				if !has {
-					startTransaction[db] = false
-				}
 				if !db.IsInTransaction() {
 					if len(byDB) > 1 || checkReferences {
 						startTransaction[db] = true
@@ -144,8 +140,8 @@ func (f *flusher) execute(lazy bool) {
 					}
 				}
 			}
-			for db, start := range startTransaction {
-				if start && !db.inTransaction {
+			for db := range startTransaction {
+				if !db.inTransaction {
 					db.Begin()
 				}
 			}
@@ -182,15 +178,21 @@ func (f *flusher) execute(lazy bool) {
 				}
 			}
 			if !checkReferences {
-				for db, start := range startTransaction {
-					if start {
-						db.Commit()
-					}
+				for db := range startTransaction {
+					db.Commit()
 				}
 			}
 		}
 	}()
 	f.events = nil
+	for _, cache := range f.localCacheSetters {
+		cache.flush()
+	}
+	f.localCacheSetters = nil
+	for _, cache := range f.redisCacheSetters {
+		cache.flush()
+	}
+	f.redisCacheSetters = nil
 }
 
 func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {

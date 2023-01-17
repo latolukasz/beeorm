@@ -299,10 +299,6 @@ func (db *DB) Commit() {
 	}
 	checkError(err)
 	db.inTransaction = false
-	if db.engine.afterCommit != nil {
-		db.engine.afterCommit()
-		db.engine.afterCommit = nil
-	}
 }
 
 func (db *DB) Rollback() {
@@ -314,7 +310,6 @@ func (db *DB) Rollback() {
 		}
 	}
 	checkError(err)
-	db.engine.afterCommit = nil
 	db.inTransaction = false
 }
 

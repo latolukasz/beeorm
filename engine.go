@@ -58,7 +58,6 @@ type engineImplementation struct {
 	hasRedisLogger         bool
 	hasDBLogger            bool
 	hasLocalCacheLogger    bool
-	afterCommit            func()
 	eventBroker            *eventBroker
 	queryTimeLimit         uint16
 	options                map[string]map[string]interface{}
