@@ -79,7 +79,7 @@ type TableSchema interface {
 	UpdateSchemaAndTruncateTable(engine Engine)
 	GetMysql(engine Engine) *DB
 	GetLocalCache(engine Engine) (cache LocalCache, has bool)
-	GetRedisCache(engine Engine) (cache *RedisCache, has bool)
+	GetRedisCache(engine Engine) (cache RedisCache, has bool)
 	GetReferences() []string
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
@@ -216,7 +216,7 @@ func (tableSchema *tableSchema) GetLocalCache(engine Engine) (cache LocalCache, 
 	return engine.GetLocalCache(tableSchema.localCacheName), true
 }
 
-func (tableSchema *tableSchema) GetRedisCache(engine Engine) (cache *RedisCache, has bool) {
+func (tableSchema *tableSchema) GetRedisCache(engine Engine) (cache RedisCache, has bool) {
 	if !tableSchema.hasRedisCache {
 		return nil, false
 	}

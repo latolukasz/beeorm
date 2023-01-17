@@ -34,12 +34,12 @@ func TestRedisStreamsStatus(t *testing.T) {
 	assert.True(t, valid)
 
 	r.XGroupCreateMkStream("test-stream", "test-group", "0")
-	flusher := engine.GetEventBroker().NewFlusher()
+	flusher := engine.NewFlusher()
 	type testEvent struct {
 		Name string
 	}
 	for i := 1; i <= 10001; i++ {
-		flusher.Publish("test-stream", testEvent{"b"})
+		flusher.PublishToStream("test-stream", testEvent{"b"})
 	}
 	flusher.Flush()
 	time.Sleep(time.Millisecond * 500)
@@ -74,7 +74,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	assert.Equal(t, uint64(0), statsSingle.Groups[0].Pending)
 	assert.Len(t, statsSingle.Groups[0].Consumers, 0)
 
-	flusher.Publish("test-stream", testEvent{"a"})
+	flusher.PublishToStream("test-stream", testEvent{"a"})
 	flusher.Flush()
 	assert.Panics(t, func() {
 		consumer.Consume(context.Background(), 10, func(events []Event) {

@@ -2,12 +2,13 @@ package beeorm
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/google/go-cmp/cmp"
 

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 )
 
 type Bind map[string]string
@@ -50,7 +49,14 @@ func (err *ForeignKeyError) Error() string {
 	return err.Message
 }
 
+type FlusherCacheSetter interface {
+	GetLocalCacheSetter(code ...string) LocalCacheSetter
+	GetRedisCacheSetter(code ...string) RedisCacheSetter
+	PublishToStream(stream string, body interface{}, meta ...string)
+}
+
 type Flusher interface {
+	FlusherCacheSetter
 	Track(entity ...Entity) Flusher
 	Flush()
 	FlushWithCheck() error
@@ -59,7 +65,6 @@ type Flusher interface {
 	Clear()
 	Delete(entity ...Entity) Flusher
 	ForceDelete(entity ...Entity) Flusher
-	GetLocalCacheSetter(code ...string) LocalCacheSetter
 }
 
 type flusher struct {
@@ -70,7 +75,7 @@ type flusher struct {
 	events                 []*EntitySQLFlush
 	stringBuilder          strings.Builder
 	localCacheSetters      map[string]*localCacheSetter
-	sync.Mutex
+	redisCacheSetters      map[string]*redisCacheSetter
 }
 
 func (f *flusher) addFlushEvent(sqlFlush *EntitySQLFlush) {
@@ -431,21 +436,35 @@ func (f *flusher) GetLocalCacheSetter(code ...string) LocalCacheSetter {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	f.Mutex.Lock()
-	defer f.Mutex.Unlock()
 	cache, has := f.localCacheSetters[dbCode]
 	if !has {
-		config, has := f.engine.registry.localCacheServers[dbCode]
-		if !has {
-			panic(fmt.Errorf("unregistered local cache pool '%s'", dbCode))
-		}
-		cache = &localCacheSetter{engine: f.engine, code: config.GetCode()}
+		cache = &localCacheSetter{engine: f.engine, code: dbCode}
 		if f.localCacheSetters == nil {
 			f.localCacheSetters = make(map[string]*localCacheSetter)
 		}
 		f.localCacheSetters[dbCode] = cache
 	}
 	return cache
+}
+
+func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
+	dbCode := "default"
+	if len(code) > 0 {
+		dbCode = code[0]
+	}
+	cache, has := f.redisCacheSetters[dbCode]
+	if !has {
+		cache = &redisCacheSetter{engine: f.engine, code: dbCode}
+		if f.redisCacheSetters == nil {
+			f.redisCacheSetters = make(map[string]*redisCacheSetter)
+		}
+		f.redisCacheSetters[dbCode] = cache
+	}
+	return cache
+}
+
+func (f *flusher) PublishToStream(stream string, body interface{}, meta ...string) {
+	f.GetRedisCacheSetter(getRedisCodeForStream(f.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
 }
 
 func (f *flusher) Flush() {
@@ -479,6 +498,8 @@ func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
 	f.events = nil
+	f.localCacheSetters = nil
+	f.redisCacheSetters = nil
 }
 
 func (f *flusher) flushTrackedEntities(lazy bool) {
@@ -487,6 +508,9 @@ func (f *flusher) flushTrackedEntities(lazy bool) {
 	}
 	f.buildFlushEvents(f.trackedEntities, true)
 	f.execute(lazy)
+	f.events = nil
+	f.localCacheSetters = nil
+	f.redisCacheSetters = nil
 }
 
 func (f *flusher) flushWithCheck() error {

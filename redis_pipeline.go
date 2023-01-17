@@ -11,7 +11,7 @@ import (
 )
 
 type RedisPipeLine struct {
-	r        *RedisCache
+	r        *redisCache
 	pool     string
 	pipeLine redis.Pipeliner
 	commands int

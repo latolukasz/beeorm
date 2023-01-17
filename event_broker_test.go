@@ -21,14 +21,14 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
 	broker := engine.GetEventBroker()
-	eventFlusher := engine.GetEventBroker().NewFlusher()
+	flusher := engine.NewFlusher()
 	type testEvent struct {
 		Name string
 	}
 	for i := 1; i <= 10; i++ {
-		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
-	eventFlusher.Flush()
+	flusher.Flush()
 
 	consumer1 := broker.Consumer("test-group-1")
 	consumer1.(*eventsConsumer).blockTime = time.Millisecond
@@ -49,9 +49,9 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 
 	for i := 1; i <= 10; i++ {
-		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
-	eventFlusher.Flush()
+	flusher.Flush()
 	consumer1.Consume(context.Background(), 100, func(events []Event) {})
 	consumer2.Consume(context.Background(), 100, func(events []Event) {})
 	time.Sleep(time.Millisecond * 200)
@@ -63,9 +63,9 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	consumer2.(*eventsConsumer).garbage()
 
 	for i := 1; i <= 10; i++ {
-		eventFlusher.Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)})
 	}
-	eventFlusher.Flush()
+	flusher.Flush()
 	assert.PanicsWithError(t, "stop", func() {
 		consumer2.Consume(context.Background(), 10, func(events []Event) {
 			events[0].Ack()
@@ -358,10 +358,10 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	}
 
 	engine = validatedRegistry.CreateEngine()
-	eventFlusher := engine.GetEventBroker().NewFlusher()
-	eventFlusher.Publish("test-stream", testStructEvent{Name: "a", Age: 18})
-	eventFlusher.Publish("test-stream", testStructEvent{Name: "b", Age: 20})
-	eventFlusher.Flush()
+	flusher := engine.NewFlusher()
+	flusher.PublishToStream("test-stream", testStructEvent{Name: "a", Age: 18})
+	flusher.PublishToStream("test-stream", testStructEvent{Name: "b", Age: 20})
+	flusher.Flush()
 	valid = false
 	consumer = engine.GetEventBroker().Consumer("test-group")
 	consumer.DisableBlockMode()
@@ -383,9 +383,9 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	eventFlusher.Publish("test-stream", "test", "tag", "val1", "tag2", "val2")
-	eventFlusher.Publish("test-stream", nil, "tag3", "val3")
-	eventFlusher.Flush()
+	flusher.PublishToStream("test-stream", "test", "tag", "val1", "tag2", "val2")
+	flusher.PublishToStream("test-stream", nil, "tag3", "val3")
+	flusher.Flush()
 	valid = false
 	consumer.Consume(context.Background(), 10, func(events []Event) {
 		valid = true
@@ -404,11 +404,11 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	defer stop()
 	engine = validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
-	eventFlusher = engine.GetEventBroker().NewFlusher()
+	flusher = engine.NewFlusher()
 	for i := 0; i < 100; i++ {
-		eventFlusher.Publish("test-stream", "a")
+		flusher.PublishToStream("test-stream", "a")
 	}
-	eventFlusher.Flush()
+	flusher.Flush()
 	broker = engine.GetEventBroker()
 	consumer = broker.Consumer("test-group")
 	incr := 0
@@ -428,14 +428,14 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	defer stop2()
 	engine = validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
-	eventFlusher = engine.GetEventBroker().NewFlusher()
-	eventFlusher.Publish("test-stream", "a")
-	eventFlusher.Flush()
+	flusher = engine.NewFlusher()
+	flusher.PublishToStream("test-stream", "a")
+	flusher.Flush()
 	broker = engine.GetEventBroker()
 
-	eventFlusher.Publish("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
+	flusher.PublishToStream("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
 	assert.PanicsWithError(t, "unregistered stream test-stream-invalid", func() {
-		eventFlusher.Flush()
+		flusher.Flush()
 	})
 	assert.PanicsWithError(t, "unregistered streams for group test-group-invalid", func() {
 		broker.Consumer("test-group-invalid")

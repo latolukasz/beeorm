@@ -70,20 +70,9 @@ func (ev *event) Unserialize(value interface{}) {
 type EventBroker interface {
 	Publish(stream string, body interface{}, meta ...string) (id string)
 	Consumer(group string) EventsConsumer
-	NewFlusher() EventFlusher
 	GetStreamsStatistics(stream ...string) []*RedisStreamStatistics
 	GetStreamStatistics(stream string) *RedisStreamStatistics
 	GetStreamGroupStatistics(stream, group string) *RedisStreamGroupStatistics
-}
-
-type EventFlusher interface {
-	Publish(stream string, body interface{}, meta ...string)
-	Flush()
-}
-
-type eventFlusher struct {
-	eb     *eventBroker
-	events map[string][][]string
 }
 
 type eventBroker struct {
@@ -105,31 +94,6 @@ func createEventSlice(body interface{}, meta []string) []string {
 	return values
 }
 
-func (ef *eventFlusher) Publish(stream string, body interface{}, meta ...string) {
-	ef.events[stream] = append(ef.events[stream], createEventSlice(body, meta))
-}
-
-func (ef *eventFlusher) Flush() {
-	grouped := make(map[*RedisCache]map[string][][]string)
-	for stream, events := range ef.events {
-		r := getRedisForStream(ef.eb.engine, stream)
-		if grouped[r] == nil {
-			grouped[r] = make(map[string][][]string)
-		}
-		grouped[r][stream] = events
-	}
-	for r, events := range grouped {
-		p := r.PipeLine()
-		for stream, list := range events {
-			for _, e := range list {
-				p.XAdd(stream, e)
-			}
-		}
-		p.Exec()
-	}
-	ef.events = make(map[string][][]string)
-}
-
 func (e *engineImplementation) GetEventBroker() EventBroker {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
@@ -139,20 +103,16 @@ func (e *engineImplementation) GetEventBroker() EventBroker {
 	return e.eventBroker
 }
 
-func (eb *eventBroker) NewFlusher() EventFlusher {
-	return &eventFlusher{eb: eb, events: make(map[string][][]string)}
-}
-
 func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) (id string) {
-	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(body, meta))
+	return eb.engine.GetRedis(getRedisCodeForStream(eb.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
 }
 
-func getRedisForStream(engine *engineImplementation, stream string) *RedisCache {
-	pool, has := engine.registry.redisStreamPools[stream]
+func getRedisCodeForStream(registry *validatedRegistry, stream string) string {
+	pool, has := registry.redisStreamPools[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
 	}
-	return engine.GetRedis(pool)
+	return pool
 }
 
 type EventConsumerHandler func(events []Event)
@@ -172,7 +132,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
 	return &eventsConsumer{
 		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 30},
-		redis:             eb.engine.GetRedis(redisPool),
+		redis:             eb.engine.GetRedis(redisPool).(*redisCache),
 		streams:           streams,
 		group:             group,
 		lockTTL:           time.Second * 90,
@@ -187,7 +147,7 @@ type eventConsumerBase struct {
 
 type eventsConsumer struct {
 	eventConsumerBase
-	redis           *RedisCache
+	redis           *redisCache
 	streams         []string
 	group           string
 	lockTTL         time.Duration

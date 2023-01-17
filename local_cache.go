@@ -64,7 +64,6 @@ type localCacheSetter struct {
 	setKeys   []string
 	setValues []interface{}
 	removes   []string
-	sync.Mutex
 }
 
 func newLocalCacheConfig(dbCode string, limit int) *localCachePoolConfig {
@@ -139,8 +138,6 @@ func (c *localCache) Set(key string, value interface{}) {
 }
 
 func (c *localCacheSetter) Set(key string, value interface{}) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
 	c.setKeys = append(c.setKeys, key)
 	c.setValues = append(c.setValues, value)
 }
@@ -152,8 +149,6 @@ func (c *localCache) MSet(pairs ...interface{}) {
 }
 
 func (c *localCacheSetter) MSet(pairs ...interface{}) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
 	for i := 0; i < len(pairs); i += 2 {
 		c.setKeys = append(c.setKeys, pairs[i].(string))
 		c.setValues = append(c.setValues, pairs[i+1])
@@ -175,8 +170,6 @@ func (c *localCache) Remove(keys ...string) {
 }
 
 func (c *localCacheSetter) Remove(keys ...string) {
-	c.Mutex.Lock()
-	defer c.Mutex.Unlock()
 	c.removes = append(c.removes, keys...)
 }
 

@@ -21,7 +21,7 @@ func TestRegisterRedisSentinelWithOptions(t *testing.T) {
 	pools := vRegistry.GetRedisPools()
 	assert.Len(t, pools, 1)
 	engine := vRegistry.CreateEngine()
-	outputOptions := engine.GetRedis().client.Options()
+	outputOptions := engine.GetRedis().(*redisCache).client.Options()
 	assert.Equal(t, "test_user", outputOptions.Username)
 	assert.Equal(t, "test_pass", outputOptions.Password)
 }

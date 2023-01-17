@@ -12,7 +12,7 @@ type Engine interface {
 	SetQueryTimeLimit(seconds int)
 	GetMysql(code ...string) *DB
 	GetLocalCache(code ...string) LocalCache
-	GetRedis(code ...string) *RedisCache
+	GetRedis(code ...string) RedisCache
 	NewFlusher() Flusher
 	Flush(entity ...Entity)
 	FlushLazy(entity ...Entity)
@@ -50,7 +50,7 @@ type engineImplementation struct {
 	registry               *validatedRegistry
 	dbs                    map[string]*DB
 	localCache             map[string]*localCache
-	redis                  map[string]*RedisCache
+	redis                  map[string]*redisCache
 	hasRequestCache        bool
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
@@ -164,7 +164,7 @@ func (e *engineImplementation) GetLocalCache(code ...string) LocalCache {
 	return cache
 }
 
-func (e *engineImplementation) GetRedis(code ...string) *RedisCache {
+func (e *engineImplementation) GetRedis(code ...string) RedisCache {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
@@ -178,9 +178,9 @@ func (e *engineImplementation) GetRedis(code ...string) *RedisCache {
 			panic(fmt.Errorf("unregistered redis cache pool '%s'", dbCode))
 		}
 		client := config.getClient()
-		cache = &RedisCache{engine: e, config: config, client: client}
+		cache = &redisCache{engine: e, config: config, client: client}
 		if e.redis == nil {
-			e.redis = map[string]*RedisCache{dbCode: cache}
+			e.redis = map[string]*redisCache{dbCode: cache}
 		} else {
 			e.redis[dbCode] = cache
 		}

@@ -2,9 +2,10 @@ package beeorm
 
 import (
 	"context"
-	"github.com/go-sql-driver/mysql"
 	"testing"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
 
 	"github.com/stretchr/testify/assert"
 )

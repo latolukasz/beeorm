@@ -41,13 +41,13 @@ func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 	garbageEvent := &garbageCollectorEvent{}
 	event.Unserialize(garbageEvent)
 	engine := r.engine
-	redisGarbage := engine.GetRedis(garbageEvent.Pool)
+	redisGarbage := engine.GetRedis(garbageEvent.Pool).(*redisCache)
 	streams := engine.registry.getRedisStreamsForGroup(garbageEvent.Group)
 	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30) {
 		event.delete()
 		return
 	}
-	def := engine.registry.redisStreamGroups[redisGarbage.config.GetCode()]
+	def := engine.registry.redisStreamGroups[redisGarbage.GetPoolConfig().GetCode()]
 	for _, stream := range streams {
 		info := redisGarbage.XInfoGroups(stream)
 		ids := make(map[string][]int64)
@@ -114,7 +114,7 @@ func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 	event.delete()
 }
 
-func (r *StreamGarbageCollectorConsumer) setGCScript(redisGarbage *RedisCache) {
+func (r *StreamGarbageCollectorConsumer) setGCScript(redisGarbage RedisCache) {
 	script := `
 						local count = 0
 						local all = 0

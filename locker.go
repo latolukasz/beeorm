@@ -26,10 +26,10 @@ func (l *standardLockerClient) Obtain(ctx context.Context, key string, options .
 
 type Locker struct {
 	locker lockerClient
-	r      *RedisCache
+	r      *redisCache
 }
 
-func (r *RedisCache) GetLocker() *Locker {
+func (r *redisCache) GetLocker() *Locker {
 	if r.locker != nil {
 		return r.locker
 	}
