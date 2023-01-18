@@ -184,6 +184,7 @@ func (f *flusher) execute(lazy bool) {
 			}
 		}
 	}()
+	f.buildCache()
 	f.events = nil
 	for _, cache := range f.localCacheSetters {
 		cache.flush()
@@ -282,7 +283,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 		f.stringBuilder.WriteString(" WHERE ID=" + strconv.FormatUint(e.ID, 10))
 		results := db.Exec(f.stringBuilder.String(), args...)
 		if results.RowsAffected() == 0 {
-			e.Update = nil
+			e.skip = true
 		}
 		e.flushed = true
 		if e.entity != nil {
@@ -337,6 +338,8 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		result := db.Exec(f.stringBuilder.String(), args...)
 		rowsAffected := result.RowsAffected()
 		if rowsAffected == 2 {
+			e.Action = Update
+			//TODO set old values
 			for column, value := range e.UpdateOnDuplicate {
 				e.Update[column] = value
 				if e.entity != nil {
@@ -369,8 +372,9 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					break
 				}
 			}
-			e.Update = nil
-			e.UpdateOnDuplicate = nil
+			e.skip = true
+		} else {
+			e.Action = Insert
 		}
 		e.flushed = true
 		if e.entity != nil {
@@ -584,79 +588,77 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	}
 }
 
-//func (f *flusher) fillCacheFlushDataForInsert(entity Entity, entityFlushData *EntityCacheFlush) {
-//	//schema := entity.getORM().tableSchema
-//	//localCache, hasLocalCache := schema.GetLocalCache(f.engine)
-//	//redisCache, hasRedis := schema.GetRedisCache(f.engine)
-//	//if !hasLocalCache && f.engine.hasRequestCache {
-//	//	hasLocalCache = true
-//	//	localCache = f.engine.GetLocalCache(requestCacheKey)
-//	//}
-//	//if !hasLocalCache && !hasRedis {
-//	//	return
-//	//}
-//	//cacheKey := schema.getCacheKey(entity.GetID())
-//	//keys := f.getCacheQueriesKeys(schema, entityFlushData.Update, nil, false, true)
-//	//if hasLocalCache {
-//	//	//entityFlushData.AddInLocalCache(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
-//	//	//entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keys...)
-//	//}
-//	//if hasRedis {
-//	//	entityFlushData.DeleteInRedis(redisCache.config.GetCode(), cacheKey)
-//	//	entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keys...)
-//	//}
-//}
-
-//func (f *flusher) fillCacheFlushDataForUpdate(entity Entity, entityFlushData *EntityCacheFlush) {
-//	//if !entity.IsLoaded() {
-//	//	panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), entity.GetID()))
-//	//}
-//	//schema := entity.getORM().tableSchema
-//	//localCache, hasLocalCache := schema.GetLocalCache(f.engine)
-//	//redisCache, hasRedis := schema.GetRedisCache(f.engine)
-//	//if !hasLocalCache && f.engine.hasRequestCache {
-//	//	hasLocalCache = true
-//	//	localCache = f.engine.GetLocalCache(requestCacheKey)
-//	//}
-//	//if hasLocalCache || hasRedis {
-//	//	cacheKey := schema.getCacheKey(entity.GetID())
-//	//	keysOld := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, true, false)
-//	//	keysNew := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, false, false)
-//	//	if hasLocalCache {
-//	//		//entityFlushData.AddInLocalCache(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
-//	//		//entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keysOld...)
-//	//		//entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keysNew...)
-//	//	}
-//	//	if hasRedis {
-//	//		entityFlushData.DeleteInRedis(redisCache.config.GetCode(), cacheKey)
-//	//		entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keysOld...)
-//	//		entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keysNew...)
-//	//	}
-//	//}
-//}
-
-//func (f *flusher) fillCacheFlushDataForDelete(entity Entity, entityFlushData *EntityCacheFlush) {
-//	//schema := entity.getORM().tableSchema
-//	//localCache, hasLocalCache := schema.GetLocalCache(f.engine)
-//	//redisCache, hasRedis := schema.GetRedisCache(f.engine)
-//	//if !hasLocalCache && f.engine.hasRequestCache {
-//	//	hasLocalCache = true
-//	//	localCache = f.engine.GetLocalCache(requestCacheKey)
-//	//}
-//	//
-//	//if hasLocalCache || hasRedis {
-//	//	cacheKey := schema.getCacheKey(entity.GetID())
-//	//	keys := f.getCacheQueriesKeys(schema, entityFlushData.Update, entityFlushData.Old, true, true)
-//	//	if hasLocalCache {
-//	//		entityFlushData.AddInLocalCache(localCache.config.GetCode(), cacheKey, cacheNilValue)
-//	//		entityFlushData.DeleteInLocalCache(localCache.config.GetCode(), keys...)
-//	//	}
-//	//	if hasRedis {
-//	//		entityFlushData.DeleteInRedis(redisCache.config.GetCode(), cacheKey)
-//	//		entityFlushData.DeleteInRedis(redisCache.config.GetCode(), keys...)
-//	//	}
-//	//}
-//}
+func (f *flusher) buildCache() {
+	for _, e := range f.events {
+		if e.skip {
+			continue
+		}
+		schema := f.engine.registry.GetTableSchema(e.EntityName).(*tableSchema)
+		hasLocalCache := schema.hasLocalCache
+		localCacheCode := schema.localCacheName
+		hasRedis := schema.hasRedisCache
+		if !hasLocalCache && f.engine.hasRequestCache {
+			hasLocalCache = true
+			localCacheCode = requestCacheKey
+		}
+		if !hasLocalCache && !hasRedis {
+			return
+		}
+		cacheKey := schema.getCacheKey(e.ID)
+		switch e.Action {
+		case Insert:
+			keys := f.getCacheQueriesKeys(schema, e.Update, nil, false, true)
+			if hasLocalCache {
+				setter := f.GetLocalCacheSetter(localCacheCode)
+				if e.entity != nil {
+					setter.Set(cacheKey, e.entity.getORM().copyBinary())
+				} else {
+					setter.Remove(cacheKey)
+				}
+				setter.Remove(keys...)
+			}
+			if hasRedis {
+				setter := f.GetRedisCacheSetter(schema.redisCacheName)
+				setter.Del(cacheKey)
+				setter.Del(keys...)
+			}
+			break
+		case Update:
+			keysOld := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, false)
+			keysNew := f.getCacheQueriesKeys(schema, e.Update, e.Old, false, false)
+			if hasLocalCache {
+				setter := f.GetLocalCacheSetter(localCacheCode)
+				if e.entity != nil {
+					setter.Set(cacheKey, e.entity.getORM().copyBinary())
+				} else {
+					setter.Remove(cacheKey)
+				}
+				setter.Remove(keysOld...)
+				setter.Remove(keysNew...)
+			}
+			if hasRedis {
+				setter := f.GetRedisCacheSetter(schema.redisCacheName)
+				setter.Del(cacheKey)
+				setter.Del(keysOld...)
+				setter.Del(keysNew...)
+			}
+			break
+		case Delete:
+			keys := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, true)
+			if hasLocalCache {
+				setter := f.GetLocalCacheSetter(localCacheCode)
+				setter.Set(cacheKey, cacheNilValue)
+				setter.Remove(keys...)
+			}
+			if hasRedis {
+				setter := f.GetRedisCacheSetter(schema.redisCacheName)
+				setter.Del(cacheKey)
+				setter.Del(keys...)
+			}
+			break
+		}
+	}
+}
 
 func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *EntitySQLFlush, references map[uintptr]Entity) {
 	for _, refName := range entity.getORM().tableSchema.refOne {

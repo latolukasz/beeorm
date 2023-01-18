@@ -27,6 +27,7 @@ type EntitySQLFlush struct {
 	TempID            uint64
 	References        map[string]uint64
 	flushed           bool
+	skip              bool
 	entity            Entity
 }
 
