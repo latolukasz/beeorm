@@ -117,6 +117,7 @@ type fieldDataProvider struct {
 func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
+		name := b.orm.tableSchema.columnNames[b.index]
 		f := value.Field(i)
 		val := provider.fieldGetter(f)
 		if b.fillOld {
@@ -129,12 +130,15 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			} else {
 				same = old == val
 			}
-
-			if b.forceFillOld || !same {
+			forceOld := b.forceFillOld
+			if same && !forceOld {
+				_, forceOld = b.orm.tableSchema.cachedIndexesTrackedFields[name]
+			}
+			if forceOld || !same {
 				if provider.bindCompareAndSetter != nil {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = old.(string)
+					b.Old[name] = old.(string)
 				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(old, true, f)
+					b.Old[name] = provider.bindSetter(old, true, f)
 				}
 			}
 			if same {
@@ -142,7 +146,6 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			}
 		}
 		if b.fillNew {
-			name := b.orm.tableSchema.columnNames[b.index]
 			if b.Update == nil {
 				b.Update = Bind{}
 			}
@@ -158,6 +161,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
+		name := b.orm.tableSchema.columnNames[b.index]
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val interface{}
@@ -178,11 +182,15 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 					same = oldVal == val
 				}
 			}
-			if b.forceFillOld || !same {
+			forceOld := b.forceFillOld
+			if same && !forceOld {
+				_, forceOld = b.orm.tableSchema.cachedIndexesTrackedFields[name]
+			}
+			if forceOld || !same {
 				if oldIsNil {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = NullBindValue
+					b.Old[name] = NullBindValue
 				} else {
-					b.Old[b.orm.tableSchema.columnNames[b.index]] = provider.bindSetter(oldVal, true, f)
+					b.Old[name] = provider.bindSetter(oldVal, true, f)
 				}
 			}
 			if same {
@@ -190,7 +198,6 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			}
 		}
 		if b.fillNew {
-			name := b.orm.tableSchema.columnNames[b.index]
 			if isNil {
 				b.Update[name] = NullBindValue
 			} else {

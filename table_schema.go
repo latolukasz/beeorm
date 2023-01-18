@@ -96,35 +96,36 @@ type SettableTableSchema interface {
 }
 
 type tableSchema struct {
-	tableName               string
-	mysqlPoolName           string
-	t                       reflect.Type
-	fields                  *tableFields
-	registry                *validatedRegistry
-	fieldsQuery             string
-	tags                    map[string]map[string]string
-	cachedIndexes           map[string]*cachedQueryDefinition
-	cachedIndexesOne        map[string]*cachedQueryDefinition
-	cachedIndexesAll        map[string]*cachedQueryDefinition
-	columnNames             []string
-	columnMapping           map[string]int
-	uniqueIndices           map[string][]string
-	uniqueIndicesGlobal     map[string][]string
-	refOne                  []string
-	localCacheName          string
-	hasLocalCache           bool
-	redisCacheName          string
-	hasRedisCache           bool
-	searchCacheName         string
-	cachePrefix             string
-	structureHash           uint64
-	hasFakeDelete           bool
-	hasSearchableFakeDelete bool
-	skipLogs                []string
-	hasUUID                 bool
-	mapBindToScanPointer    mapBindToScanPointer
-	mapPointerToValue       mapPointerToValue
-	options                 map[string]map[string]interface{}
+	tableName                  string
+	mysqlPoolName              string
+	t                          reflect.Type
+	fields                     *tableFields
+	registry                   *validatedRegistry
+	fieldsQuery                string
+	tags                       map[string]map[string]string
+	cachedIndexes              map[string]*cachedQueryDefinition
+	cachedIndexesOne           map[string]*cachedQueryDefinition
+	cachedIndexesAll           map[string]*cachedQueryDefinition
+	cachedIndexesTrackedFields map[string]bool
+	columnNames                []string
+	columnMapping              map[string]int
+	uniqueIndices              map[string][]string
+	uniqueIndicesGlobal        map[string][]string
+	refOne                     []string
+	localCacheName             string
+	hasLocalCache              bool
+	redisCacheName             string
+	hasRedisCache              bool
+	searchCacheName            string
+	cachePrefix                string
+	structureHash              uint64
+	hasFakeDelete              bool
+	hasSearchableFakeDelete    bool
+	skipLogs                   []string
+	hasUUID                    bool
+	mapBindToScanPointer       mapBindToScanPointer
+	mapPointerToValue          mapPointerToValue
+	options                    map[string]map[string]interface{}
 }
 
 type mapBindToScanPointer map[string]func() interface{}
@@ -309,6 +310,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
+	cachedQueriesTrackedFields := make(map[string]bool)
 	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
 	if has && fakeDeleteField.Type.String() == "bool" {
 		tableSchema.hasFakeDelete = true
@@ -379,10 +381,12 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 				def := &cachedQueryDefinition{50000, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueries[key] = def
 				cachedQueriesAll[key] = def
+				cachedQueriesTrackedFields[key] = true
 			} else {
 				def := &cachedQueryDefinition{1, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueriesOne[key] = def
 				cachedQueriesAll[key] = def
+				cachedQueriesTrackedFields[key] = true
 			}
 		}
 		_, has = values["ref"]
@@ -497,6 +501,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.cachedIndexes = cachedQueries
 	tableSchema.cachedIndexesOne = cachedQueriesOne
 	tableSchema.cachedIndexesAll = cachedQueriesAll
+	tableSchema.cachedIndexesTrackedFields = cachedQueriesTrackedFields
 	tableSchema.localCacheName = localCache
 	tableSchema.hasLocalCache = localCache != ""
 	tableSchema.redisCacheName = redisCache
