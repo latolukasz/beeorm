@@ -927,7 +927,31 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 
 func checkStruct(tableSchema *tableSchema, engine *engineImplementation, t reflect.Type, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
-	columns := make([][2]string, 0, t.NumField())
+	columns := make([][2]string, 0)
+	if subField == nil {
+		version := tableSchema.GetMysql(engine).GetPoolConfig().GetVersion()
+		//TODO from tags
+		idType := "uint"
+		idAttributes := map[string]string{}
+		switch tableSchema.getTag("id", "int", "int") {
+		case "tinyint":
+			idType = "uint8"
+			break
+		case "smallint":
+			idType = "uint16"
+			break
+		case "mediumint":
+			idType = "uint32"
+			idAttributes["mediumint"] = "true"
+			break
+		case "bigint":
+			idType = "uint64"
+			break
+		}
+		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
+		idColumn := [2]string{"ID", "`ID` " + idColumnSchema}
+		columns = append(columns, idColumn)
+	}
 	max := t.NumField() - 1
 	for i := 0; i <= max; i++ {
 		field := t.Field(i)
