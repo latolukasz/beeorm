@@ -242,7 +242,7 @@ func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, wh
 
 func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistry, pointers []interface{}, entity Entity) {
 	orm := initIfNeeded(registry, entity)
-	orm.idElem.SetUint(id)
+	orm.id = id
 	orm.inDB = true
 	orm.loaded = true
 	orm.deserializeFromDB(serializer, pointers)

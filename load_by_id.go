@@ -99,7 +99,6 @@ func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
 		orm.tableSchema = tableSchema
 		orm.value = value
 		orm.elem = elem
-		orm.idElem = elem.Field(1)
 	}
 	return orm
 }

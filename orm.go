@@ -39,6 +39,7 @@ type Entity interface {
 type ORM struct {
 	binary               []byte
 	tableSchema          *tableSchema
+	id                   uint64
 	onDuplicateKeyUpdate Bind
 	initialised          bool
 	loaded               bool
@@ -47,7 +48,6 @@ type ORM struct {
 	fakeDelete           bool
 	value                reflect.Value
 	elem                 reflect.Value
-	idElem               reflect.Value
 }
 
 func DisableCacheHashCheck() {
@@ -59,10 +59,11 @@ func (orm *ORM) getORM() *ORM {
 }
 
 func (orm *ORM) GetID() uint64 {
-	if !orm.idElem.IsValid() {
-		return 0
-	}
-	return orm.idElem.Uint()
+	return orm.id
+}
+
+func (orm *ORM) SetID(id uint64) {
+	orm.id = id
 }
 
 func (orm *ORM) Clone() Entity {
@@ -469,7 +470,7 @@ func (orm *ORM) deserialize(id uint64, serializer *serializer) {
 	if !disableCacheHashCheck && hash != orm.tableSchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.tableSchema.t.String()))
 	}
-	orm.idElem.SetUint(id)
+	orm.id = id
 	orm.deserializeFields(serializer, orm.tableSchema.fields, orm.elem)
 	orm.loaded = true
 }
@@ -486,7 +487,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		if id > 0 {
 			e := getTableSchema(orm.tableSchema.registry, fields.refsTypes[k]).NewEntity()
 			o := e.getORM()
-			o.idElem.SetUint(id)
+			o.id = id
 			o.inDB = true
 			f.Set(o.value)
 		} else if !isNil {

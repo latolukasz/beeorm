@@ -1064,7 +1064,6 @@ func (tableSchema *tableSchema) NewEntity() Entity {
 	orm.tableSchema = tableSchema
 	orm.value = val
 	orm.elem = val.Elem()
-	orm.idElem = orm.elem.Field(1)
 	return e
 }
 

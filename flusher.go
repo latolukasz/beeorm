@@ -237,7 +237,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 			orm.inDB = true
 			orm.loaded = true
 			if e.ID == 0 {
-				orm.idElem.SetUint(newID)
+				orm.id = newID
 			}
 			orm.serialize(f.getSerializer())
 		}
@@ -376,7 +376,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					id := uint64(0)
 					if db.QueryRow(where, &id) {
 						e.ID = id
-						e.entity.getORM().idElem.SetUint(id)
+						e.entity.getORM().id = id
 					}
 					break
 				}
@@ -392,7 +392,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			orm.loaded = true
 			orm.serialize(f.getSerializer())
 			if rowsAffected > 0 {
-				orm.idElem.SetUint(result.LastInsertId())
+				orm.id = result.LastInsertId()
 			}
 		}
 		if rowsAffected > 0 {
@@ -587,7 +587,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 		currentID := entity.GetID()
 		if orm.tableSchema.hasUUID && !orm.inDB && currentID == 0 {
 			currentID = uuid()
-			orm.idElem.SetUint(currentID)
+			orm.id = currentID
 			entitySQLFlushData.Update["ID"] = strconv.FormatUint(currentID, 10)
 		}
 		f.addFlushEvent(entitySQLFlushData)
