@@ -113,11 +113,11 @@ func (orm *ORM) IsDirty() bool {
 }
 
 func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
-	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil))
+	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil), false)
 	return bindBuilder.Update, has
 }
 
-func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *EntitySQLFlush, has bool) {
+func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *EntitySQLFlush, has bool) {
 	if orm.fakeDelete {
 		if orm.tableSchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -126,7 +126,7 @@ func (orm *ORM) buildDirtyBind(serializer *serializer) (entitySQLFlushData *Enti
 		}
 	}
 	serializer.Reset(orm.binary)
-	builder := newEntitySQLFlushBuilder(orm)
+	builder := newEntitySQLFlushBuilder(orm, forceFillOld)
 	builder.fill(serializer, orm.tableSchema.fields, orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.Update) > 0
 	return builder.EntitySQLFlush, has

@@ -40,7 +40,7 @@ type entityFlushBuilder struct {
 	fillNew      bool
 }
 
-func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
+func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	action := Insert
 	if orm.delete {
 		action = Delete
@@ -63,8 +63,8 @@ func newEntitySQLFlushBuilder(orm *ORM) *entityFlushBuilder {
 		orm:            orm,
 		index:          -1,
 	}
-	b.fillOld = action == Update || action == Delete
-	b.forceFillOld = action == Delete
+	b.fillOld = forceFillOld || action == Update || action == Delete
+	b.forceFillOld = forceFillOld || action == Delete
 	b.fillNew = !b.forceFillOld
 	if b.fillNew || b.forceFillOld {
 		b.Old = make(Bind)

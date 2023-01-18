@@ -339,9 +339,18 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		rowsAffected := result.RowsAffected()
 		if rowsAffected == 2 {
 			e.Action = Update
-			//TODO set old values
+			oldEntity := f.engine.GetRegistry().GetTableSchemaForEntity(e.entity).NewEntity()
+			f.engine.LoadByID(result.LastInsertId(), oldEntity)
+			oldEntity.GetDirtyBind()
+			oldBind, _ := oldEntity.getORM().buildDirtyBind(newSerializer(nil), true)
+			e.Update = Bind{}
+			e.Old = Bind{}
 			for column, value := range e.UpdateOnDuplicate {
-				e.Update[column] = value
+				old := oldBind.Old[column]
+				if old != value {
+					e.Update[column] = value
+					e.Old[column] = old
+				}
 				if e.entity != nil {
 					err := e.entity.SetField(column, value)
 					checkError(err)
@@ -568,7 +577,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 			}
 		}
 		orm := entity.getORM()
-		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer())
+		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer(), false)
 		entitySQLFlushData.entity = entity
 		if !isDirty {
 			continue
