@@ -700,16 +700,13 @@ func checkColumn(engine *engineImplementation, schema *tableSchema, field *refle
 		kind := field.Type.Kind().String()
 		if kind == "struct" {
 			subFieldPrefix := prefix
-			//if !field.Anonymous {
-			//	subFieldPrefix += field.Name
-			//}
 			structFields, err := checkStruct(schema, engine, field.Type, indexes, foreignKeys, field, subFieldPrefix)
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
 			subSchema := getTableSchema(engine.registry, field.Type.Elem())
 			if subSchema != nil {
-				definition = handleReferenceOne(version, subSchema, attributes)
+				definition = handleReferenceOne(version, subSchema)
 				addNotNullIfNotSet = false
 				addDefaultNullIfNullable = true
 			} else {
@@ -854,11 +851,12 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 	return "date", !nullable, true, defaultValue
 }
 
-func handleReferenceOne(version int, schema *tableSchema, attributes map[string]string) string {
-	return convertIntToSchema(version, schema.t.Field(1).Type.String(), attributes)
+func handleReferenceOne(version int, schema *tableSchema) string {
+	idType, idAttributes := schema.getIDType()
+	return convertIntToSchema(version, idType, idAttributes)
 }
 
-func convertIntToSchema(version int, typeAsString string, attributes map[string]string) string {
+func convertIntToSchema(version int, typeAsString string, attributes Bind) string {
 	switch typeAsString {
 	case "uint":
 		if version == 8 {
@@ -925,29 +923,34 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 	}
 }
 
+func (tableSchema *tableSchema) getIDType() (idType string, idAttributes Bind) {
+	idType = "uint"
+	idAttributes = Bind{}
+	switch tableSchema.getTag("id", "uint", "uint") {
+	case "tinyint":
+		idType = "uint8"
+		break
+	case "smallint":
+		idType = "uint16"
+		break
+	case "mediumint":
+		idType = "uint32"
+		idAttributes["mediumint"] = "true"
+		break
+	case "bigint":
+		idType = "uint64"
+		break
+	}
+	return idType, idAttributes
+}
+
 func checkStruct(tableSchema *tableSchema, engine *engineImplementation, t reflect.Type, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
 	columns := make([][2]string, 0)
 	if subField == nil {
 		version := tableSchema.GetMysql(engine).GetPoolConfig().GetVersion()
 		//TODO from tags
-		idType := "uint"
-		idAttributes := map[string]string{}
-		switch tableSchema.getTag("id", "int", "int") {
-		case "tinyint":
-			idType = "uint8"
-			break
-		case "smallint":
-			idType = "uint16"
-			break
-		case "mediumint":
-			idType = "uint32"
-			idAttributes["mediumint"] = "true"
-			break
-		case "bigint":
-			idType = "uint64"
-			break
-		}
+		idType, idAttributes := tableSchema.getIDType()
 		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
 		idColumn := [2]string{"ID", "`ID` " + idColumnSchema}
 		columns = append(columns, idColumn)
