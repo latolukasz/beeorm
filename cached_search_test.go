@@ -363,7 +363,6 @@ func BenchmarkCachedSearch(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	// BenchmarkCachedSearch-12    	     126	   8125482 ns/op	 2139500 B/op	   15997 allocs/op
-	engine.EnableQueryDebugCustom(true, true, false)
 	for n := 0; n < b.N; n++ {
 		_ = engine.CachedSearchCount(entity, "IndexAll")
 	}

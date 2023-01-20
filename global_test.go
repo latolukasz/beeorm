@@ -64,7 +64,6 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	redisSearch.FlushDB()
 
 	alters := engine.GetAlters()
-	engine.EnableQueryDebug()
 	for _, alter := range alters {
 		alter.Exec(engine)
 	}

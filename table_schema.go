@@ -485,7 +485,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			}
 		}
 	}
-	tableSchema.fields = tableSchema.buildTableFields(entityType, registry, 2, "", tableSchema.tags)
+	tableSchema.fields = tableSchema.buildTableFields(entityType, registry, 1, "", tableSchema.tags)
 	tableSchema.columnNames, tableSchema.fieldsQuery = tableSchema.fields.buildColumnNames("")
 	columnMapping := make(map[string]int)
 	for i, name := range tableSchema.columnNames {

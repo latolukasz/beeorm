@@ -341,7 +341,6 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			e.Action = Update
 			oldEntity := f.engine.GetRegistry().GetTableSchemaForEntity(e.entity).NewEntity()
 			f.engine.LoadByID(result.LastInsertId(), oldEntity)
-			oldEntity.GetDirtyBind()
 			oldBind, _ := oldEntity.getORM().buildDirtyBind(newSerializer(nil), true)
 			e.Update = Bind{}
 			e.Old = Bind{}

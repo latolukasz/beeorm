@@ -222,7 +222,7 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				if field.IsNil() {
 					return uint64(0)
 				}
-				return field.Elem().Field(1).Uint()
+				return field.Interface().(Entity).GetID()
 			},
 			serializeGetter: serializeGetterUint,
 			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {

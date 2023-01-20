@@ -29,8 +29,6 @@ type Entity interface {
 	markToDelete()
 	forceMarkToDelete()
 	IsLoaded() bool
-	IsDirty() bool
-	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetField(field string, value interface{}) error
 	Clone() Entity
@@ -103,19 +101,6 @@ func (orm *ORM) IsLoaded() bool {
 
 func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
 	orm.onDuplicateKeyUpdate = bind
-}
-
-func (orm *ORM) IsDirty() bool {
-	if !orm.inDB {
-		return true
-	}
-	_, is := orm.GetDirtyBind()
-	return is
-}
-
-func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
-	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil), false)
-	return bindBuilder.Update, has
 }
 
 func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *EntitySQLFlush, has bool) {
@@ -305,7 +290,7 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		f := elem.Field(i)
 		id := uint64(0)
 		if !f.IsNil() {
-			id = f.Elem().Field(1).Uint()
+			id = f.Interface().(Entity).GetID()
 		}
 		serialized.SerializeUInteger(id)
 	}

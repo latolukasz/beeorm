@@ -13,6 +13,8 @@ type Engine interface {
 	GetMysql(code ...string) *DB
 	GetLocalCache(code ...string) LocalCache
 	GetRedis(code ...string) RedisCache
+	IsDirty(entity Entity) bool
+	GetDirtyBind(entity Entity) (bind Bind, has bool)
 	NewFlusher() Flusher
 	Flush(entity ...Entity)
 	FlushLazy(entity ...Entity)
@@ -185,6 +187,21 @@ func (e *engineImplementation) GetRedis(code ...string) RedisCache {
 		}
 	}
 	return cache
+}
+
+func (e *engineImplementation) IsDirty(entity Entity) bool {
+	orm := initIfNeeded(e.registry, entity)
+	if !orm.inDB {
+		return true
+	}
+	_, is := orm.buildDirtyBind(newSerializer(nil), false)
+	return is
+}
+
+func (e *engineImplementation) GetDirtyBind(entity Entity) (bind Bind, has bool) {
+	orm := initIfNeeded(e.registry, entity)
+	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil), false)
+	return bindBuilder.Update, has
 }
 
 func (e *engineImplementation) NewFlusher() Flusher {
