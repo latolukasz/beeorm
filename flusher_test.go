@@ -539,7 +539,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	err = flusher.FlushWithCheck()
 	assert.EqualError(t, err, "Duplicate entry 'test_check' for key 'name'")
 	entity7 = &flushEntity{Name: "test_check_2", EnumNotNull: "a", ReferenceOne: &flushEntityReference{}}
-	entity7.SetID(100)
+	entity7.ReferenceOne.SetID(100)
 	err = engine.FlushWithCheck(entity7)
 	assert.EqualError(t, err, "foreign key error in key `test:flushEntity:ReferenceOne`")
 
@@ -709,8 +709,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = schema.NewEntity().(*flushEntity)
 	entity.Name = "WithID"
-	err = entity.SetField("ID", 676)
-	assert.NoError(t, err)
+	entity.SetID(676)
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	assert.True(t, engine.LoadByID(676, entity))
@@ -721,7 +720,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.SubName = "testSub"
 	engine.Flush(entity)
 	clonedEntity := entity.Clone().(*flushEntity)
-	assert.Equal(t, uint(0), clonedEntity.GetID())
+	assert.Equal(t, uint64(0), clonedEntity.GetID())
 	assert.False(t, clonedEntity.IsLoaded())
 	assert.True(t, engine.IsDirty(clonedEntity))
 	assert.Equal(t, "Warsaw", clonedEntity.City)

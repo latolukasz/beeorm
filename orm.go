@@ -67,9 +67,6 @@ func (orm *ORM) SetID(id uint64) {
 func (orm *ORM) Clone() Entity {
 	newEntity := orm.tableSchema.NewEntity()
 	for i, field := range orm.tableSchema.fields.fields {
-		if i == 1 {
-			continue
-		}
 		if field.IsExported() {
 			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
 		} else {
