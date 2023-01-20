@@ -1114,7 +1114,7 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		columns = append(columns, subColumns...)
 		fieldsQuery += "," + subQuery
 	}
-	return columns, fieldsQuery[1:]
+	return columns, fieldsQuery
 }
 
 var scanIntNullablePointer = func() interface{} {
