@@ -1112,7 +1112,7 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		}
 		subColumns, subQuery := subFields.buildColumnNames(prefixName)
 		columns = append(columns, subColumns...)
-		fieldsQuery += "," + subQuery
+		fieldsQuery += subQuery
 	}
 	return columns, fieldsQuery
 }

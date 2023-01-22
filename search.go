@@ -130,7 +130,7 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 	}
 	/* #nosec */
-	query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
+	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
 
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
