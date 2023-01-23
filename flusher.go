@@ -87,7 +87,7 @@ func (f *flusher) execute(lazy bool) {
 		return
 	}
 	if lazy {
-		f.buildCache(true)
+		f.buildCache(true, false)
 		for _, cache := range f.localCacheSetters {
 			cache.flush()
 		}
@@ -190,7 +190,7 @@ func (f *flusher) execute(lazy bool) {
 			}
 		}
 	}()
-	f.buildCache(false)
+	f.buildCache(false, true)
 	f.events = nil
 	for _, cache := range f.localCacheSetters {
 		cache.flush()
@@ -602,9 +602,9 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	}
 }
 
-func (f *flusher) buildCache(lazy bool) {
+func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 	for _, e := range f.events {
-		if e.skip {
+		if e.skip || e.ID == 0 {
 			continue
 		}
 		schema := f.engine.registry.GetTableSchema(e.EntityName).(*tableSchema)
@@ -616,9 +616,6 @@ func (f *flusher) buildCache(lazy bool) {
 			localCacheCode = requestCacheKey
 		}
 		if !hasLocalCache && !hasRedis {
-			continue
-		}
-		if lazy && e.ID == 0 {
 			continue
 		}
 		cacheKey := schema.getCacheKey(e.ID)
@@ -651,10 +648,12 @@ func (f *flusher) buildCache(lazy bool) {
 			keysNew := f.getCacheQueriesKeys(schema, e.Update, e.Old, false, false)
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
-				if e.entity != nil {
-					setter.Set(cacheKey, e.entity.getORM().copyBinary())
-				} else {
-					setter.Remove(cacheKey)
+				if !fromLazyConsumer {
+					if e.entity != nil {
+						setter.Set(cacheKey, e.entity.getORM().copyBinary())
+					} else {
+						setter.Remove(cacheKey)
+					}
 				}
 				setter.Remove(keysOld...)
 				setter.Remove(keysNew...)
