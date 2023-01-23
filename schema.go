@@ -3,6 +3,7 @@ package beeorm
 import (
 	"database/sql"
 	"fmt"
+	"github.com/pkg/errors"
 	"reflect"
 	"sort"
 	"strconv"
@@ -949,11 +950,14 @@ func checkStruct(tableSchema *tableSchema, engine *engineImplementation, t refle
 	columns := make([][2]string, 0)
 	if subField == nil {
 		version := tableSchema.GetMysql(engine).GetPoolConfig().GetVersion()
-		//TODO from tags
 		idType, idAttributes := tableSchema.getIDType()
 		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
 		idColumn := [2]string{"ID", "`ID` " + idColumnSchema}
 		columns = append(columns, idColumn)
+		_, hasID := t.FieldByName("ID")
+		if hasID {
+			return nil, errors.New("field with name ID not allowed")
+		}
 	}
 	max := t.NumField() - 1
 	for i := 0; i <= max; i++ {

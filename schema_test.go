@@ -38,6 +38,11 @@ type schemaInvalidMaxStringEntity struct {
 	Name string `orm:"length=invalid"`
 }
 
+type schemaInvalidIDEntity struct {
+	ORM
+	ID uint64
+}
+
 type schemaToDropEntity struct {
 	ORM
 }
@@ -256,6 +261,12 @@ func testSchema(t *testing.T, version int) {
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
+	registry.RegisterEntity(&schemaInvalidIDEntity{})
+	_, err = registry.Validate()
+	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field with name ID not allowed")
+
+	registry = &Registry{}
+	registry.RegisterMySQLPool(pool)
 	registry.RegisterLocalCache(1000)
 	registry.RegisterEntity(&schemaEntity{})
 	_, err = registry.Validate()
@@ -303,7 +314,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool, "other")
 	type invalidSchema4 struct {
 		ORM `orm:"mysql=other"`
-		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema4{})
 	_, err = registry.Validate()
@@ -313,7 +323,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema5 struct {
 		ORM
-		ID   uint
 		Name string `orm:"index=test,test2"`
 	}
 	registry.RegisterEntity(&invalidSchema5{})
@@ -324,7 +333,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema6 struct {
 		ORM
-		ID        uint
 		Name      string
 		IndexName *CachedQuery `queryOne:":Name = ?"`
 	}
@@ -336,7 +344,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema7 struct {
 		ORM
-		ID        uint
 		Name      string
 		IndexName *CachedQuery `query:":Name = ?"`
 	}
@@ -348,7 +355,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema8 struct {
 		ORM
-		ID        uint
 		Name      string       `orm:"unique=TestUniqueIndex"`
 		Age       uint         `orm:"unique=TestUniqueIndex:2"`
 		IndexName *CachedQuery `queryOne:":Name = ?"`
@@ -361,7 +367,6 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema9 struct {
 		ORM
-		ID        uint
 		Name      string `orm:"index=TestIndex"`
 		Age       uint
 		IndexName *CachedQuery `query:":Name = ? ORDER BY :Age DESC"`
