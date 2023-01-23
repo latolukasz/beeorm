@@ -178,7 +178,7 @@ func (c *localCacheSetter) flush() {
 		return
 	}
 	cache := c.engine.GetLocalCache(c.code)
-	for i, key := range c.removes {
+	for i, key := range c.setKeys {
 		cache.Set(key, c.setValues[i])
 	}
 	if c.removes != nil {
