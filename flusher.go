@@ -37,6 +37,7 @@ type Flusher interface {
 	Clear()
 	Delete(entity ...Entity) Flusher
 	ForceDelete(entity ...Entity) Flusher
+	CancelDelete(entity ...Entity) Flusher
 }
 
 type flusher struct {
@@ -80,6 +81,15 @@ func (f *flusher) Delete(entity ...Entity) Flusher {
 		e.markToDelete()
 	}
 	f.Track(entity...)
+	return f
+}
+
+func (f *flusher) CancelDelete(entity ...Entity) Flusher {
+	for _, e := range entity {
+		orm := e.getORM()
+		orm.fakeDelete = false
+		orm.delete = false
+	}
 	return f
 }
 

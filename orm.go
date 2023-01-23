@@ -30,6 +30,7 @@ type Entity interface {
 	forceMarkToDelete()
 	IsLoaded() bool
 	IsDirty() bool
+	IsToDelete() bool
 	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
@@ -119,6 +120,10 @@ func (orm *ORM) IsDirty() bool {
 	}
 	_, is := orm.GetDirtyBind()
 	return is
+}
+
+func (orm *ORM) IsToDelete() bool {
+	return orm.fakeDelete || orm.delete
 }
 
 func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
