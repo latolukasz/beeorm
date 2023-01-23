@@ -67,6 +67,9 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "John", e.Name)
 
 	engine.EnableQueryDebug()
+	// TODO DEL 7d7cf:1 7d7cf:1 powinno byc raz
+	// TODO REMOVE 7d7cf:1 7d7cf:1 nie powwinno byc, bo bylo juz
+
 	runLazyFlushConsumer(engine)
 	return
 
