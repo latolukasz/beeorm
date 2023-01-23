@@ -48,7 +48,6 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "John", e.Name)
 	assert.Equal(t, uint64(18), e.Age)
 
-	engine.EnableQueryDebug()
 	e.Name = "Tom"
 	engine.FlushLazy(e)
 
@@ -67,9 +66,9 @@ func TestLazyFlush(t *testing.T) {
 	assert.True(t, loaded)
 	assert.Equal(t, "John", e.Name)
 
-	return
-
+	engine.EnableQueryDebug()
 	runLazyFlushConsumer(engine)
+	return
 
 	e = &lazyReceiverEntity{}
 	loaded = engine.LoadByID(1, e)

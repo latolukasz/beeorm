@@ -87,7 +87,13 @@ func (f *flusher) execute(lazy bool) {
 		return
 	}
 	if lazy {
+		f.buildCache(true)
+		for _, cache := range f.localCacheSetters {
+			cache.flush()
+		}
+		f.localCacheSetters = nil
 		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events)
+		f.events = nil
 		return
 	}
 	checkReferences := true
@@ -184,7 +190,7 @@ func (f *flusher) execute(lazy bool) {
 			}
 		}
 	}()
-	f.buildCache()
+	f.buildCache(false)
 	f.events = nil
 	for _, cache := range f.localCacheSetters {
 		cache.flush()
@@ -596,7 +602,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	}
 }
 
-func (f *flusher) buildCache() {
+func (f *flusher) buildCache(lazy bool) {
 	for _, e := range f.events {
 		if e.skip {
 			continue
@@ -604,13 +610,16 @@ func (f *flusher) buildCache() {
 		schema := f.engine.registry.GetTableSchema(e.EntityName).(*tableSchema)
 		hasLocalCache := schema.hasLocalCache
 		localCacheCode := schema.localCacheName
-		hasRedis := schema.hasRedisCache
+		hasRedis := !lazy && schema.hasRedisCache
 		if !hasLocalCache && f.engine.hasRequestCache {
 			hasLocalCache = true
 			localCacheCode = requestCacheKey
 		}
 		if !hasLocalCache && !hasRedis {
-			return
+			continue
+		}
+		if lazy && e.ID == 0 {
+			continue
 		}
 		cacheKey := schema.getCacheKey(e.ID)
 		switch e.Action {
@@ -632,6 +641,12 @@ func (f *flusher) buildCache() {
 			}
 			break
 		case Update:
+			if lazy {
+				setter := f.GetLocalCacheSetter(localCacheCode)
+				e.entity.getORM().serialize(f.getSerializer())
+				setter.Set(cacheKey, e.entity.getORM().copyBinary())
+				break
+			}
 			keysOld := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, false)
 			keysNew := f.getCacheQueriesKeys(schema, e.Update, e.Old, false, false)
 			if hasLocalCache {
@@ -652,6 +667,10 @@ func (f *flusher) buildCache() {
 			}
 			break
 		case Delete:
+			if lazy {
+				f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, cacheNilValue)
+				break
+			}
 			keys := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, true)
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
