@@ -110,7 +110,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		}
 	}
 	if len(idsDB) > 0 {
-		query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
+		query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
 		for _, id := range idsDB[1:] {
 			query += "," + strconv.FormatUint(id, 10)
 		}

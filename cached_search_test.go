@@ -11,7 +11,6 @@ import (
 
 type cachedSearchEntity struct {
 	ORM
-	ID             uint
 	Name           string `orm:"length=100;unique=FirstIndex"`
 	Age            uint16 `orm:"index=SecondIndex"`
 	Added          *time.Time
@@ -26,7 +25,6 @@ type cachedSearchEntity struct {
 
 type cachedSearchEntityNoFakeDelete struct {
 	ORM
-	ID       uint
 	Name     string
 	Age      uint16       `orm:"index=SecondIndex"`
 	IndexAge *CachedQuery `query:":Age = ? ORDER BY ID"`
@@ -34,7 +32,6 @@ type cachedSearchEntityNoFakeDelete struct {
 
 type cachedSearchRefEntity struct {
 	ORM
-	ID        uint
 	Name      string       `orm:"unique=FirstIndex"`
 	IndexName *CachedQuery `queryOne:":Name = ?"`
 	IndexAll  *CachedQuery `query:""`
@@ -87,7 +84,8 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	for i := 1; i <= 5; i++ {
 		e := &cachedSearchEntity{Name: "Name " + strconv.Itoa(i), Age: uint16(10)}
 		flusher.Track(e)
-		e.ReferenceOne = &cachedSearchRefEntity{ID: uint(i)}
+		e.ReferenceOne = &cachedSearchRefEntity{}
+		e.ReferenceOne.SetID(uint64(i))
 		entities[i-1] = e
 	}
 	flusher.Flush()
@@ -100,14 +98,15 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	pager := NewPager(1, 100)
 	var rows []*cachedSearchEntity
+	engine.EnableQueryDebugCustom(true, false, false)
 	totalRows := engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 5, totalRows)
 	assert.Len(t, rows, 5)
-	assert.Equal(t, uint(1), rows[0].ReferenceOne.ID)
-	assert.Equal(t, uint(2), rows[1].ReferenceOne.ID)
-	assert.Equal(t, uint(3), rows[2].ReferenceOne.ID)
-	assert.Equal(t, uint(4), rows[3].ReferenceOne.ID)
-	assert.Equal(t, uint(5), rows[4].ReferenceOne.ID)
+	assert.Equal(t, uint64(1), rows[0].ReferenceOne.GetID())
+	assert.Equal(t, uint64(2), rows[1].ReferenceOne.GetID())
+	assert.Equal(t, uint64(3), rows[2].ReferenceOne.GetID())
+	assert.Equal(t, uint64(4), rows[3].ReferenceOne.GetID())
+	assert.Equal(t, uint64(5), rows[4].ReferenceOne.GetID())
 
 	totalRows = engine.CachedSearchCount(entity, "IndexAge", 10)
 	assert.EqualValues(t, 5, totalRows)
@@ -115,36 +114,36 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
 
-	assert.Equal(t, uint(6), rows[0].ID)
-	assert.Equal(t, uint(7), rows[1].ID)
-	assert.Equal(t, uint(8), rows[2].ID)
-	assert.Equal(t, uint(9), rows[3].ID)
-	assert.Equal(t, uint(10), rows[4].ID)
+	assert.Equal(t, uint64(6), rows[0].GetID())
+	assert.Equal(t, uint64(7), rows[1].GetID())
+	assert.Equal(t, uint64(8), rows[2].GetID())
+	assert.Equal(t, uint64(9), rows[3].GetID())
+	assert.Equal(t, uint64(10), rows[4].GetID())
 
 	dbLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(dbLogger, true, false, false)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
-	assert.Equal(t, uint(6), rows[0].ID)
-	assert.Equal(t, uint(7), rows[1].ID)
-	assert.Equal(t, uint(8), rows[2].ID)
-	assert.Equal(t, uint(9), rows[3].ID)
-	assert.Equal(t, uint(10), rows[4].ID)
+	assert.Equal(t, uint64(6), rows[0].GetID())
+	assert.Equal(t, uint64(7), rows[1].GetID())
+	assert.Equal(t, uint64(8), rows[2].GetID())
+	assert.Equal(t, uint64(9), rows[3].GetID())
+	assert.Equal(t, uint64(10), rows[4].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
 	pager = NewPager(2, 4)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 1)
-	assert.Equal(t, uint(10), rows[0].ID)
+	assert.Equal(t, uint64(10), rows[0].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
 	pager = NewPager(1, 5)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
-	assert.Equal(t, uint(1), rows[0].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
 	rows[0].Age = 18
@@ -154,13 +153,13 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 6, totalRows)
 	assert.Len(t, rows, 6)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(6), rows[1].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(6), rows[1].GetID())
 
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 4, totalRows)
 	assert.Len(t, rows, 4)
-	assert.Equal(t, uint(2), rows[0].ID)
+	assert.Equal(t, uint64(2), rows[0].GetID())
 
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)
@@ -171,7 +170,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 3, totalRows)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(3), rows[0].ID)
+	assert.Equal(t, uint64(3), rows[0].GetID())
 
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 9, totalRows)
@@ -183,7 +182,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 7, totalRows)
 	assert.Len(t, rows, 7)
-	assert.Equal(t, uint(11), rows[6].ID)
+	assert.Equal(t, uint64(11), rows[6].GetID())
 
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)
@@ -197,19 +196,19 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var row cachedSearchEntity
 	has := engine.CachedSearchOne(&row, "IndexName", "Name 6")
 	assert.True(t, has)
-	assert.Equal(t, uint(6), row.ID)
+	assert.Equal(t, uint64(6), row.GetID())
 
 	row = cachedSearchEntity{}
 	dbLogger.clear()
 	has = engine.CachedSearchOne(&row, "IndexName", "Name 6")
 	assert.True(t, has)
-	assert.Equal(t, uint(6), row.ID)
+	assert.Equal(t, uint64(6), row.GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
 	row = cachedSearchEntity{}
 	has = engine.CachedSearchOneWithReferences(&row, "IndexName", []interface{}{"Name 4"}, []string{"ReferenceOne"})
 	assert.True(t, has)
-	assert.Equal(t, uint(4), row.ID)
+	assert.Equal(t, uint64(4), row.GetID())
 	assert.NotNil(t, row.ReferenceOne)
 	assert.Equal(t, "Name 4", row.ReferenceOne.Name)
 
@@ -278,7 +277,8 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 1, totalRows)
 	assert.NotNil(t, rows[0])
-	e := &cachedSearchEntity{ID: 4}
+	e := &cachedSearchEntity{}
+	e.SetID(4)
 	engine.Load(e)
 	engine.DeleteLazy(e)
 	runLazyFlushConsumer(engine, false)
