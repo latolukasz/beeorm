@@ -335,7 +335,9 @@ var dateTimeFieldDataProvider = fieldDataProvider{
 	},
 	bindSetter: dateTimeBindSetter(timeFormat),
 	bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
-		return (old == int64(0) && new.(time.Time).IsZero()) || (old == new.(time.Time).Unix())
+		t := new.(time.Time)
+		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
+		return (old == int64(0) && isZero) || (old == new.(time.Time).Unix())
 	},
 }
 
