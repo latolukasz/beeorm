@@ -433,7 +433,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.FlushStruct.Sub.Age3 = 13
 	entity.FlushStruct.Sub.Name3 = "Nanami"
 	entity.FlushStruct.TestTime = &date
-	//entity.TimeWithTime = date
+	entity.TimeWithTime = date
 	entity.Float64 = 2.12
 	entity.Decimal = 6.15
 	entity.TimeWithTimeNullable = &date
