@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -51,6 +52,33 @@ func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
 
 func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQLFlush) {
 	//TODO handle errors
+	defer func() {
+		if rec := recover(); rec != nil {
+			err, asErr := rec.(error)
+			if !asErr {
+				panic(rec)
+			}
+			fmt.Printf("ERR %v\n", err)
+			for i, e := range lazyEvents {
+				f := &flusher{engine: r.engine}
+				f.events = []*EntitySQLFlush{e}
+				func() {
+					defer func() {
+						if rec2 := recover(); rec2 != nil {
+							err2, asErr2 := rec.(error)
+							if !asErr2 {
+								panic(rec2)
+							}
+							fmt.Printf("ERR2 %v\n", err2)
+							return
+						}
+						events[i].Ack()
+					}()
+					f.execute(false)
+				}()
+			}
+		}
+	}()
 	f := &flusher{engine: r.engine}
 	f.events = lazyEvents
 	f.execute(false)
