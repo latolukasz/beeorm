@@ -45,7 +45,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	time.Sleep(time.Millisecond * 20)
 	consumer2.(*eventsConsumer).garbage()
 
-	runLazyFlushConsumer(engine)
+	runLazyFlushConsumer(engine, true)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 
 	for i := 1; i <= 10; i++ {
@@ -58,7 +58,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	consumer2.(*eventsConsumer).garbageLastTick = 0
 	consumer2.(*eventsConsumer).garbage()
 	engine.GetRedis().Del("test-group-2_gc")
-	runLazyFlushConsumer(engine)
+	runLazyFlushConsumer(engine, true)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 	consumer2.(*eventsConsumer).garbage()
 
@@ -76,7 +76,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	consumer2.(*eventsConsumer).garbageLastTick = 0
 	consumer2.(*eventsConsumer).garbage()
 	engine.GetRedis().Del("test-group-2_gc")
-	runLazyFlushConsumer(engine)
+	runLazyFlushConsumer(engine, true)
 	assert.Equal(t, int64(9), engine.GetRedis().XLen("test-stream"))
 }
 
@@ -259,7 +259,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, 2, iterations)
 	time.Sleep(time.Millisecond * 20)
 	consumer.(*eventsConsumer).garbage()
-	runLazyFlushConsumer(engine)
+	runLazyFlushConsumer(engine, true)
 	time.Sleep(time.Second)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 	assert.Equal(t, int64(0), engine.GetRedis().XInfoGroups("test-stream")[0].Pending)

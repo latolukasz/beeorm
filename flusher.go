@@ -139,7 +139,7 @@ func (f *flusher) execute(lazy bool) {
 						continue
 					}
 					for _, byAction := range byDB {
-						if len(byAction) > 1 {
+						if len(byAction) > 1 || len(byAction[Update]) > 1 {
 							startTransaction[db] = true
 							continue MAIN
 						}
@@ -270,6 +270,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 					bind[key] = bindValue
 				}
 				nextEvent.flushed = true
+				nextEvent.skip = true
 			}
 		}
 		args := make([]interface{}, len(bind))
@@ -345,16 +346,15 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		rowsAffected := result.RowsAffected()
 		if rowsAffected == 2 {
 			e.Action = Update
-			oldEntity := f.engine.GetRegistry().GetTableSchemaForEntity(e.entity).NewEntity()
+			e.clearLocalCache = true
+			oldEntity := f.engine.GetRegistry().GetTableSchema(e.EntityName).NewEntity()
 			f.engine.LoadByID(result.LastInsertId(), oldEntity)
 			oldBind, _ := oldEntity.getORM().buildDirtyBind(newSerializer(nil), true)
 			e.Update = Bind{}
-			e.Old = Bind{}
+			e.Old = oldBind.Old
 			for column, value := range e.UpdateOnDuplicate {
-				old := oldBind.Old[column]
-				if old != value {
+				if oldBind.Old[column] != value {
 					e.Update[column] = value
-					e.Old[column] = old
 				}
 				if e.entity != nil {
 					err := e.entity.SetField(column, value)
@@ -648,7 +648,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			keysNew := f.getCacheQueriesKeys(schema, e.Update, e.Old, false, false)
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
-				if !fromLazyConsumer {
+				if !fromLazyConsumer || e.clearLocalCache {
 					if e.entity != nil {
 						setter.Set(cacheKey, e.entity.getORM().copyBinary())
 					} else {

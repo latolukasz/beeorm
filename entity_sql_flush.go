@@ -28,6 +28,7 @@ type EntitySQLFlush struct {
 	References        map[string]uint64
 	flushed           bool
 	skip              bool
+	clearLocalCache   bool
 	entity            Entity
 }
 

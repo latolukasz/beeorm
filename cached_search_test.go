@@ -271,7 +271,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		engine.FlushLazy(rows[0])
 		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 
-		runLazyFlushConsumer(engine)
+		runLazyFlushConsumer(engine, false)
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
 
@@ -281,7 +281,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	e := &cachedSearchEntity{ID: 4}
 	engine.Load(e)
 	engine.DeleteLazy(e)
-	runLazyFlushConsumer(engine)
+	runLazyFlushConsumer(engine, false)
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 0, totalRows)
 
