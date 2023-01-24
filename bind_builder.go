@@ -211,6 +211,7 @@ func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, va
 		b.index++
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
+		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
 		if b.orm.inDB {
 			old := serializer.DeserializeInteger()
 			if old == zeroDateSeconds {
@@ -221,7 +222,7 @@ func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, va
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
 			}
-			if (old == 0 && f.IsZero()) || (old == t.Unix()) {
+			if (old == 0 && isZero) || (old == t.Unix()) {
 				continue
 			}
 		}
@@ -238,6 +239,7 @@ func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, va
 	for _, i := range fields.dates {
 		b.index++
 		t := value.Field(i).Interface().(time.Time)
+		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
 		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 		if b.orm.inDB {
 			old := serializer.DeserializeInteger()
@@ -249,7 +251,7 @@ func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, va
 			if b.hasCurrent {
 				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
 			}
-			if old == 0 && t.IsZero() || old == t.Unix() {
+			if old == 0 && isZero || old == t.Unix() {
 				continue
 			}
 		}
