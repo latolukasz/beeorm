@@ -9,7 +9,6 @@ import (
 type Engine interface {
 	Clone() Engine
 	EnableRequestCache()
-	SetQueryTimeLimit(seconds int)
 	GetMysql(code ...string) *DB
 	GetLocalCache(code ...string) LocalCache
 	GetRedis(code ...string) RedisCache
@@ -61,7 +60,6 @@ type engineImplementation struct {
 	hasDBLogger            bool
 	hasLocalCacheLogger    bool
 	eventBroker            *eventBroker
-	queryTimeLimit         uint16
 	options                map[string]map[string]interface{}
 	sync.Mutex
 }
@@ -69,7 +67,6 @@ type engineImplementation struct {
 func (e *engineImplementation) Clone() Engine {
 	return &engineImplementation{
 		registry:               e.registry,
-		queryTimeLimit:         e.queryTimeLimit,
 		hasRequestCache:        e.hasRequestCache,
 		queryLoggersDB:         e.queryLoggersDB,
 		queryLoggersRedis:      e.queryLoggersRedis,
@@ -106,10 +103,6 @@ func (e *engineImplementation) GetOption(plugin, key string) interface{} {
 
 func (e *engineImplementation) EnableRequestCache() {
 	e.hasRequestCache = true
-}
-
-func (e *engineImplementation) SetQueryTimeLimit(seconds int) {
-	e.queryTimeLimit = uint16(seconds)
 }
 
 func (e *engineImplementation) GetMysql(code ...string) *DB {

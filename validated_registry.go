@@ -83,7 +83,7 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 }
 
 func (r *validatedRegistry) CreateEngine() Engine {
-	return &engineImplementation{registry: r, queryTimeLimit: 30}
+	return &engineImplementation{registry: r}
 }
 
 func (r *validatedRegistry) GetTableSchema(entityName string) TableSchema {
