@@ -1,8 +1,11 @@
 package beeorm
 
 import (
+	"context"
+	"github.com/go-sql-driver/mysql"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 type lazyReceiverEntity struct {
@@ -178,36 +181,37 @@ func TestLazyFlush(t *testing.T) {
 	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
 		runLazyFlushConsumer(engine, false)
 	})
-	return
-	//valid := false
-	//
-	//receiver := NewLazyFlushConsumer(engine)
-	//receiver.DisableBlockMode()
-	//receiver.blockTime = time.Millisecond
-	//
-	//receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {
-	//	valid = true
-	//	assert.NotNil(t, db)
-	//	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
-	//	assert.Contains(t, sql, "INSERT INTO `lazyReceiverEntity`")
-	//	assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
-	//	return queryError
-	//})
-	//assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
-	//	receiver.Digest(context.Background())
-	//})
-	//assert.True(t, valid)
-	//valid = false
-	//valid2 := false
-	//receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error {
-	//	valid2 = true
-	//	assert.NotNil(t, db)
-	//	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
-	//	assert.Contains(t, sql, "INSERT INTO `lazyReceiverEntity`")
-	//	assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
-	//	return nil
-	//})
-	//receiver.Digest(context.Background())
-	//assert.True(t, valid)
-	//assert.True(t, valid2)
+	valid := false
+
+	receiver := NewLazyFlushConsumer(engine)
+	receiver.DisableBlockMode()
+	receiver.blockTime = time.Millisecond
+
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, e *EntitySQLFlush, queryError *mysql.MySQLError) error {
+		valid = true
+		assert.NotNil(t, e)
+		assert.Equal(t, "beeorm.lazyReceiverEntity", e.EntityName)
+		assert.Equal(t, Insert, e.Action)
+		assert.Len(t, e.Old, 0)
+		assert.Len(t, e.Update, 4)
+		assert.Equal(t, "Ivona", e.Update["Name"])
+		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
+		return queryError
+	})
+	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'", func() {
+		receiver.Digest(context.Background())
+	})
+	assert.True(t, valid)
+	valid = false
+	valid2 := false
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, e *EntitySQLFlush, queryError *mysql.MySQLError) error {
+		valid2 = true
+		assert.NotNil(t, e)
+		assert.Equal(t, "beeorm.lazyReceiverEntity", e.EntityName)
+		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
+		return nil
+	})
+	receiver.Digest(context.Background())
+	assert.True(t, valid)
+	assert.True(t, valid2)
 }
