@@ -69,6 +69,7 @@ type engineImplementation struct {
 func (e *engineImplementation) Clone() Engine {
 	return &engineImplementation{
 		registry:               e.registry,
+		queryTimeLimit:         e.queryTimeLimit,
 		hasRequestCache:        e.hasRequestCache,
 		queryLoggersDB:         e.queryLoggersDB,
 		queryLoggersRedis:      e.queryLoggersRedis,
