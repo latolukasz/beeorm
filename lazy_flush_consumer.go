@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -27,7 +26,7 @@ func NewLazyFlushConsumer(engine Engine) *LazyFlushConsumer {
 	return c
 }
 
-type LazyFlushQueryErrorResolver func(engine Engine, db *DB, sql string, queryError *mysql.MySQLError) error
+type LazyFlushQueryErrorResolver func(engine Engine, flush *EntitySQLFlush, queryError *mysql.MySQLError) error
 
 func (r *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
 	r.lazyFlushQueryErrorResolvers = append(r.lazyFlushQueryErrorResolvers, resolver)
@@ -54,27 +53,27 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQL
 	//TODO handle errors
 	defer func() {
 		if rec := recover(); rec != nil {
-			err, asErr := rec.(error)
-			if !asErr {
+			_, isMySQLError := rec.(*mysql.MySQLError)
+			if !isMySQLError {
 				panic(rec)
 			}
-			fmt.Printf("ERR %v\n", err)
 			for i, e := range lazyEvents {
 				f := &flusher{engine: r.engine}
 				f.events = []*EntitySQLFlush{e}
 				func() {
 					defer func() {
 						if rec2 := recover(); rec2 != nil {
-							err2, asErr2 := rec.(error)
-							if !asErr2 {
+							mySQLError, stillMySQLError := rec.(*mysql.MySQLError)
+							if !stillMySQLError {
 								panic(rec2)
 							}
-							errSQL, asErrSQL := err2.(SqlE)
 							for _, errorResolver := range r.lazyFlushQueryErrorResolvers {
-
+								if errorResolver(r.engine, e, mySQLError) == nil {
+									events[i].Ack()
+									return
+								}
 							}
-							fmt.Printf("ERR2 %v\n", err2)
-							return
+							panic(rec2)
 						}
 						events[i].Ack()
 					}()

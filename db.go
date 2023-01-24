@@ -316,7 +316,7 @@ func (db *DB) Rollback() {
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 	results, err := db.exec(query, args...)
 	if err != nil {
-		panic(db.convertToError(err))
+		panic(err)
 	}
 	return results
 }
@@ -389,7 +389,7 @@ func (db *DB) fillLogFields(operation, query string, start *time.Time, err error
 	fillLogFields(db.engine.queryLoggersDB, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
 }
 
-func (db *DB) convertToError(err error) error {
+func convertSQLError(err error) error {
 	sqlErr, yes := err.(*mysql.MySQLError)
 	if yes {
 		if sqlErr.Number == 1062 {

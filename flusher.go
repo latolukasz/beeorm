@@ -545,7 +545,7 @@ func (f *flusher) flushWithCheck() error {
 		defer func() {
 			if r := recover(); r != nil {
 				f.Clear()
-				asErr := r.(error)
+				asErr := convertSQLError(r.(error))
 				assErr1, is := asErr.(*ForeignKeyError)
 				if is {
 					err = assErr1
