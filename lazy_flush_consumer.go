@@ -69,6 +69,10 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQL
 							if !asErr2 {
 								panic(rec2)
 							}
+							errSQL, asErrSQL := err2.(SqlE)
+							for _, errorResolver := range r.lazyFlushQueryErrorResolvers {
+
+							}
 							fmt.Printf("ERR2 %v\n", err2)
 							return
 						}
