@@ -192,6 +192,9 @@ func (f *flusher) execute(lazy bool) {
 	}()
 	f.buildCache(false, true)
 	f.events = nil
+}
+
+func (f *flusher) flushCacheSetters() {
 	for _, cache := range f.localCacheSetters {
 		cache.flush()
 	}
@@ -529,14 +532,12 @@ func (f *flusher) Clear() {
 }
 
 func (f *flusher) flushTrackedEntities(lazy bool) {
-	if f.trackedEntitiesCounter == 0 {
-		return
+	if f.trackedEntitiesCounter > 0 {
+		f.buildFlushEvents(f.trackedEntities, true)
+		f.execute(lazy)
+		f.events = nil
 	}
-	f.buildFlushEvents(f.trackedEntities, true)
-	f.execute(lazy)
-	f.events = nil
-	f.localCacheSetters = nil
-	f.redisCacheSetters = nil
+	f.flushCacheSetters()
 }
 
 func (f *flusher) flushWithCheck() error {
