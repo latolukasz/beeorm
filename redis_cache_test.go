@@ -52,14 +52,14 @@ func testRedis(t *testing.T, namespace string, version int) {
 	testLogger.clear()
 
 	valid := false
-	val := r.GetSet("test_get_set", 10, func() interface{} {
+	val := r.GetSet("test_get_set", time.Second*10, func() interface{} {
 		valid = true
 		return "ok"
 	})
 	assert.True(t, valid)
 	assert.Equal(t, "ok", val)
 	valid = false
-	val = r.GetSet("test_get_set", 10, func() interface{} {
+	val = r.GetSet("test_get_set", time.Second*10, func() interface{} {
 		valid = true
 		return "ok"
 	})
