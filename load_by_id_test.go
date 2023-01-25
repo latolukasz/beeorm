@@ -156,12 +156,11 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	return
 
 	entity = &loadByIDEntity{}
-	found = engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo")
+	found = engine.LoadByID(id, entity, "ReferenceOne/ReferenceTwo")
 	assert.True(t, found)
-	assert.Equal(t, uint64(1), entity.GetID())
+	assert.Equal(t, id, entity.GetID())
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
@@ -169,7 +168,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
 	entity = &loadByIDEntity{}
-	entity.SetID(1)
+	entity.SetID(id)
 	engine.Load(entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
