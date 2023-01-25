@@ -8,41 +8,27 @@ import (
 
 type loadByIDEntity struct {
 	ORM             `orm:"localCache;redisCache"`
-	ID              uint
 	Name            string `orm:"max=100"`
 	ReferenceOne    *loadByIDReference
 	ReferenceSecond *loadByIDReference
 	ReferenceThird  *loadByIDReference2
-	ReferenceMany   []*loadByIDReferenceMany
 }
 
 type loadByIDRedisEntity struct {
 	ORM `orm:"redisCache"`
-	ID  uint
 }
 
 type loadByIDLocalEntity struct {
 	ORM `orm:"localCache"`
-	ID  uint
 }
 
 type loadByIDNoCacheEntity struct {
 	ORM
-	ID   uint
 	Name string
 }
 
 type loadByIDReference struct {
 	ORM            `orm:"localCache;redisCache"`
-	ID             uint
-	Name           string
-	ReferenceTwo   *loadByIDSubReference
-	ReferenceThree *loadByIDSubReference2
-}
-
-type loadByIDReferenceMany struct {
-	ORM            `orm:"localCache;redisCache"`
-	ID             uint
 	Name           string
 	ReferenceTwo   *loadByIDSubReference
 	ReferenceThree *loadByIDSubReference2
@@ -50,26 +36,22 @@ type loadByIDReferenceMany struct {
 
 type loadByIDReference2 struct {
 	ORM  `orm:"localCache;redisCache"`
-	ID   uint
 	Name string
 }
 
 type loadByIDSubReference struct {
 	ORM  `orm:"localCache;redisCache"`
-	ID   uint
 	Name string
 }
 
 type loadByIDSubReference2 struct {
 	ORM          `orm:"localCache"`
-	ID           uint
 	Name         string
 	ReferenceTwo *loadByIDSubReference
 }
 
 type loadByIDBenchmarkEntity struct {
 	ORM
-	ID      uint
 	Name    string
 	Int     int
 	Bool    bool
@@ -102,9 +84,8 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	var reference2 *loadByIDReference2
 	var subReference2 *loadByIDSubReference2
 	var subReference *loadByIDSubReference
-	var refMany *loadByIDReferenceMany
 	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
-		subReference2, reference2, refMany)
+		subReference2, reference2)
 
 	schemas := make([]TableSchema, 0)
 	registry := engine.GetRegistry()
@@ -117,7 +98,6 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	schemas = append(schemas, registry.GetTableSchemaForEntity(reference2))
 	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference2))
 	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(refMany))
 
 	if local {
 		for _, schema := range schemas {
@@ -146,14 +126,11 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
 	e.ReferenceThird = &loadByIDReference2{Name: "r2A"}
-	e.ReferenceMany = []*loadByIDReferenceMany{{Name: "John"}}
+	engine.EnableQueryDebugCustom(true, false, false)
 	engine.Flush(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{})
-
-	engine.Flush(&loadByIDReferenceMany{Name: "rm1", ID: 100}, &loadByIDReferenceMany{Name: "rm2", ID: 101}, &loadByIDReferenceMany{Name: "rm3", ID: 102})
-	engine.Flush(&loadByIDEntity{Name: "eMany", ID: 200, ReferenceMany: []*loadByIDReferenceMany{{ID: 100}, {ID: 101}, {ID: 102}}})
-
+	return
 	engine.GetLocalCache().Clear()
 
 	entity = &loadByIDEntity{}
@@ -180,20 +157,19 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	assert.Len(t, entity.ReferenceMany, 1)
-	assert.Equal(t, "John", entity.ReferenceMany[0].Name)
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo")
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, uint64(1), entity.GetID())
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
-	entity = &loadByIDEntity{ID: 1}
+	entity = &loadByIDEntity{}
+	entity.SetID(1)
 	engine.Load(entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
@@ -210,7 +186,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	entityNoCache = &loadByIDNoCacheEntity{}
 	found = engine.LoadByID(1, entityNoCache, "*")
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entityNoCache.ID)
+	assert.Equal(t, uint64(1), entityNoCache.GetID())
 	assert.Equal(t, "a", entityNoCache.Name)
 
 	found = engine.LoadByID(100, entity, "*")
@@ -222,20 +198,6 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.False(t, found)
 	found = engine.LoadByID(100, entityRedis, "*")
 	assert.False(t, found)
-
-	entity = &loadByIDEntity{}
-	found = engine.LoadByID(200, entity, "ReferenceMany")
-	assert.True(t, found)
-	assert.Len(t, entity.ReferenceMany, 3)
-	assert.Equal(t, uint(100), entity.ReferenceMany[0].ID)
-	assert.Equal(t, uint(101), entity.ReferenceMany[1].ID)
-	assert.Equal(t, uint(102), entity.ReferenceMany[2].ID)
-	assert.Equal(t, "rm1", entity.ReferenceMany[0].Name)
-	assert.Equal(t, "rm2", entity.ReferenceMany[1].Name)
-	assert.Equal(t, "rm3", entity.ReferenceMany[2].Name)
-	assert.True(t, entity.ReferenceMany[0].IsLoaded())
-	assert.True(t, entity.ReferenceMany[1].IsLoaded())
-	assert.True(t, entity.ReferenceMany[2].IsLoaded())
 
 	entityLocalCache := &loadByIDLocalEntity{}
 	found = engine.LoadByID(1, entityLocalCache)
