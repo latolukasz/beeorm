@@ -303,7 +303,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				q[i] = keys[i]
 				i++
 			}
-			query := "SELECT ID," + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strings.Join(q, ",") + ")"
+			query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strings.Join(q, ",") + ")"
 			results, def := db.Query(query)
 			for results.Next() {
 				pointers := prepareScan(schema)

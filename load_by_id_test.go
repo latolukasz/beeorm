@@ -126,15 +126,14 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
 	e.ReferenceThird = &loadByIDReference2{Name: "r2A"}
-	engine.EnableQueryDebugCustom(true, false, false)
 	engine.Flush(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{})
-	return
 	engine.GetLocalCache().Clear()
 
 	entity = &loadByIDEntity{}
-	found := engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo",
+	id := e.GetID()
+	found := engine.LoadByID(id, entity, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
 	assert.True(t, found)
 	assert.True(t, entity.IsLoaded())
@@ -145,18 +144,19 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
-	schema := engine.GetRegistry().GetTableSchemaForCachePrefix("f3b2d")
+	schema := engine.GetRegistry().GetTableSchemaForCachePrefix("528af")
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
 	schema = engine.GetRegistry().GetTableSchemaForCachePrefix("invalid")
 	assert.Nil(t, schema)
 
 	entity = &loadByIDEntity{}
-	found = engine.LoadByID(1, entity, "ReferenceThird", "ReferenceOne", "ReferenceMany")
+	found = engine.LoadByID(id, entity, "ReferenceThird", "ReferenceOne")
 	assert.True(t, found)
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
+	return
 
 	entity = &loadByIDEntity{}
 	found = engine.LoadByID(1, entity, "ReferenceOne/ReferenceTwo")
