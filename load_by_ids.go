@@ -199,6 +199,9 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			panic(fmt.Errorf("reference %s in %s is not valid", ref, schema.tableName))
 		}
 		parentRef, has := schema.tags[refName]["ref"]
+		if !has {
+			panic(fmt.Errorf("reference tag %s is not valid", ref))
+		}
 		parentSchema := engine.registry.tableSchemas[engine.registry.entities[parentRef]]
 		hasLocalCache := parentSchema.hasLocalCache
 		if !hasLocalCache && engine.hasRequestCache {

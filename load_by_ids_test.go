@@ -9,21 +9,18 @@ import (
 
 type loadByIdsEntity struct {
 	ORM          `orm:"localCache;redisCache"`
-	ID           uint
 	Name         string `orm:"max=100"`
 	ReferenceOne *loadByIdsReference
 }
 
 type loadByIdsReference struct {
 	ORM          `orm:"localCache;redisCache"`
-	ID           uint
 	Name         string
 	ReferenceTwo *loadByIdsSubReference
 }
 
 type loadByIdsSubReference struct {
 	ORM  `orm:"localCache;redisCache"`
-	ID   uint
 	Name string
 }
 
@@ -82,9 +79,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		schema3.hasRedisCache = false
 	}
 
-	engine.Flush(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}},
-		&loadByIdsEntity{Name: "b", ReferenceOne: &loadByIdsReference{Name: "r2", ReferenceTwo: &loadByIdsSubReference{Name: "s2"}}},
-		&loadByIdsEntity{Name: "c"})
+	engine.Flush(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}})
+	engine.Flush(&loadByIdsEntity{Name: "b", ReferenceOne: &loadByIdsReference{Name: "r2", ReferenceTwo: &loadByIdsSubReference{Name: "s2"}}})
+	engine.Flush(&loadByIdsEntity{Name: "c"})
 
 	var rows []*loadByIdsEntity
 	found := engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "*")
@@ -139,9 +136,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.NotNil(t, rows[3])
 	assert.NotNil(t, rows[4])
 	assert.Nil(t, rows[5])
-	assert.Equal(t, uint(2), rows[0].ID)
-	assert.Equal(t, uint(1), rows[3].ID)
-	assert.Equal(t, uint(1), rows[4].ID)
+	assert.Equal(t, uint64(2), rows[0].GetID())
+	assert.Equal(t, uint64(1), rows[3].GetID())
+	assert.Equal(t, uint64(1), rows[4].GetID())
 
 	found = engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "ReferenceOne/ReferenceTwo")
 	assert.False(t, found)
@@ -159,17 +156,17 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	rows = make([]*loadByIdsEntity, 0)
 	engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	rows = make([]*loadByIdsEntity, 0)
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	engine.GetRedis().FlushDB()
 	found = engine.LoadByIDs([]uint64{2}, &rows)
@@ -178,9 +175,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	engine.GetRedis().FlushDB()
 	found = engine.LoadByIDs([]uint64{3}, &rows)
@@ -189,9 +186,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	engine.EnableRequestCache()
 	engine.GetRedis().FlushDB()
@@ -201,9 +198,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows, "ReferenceOne")
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 	assert.Equal(t, "a", rows[0].Name)
 	assert.Equal(t, "b", rows[1].Name)
 	assert.Equal(t, "c", rows[2].Name)
@@ -212,9 +209,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	engine.GetRedis().FlushDB()
 	found = engine.LoadByIDs([]uint64{2}, &rows)
@@ -223,9 +220,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	engine.GetRedis().FlushDB()
 	found = engine.LoadByIDs([]uint64{3}, &rows)
@@ -234,9 +231,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
-	assert.Equal(t, uint(3), rows[2].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
+	assert.Equal(t, uint64(3), rows[2].GetID())
 
 	found = engine.LoadByIDs([]uint64{3}, &rows, "ReferenceOne/ReferenceTwo")
 	assert.True(t, found)
@@ -267,9 +264,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		rows = make([]*loadByIdsEntity, 0)
 		engine.LoadByIDs([]uint64{1, 2, 3}, &rows)
 		assert.Len(t, rows, 3)
-		assert.Equal(t, uint(1), rows[0].ID)
-		assert.Equal(t, uint(2), rows[1].ID)
-		assert.Equal(t, uint(3), rows[2].ID)
+		assert.Equal(t, uint64(1), rows[0].GetID())
+		assert.Equal(t, uint64(2), rows[1].GetID())
+		assert.Equal(t, uint64(3), rows[2].GetID())
 	}
 
 	engine = prepareTables(t, &Registry{}, 5, 6, "")
