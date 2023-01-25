@@ -13,12 +13,10 @@ type ormEntityStruct struct {
 
 type ormEntityRef struct {
 	ORM
-	ID uint
 }
 
 type ormEntity struct {
 	ORM
-	ID             uint
 	Name           string
 	nameUnset      string
 	Uint           uint
@@ -278,5 +276,5 @@ func TestORM(t *testing.T) {
 	err = entity.SetField("Ref", 1)
 	assert.NoError(t, err)
 	assert.NotNil(t, entity.Ref)
-	assert.Equal(t, uint(1), entity.Ref.ID)
+	assert.Equal(t, uint64(1), entity.Ref.GetID())
 }

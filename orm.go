@@ -26,6 +26,7 @@ var disableCacheHashCheck bool
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
+	SetID(id uint64)
 	markToDelete()
 	forceMarkToDelete()
 	IsLoaded() bool
@@ -938,7 +939,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 							f.Set(reflect.Zero(f.Type()))
 						} else {
 							val := reflect.New(f.Type().Elem())
-							val.Elem().FieldByName("ID").SetUint(id)
+							val.Interface().(Entity).SetID(id)
 							f.Set(val)
 						}
 					}
