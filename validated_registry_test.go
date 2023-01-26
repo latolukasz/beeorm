@@ -9,7 +9,6 @@ import (
 
 type validatedRegistryEntity struct {
 	ORM
-	ID      uint
 	TestSub validatedRegistryStruct
 	Ref     *validatedRegistryEntity
 }
@@ -20,7 +19,6 @@ type validatedRegistryStruct struct {
 
 type validatedRegistryNotRegisteredEntity struct {
 	ORM
-	ID uint
 }
 
 func TestValidatedRegistry(t *testing.T) {

@@ -433,9 +433,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	flusher.Flush()
 	broker = engine.GetEventBroker()
 
-	flusher.PublishToStream("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
 	assert.PanicsWithError(t, "unregistered stream test-stream-invalid", func() {
-		flusher.Flush()
+		flusher.PublishToStream("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
 	})
 	assert.PanicsWithError(t, "unregistered streams for group test-group-invalid", func() {
 		broker.Consumer("test-group-invalid")
