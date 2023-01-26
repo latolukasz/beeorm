@@ -19,10 +19,6 @@ type uuidReferenceEntity struct {
 	Size   int
 }
 
-type uuidEntityInvalid struct {
-	ORM `orm:"uuid"`
-}
-
 func TestUUIDdNoCache(t *testing.T) {
 	testUUID(t, false, false)
 }
@@ -37,14 +33,6 @@ func TestUUIDRedisCache(t *testing.T) {
 
 func TestUUIDLocalRedisCache(t *testing.T) {
 	testUUID(t, true, true)
-}
-
-func TestUUIDInvalidSchema(t *testing.T) {
-	registry := &Registry{}
-	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
-	registry.RegisterEntity(&uuidEntityInvalid{})
-	_, err := registry.Validate()
-	assert.EqualError(t, err, "entity beeorm.uuidEntityInvalid with uuid enabled must be unit64")
 }
 
 func TestUUIDServerID(t *testing.T) {
@@ -119,15 +107,16 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	referenceEntity.Parent = &uuidEntity{Name: "Name 3", Age: 10}
 	engine.Flush(referenceEntity)
 
-	id++
+	id = referenceEntity.GetID()
 	referenceEntity = &uuidReferenceEntity{}
-	assert.True(t, engine.LoadByID(id+1, referenceEntity))
+	assert.True(t, engine.LoadByID(id, referenceEntity))
 	assert.Equal(t, "test reference 2", referenceEntity.Name)
+	id = referenceEntity.Parent.GetID()
 	entity = &uuidEntity{}
 	assert.True(t, engine.LoadByID(id, entity))
 	assert.Equal(t, "Name 3", entity.Name)
 
-	id += 2
+	id += 1
 	entity = &uuidEntity{}
 	entity.Name = "test lazy"
 	entity.Age = 33

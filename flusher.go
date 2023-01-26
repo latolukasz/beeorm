@@ -594,7 +594,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 		if orm.tableSchema.hasUUID && !orm.inDB && currentID == 0 {
 			currentID = uuid()
 			orm.id = currentID
-			entitySQLFlushData.Update["ID"] = strconv.FormatUint(currentID, 10)
+			entitySQLFlushData.ID = currentID
 		}
 		f.addFlushEvent(entitySQLFlushData)
 	}

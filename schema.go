@@ -925,8 +925,11 @@ func convertIntToSchema(version int, typeAsString string, attributes Bind) strin
 }
 
 func (tableSchema *tableSchema) getIDType() (idType string, idAttributes Bind) {
-	idType = "uint"
 	idAttributes = Bind{}
+	if tableSchema.hasUUID {
+		return "uint64", idAttributes
+	}
+	idType = "uint"
 	switch tableSchema.getTag("id", "uint", "uint") {
 	case "tinyint":
 		idType = "uint8"
