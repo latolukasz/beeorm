@@ -131,7 +131,10 @@ func (f *flusher) FlushLazy() {
 func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
-	f.clear()
+	f.updateSQLs = nil
+	f.deleteBinds = nil
+	f.localCacheDeletes = nil
+	f.localCacheSets = nil
 }
 
 func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
@@ -182,7 +185,7 @@ func (f *flusher) flushTrackedEntities(lazy bool, transaction bool) {
 		}
 	}
 	executed = true
-	f.clear()
+	f.Clear()
 }
 
 func (f *flusher) flushWithCheck(transaction bool) error {
@@ -907,11 +910,4 @@ func (f *flusher) fillLazyQuery(dbCode string, sql string, insert bool, id uint6
 	if len(logEvent) > 0 {
 		lazyMap["l"] = logEvent
 	}
-}
-
-func (f *flusher) clear() {
-	f.updateSQLs = nil
-	f.deleteBinds = nil
-	f.localCacheDeletes = nil
-	f.localCacheSets = nil
 }
