@@ -430,7 +430,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				return field.String()
 			},
 			serializeGetter: serializeGetterUint,
-			bindSetter: func(val interface{}, deserialized bool, _ reflect.Value) string {
+			bindSetter: func(val interface{}, deserialized bool, field reflect.Value) string {
 				if deserialized {
 					i := val.(uint64)
 					if i == 0 {
@@ -445,6 +445,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 						if b.orm.inDB {
 							panic(fmt.Errorf("empty enum value for %s", name))
 						}
+						field.SetString(fields.enums[k].GetDefault())
 						return fields.enums[k].GetDefault()
 					}
 					return NullBindValue

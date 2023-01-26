@@ -353,14 +353,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, reference.IsLoaded())
 
 	entity2 := &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
-	assert.PanicsWithError(t, "Duplicate entry 'Tom' for key 'name'", func() {
+	assert.PanicsWithError(t, "Error 1062 (23000): Duplicate entry 'Tom' for key 'name'", func() {
 		engine.Flush(entity2)
 	})
 
 	entity2.Name = "Lucas"
 	entity2.ReferenceOne = &flushEntityReference{}
 	entity2.ReferenceOne.SetID(3)
-	assert.PanicsWithError(t, "foreign key error in key `test:flushEntity:ReferenceOne`", func() {
+	assert.PanicsWithError(t, "Error 1452 (23000): Cannot add or update a child row: a foreign key constraint fails (`test`.`flushEntity`, CONSTRAINT `test:flushEntity:ReferenceOne` FOREIGN KEY (`ReferenceOne`) REFERENCES `flushEntityReference` (`ID`))", func() {
 		engine.Flush(entity2)
 	})
 
@@ -431,8 +431,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{Name: "Cat"}
 	engine.Flush(entity)
+	id := entity.GetID()
 	entity = &flushEntity{}
-	engine.LoadByID(7, entity)
+	engine.LoadByID(id, entity)
 	assert.Equal(t, "a", entity.EnumNotNull)
 
 	entity2 = &flushEntity{Name: "Adam", Age: 20, EnumNotNull: "a"}
