@@ -103,7 +103,7 @@ type redisCacheSetter struct {
 	setExpireValues []interface{}
 	setExpireTTLs   []time.Duration
 	deletes         []string
-	xAdds           map[string][]string
+	xAdds           map[string][][]string
 }
 
 func (r *redisCache) GetSet(key string, expiration time.Duration, provider func() interface{}) interface{} {
@@ -978,9 +978,9 @@ func (r *redisCache) xAdd(stream string, values []string) (id string) {
 
 func (r *redisCacheSetter) xAdd(stream string, values []string) (id string) {
 	if r.xAdds == nil {
-		r.xAdds = map[string][]string{stream: values}
+		r.xAdds = map[string][][]string{stream: {values}}
 	} else {
-		r.xAdds[stream] = append(r.xAdds[stream], values...)
+		r.xAdds[stream] = append(r.xAdds[stream], values)
 	}
 	return ""
 }
@@ -1007,6 +1007,11 @@ func (r *redisCacheSetter) flush() {
 	if !usePipeLine {
 		usePipeLine = len(r.xAdds) > 1 || len(r.setExpireKeys) > 1
 	}
+	if !usePipeLine {
+		for _, events := range r.xAdds {
+			usePipeLine = len(events) > 1
+		}
+	}
 	if usePipeLine {
 		pipeLine := cache.PipeLine()
 		if r.sets != nil {
@@ -1027,7 +1032,9 @@ func (r *redisCacheSetter) flush() {
 		}
 		if r.xAdds != nil {
 			for stream, events := range r.xAdds {
-				pipeLine.XAdd(stream, events)
+				for _, e := range events {
+					pipeLine.XAdd(stream, e)
+				}
 			}
 			r.xAdds = nil
 		}
@@ -1050,7 +1057,9 @@ func (r *redisCacheSetter) flush() {
 	}
 	if r.xAdds != nil {
 		for stream, events := range r.xAdds {
-			cache.xAdd(stream, events)
+			for _, e := range events {
+				cache.xAdd(stream, e)
+			}
 		}
 		r.xAdds = nil
 	}

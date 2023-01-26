@@ -190,7 +190,7 @@ func (f *flusher) execute(lazy bool) {
 			}
 		}
 	}()
-	f.buildCache(false, true)
+	f.buildCache(false, false)
 	f.events = nil
 }
 

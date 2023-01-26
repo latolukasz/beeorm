@@ -8,7 +8,6 @@ import (
 
 type requestCacheEntity struct {
 	ORM       `orm:"redisCache"`
-	ID        uint
 	Name      string       `orm:"length=100;index=name"`
 	Code      string       `orm:"unique=code"`
 	IndexName *CachedQuery `query:":Name = ?"`
@@ -20,12 +19,18 @@ func TestRequestCache(t *testing.T) {
 	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
 
 	flusher := engine.NewFlusher()
-	flusher.Track(&requestCacheEntity{Name: "a", Code: "a1"})
-	flusher.Track(&requestCacheEntity{Name: "b", Code: "a2"})
-	flusher.Track(&requestCacheEntity{Name: "c", Code: "a3"})
-	flusher.Track(&requestCacheEntity{Name: "d", Code: "a4"})
-	flusher.Track(&requestCacheEntity{Name: "d", Code: "a5"})
+	e := &requestCacheEntity{Name: "a", Code: "a1"}
+	e2 := &requestCacheEntity{Name: "b", Code: "a2"}
+	e3 := &requestCacheEntity{Name: "c", Code: "a3"}
+	e4 := &requestCacheEntity{Name: "d", Code: "a4"}
+	e5 := &requestCacheEntity{Name: "d", Code: "a5"}
+	flusher.Track(e)
+	flusher.Track(e2)
+	flusher.Track(e3)
+	flusher.Track(e4)
+	flusher.Track(e5)
 	flusher.Flush()
+	id := e.GetID()
 
 	engine.EnableRequestCache()
 
@@ -35,56 +40,58 @@ func TestRequestCache(t *testing.T) {
 	engine.RegisterQueryLogger(redisLogger, false, true, false)
 
 	entity = &requestCacheEntity{}
-	found := engine.LoadByID(1, entity)
+	found := engine.LoadByID(id, entity)
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, id, entity.GetID())
 	assert.Equal(t, "a", entity.Name)
 	assert.Len(t, dbLogger.Logs, 1)
 	assert.Len(t, redisLogger.Logs, 2)
 
-	found = engine.LoadByID(1, entity)
+	found = engine.LoadByID(id, entity)
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, id, entity.GetID())
 	assert.Equal(t, "a", entity.Name)
 	assert.Len(t, dbLogger.Logs, 1)
 	assert.Len(t, redisLogger.Logs, 2)
 
 	entities := make([]*requestCacheEntity, 0)
-	engine.LoadByIDs([]uint64{2, 3}, &entities)
+	engine.LoadByIDs([]uint64{e2.GetID(), e3.GetID()}, &entities)
 	assert.Equal(t, "b", entities[0].Name)
 	assert.Equal(t, "c", entities[1].Name)
 	assert.Len(t, dbLogger.Logs, 2)
 	assert.Len(t, redisLogger.Logs, 4)
-	engine.LoadByIDs([]uint64{2, 3}, &entities)
+	engine.LoadByIDs([]uint64{e2.GetID(), e3.GetID()}, &entities)
 	assert.Equal(t, "b", entities[0].Name)
 	assert.Equal(t, "c", entities[1].Name)
 	assert.Len(t, dbLogger.Logs, 2)
 	assert.Len(t, redisLogger.Logs, 4)
 
-	engine.Flush(&requestCacheEntity{Name: "f"})
+	e6 := &requestCacheEntity{Name: "f"}
+	engine.Flush(e6)
 	dbLogger.clear()
 	redisLogger.clear()
-	found = engine.LoadByID(6, entity)
+	found = engine.LoadByID(e6.GetID(), entity)
 	assert.True(t, found)
-	assert.Equal(t, uint(6), entity.ID)
+	assert.Equal(t, e6.GetID(), entity.GetID())
 	assert.Equal(t, "f", entity.Name)
 	assert.Len(t, dbLogger.Logs, 0)
 	assert.Len(t, redisLogger.Logs, 0)
 	entity.Name = "f2"
 	engine.Flush(entity)
+	id = entity.GetID()
 	dbLogger.clear()
 	redisLogger.clear()
 	entity = &requestCacheEntity{}
-	found = engine.LoadByID(6, entity)
+	found = engine.LoadByID(id, entity)
 	assert.True(t, found)
-	assert.Equal(t, uint(6), entity.ID)
+	assert.Equal(t, id, entity.GetID())
 	assert.Equal(t, "f2", entity.Name)
 	assert.Len(t, dbLogger.Logs, 0)
 	assert.Len(t, redisLogger.Logs, 0)
 	engine.Delete(entity)
 	dbLogger.clear()
 	redisLogger.clear()
-	found = engine.LoadByID(6, entity)
+	found = engine.LoadByID(id, entity)
 	assert.False(t, found)
 	dbLogger.clear()
 	redisLogger.clear()

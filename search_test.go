@@ -8,17 +8,14 @@ import (
 )
 
 type searchEntity struct {
-	ORM           `orm:"localCache;redisCache"`
-	ID            uint
-	Name          string
-	ReferenceOne  *searchEntityReference
-	ReferenceMany []*searchEntityReference
-	FakeDelete    bool
+	ORM          `orm:"localCache;redisCache"`
+	Name         string
+	ReferenceOne *searchEntityReference
+	FakeDelete   bool
 }
 
 type searchEntityReference struct {
 	ORM
-	ID   uint
 	Name string
 }
 
@@ -32,29 +29,29 @@ func TestSearch(t *testing.T) {
 		flusher.Track(&searchEntity{Name: fmt.Sprintf("name %d", i), ReferenceOne: &searchEntityReference{Name: fmt.Sprintf("name %d", i)}})
 	}
 	flusher.Flush()
-	entity = &searchEntity{ID: 1}
+	entity = &searchEntity{}
+	entity.SetID(1)
 	engine.Load(entity)
-	entity.ReferenceMany = []*searchEntityReference{{ID: 1}, {ID: 2}, {ID: 3}}
 	engine.Flush(entity)
 
 	var rows []*searchEntity
 	engine.LoadByIDs([]uint64{1, 2, 20}, &rows)
 	assert.Len(t, rows, 3)
-	assert.Equal(t, uint(1), rows[0].ID)
-	assert.Equal(t, uint(2), rows[1].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Nil(t, rows[2])
 
 	entity = &searchEntity{}
 	found := engine.SearchOne(NewWhere("ID = ?", 1), entity, "ReferenceOne")
 	assert.True(t, found)
-	assert.Equal(t, uint(1), entity.ID)
+	assert.Equal(t, uint64(1), entity.GetID())
 	assert.Equal(t, "name 1", entity.Name)
 	assert.Equal(t, "name 1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 
 	engine.Search(NewWhere("ID > 0"), nil, &rows, "ReferenceOne")
 	assert.Len(t, rows, 10)
-	assert.Equal(t, uint(1), rows[0].ID)
+	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Equal(t, "name 1", rows[0].Name)
 	assert.Equal(t, "name 1", rows[0].ReferenceOne.Name)
 	assert.True(t, rows[0].ReferenceOne.IsLoaded())
@@ -71,13 +68,6 @@ func TestSearch(t *testing.T) {
 	ids = engine.SearchIDs(NewWhere("ID > 2"), nil, entity)
 	assert.Len(t, ids, 8)
 	assert.Equal(t, uint64(3), ids[0])
-
-	entity = &searchEntity{ID: 1}
-	engine.Load(entity, "ReferenceMany")
-	assert.Len(t, entity.ReferenceMany, 3)
-	assert.True(t, entity.ReferenceMany[0].IsLoaded())
-	assert.True(t, entity.ReferenceMany[1].IsLoaded())
-	assert.True(t, entity.ReferenceMany[2].IsLoaded())
 
 	engine = prepareTables(t, &Registry{}, 5, 6, "")
 	assert.PanicsWithError(t, "entity 'beeorm.searchEntity' is not registered", func() {
