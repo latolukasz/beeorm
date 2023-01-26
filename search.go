@@ -165,7 +165,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
-	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()

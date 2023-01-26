@@ -8,14 +8,12 @@ import (
 
 type uuidEntity struct {
 	ORM  `orm:"uuid;localCache;redisCache"`
-	ID   uint64
 	Name string `orm:"unique=name;required"`
 	Age  int
 }
 
 type uuidReferenceEntity struct {
 	ORM    `orm:"uuid;localCache;redisCache"`
-	ID     uint64
 	Parent *uuidEntity
 	Name   string `orm:"unique=name;required"`
 	Size   int
@@ -23,7 +21,6 @@ type uuidReferenceEntity struct {
 
 type uuidEntityInvalid struct {
 	ORM `orm:"uuid"`
-	ID  uint
 }
 
 func TestUUIDdNoCache(t *testing.T) {
@@ -99,7 +96,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	entity.Age = 18
 	engine.Flush(entity)
 	id++
-	assert.Equal(t, id, entity.ID)
+	assert.Equal(t, id, entity.GetID())
 	entity = &uuidEntity{}
 	assert.True(t, engine.LoadByID(id, entity))
 	assert.Equal(t, "test", entity.Name)
@@ -111,11 +108,11 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	referenceEntity.Parent = entity
 	engine.Flush(referenceEntity)
 	id++
-	assert.Equal(t, id, referenceEntity.ID)
+	assert.Equal(t, id, referenceEntity.GetID())
 	referenceEntity = &uuidReferenceEntity{}
 	assert.True(t, engine.LoadByID(id, referenceEntity))
 	assert.Equal(t, "test reference", referenceEntity.Name)
-	assert.Equal(t, entity.ID, referenceEntity.Parent.ID)
+	assert.Equal(t, entity.GetID(), referenceEntity.Parent.GetID())
 
 	referenceEntity = &uuidReferenceEntity{}
 	referenceEntity.Name = "test reference 2"
@@ -135,7 +132,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	entity.Name = "test lazy"
 	entity.Age = 33
 	engine.FlushLazy(entity)
-	assert.Equal(t, id, entity.ID)
+	assert.Equal(t, id, entity.GetID())
 	entity = &uuidEntity{}
 	if local || redis {
 		assert.True(t, engine.LoadByID(id, entity))
