@@ -381,12 +381,13 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 				def := &cachedQueryDefinition{50000, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueries[key] = def
 				cachedQueriesAll[key] = def
-				cachedQueriesTrackedFields[key] = true
 			} else {
 				def := &cachedQueryDefinition{1, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueriesOne[key] = def
 				cachedQueriesAll[key] = def
-				cachedQueriesTrackedFields[key] = true
+			}
+			for _, name := range fieldsTracked {
+				cachedQueriesTrackedFields[name] = true
 			}
 		}
 		_, has = values["ref"]

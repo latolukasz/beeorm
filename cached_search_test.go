@@ -74,31 +74,26 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		schemaNoFakeDelete.hasRedisCache = true
 	}
 
-	flusher := engine.NewFlusher()
 	for i := 1; i <= 5; i++ {
-		flusher.Track(&cachedSearchRefEntity{Name: "Name " + strconv.Itoa(i)})
+		engine.Flush(&cachedSearchRefEntity{Name: "Name " + strconv.Itoa(i)})
 	}
-	flusher.Flush()
 
 	var entities = make([]interface{}, 10)
 	for i := 1; i <= 5; i++ {
 		e := &cachedSearchEntity{Name: "Name " + strconv.Itoa(i), Age: uint16(10)}
-		flusher.Track(e)
 		e.ReferenceOne = &cachedSearchRefEntity{}
 		e.ReferenceOne.SetID(uint64(i))
 		entities[i-1] = e
+		engine.Flush(e)
 	}
-	flusher.Flush()
 	for i := 6; i <= 10; i++ {
 		e := &cachedSearchEntity{Name: "Name " + strconv.Itoa(i), Age: uint16(18)}
 		entities[i-1] = e
-		flusher.Track(e)
+		engine.Flush(e)
 	}
-	flusher.Flush()
 
 	pager := NewPager(1, 100)
 	var rows []*cachedSearchEntity
-	engine.EnableQueryDebugCustom(true, false, false)
 	totalRows := engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 5, totalRows)
 	assert.Len(t, rows, 5)
@@ -243,22 +238,18 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		engine.CachedSearchWithReferences(entity, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
 	})
 
-	flusher.Flush()
 	for i := 1; i <= 200; i++ {
 		e := &cachedSearchEntity{Name: "NameNew " + strconv.Itoa(i), Age: uint16(77)}
-		flusher.Track(e)
+		engine.Flush(e)
 	}
-	flusher.Flush()
 	pager = NewPager(30, 1000)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 77)
 	assert.Equal(t, 200, totalRows)
 
-	flusher.Flush()
 	for i := 1; i <= 10; i++ {
 		e := &cachedSearchEntity{Name: "NameNew13 " + strconv.Itoa(i), Age: uint16(13)}
-		flusher.Track(e)
+		engine.Flush(e)
 	}
-	flusher.Flush()
 	totalRows = engine.CachedSearch(&rows, "IndexAge", NewPager(3, 10), 13)
 	assert.Equal(t, 10, totalRows)
 
