@@ -2,12 +2,9 @@ package beeorm
 
 import (
 	"database/sql"
-	"fmt"
 	"io"
 	"log"
-	"sync"
 	"testing"
-	"time"
 
 	"github.com/pkg/errors"
 
@@ -40,21 +37,6 @@ func TestDB(t *testing.T) {
 	engine.RegisterQueryLogger(testQueryLog, true, false, false)
 
 	db := engine.GetMysql()
-	wg := sync.WaitGroup{}
-	wg.Add(10)
-	for i := 0; i < 10; i++ {
-		i := i
-		go func() {
-			fmt.Printf("A %d\n", i)
-			_, def := engine.GetRegistry().CreateEngine().GetMysql().Query("SELECT SLEEP(5)")
-			def()
-			fmt.Printf("B %d\n", i)
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-	time.Sleep(time.Second)
-	return
 	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
 	assert.Equal(t, uint64(1), row.LastInsertId())
 	assert.Equal(t, uint64(1), row.RowsAffected())
