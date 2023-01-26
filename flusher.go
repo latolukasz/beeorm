@@ -82,7 +82,7 @@ func (f *flusher) addFlushEvent(sqlFlush *EntitySQLFlush) {
 	f.events = append(f.events, sqlFlush)
 }
 
-func (f *flusher) execute(lazy bool) {
+func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 	if len(f.events) == 0 {
 		return
 	}
@@ -190,7 +190,7 @@ func (f *flusher) execute(lazy bool) {
 			}
 		}
 	}()
-	f.buildCache(false, false)
+	f.buildCache(false, fromLazyConsumer)
 	f.events = nil
 }
 
@@ -534,7 +534,7 @@ func (f *flusher) Clear() {
 func (f *flusher) flushTrackedEntities(lazy bool) {
 	if f.trackedEntitiesCounter > 0 {
 		f.buildFlushEvents(f.trackedEntities, true)
-		f.execute(lazy)
+		f.execute(lazy, false)
 		f.events = nil
 	}
 	f.flushCacheSetters()

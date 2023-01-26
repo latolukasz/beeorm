@@ -50,7 +50,6 @@ func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
 }
 
 func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQLFlush) {
-	//TODO handle errors
 	defer func() {
 		if rec := recover(); rec != nil {
 			_, isMySQLError := rec.(*mysql.MySQLError)
@@ -77,12 +76,13 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQL
 						}
 						events[i].Ack()
 					}()
-					f.execute(false)
+					f.execute(false, true)
 				}()
 			}
 		}
 	}()
 	f := &flusher{engine: r.engine}
 	f.events = lazyEvents
-	f.execute(false)
+	f.execute(false, true)
+	f.flushCacheSetters()
 }
