@@ -77,13 +77,13 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.9), 1))
 		maxLimit := v.getMaxConnections()
 		if maxLimit == 0 {
-			maxLimit = 100
+			maxLimit = maxConnections
 		}
 		maxLimit = int(math.Min(float64(maxConnections), float64(maxLimit)))
 		waitTimeout = int(math.Max(float64(waitTimeout), 180))
 		waitTimeout = int(math.Min(float64(waitTimeout), 180))
-		db.SetMaxOpenConns(maxLimit)
-		db.SetMaxIdleConns(maxLimit)
+		db.SetMaxOpenConns(2)
+		db.SetMaxIdleConns(2)
 		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
