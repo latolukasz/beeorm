@@ -611,7 +611,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		schema := f.engine.registry.GetTableSchema(e.EntityName).(*tableSchema)
 		hasLocalCache := schema.hasLocalCache
 		localCacheCode := schema.localCacheName
-		hasRedis := !lazy && schema.hasRedisCache
+		hasRedis := schema.hasRedisCache
 		if !hasLocalCache && f.engine.hasRequestCache {
 			hasLocalCache = true
 			localCacheCode = requestCacheKey
@@ -622,6 +622,16 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		cacheKey := schema.getCacheKey(e.ID)
 		switch e.Action {
 		case Insert:
+			if lazy {
+				e.entity.getORM().serialize(f.getSerializer())
+				if hasLocalCache {
+					f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, e.entity.getORM().copyBinary())
+				}
+				if hasRedis {
+					f.GetRedisCacheSetter(schema.redisCacheName).Set(cacheKey, e.entity.getORM().copyBinary(), 0)
+				}
+				return
+			}
 			keys := f.getCacheQueriesKeys(schema, e.Update, nil, false, true)
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
@@ -641,9 +651,11 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			break
 		case Update:
 			if lazy {
-				setter := f.GetLocalCacheSetter(localCacheCode)
-				e.entity.getORM().serialize(f.getSerializer())
-				setter.Set(cacheKey, e.entity.getORM().copyBinary())
+				if hasLocalCache {
+					setter := f.GetLocalCacheSetter(localCacheCode)
+					e.entity.getORM().serialize(f.getSerializer())
+					setter.Set(cacheKey, e.entity.getORM().copyBinary())
+				}
 				break
 			}
 			keysOld := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, false)
