@@ -74,7 +74,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
 		checkError(err)
-		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.9), 1))
+		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.5), 1))
 		maxLimit := v.getMaxConnections()
 		if maxLimit == 0 {
 			maxLimit = maxConnections
@@ -83,7 +83,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		waitTimeout = int(math.Max(float64(waitTimeout), 180))
 		waitTimeout = int(math.Min(float64(waitTimeout), 180))
 		db.SetMaxOpenConns(maxLimit)
-		db.SetMaxIdleConns(maxLimit)
+		db.SetMaxIdleConns(int(float64(maxLimit) * 0.33))
 		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
