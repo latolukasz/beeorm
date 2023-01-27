@@ -120,13 +120,11 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	entity = &uuidEntity{}
 	entity.Name = "test lazy"
 	entity.Age = 33
-	engine.EnableQueryDebug()
 	engine.FlushLazy(entity)
 	assert.Equal(t, id, entity.GetID())
 	entity = &uuidEntity{}
 	if local || redis {
 		assert.True(t, engine.LoadByID(id, entity))
-		return
 		assert.Equal(t, "test lazy", entity.Name)
 	} else {
 		assert.False(t, engine.LoadByID(id, entity))

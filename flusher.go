@@ -626,6 +626,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
 				if e.entity != nil {
+					e.entity.getORM().serialize(f.getSerializer())
 					setter.Set(cacheKey, e.entity.getORM().copyBinary())
 				} else {
 					setter.Remove(cacheKey)
