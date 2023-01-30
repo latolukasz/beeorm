@@ -1,8 +1,8 @@
-package beeorm
+package test
 
 import (
 	"context"
-	"github.com/latolukasz/beeorm/test"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -18,13 +18,13 @@ func TestLockerNamespace(t *testing.T) {
 }
 
 func testLocker(t *testing.T, namespace string) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", namespace, 15)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
-	testLogger := &test.MockLogHandler{}
+	testLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 
 	l := engine.GetRedis().GetLocker()
