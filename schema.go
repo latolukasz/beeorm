@@ -70,7 +70,7 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 			tableSchema := getTableSchema(engine.registry, t)
 			tablesInEntities[tableSchema.mysqlPoolName][tableSchema.tableName] = true
 			has, newAlters := tableSchema.GetSchemaChanges(engine)
-			for _, plugin := range engine.registry.GetSourceRegistry().plugins {
+			for _, plugin := range engine.registry.plugins {
 				pluginInterfaceSchemaCheck, isPluginInterfaceSchemaCheck := plugin.(PluginInterfaceSchemaCheck)
 				if isPluginInterfaceSchemaCheck {
 					extraAlters, skippedTables := pluginInterfaceSchemaCheck.PluginInterfaceSchemaCheck(engine, tableSchema)

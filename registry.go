@@ -143,6 +143,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
 	registry.redisStreamPools = r.redisStreamPools
+	registry.plugins = r.plugins
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	e := registry.CreateEngine()
 	for _, schema := range registry.tableSchemas {

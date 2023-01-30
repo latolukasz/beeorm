@@ -254,6 +254,12 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 			e.ID = newID
 			newID += db.GetPoolConfig().getAutoincrement()
 		}
+		for _, plugin := range f.engine.registry.plugins {
+			interfaceEntityFlushed, isInterfaceEntityFlushed := plugin.(PluginInterfaceEntityFlushed)
+			if isInterfaceEntityFlushed {
+				interfaceEntityFlushed.PluginInterfaceEntityFlushed(f.engine, e, f)
+			}
+		}
 	}
 }
 

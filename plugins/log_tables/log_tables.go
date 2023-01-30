@@ -3,13 +3,13 @@ package log_tables
 import (
 	"database/sql"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
 	"github.com/latolukasz/beeorm"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -252,44 +252,42 @@ func GetEntityLogs(engine beeorm.Engine, tableSchema beeorm.TableSchema, entityI
 func handleLogEvents(engine beeorm.Engine, values map[string][]*LogQueueValue) {
 	for poolName, rows := range values {
 		poolDB := engine.GetMysql(poolName)
-		query := ""
-		for _, value := range rows {
-			/* #nosec */
-			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)" +
-				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(beeorm.TimeFormat) + "',"
-			params := make([]interface{}, 5)
-			params[0] = value.ID
-			params[1] = value.Updated.Format(beeorm.TimeFormat)
-			if value.Meta != nil {
-				params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
-			}
-			if value.Before != nil {
-				params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
-			}
-			if value.Changes != nil {
-				params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
-			}
-			func() {
-				defer func() {
-					if rec := recover(); rec != nil {
-						asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
-						if isMySQLError && asMySQLError.Number == 1146 { // table was removed
-							return
-						}
-						panic(rec)
-					}
-				}()
-				if len(rows) > 1 {
-					func() {
-						poolDB.Begin()
-						defer poolDB.Rollback()
-						poolDB.Exec(query)
-						poolDB.Commit()
-					}()
-				} else {
-					poolDB.Exec(query)
-				}
-			}()
+		if len(rows) > 1 {
+			poolDB.Begin()
 		}
+		func() {
+			defer poolDB.Rollback()
+			for _, value := range rows {
+				/* #nosec */
+				query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
+				params := make([]interface{}, 5)
+				params[0] = value.ID
+				params[1] = value.Updated.Format(beeorm.TimeFormat)
+				if value.Meta != nil {
+					params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
+				}
+				if len(value.Before) > 0 {
+					params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
+				}
+				if len(value.Changes) > 0 {
+					params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
+				}
+				func() {
+					defer func() {
+						if rec := recover(); rec != nil {
+							asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
+							if isMySQLError && asMySQLError.Number == 1146 { // table was removed
+								return
+							}
+							panic(rec)
+						}
+					}()
+					poolDB.Exec(query, params...)
+				}()
+			}
+			if poolDB.IsInTransaction() {
+				poolDB.Commit()
+			}
+		}()
 	}
 }

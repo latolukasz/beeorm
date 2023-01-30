@@ -53,7 +53,6 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity3`")
 	engine.GetRedis().FlushDB()
-	return
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
 	engine.Flush(e1)
@@ -61,39 +60,38 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	engine.Flush(e2)
 
 	statistics := engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, LogTablesConsumerGroupName)
-	assert.Equal(t, int64(2), statistics.Lag)
+	assert.Equal(t, int64(2), engine.GetRedis().XLen(LogTablesChannelName))
 	assert.Equal(t, uint64(0), statistics.Pending)
 
 	consumer := engine.GetEventBroker().Consumer(LogTablesConsumerGroupName)
+	consumer.SetBlockTime(0)
 	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
 
-	statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, LogTablesConsumerGroupName)
-	assert.Equal(t, int64(0), statistics.Lag)
-	assert.Equal(t, uint64(0), statistics.Pending)
+	assert.Equal(t, int64(2), engine.GetRedis().XLen(LogTablesChannelName))
 
-	//schema := engine.GetRegistry().GetTableSchemaForEntity(entity1)
-	//logs := schema.GetEntityLogs(engine, 1, nil, nil)
-	//assert.Len(t, logs, 1)
-	//assert.Nil(t, logs[0].Meta)
-	//assert.Nil(t, logs[0].Before)
-	//assert.NotNil(t, logs[0].Changes)
-	//assert.Equal(t, uint64(1), logs[0].LogID)
-	//assert.Equal(t, uint64(1), logs[0].EntityID)
-	//assert.Equal(t, "John", logs[0].Changes["Name"])
-	//assert.Equal(t, "Poland", logs[0].Changes["Country"])
-	//assert.Equal(t, "Smith", logs[0].Changes["LastName"])
-	//
-	//schema2 := engine.GetRegistry().GetTableSchemaForEntity(entity2)
-	//logs = schema2.GetEntityLogs(engine, 1, nil, nil)
-	//assert.Len(t, logs, 1)
-	//assert.Nil(t, logs[0].Meta)
-	//assert.Nil(t, logs[0].Before)
-	//assert.NotNil(t, logs[0].Changes)
-	//assert.Equal(t, uint64(1), logs[0].LogID)
-	//assert.Equal(t, uint64(1), logs[0].EntityID)
-	//assert.Equal(t, float64(18), logs[0].Changes["Age"])
-	//assert.Equal(t, "Tom", logs[0].Changes["Name"])
-	//
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity1)
+	logs := GetEntityLogs(engine, schema, 1, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Nil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, uint64(1), logs[0].LogID)
+	assert.Equal(t, uint64(1), logs[0].EntityID)
+	assert.Equal(t, "John", logs[0].Changes["Name"])
+	assert.Equal(t, "Poland", logs[0].Changes["Country"])
+	assert.Equal(t, "Smith", logs[0].Changes["LastName"])
+
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(entity2)
+	logs = GetEntityLogs(engine, schema2, 1, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Nil(t, logs[0].Meta)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, uint64(1), logs[0].LogID)
+	assert.Equal(t, uint64(1), logs[0].EntityID)
+	assert.Equal(t, "18", logs[0].Changes["Age"])
+	assert.Equal(t, "Tom", logs[0].Changes["Name"])
+
 	//engine.SetLogMetaData("user_id", 12)
 	//flusher := engine.NewFlusher()
 	//e1 = &logReceiverEntity1{Name: "John2"}
