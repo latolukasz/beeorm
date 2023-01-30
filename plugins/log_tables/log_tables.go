@@ -51,12 +51,12 @@ func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSc
 	return nil
 }
 
-func SetMetaData(engine beeorm.Engine, key string, value interface{}) {
+func SetMetaData(engine beeorm.Engine, key, value string) {
 	before := engine.GetOption(PluginCodeLog, "meta")
 	if before == nil {
-		engine.SetOption(PluginCodeLog, metaOption, map[string]interface{}{key: value})
+		engine.SetOption(PluginCodeLog, metaOption, map[string]string{key: value})
 	} else {
-		before.(map[string]interface{})[key] = value
+		before.(map[string]string)[key] = value
 	}
 }
 
@@ -156,7 +156,7 @@ func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flu
 		Updated:   time.Now()}
 	meta := engine.GetOption(PluginCodeLog, metaOption)
 	if meta != nil {
-		val.Meta = meta.(map[string]interface{})
+		val.Meta = meta.(map[string]string)
 	}
 	cacheFlusher.PublishToStream(LogTablesChannelName, val)
 }
@@ -166,7 +166,7 @@ type LogQueueValue struct {
 	TableName string
 	ID        uint64
 	LogID     uint64
-	Meta      map[string]interface{}
+	Meta      beeorm.Bind
 	Before    beeorm.Bind
 	Changes   beeorm.Bind
 	Updated   time.Time

@@ -308,6 +308,12 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 			orm.loaded = true
 			orm.serialize(f.getSerializer())
 		}
+		for _, plugin := range f.engine.registry.plugins {
+			interfaceEntityFlushed, isInterfaceEntityFlushed := plugin.(PluginInterfaceEntityFlushed)
+			if isInterfaceEntityFlushed {
+				interfaceEntityFlushed.PluginInterfaceEntityFlushed(f.engine, e, f)
+			}
+		}
 	}
 }
 

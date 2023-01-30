@@ -80,6 +80,8 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.Equal(t, "John", logs[0].Changes["Name"])
 	assert.Equal(t, "Poland", logs[0].Changes["Country"])
 	assert.Equal(t, "Smith", logs[0].Changes["LastName"])
+	test.RunLazyFlushConsumer(engine, true)
+	assert.Equal(t, int64(0), engine.GetRedis().XLen(LogTablesChannelName))
 
 	schema2 := engine.GetRegistry().GetTableSchemaForEntity(entity2)
 	logs = GetEntityLogs(engine, schema2, 1, nil, nil)
@@ -92,74 +94,52 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.Equal(t, "18", logs[0].Changes["Age"])
 	assert.Equal(t, "Tom", logs[0].Changes["Name"])
 
-	//engine.SetLogMetaData("user_id", 12)
-	//flusher := engine.NewFlusher()
-	//e1 = &logReceiverEntity1{Name: "John2"}
-	//flusher.Track(e1)
-	//e2 = &logReceiverEntity2{Name: "Tom2", Age: 18}
-	//e2.SetEntityLogMeta("admin_id", "10")
-	//flusher.Track(e2)
-	//flusher.Flush()
-	//
-	//statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
-	//if redisVersion == 7 {
-	//	assert.Equal(t, int64(2), statistics.Lag)
-	//}
-	//assert.Equal(t, uint64(0), statistics.Pending)
-	//
-	//consumer.Digest(context.Background())
-	//
-	//statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
-	//if redisVersion == 7 {
-	//	assert.Equal(t, int64(0), statistics.Lag)
-	//}
-	//assert.Equal(t, uint64(0), statistics.Pending)
-	//
-	//logs = schema.GetEntityLogs(engine, 2, nil, nil)
-	//assert.Len(t, logs, 1)
-	//assert.Equal(t, uint64(2), logs[0].LogID)
-	//assert.NotNil(t, logs[0].Meta)
-	//assert.Nil(t, logs[0].Before)
-	//assert.NotNil(t, logs[0].Changes)
-	//assert.Equal(t, "John2", logs[0].Changes["Name"])
-	//assert.Nil(t, logs[0].Changes["Country"])
-	//assert.Nil(t, logs[0].Changes["LastName"])
-	//assert.Equal(t, float64(12), logs[0].Meta["user_id"])
-	//
-	//logs = schema2.GetEntityLogs(engine, 2, nil, nil)
-	//assert.Len(t, logs, 1)
-	//assert.Equal(t, uint64(2), logs[0].LogID)
-	//assert.NotNil(t, logs[0].Meta)
-	//assert.Nil(t, logs[0].Before)
-	//assert.NotNil(t, logs[0].Changes)
-	//assert.Equal(t, "Tom2", logs[0].Changes["Name"])
-	//assert.Equal(t, float64(18), logs[0].Changes["Age"])
-	//assert.Equal(t, float64(12), logs[0].Meta["user_id"])
-	//assert.Equal(t, "10", logs[0].Meta["admin_id"])
-	//
-	//e1.Country = "Germany"
-	//engine.Flush(e1)
-	//consumer.Digest(context.Background())
-	//logs = schema.GetEntityLogs(engine, 2, nil, nil)
-	//assert.Len(t, logs, 1)
-	//
-	//e1.LastName = "Summer"
-	//engine.Flush(e1)
-	//consumer.Digest(context.Background())
-	//
-	//logs = schema.GetEntityLogs(engine, 2, nil, nil)
-	//assert.Len(t, logs, 2)
-	//assert.Equal(t, uint64(2), logs[0].LogID)
-	//assert.Equal(t, uint64(3), logs[1].LogID)
-	//assert.NotNil(t, logs[1].Changes)
-	//assert.NotNil(t, logs[1].Before)
-	//assert.NotNil(t, logs[1].Meta)
-	//assert.Equal(t, "Summer", logs[1].Changes["LastName"])
-	//assert.Equal(t, "John2", logs[1].Before["Name"])
-	//assert.Equal(t, "Germany", logs[1].Before["Country"])
-	//assert.Nil(t, logs[1].Before["LastName"])
-	//assert.Equal(t, float64(12), logs[1].Meta["user_id"])
-	//
+	SetMetaData(engine, "user_id", "12")
+	SetMetaData(engine, "country", "Poland")
+	flusher := engine.NewFlusher()
+	e := &logReceiverEntity1{Name: "John2"}
+	e3 := &logReceiverEntity1{Name: "John3"}
+	flusher.Track(e, e3)
+	flusher.Flush()
+	assert.Equal(t, int64(2), engine.GetRedis().XLen(LogTablesChannelName))
+
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+
+	logs = GetEntityLogs(engine, schema, e.GetID(), nil, nil)
+	assert.Len(t, logs, 1)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Len(t, logs[0].Meta, 2)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, "John2", logs[0].Changes["Name"])
+	assert.Equal(t, "12", logs[0].Meta["user_id"])
+	assert.Equal(t, "Poland", logs[0].Meta["country"])
+
+	logs = GetEntityLogs(engine, schema, e3.GetID(), nil, nil)
+	assert.Len(t, logs, 1)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Len(t, logs[0].Meta, 2)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Equal(t, "John3", logs[0].Changes["Name"])
+	assert.Equal(t, "12", logs[0].Meta["user_id"])
+	assert.Equal(t, "Poland", logs[0].Meta["country"])
+
+	e1.Country = "Germany"
+	engine.Flush(e1)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+
+	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	assert.Len(t, logs, 2)
+	assert.NotNil(t, logs[1].Before)
+	assert.NotNil(t, logs[1].Changes)
+	assert.Len(t, logs[1].Before, 1)
+	assert.Len(t, logs[1].Changes, 1)
+	assert.Equal(t, "Poland", logs[1].Before["Country"])
+	assert.Equal(t, "Germany", logs[1].Changes["Country"])
+
+	// TODO insert on duplikate
+
 	//engine.Delete(e1)
 	//consumer.Digest(context.Background())
 	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
