@@ -407,6 +407,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		}
 		if rowsAffected > 0 {
 			e.ID = result.LastInsertId()
+			f.executePluginInterfaceEntityFlushed(e)
 		}
 	}
 }

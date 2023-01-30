@@ -10,7 +10,7 @@ import (
 
 type logReceiverEntity1 struct {
 	beeorm.ORM `orm:"log=log;redisCache"`
-	Name       string
+	Name       string `orm:"unique=name"`
 	LastName   string
 	Country    string `orm:"skip-table-log"`
 }
@@ -33,22 +33,22 @@ type logReceiverEntity4 struct {
 	Age  uint64
 }
 
-func TestLogReceiverRedis6(t *testing.T) {
-	testLogReceiver(t, 6)
+func TestLogReceiverMySQL5(t *testing.T) {
+	testLogReceiver(t, 5)
 }
 
-func TestLogReceiverRedis7(t *testing.T) {
-	testLogReceiver(t, 7)
+func TestLogReceiverMySQL8(t *testing.T) {
+	testLogReceiver(t, 8)
 }
 
-func testLogReceiver(t *testing.T, redisVersion int) {
+func testLogReceiver(t *testing.T, MySQLVersion int) {
 	var entity1 *logReceiverEntity1
 	var entity2 *logReceiverEntity2
 	var entity3 *logReceiverEntity3
 	var entity4 *logReceiverEntity4
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(Init())
-	engine := test.PrepareTables(t, registry, 8, redisVersion, "", entity1, entity2, entity3, entity4)
+	engine := test.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity3`")
@@ -150,6 +150,32 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.Equal(t, "Smith", logs[2].Before["LastName"])
 
 	// TODO insert on duplikate
+
+	e1 = &logReceiverEntity1{Name: "Duplicate"}
+	e1.SetOnDuplicateKeyUpdate(beeorm.Bind{"LastName": "Duplicated"})
+	engine.Flush(e1)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	assert.Len(t, logs, 1)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Len(t, logs[0].Changes, 3)
+	assert.Equal(t, "Duplicate", logs[0].Changes["Name"])
+	assert.Equal(t, "NULL", logs[0].Changes["LastName"])
+	assert.Equal(t, "NULL", logs[0].Changes["Country"])
+
+	e1 = &logReceiverEntity1{Name: "Duplicate"}
+	e1.SetOnDuplicateKeyUpdate(beeorm.Bind{"LastName": "Duplicated last name"})
+	engine.Flush(e1)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	assert.Len(t, logs, 2)
+	assert.NotNil(t, logs[1].Before)
+	assert.NotNil(t, logs[1].Changes)
+	assert.Len(t, logs[1].Before, 1)
+	assert.Len(t, logs[1].Changes, 1)
+	assert.Equal(t, "NULL", logs[1].Before["LastName"])
+	assert.Equal(t, "Duplicated last name", logs[1].Changes["LastName"])
 
 	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
 	//assert.Len(t, logs, 1)
