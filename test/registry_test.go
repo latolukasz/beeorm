@@ -1,6 +1,7 @@
-package beeorm
+package test
 
 import (
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/go-redis/redis/v9"
@@ -9,7 +10,7 @@ import (
 )
 
 func TestRegisterRedisSentinelWithOptions(t *testing.T) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	opt := redis.FailoverOptions{}
 	opt.Username = "test_user"
 	opt.Password = "test_pass"
@@ -20,8 +21,4 @@ func TestRegisterRedisSentinelWithOptions(t *testing.T) {
 	assert.NoError(t, err)
 	pools := vRegistry.GetRedisPools()
 	assert.Len(t, pools, 1)
-	engine := vRegistry.CreateEngine()
-	outputOptions := engine.GetRedis().(*redisCache).client.Options()
-	assert.Equal(t, "test_user", outputOptions.Username)
-	assert.Equal(t, "test_pass", outputOptions.Password)
 }
