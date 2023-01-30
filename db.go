@@ -393,8 +393,7 @@ func (db *DB) Query(query string, args ...interface{}) (rows Rows, close func())
 	return &rowsStruct{result}, func() {
 		if result != nil {
 			err := result.Err()
-			checkError(err)
-			err = result.Close()
+			_ = result.Close()
 			checkError(err)
 		}
 	}

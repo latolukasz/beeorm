@@ -307,16 +307,19 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				i++
 			}
 			query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strings.Join(q, ",") + ")"
-			results, def := db.Query(query)
-			for results.Next() {
-				pointers := prepareScan(schema)
-				results.Scan(pointers...)
-				id := *pointers[0].(*uint64)
-				for _, r := range v2[schema.getCacheKey(id)] {
-					fillFromDBRow(serializer, id, engine.registry, pointers, r)
+			func() {
+				results, def := db.Query(query)
+				defer def()
+				for results.Next() {
+					pointers := prepareScan(schema)
+					results.Scan(pointers...)
+					id := *pointers[0].(*uint64)
+					for _, r := range v2[schema.getCacheKey(id)] {
+						fillFromDBRow(serializer, id, engine.registry, pointers, r)
+					}
 				}
-			}
-			def()
+			}()
+
 		}
 	}
 	for pool, v := range redisMap {
