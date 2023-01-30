@@ -1,10 +1,8 @@
-package beeorm
+package test
 
 import (
 	"context"
-	"github.com/latolukasz/beeorm/test"
-	"io"
-	"log"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -30,7 +28,7 @@ func TestRedis7Namespaces(t *testing.T) {
 }
 
 func testRedis(t *testing.T, namespace string, version int) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	url := "localhost:6382"
 	if version == 7 {
 		url = "localhost:6381"
@@ -45,10 +43,8 @@ func testRedis(t *testing.T, namespace string, version int) {
 
 	r := engine.GetRedis()
 
-	testLogger := &test.MockLogHandler{}
+	testLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
-	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 	r.FlushDB()
 	testLogger.Clear()
 
@@ -343,18 +339,18 @@ func testRedis(t *testing.T, namespace string, version int) {
 	r.FlushAll()
 	assert.Equal(t, int64(0), r.Exists("a"))
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6399", "", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine()
-	testLogger = &test.MockLogHandler{}
+	testLogger = &MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
 	})
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)

@@ -1,7 +1,7 @@
-package beeorm
+package test
 
 import (
-	"github.com/latolukasz/beeorm/test"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -10,7 +10,7 @@ import (
 )
 
 func TestRedisPipeline(t *testing.T) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	validatedRegistry, err := registry.Validate()
@@ -22,7 +22,7 @@ func TestRedisPipeline(t *testing.T) {
 
 	r.Set("a", "A", 10*time.Second)
 	r.Set("c", "C", 10*time.Second)
-	testLogger := &test.MockLogHandler{}
+	testLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	c1 := pipeLine.Get("a")
 	c2 := pipeLine.Get("b")

@@ -1,23 +1,23 @@
-package beeorm
+package test
 
 import (
-	"github.com/latolukasz/beeorm/test"
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type requestCacheEntity struct {
-	ORM       `orm:"redisCache"`
-	Name      string       `orm:"length=100;index=name"`
-	Code      string       `orm:"unique=code"`
-	IndexName *CachedQuery `query:":Name = ?"`
-	IndexCode *CachedQuery `queryOne:":Code = ?"`
+	beeorm.ORM `orm:"redisCache"`
+	Name       string              `orm:"length=100;index=name"`
+	Code       string              `orm:"unique=code"`
+	IndexName  *beeorm.CachedQuery `query:":Name = ?"`
+	IndexCode  *beeorm.CachedQuery `queryOne:":Code = ?"`
 }
 
 func TestRequestCache(t *testing.T) {
 	var entity *requestCacheEntity
-	engine := test.PrepareTables(t, &Registry{}, 5, 6, "", entity)
+	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
 
 	flusher := engine.NewFlusher()
 	e := &requestCacheEntity{Name: "a", Code: "a1"}
@@ -35,9 +35,9 @@ func TestRequestCache(t *testing.T) {
 
 	engine.EnableRequestCache()
 
-	dbLogger := &test.MockLogHandler{}
+	dbLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(dbLogger, true, false, false)
-	redisLogger := &test.MockLogHandler{}
+	redisLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(redisLogger, false, true, false)
 
 	entity = &requestCacheEntity{}

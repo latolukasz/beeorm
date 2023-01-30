@@ -1,7 +1,7 @@
-package beeorm
+package test
 
 import (
-	"github.com/latolukasz/beeorm/test"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -25,41 +25,31 @@ type schemaSubFieldsIndex struct {
 }
 
 type schemaEntityRef struct {
-	ORM
+	beeorm.ORM
 	Name string `orm:"required"`
 }
 
 type schemaInvalidIndexEntity struct {
-	ORM
+	beeorm.ORM
 	Name string `orm:"index=TestIndex:invalid"`
 }
 
 type schemaInvalidMaxStringEntity struct {
-	ORM
+	beeorm.ORM
 	Name string `orm:"length=invalid"`
 }
 
 type schemaInvalidIDEntity struct {
-	ORM
+	beeorm.ORM
 	ID uint64
 }
 
 type schemaToDropEntity struct {
-	ORM
-}
-
-var TestEnum = struct {
-	A string
-	B string
-	C string
-}{
-	A: "a",
-	B: "b",
-	C: "c",
+	beeorm.ORM
 }
 
 type schemaEntity struct {
-	ORM             `orm:"localCache;log;unique=TestUniqueGlobal:Year,SubStructSubAge|TestUniqueGlobal2:Uint32"`
+	beeorm.ORM      `orm:"localCache;log;unique=TestUniqueGlobal:Year,SubStructSubAge|TestUniqueGlobal2:Uint32"`
 	Name            string `orm:"index=TestIndex;required"`
 	NameNullable    string
 	NameMax         string  `orm:"length=max"`
@@ -93,16 +83,16 @@ type schemaEntity struct {
 	SubStruct       schemaSubFields
 	SubStructIndex  schemaSubFieldsIndex
 	schemaSubFields
-	CachedQuery    *CachedQuery
+	CachedQuery    *beeorm.CachedQuery
 	Ignored        string `orm:"ignore"`
 	NameTranslated map[string]string
 	RefOne         *schemaEntityRef
 	RefMany        []*schemaEntityRef
 	Decimal        float32  `orm:"decimal=10,2"`
-	Enum           string   `orm:"enum=beeorm.TestEnum;required"`
-	Set            []string `orm:"set=beeorm.TestEnum;required"`
+	Enum           string   `orm:"enum=test.testEnum;required"`
+	Set            []string `orm:"set=test.testEnum;required"`
 	FakeDelete     bool
-	IndexAll       *CachedQuery `query:""`
+	IndexAll       *beeorm.CachedQuery `query:""`
 }
 
 func TestSchema5(t *testing.T) {
@@ -116,11 +106,11 @@ func TestSchema8(t *testing.T) {
 func testSchema(t *testing.T, version int) {
 	entity := &schemaEntity{}
 	ref := &schemaEntityRef{}
-	registry := &Registry{}
-	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum, "b")
-	engine := test.PrepareTables(t, registry, version, 6, "", entity, ref)
+	registry := &beeorm.Registry{}
+	registry.RegisterEnumStruct("test.testEnum", testEnum, "b")
+	engine := PrepareTables(t, registry, version, 6, "", entity, ref)
 
-	engineDrop := test.PrepareTables(t, &Registry{}, version, 6, "")
+	engineDrop := PrepareTables(t, &beeorm.Registry{}, version, 6, "")
 	for _, alter := range engineDrop.GetAlters() {
 		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
 	}
@@ -208,7 +198,7 @@ func testSchema(t *testing.T, version int) {
 	engine.GetMysql().Exec(alters[1].SQL)
 
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
-	assert.Equal(t, "beeorm.schemaEntity", schema.GetType().String())
+	assert.Equal(t, "test.schemaEntity", schema.GetType().String())
 	references := schema.GetReferences()
 	assert.Len(t, references, 2)
 	columns := schema.GetColumns()
@@ -248,32 +238,32 @@ func testSchema(t *testing.T, version int) {
 		pool = "root:root@tcp(localhost:3312)/test"
 	}
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidIndexEntity{})
 	_, err := registry.Validate()
-	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIndexEntity': invalid index position 'invalid' in index 'TestIndex'")
+	assert.EqualError(t, err, "invalid entity struct 'test.schemaInvalidIndexEntity': invalid index position 'invalid' in index 'TestIndex'")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidMaxStringEntity{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidMaxStringEntity': invalid max string: invalid")
+	assert.EqualError(t, err, "invalid entity struct 'test.schemaInvalidMaxStringEntity': invalid max string: invalid")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidIDEntity{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field with name ID not allowed")
+	assert.EqualError(t, err, "invalid entity struct 'test.schemaInvalidIDEntity': field with name ID not allowed")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterLocalCache(1000)
 	registry.RegisterEntity(&schemaEntity{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaEntity': unregistered enum beeorm.TestEnum")
+	assert.EqualError(t, err, "invalid entity struct 'test.schemaEntity': unregistered enum test.testEnum")
 
-	engine = test.PrepareTables(t, &Registry{}, 5, 6, "", &schemaToDropEntity{})
+	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "", &schemaToDropEntity{})
 	schema = engine.GetRegistry().GetTableSchemaForEntity(&schemaToDropEntity{})
 	schema.DropTable(engine)
 	has, alters := schema.GetSchemaChanges(engine)
@@ -281,98 +271,98 @@ func testSchema(t *testing.T, version int) {
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "CREATE TABLE `test`.`schemaToDropEntity` (\n  `ID` int(10) unsigned NOT NULL AUTO_INCREMENT,\n  PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema struct {
-		ORM `orm:"mysql=invalid"`
-		ID  uint
+		beeorm.ORM `orm:"mysql=invalid"`
+		ID         uint
 	}
 	registry.RegisterEntity(&invalidSchema{})
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "mysql pool 'invalid' not found")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema2 struct {
-		ORM `orm:"localCache=invalid"`
-		ID  uint
+		beeorm.ORM `orm:"localCache=invalid"`
+		ID         uint
 	}
 	registry.RegisterEntity(&invalidSchema2{})
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "local cache pool 'invalid' not found")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema3 struct {
-		ORM `orm:"redisCache=invalid"`
-		ID  uint
+		beeorm.ORM `orm:"redisCache=invalid"`
+		ID         uint
 	}
 	registry.RegisterEntity(&invalidSchema3{})
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool, "other")
 	type invalidSchema4 struct {
-		ORM `orm:"mysql=other"`
+		beeorm.ORM `orm:"mysql=other"`
 	}
 	registry.RegisterEntity(&invalidSchema4{})
 	_, err = registry.Validate()
 	assert.NoError(t, err)
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema5 struct {
-		ORM
+		beeorm.ORM
 		Name string `orm:"index=test,test2"`
 	}
 	registry.RegisterEntity(&invalidSchema5{})
 	_, err = registry.Validate()
 	assert.NotNil(t, err)
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema6 struct {
-		ORM
+		beeorm.ORM
 		Name      string
-		IndexName *CachedQuery `queryOne:":Name = ?"`
+		IndexName *beeorm.CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema6{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema6")
+	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in test.invalidSchema6")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema7 struct {
-		ORM
+		beeorm.ORM
 		Name      string
-		IndexName *CachedQuery `query:":Name = ?"`
+		IndexName *beeorm.CachedQuery `query:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema7{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "missing index for cached query 'IndexName' in beeorm.invalidSchema7")
+	assert.EqualError(t, err, "missing index for cached query 'IndexName' in test.invalidSchema7")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema8 struct {
-		ORM
-		Name      string       `orm:"unique=TestUniqueIndex"`
-		Age       uint         `orm:"unique=TestUniqueIndex:2"`
-		IndexName *CachedQuery `queryOne:":Name = ?"`
+		beeorm.ORM
+		Name      string              `orm:"unique=TestUniqueIndex"`
+		Age       uint                `orm:"unique=TestUniqueIndex:2"`
+		IndexName *beeorm.CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema8{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema8")
+	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in test.invalidSchema8")
 
-	registry = &Registry{}
+	registry = &beeorm.Registry{}
 	registry.RegisterMySQLPool(pool)
 	type invalidSchema9 struct {
-		ORM
+		beeorm.ORM
 		Name      string `orm:"index=TestIndex"`
 		Age       uint
-		IndexName *CachedQuery `query:":Name = ? ORDER BY :Age DESC"`
+		IndexName *beeorm.CachedQuery `query:":Name = ? ORDER BY :Age DESC"`
 	}
 	registry.RegisterEntity(&invalidSchema9{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "missing index for cached query 'IndexName' in beeorm.invalidSchema9")
+	assert.EqualError(t, err, "missing index for cached query 'IndexName' in test.invalidSchema9")
 }

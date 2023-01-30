@@ -1,7 +1,8 @@
-package beeorm
+package test
 
 import (
 	"context"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -9,7 +10,7 @@ import (
 )
 
 func TestRedisStreamsStatus(t *testing.T) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 11)
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
@@ -59,8 +60,8 @@ func TestRedisStreamsStatus(t *testing.T) {
 	assert.True(t, valid)
 
 	consumer := engine.GetEventBroker().Consumer("test-group")
-	consumer.DisableBlockMode()
-	consumer.Consume(context.Background(), 11000, func(events []Event) {
+	consumer.SetBlockTime(0)
+	consumer.Consume(context.Background(), 11000, func(events []beeorm.Event) {
 		engine.GetRedis().Get("hello")
 		engine.GetRedis().Get("hello2")
 		engine.GetMysql().Query("SELECT 1")
@@ -77,7 +78,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	flusher.PublishToStream("test-stream", testEvent{"a"})
 	flusher.Flush()
 	assert.Panics(t, func() {
-		consumer.Consume(context.Background(), 10, func(events []Event) {
+		consumer.Consume(context.Background(), 10, func(events []beeorm.Event) {
 			panic("stop")
 		})
 	})
