@@ -333,7 +333,7 @@ var dateTimeFieldDataProvider = fieldDataProvider{
 		}
 		return val
 	},
-	bindSetter: dateTimeBindSetter(timeFormat),
+	bindSetter: dateTimeBindSetter(TimeFormat),
 	bindCompare: func(old, new interface{}, key int, fields *tableFields) bool {
 		t := new.(time.Time)
 		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
@@ -351,7 +351,7 @@ var dateFieldDataProvider = fieldDataProvider{
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
 	},
 	serializeGetter: dateTimeFieldDataProvider.serializeGetter,
-	bindSetter:      dateTimeBindSetter(dateformat),
+	bindSetter:      dateTimeBindSetter(DateFormat),
 	bindCompare:     dateTimeFieldDataProvider.bindCompare,
 }
 

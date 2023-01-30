@@ -1,27 +1,27 @@
-package beeorm
+package test
 
 import (
-	"fmt"
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type loadByIdsEntity struct {
-	ORM          `orm:"localCache;redisCache"`
+	beeorm.ORM   `orm:"localCache;redisCache"`
 	Name         string `orm:"max=100"`
 	ReferenceOne *loadByIdsReference
 }
 
 type loadByIdsReference struct {
-	ORM          `orm:"localCache;redisCache"`
+	beeorm.ORM   `orm:"localCache;redisCache"`
 	Name         string
 	ReferenceTwo *loadByIdsSubReference
 }
 
 type loadByIdsSubReference struct {
-	ORM  `orm:"localCache;redisCache"`
-	Name string
+	beeorm.ORM `orm:"localCache;redisCache"`
+	Name       string
 }
 
 func TestLoadByIdsNoCache(t *testing.T) {
@@ -44,40 +44,13 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var entity *loadByIdsEntity
 	var reference *loadByIdsReference
 	var subReference *loadByIdsSubReference
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, reference, subReference)
-	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
-	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference).(*tableSchema)
-	schema3 := engine.GetRegistry().GetTableSchemaForEntity(subReference).(*tableSchema)
-	if local {
-		schema.localCacheName = "default"
-		schema.hasLocalCache = true
-		schema2.localCacheName = "default"
-		schema2.hasLocalCache = true
-		schema3.localCacheName = "default"
-		schema3.hasLocalCache = true
-	} else {
-		schema.localCacheName = ""
-		schema.hasLocalCache = false
-		schema2.localCacheName = ""
-		schema2.hasLocalCache = false
-		schema3.localCacheName = ""
-		schema3.hasLocalCache = false
-	}
-	if redis {
-		schema.redisCacheName = "default"
-		schema.hasRedisCache = true
-		schema2.redisCacheName = "default"
-		schema2.hasRedisCache = true
-		schema3.redisCacheName = "default"
-		schema3.hasRedisCache = true
-	} else {
-		schema.redisCacheName = ""
-		schema.hasRedisCache = false
-		schema2.redisCacheName = ""
-		schema2.hasRedisCache = false
-		schema3.redisCacheName = ""
-		schema3.hasRedisCache = false
-	}
+	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, reference, subReference)
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference)
+	schema3 := engine.GetRegistry().GetTableSchemaForEntity(subReference)
+	schema.DisableCache(!local, !redis)
+	schema2.DisableCache(!local, !redis)
+	schema3.DisableCache(!local, !redis)
 
 	engine.Flush(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}})
 	engine.Flush(&loadByIdsEntity{Name: "b", ReferenceOne: &loadByIdsReference{Name: "r2", ReferenceTwo: &loadByIdsSubReference{Name: "s2"}}})
@@ -269,43 +242,8 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Equal(t, uint64(3), rows[2].GetID())
 	}
 
-	engine = prepareTables(t, &Registry{}, 5, 6, "")
-	assert.PanicsWithError(t, "entity 'beeorm.loadByIdsEntity' is not registered", func() {
+	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
+	assert.PanicsWithError(t, "entity 'test.loadByIdsEntity' is not registered", func() {
 		engine.LoadByIDs([]uint64{1}, &rows)
 	})
-}
-
-// BenchmarkLoadByIDsdLocalCache-10    	  906974	      1326 ns/op	    1104 B/op	      12 allocs/op
-func BenchmarkLoadByIDsdLocalCache(b *testing.B) {
-	benchmarkLoadByIDsLocalCache(b)
-}
-
-func benchmarkLoadByIDsLocalCache(b *testing.B) {
-	entity := &schemaEntity{}
-	ref := &schemaEntityRef{}
-	registry := &Registry{}
-	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	registry.RegisterLocalCache(10000)
-	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
-
-	ids := make([]uint64, 0)
-	for i := 1; i <= 1; i++ {
-		e := &schemaEntity{}
-		e.GetID()
-		e.Name = fmt.Sprintf("Name %d", i)
-		e.Uint32 = uint32(i)
-		e.Int32 = int32(i)
-		e.Int8 = 1
-		e.Enum = TestEnum.A
-		e.RefOne = &schemaEntityRef{}
-		engine.Flush(e)
-		_ = engine.LoadByID(uint64(i), e)
-		ids = append(ids, uint64(i))
-	}
-	rows := make([]*schemaEntity, 0)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		engine.LoadByIDs(ids, &rows)
-	}
 }

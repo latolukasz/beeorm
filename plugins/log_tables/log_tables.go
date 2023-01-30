@@ -20,7 +20,6 @@ const poolOption = "pool"
 const tableNameOption = "table_name"
 const skipLogOption = "skip-table-log"
 const metaOption = "meta"
-const timeFormat = "2006-01-02 15:04:05"
 
 type LogTablesPlugin struct{}
 
@@ -257,10 +256,10 @@ func handleLogEvents(engine orm.Engine, values map[string][]*LogQueueValue) {
 		for _, value := range rows {
 			/* #nosec */
 			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)" +
-				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(timeFormat) + "',"
+				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(TimeFormat) + "',"
 			params := make([]interface{}, 5)
 			params[0] = value.ID
-			params[1] = value.Updated.Format(timeFormat)
+			params[1] = value.Updated.Format(TimeFormat)
 			if value.Meta != nil {
 				params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
 			}

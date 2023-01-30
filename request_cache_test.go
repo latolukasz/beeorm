@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"github.com/latolukasz/beeorm/test"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ type requestCacheEntity struct {
 
 func TestRequestCache(t *testing.T) {
 	var entity *requestCacheEntity
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
+	engine := test.PrepareTables(t, &Registry{}, 5, 6, "", entity)
 
 	flusher := engine.NewFlusher()
 	e := &requestCacheEntity{Name: "a", Code: "a1"}
@@ -34,9 +35,9 @@ func TestRequestCache(t *testing.T) {
 
 	engine.EnableRequestCache()
 
-	dbLogger := &testLogHandler{}
+	dbLogger := &test.MockLogHandler{}
 	engine.RegisterQueryLogger(dbLogger, true, false, false)
-	redisLogger := &testLogHandler{}
+	redisLogger := &test.MockLogHandler{}
 	engine.RegisterQueryLogger(redisLogger, false, true, false)
 
 	entity = &requestCacheEntity{}
@@ -68,8 +69,8 @@ func TestRequestCache(t *testing.T) {
 
 	e6 := &requestCacheEntity{Name: "f"}
 	engine.Flush(e6)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	found = engine.LoadByID(e6.GetID(), entity)
 	assert.True(t, found)
 	assert.Equal(t, e6.GetID(), entity.GetID())
@@ -79,8 +80,8 @@ func TestRequestCache(t *testing.T) {
 	entity.Name = "f2"
 	engine.Flush(entity)
 	id = entity.GetID()
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	entity = &requestCacheEntity{}
 	found = engine.LoadByID(id, entity)
 	assert.True(t, found)
@@ -89,17 +90,17 @@ func TestRequestCache(t *testing.T) {
 	assert.Len(t, dbLogger.Logs, 0)
 	assert.Len(t, redisLogger.Logs, 0)
 	engine.Delete(entity)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	found = engine.LoadByID(id, entity)
 	assert.False(t, found)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 
 	totalRows := engine.CachedSearch(&entities, "IndexName", nil, "d")
 	assert.Equal(t, totalRows, 2)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	totalRows = engine.CachedSearch(&entities, "IndexName", nil, "d")
 	assert.Equal(t, totalRows, 2)
 	assert.Equal(t, "d", entities[0].Name)
@@ -107,16 +108,16 @@ func TestRequestCache(t *testing.T) {
 	assert.Len(t, redisLogger.Logs, 0)
 	entities[0].Name = "d2"
 	engine.Flush(entities[0])
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	totalRows = engine.CachedSearch(&entities, "IndexName", nil, "d")
 	assert.Equal(t, totalRows, 1)
 
 	found = engine.CachedSearchOne(entity, "IndexCode", "a2")
 	assert.True(t, found)
 	assert.Equal(t, "b", entity.Name)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	found = engine.CachedSearchOne(entity, "IndexCode", "a2")
 	assert.True(t, found)
 	assert.Equal(t, "b", entity.Name)
@@ -130,8 +131,8 @@ func TestRequestCache(t *testing.T) {
 	found = engine.LoadByID(1, entity)
 	assert.True(t, found)
 	engine.ClearCacheByIDs(entity, 1)
-	dbLogger.clear()
-	redisLogger.clear()
+	dbLogger.Clear()
+	redisLogger.Clear()
 	engine.LoadByID(1, entity)
 	assert.Len(t, dbLogger.Logs, 1)
 	assert.Len(t, redisLogger.Logs, 2)

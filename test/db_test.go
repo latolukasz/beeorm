@@ -1,9 +1,8 @@
-package beeorm
+package test
 
 import (
 	"database/sql"
-	"io"
-	"log"
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -12,7 +11,7 @@ import (
 )
 
 type dbEntity struct {
-	ORM
+	beeorm.ORM
 	Name string
 }
 
@@ -29,10 +28,10 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
-	logger := &testLogHandler{}
+	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
+	logger := &MockLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
+	testQueryLog := &MockLogHandler{}
 	engine.RegisterQueryLogger(testQueryLog, true, false, false)
 
 	db := engine.GetMysql()
@@ -42,7 +41,7 @@ func TestDB(t *testing.T) {
 
 	var id uint64
 	var name string
-	found := db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
+	found := db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
 	assert.True(t, found)
 	assert.Equal(t, uint64(1), id)
 	assert.Equal(t, "Tom", name)
@@ -54,12 +53,12 @@ func TestDB(t *testing.T) {
 	db.Rollback()
 	assert.False(t, db.IsInTransaction())
 	db.Rollback()
-	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	found = db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
 
 	db.Begin()
 	db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
-	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	found = db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.True(t, found)
 	rows, def := db.Query("SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
 	assert.True(t, rows.Next())
@@ -86,9 +85,9 @@ func TestDB(t *testing.T) {
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
+	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
 	db := engine.GetMysql()
-	logger := &testLogHandler{}
+	logger := &MockLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
 
 	assert.PanicsWithError(t, "transaction not started", func() {
@@ -100,9 +99,9 @@ func TestDBErrors(t *testing.T) {
 	})
 	db.Commit()
 
-	parent := db.client.(*standardSQLClient)
-	mock := &mockDBClient{db: parent.db}
-	parent.db = mock
+	db.Begin()
+	mock := &MockDBClient{OriginDB: db.GetDBClient()}
+	db.SetMockDBClient(mock)
 	mock.BeginMock = func() (*sql.Tx, error) {
 		return nil, errors.Errorf("test error")
 	}
@@ -115,26 +114,27 @@ func TestDBErrors(t *testing.T) {
 		return errors.Errorf("test error")
 	}
 	db.Begin()
-	parent.tx = mock
+	mock.TX = db.GetDBClientTX()
+	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
 		db.Commit()
 	})
 	mock.RollbackMock = func() error {
 		return errors.Errorf("test error")
 	}
-	parent.tx = mock
+	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
 		db.Rollback()
 	})
 
-	parent.tx = nil
+	db.SetMockClientTX(mock)
 	mock.ExecMock = func(query string, args ...interface{}) (sql.Result, error) {
 		return nil, errors.Errorf("test error")
 	}
 	assert.PanicsWithError(t, "test error", func() {
 		db.Exec("")
 	})
-	parent.tx = mock
+	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
 		db.Exec("")
 	})
@@ -145,13 +145,13 @@ func TestDBErrors(t *testing.T) {
 	assert.PanicsWithError(t, "test error", func() {
 		db.Query("")
 	})
-	parent.tx = nil
+	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
 		db.Query("")
 	})
 
 	assert.PanicsWithError(t, "Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'INVALID QUERY' at line 1", func() {
-		db.QueryRow(NewWhere("INVALID QUERY"))
+		db.QueryRow(beeorm.NewWhere("INVALID QUERY"))
 	})
 
 	mock.ExecMock = func(query string, args ...interface{}) (sql.Result, error) {

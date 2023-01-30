@@ -1,22 +1,21 @@
-package beeorm
+package test
 
 import (
-	"io"
-	"log"
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLocalCache(t *testing.T) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	registry.RegisterLocalCache(100)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
-	testLogger := &testLogHandler{}
+	testLogger := &MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, false, true)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
+	testQueryLog := &MockLogHandler{}
 	engine.RegisterQueryLogger(testQueryLog, false, false, true)
 
 	c := engine.GetLocalCache()
@@ -68,18 +67,4 @@ func TestLocalCache(t *testing.T) {
 	assert.Len(t, values, 2)
 	assert.Nil(t, values[0])
 	assert.Nil(t, values[1])
-}
-
-func BenchmarkLocalCache(b *testing.B) {
-	registry := &Registry{}
-	registry.RegisterLocalCache(100)
-	validatedRegistry, _ := registry.Validate()
-	engine := validatedRegistry.CreateEngine()
-	c := engine.GetLocalCache()
-	c.Set("test", "Hello")
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		c.Get("test")
-	}
 }

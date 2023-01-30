@@ -1,13 +1,14 @@
-package beeorm
+package test
 
 import (
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type loadByIDEntity struct {
-	ORM             `orm:"localCache;redisCache"`
+	beeorm.ORM      `orm:"localCache;redisCache"`
 	Name            string `orm:"max=100"`
 	ReferenceOne    *loadByIDReference
 	ReferenceSecond *loadByIDReference
@@ -15,48 +16,39 @@ type loadByIDEntity struct {
 }
 
 type loadByIDRedisEntity struct {
-	ORM `orm:"redisCache"`
+	beeorm.ORM `orm:"redisCache"`
 }
 
 type loadByIDLocalEntity struct {
-	ORM `orm:"localCache"`
+	beeorm.ORM `orm:"localCache"`
 }
 
 type loadByIDNoCacheEntity struct {
-	ORM
+	beeorm.ORM
 	Name string
 }
 
 type loadByIDReference struct {
-	ORM            `orm:"localCache;redisCache"`
+	beeorm.ORM     `orm:"localCache;redisCache"`
 	Name           string
 	ReferenceTwo   *loadByIDSubReference
 	ReferenceThree *loadByIDSubReference2
 }
 
 type loadByIDReference2 struct {
-	ORM  `orm:"localCache;redisCache"`
-	Name string
+	beeorm.ORM `orm:"localCache;redisCache"`
+	Name       string
 }
 
 type loadByIDSubReference struct {
-	ORM  `orm:"localCache;redisCache"`
-	Name string
+	beeorm.ORM `orm:"localCache;redisCache"`
+	Name       string
 }
 
 type loadByIDSubReference2 struct {
-	ORM          `orm:"localCache"`
+	beeorm.ORM   `orm:"localCache"`
 	Name         string
 	ReferenceTwo *loadByIDSubReference
-}
-
-type loadByIDBenchmarkEntity struct {
-	ORM
-	Name    string
-	Int     int
-	Bool    bool
-	Float   float64
-	Decimal float32 `orm:"decimal=10,2"`
 }
 
 func TestLoadByIdNoCache(t *testing.T) {
@@ -84,10 +76,10 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	var reference2 *loadByIDReference2
 	var subReference2 *loadByIDSubReference2
 	var subReference *loadByIDSubReference
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
+	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2)
 
-	schemas := make([]TableSchema, 0)
+	schemas := make([]beeorm.TableSchema, 0)
 	registry := engine.GetRegistry()
 	schemas = append(schemas, registry.GetTableSchemaForEntity(entity))
 
@@ -99,27 +91,8 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference2))
 	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference))
 
-	if local {
-		for _, schema := range schemas {
-			schema.(*tableSchema).localCacheName = "default"
-			schema.(*tableSchema).hasLocalCache = true
-		}
-	} else {
-		for _, schema := range schemas {
-			schema.(*tableSchema).localCacheName = ""
-			schema.(*tableSchema).hasLocalCache = false
-		}
-	}
-	if redis {
-		for _, schema := range schemas {
-			schema.(*tableSchema).redisCacheName = "default"
-			schema.(*tableSchema).hasRedisCache = true
-		}
-	} else {
-		for _, schema := range schemas {
-			schema.(*tableSchema).redisCacheName = ""
-			schema.(*tableSchema).hasRedisCache = false
-		}
+	for _, schema := range schemas {
+		schema.DisableCache(!local, !redis)
 	}
 
 	e := &loadByIDEntity{Name: "a", ReferenceOne: &loadByIDReference{Name: "r1", ReferenceTwo: &loadByIDSubReference{Name: "s1"}}}
@@ -209,49 +182,9 @@ func testLoadByID(t *testing.T, local, redis bool) {
 		assert.False(t, engine.LoadByID(999, entityLocalCache))
 	}
 
-	engine = prepareTables(t, &Registry{}, 5, 6, "")
+	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
 	entity = &loadByIDEntity{}
-	assert.PanicsWithError(t, "entity 'beeorm.loadByIDEntity' is not registered", func() {
+	assert.PanicsWithError(t, "entity 'test.loadByIDEntity' is not registered", func() {
 		engine.LoadByID(1, entity)
 	})
-}
-
-// BenchmarkLoadByIDdLocalCache-10    	 3674497	       323.8 ns/op	     152 B/op	       6 allocs/op
-func BenchmarkLoadByIDdLocalCache(b *testing.B) {
-	benchmarkLoadByIDLocalCache(b, true, false)
-}
-
-func benchmarkLoadByIDLocalCache(b *testing.B, local, redis bool) {
-	entity := &loadByIDBenchmarkEntity{}
-	registry := &Registry{}
-	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	registry.RegisterLocalCache(10000)
-	engine := prepareTables(nil, registry, 5, 6, "", entity)
-	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
-	if local {
-		schema.localCacheName = "default"
-		schema.hasLocalCache = true
-	} else {
-		schema.localCacheName = ""
-		schema.hasLocalCache = false
-	}
-	if redis {
-		schema.redisCacheName = "default"
-		schema.hasRedisCache = true
-	} else {
-		schema.redisCacheName = ""
-		schema.hasRedisCache = false
-	}
-
-	entity.Name = "Name"
-	entity.Int = 1
-	entity.Float = 1.3
-	entity.Decimal = 12.23
-	engine.Flush(entity)
-	_ = engine.LoadByID(1, entity)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		_ = engine.LoadByID(1, entity)
-	}
 }

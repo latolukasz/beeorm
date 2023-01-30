@@ -94,7 +94,7 @@ type sqlClient interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error)
 }
 
-type dbClientQuery interface {
+type DBClientQuery interface {
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
@@ -103,20 +103,20 @@ type dbClientQuery interface {
 	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
 }
 
-type dbClient interface {
-	dbClientQuery
+type DBClient interface {
+	DBClientQuery
 	Begin() (*sql.Tx, error)
 }
 
-type dbClientTX interface {
-	dbClientQuery
+type DBClientTX interface {
+	DBClientQuery
 	Commit() error
 	Rollback() error
 }
 
 type standardSQLClient struct {
-	db dbClient
-	tx dbClientTX
+	db DBClient
+	tx DBClientTX
 }
 
 func (db *standardSQLClient) Begin() error {
@@ -289,6 +289,22 @@ func (db *DB) Begin() {
 	}
 	checkError(err)
 	db.inTransaction = true
+}
+
+func (db *DB) GetDBClient() DBClient {
+	return db.client.(*standardSQLClient).db
+}
+
+func (db *DB) GetDBClientTX() DBClientTX {
+	return db.client.(*standardSQLClient).tx
+}
+
+func (db *DB) SetMockDBClient(mock DBClient) {
+	db.client.(*standardSQLClient).db = mock
+}
+
+func (db *DB) SetMockClientTX(mock DBClientTX) {
+	db.client.(*standardSQLClient).tx = mock
 }
 
 func (db *DB) Commit() {

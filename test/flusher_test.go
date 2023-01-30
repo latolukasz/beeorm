@@ -1,8 +1,9 @@
-package beeorm
+package test
 
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
 
@@ -32,7 +33,7 @@ type flushStructAnonymous struct {
 	SubAge  float32 `orm:"decimal=9,5;unsigned=false"`
 }
 
-var TestSet = struct {
+var testSet = struct {
 	D string
 	E string
 	F string
@@ -40,6 +41,16 @@ var TestSet = struct {
 	D: "d",
 	E: "e",
 	F: "f",
+}
+
+var testEnum = struct {
+	A string
+	B string
+	C string
+}{
+	A: "a",
+	B: "b",
+	C: "c",
 }
 
 type attributesValues map[uint64][]interface{}
@@ -67,7 +78,7 @@ func (av attributesValues) UnmarshalJSON(data []byte) error {
 }
 
 type flushEntity struct {
-	ORM                  `orm:"localCache;redisCache"`
+	beeorm.ORM           `orm:"localCache;redisCache"`
 	City                 string `orm:"unique=city"`
 	Name                 string `orm:"unique=name;required"`
 	NameTranslated       map[string]string
@@ -84,10 +95,10 @@ type flushEntity struct {
 	ReferenceTwo         *flushEntityReference `orm:"unique=ReferenceTwo"`
 	StringSlice          []string
 	StringSliceNotNull   []string `orm:"required"`
-	SetNullable          []string `orm:"set=beeorm.TestSet"`
-	SetNotNull           []string `orm:"set=beeorm.TestSet;required"`
-	EnumNullable         string   `orm:"enum=beeorm.TestEnum"`
-	EnumNotNull          string   `orm:"enum=beeorm.TestEnum;required"`
+	SetNullable          []string `orm:"set=test.testSet"`
+	SetNotNull           []string `orm:"set=test.testSet;required"`
+	EnumNullable         string   `orm:"enum=test.testEnum"`
+	EnumNotNull          string   `orm:"enum=test.testEnum;required"`
 	Ignored              []string `orm:"ignore"`
 	Blob                 []uint8
 	Bool                 bool
@@ -97,7 +108,7 @@ type flushEntity struct {
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
 	Float64Default       float64  `orm:"unsigned"`
 	Float64Signed        float64
-	CachedQuery          *CachedQuery
+	CachedQuery          *beeorm.CachedQuery
 	Time                 time.Time
 	TimeWithTime         time.Time `orm:"time"`
 	TimeNullable         *time.Time
@@ -119,15 +130,15 @@ type flushEntity struct {
 }
 
 type flushEntityReference struct {
-	ORM  `orm:"localCache;redisCache"`
-	Name string
-	Age  int
+	beeorm.ORM `orm:"localCache;redisCache"`
+	Name       string
+	Age        int
 }
 
 type flushEntityBenchmark struct {
-	ORM  `orm:"localCache;redisCache"`
-	Name string
-	Age  int
+	beeorm.ORM `orm:"localCache;redisCache"`
+	Name       string
+	Age        int
 }
 
 func TestFlushLocalRedis(t *testing.T) {
@@ -149,26 +160,16 @@ func TestFlushRedis(t *testing.T) {
 func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
 	var reference *flushEntityReference
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
-	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
-	registry.RegisterEnumStruct("beeorm.TestSet", TestSet)
-	engine := prepareTables(t, registry, 5, 6, "", entity, reference)
+	registry.RegisterEnumStruct("test.testEnum", testEnum)
+	registry.RegisterEnumStruct("test.testSet", testSet)
+	engine := PrepareTables(t, registry, 5, 6, "", entity, reference)
 
-	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
-	schema2 := engine.registry.GetTableSchemaForEntity(reference).(*tableSchema)
-	if !local {
-		schema.hasLocalCache = false
-		schema.localCacheName = ""
-		schema2.hasLocalCache = false
-		schema2.localCacheName = ""
-	}
-	if !redis {
-		schema.hasRedisCache = false
-		schema.redisCacheName = ""
-		schema2.hasRedisCache = false
-		schema2.redisCacheName = ""
-	}
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference)
+	schema.DisableCache(!local, !redis)
+	schema2.DisableCache(!local, !redis)
 
 	date := time.Date(2049, 1, 12, 18, 34, 40, 0, time.Local)
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
@@ -229,9 +230,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
+	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTime.Format(beeorm.TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTimeNullable.Format(timeFormat))
+	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTimeNullable.Format(beeorm.TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
@@ -240,7 +241,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
 	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
-	assert.Equal(t, date.Format(timeFormat), entity.FlushStruct.TestTime.Format(timeFormat))
+	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.FlushStruct.TestTime.Format(beeorm.TimeFormat))
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
@@ -273,7 +274,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.FlushStructPtr)
 
 	entity.ReferenceOne.Name = "John 2"
-	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
+	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: test.flushEntityReference [%d]", refOneID), func() {
 		engine.Flush(entity.ReferenceOne)
 	})
 
@@ -366,8 +367,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
-		"BoolNullable": "NULL", "TimeWithTime": date.Format(timeFormat), "Time": date.Format(dateformat)})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
+		"BoolNullable": "NULL", "TimeWithTime": date.Format(beeorm.TimeFormat), "Time": date.Format(beeorm.DateFormat)})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint64(1), entity2.GetID())
@@ -380,10 +381,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 40, entity.Age)
 	assert.Equal(t, uint64(1), entity.GetID())
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, entity.Time.Format(dateformat), date.Format(dateformat))
+	assert.Equal(t, entity.Time.Format(beeorm.DateFormat), date.Format(beeorm.DateFormat))
 
 	entity2 = &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
-	entity2.SetOnDuplicateKeyUpdate(Bind{})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(1), entity2.GetID())
 	entity = &flushEntity{}
@@ -392,7 +393,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2 = &flushEntity{Name: "Arthur", Age: 18, EnumNotNull: "a"}
 	entity2.ReferenceTwo = reference
-	entity2.SetOnDuplicateKeyUpdate(Bind{})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(6), entity2.GetID())
 
@@ -412,7 +413,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
-	assert.Equal(t, date.Format(timeFormat), entity.TimeWithTime.Format(timeFormat))
+	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTime.Format(beeorm.TimeFormat))
 	assert.Equal(t, "", entity.Name)
 	assert.Equal(t, "b", entity.EnumNullable)
 	assert.Nil(t, entity.IntNullable)
@@ -479,7 +480,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity2.FloatNullable)
 	assert.Equal(t, "", entity2.City)
 
-	entity2.markToDelete()
+	engine.NewFlusher().Delete(entity2)
 	assert.True(t, engine.IsDirty(entity2))
 	engine.Delete(entity2)
 	found = engine.LoadByID(10, entity2)
@@ -568,7 +569,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Clear()
 	entity2 = &flushEntity{Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(12), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
@@ -577,7 +578,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, found)
 	entity2 = &flushEntity{Name: "Frank", Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
 	engine.Flush(entity2)
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
@@ -586,7 +587,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2 = &flushEntity{Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(100), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
@@ -736,39 +737,4 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, engine.LoadByID(677, entity))
 	assert.Equal(t, 38, clonedEntity.Age)
 	assert.Equal(t, "testSub", clonedEntity.SubName)
-}
-
-// 17 allocs/op - 6 for Exec
-func BenchmarkFlusherUpdateNoCache(b *testing.B) {
-	benchmarkFlusher(b, false, false)
-}
-
-func benchmarkFlusher(b *testing.B, useLocalCache, useRedisCache bool) {
-	var entity *flushEntityBenchmark
-	registry := &Registry{}
-	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
-	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
-	engine := prepareTables(nil, registry, 5, 6, "", entity)
-
-	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
-	if !useLocalCache {
-		schema.hasLocalCache = false
-		schema.localCacheName = ""
-	}
-	if !useRedisCache {
-		schema.hasRedisCache = false
-		schema.redisCacheName = ""
-	}
-
-	entity = &flushEntityBenchmark{Name: "Tom"}
-	engine.Flush(entity)
-	engine.LoadByID(1, entity)
-	flusher := engine.NewFlusher()
-	flusher.Track(entity)
-	b.ResetTimer()
-	b.ReportAllocs()
-	for n := 0; n < b.N; n++ {
-		entity.Age = n + 1
-		flusher.Flush()
-	}
 }

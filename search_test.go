@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"github.com/latolukasz/beeorm/test"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ type searchEntityReference struct {
 func TestSearch(t *testing.T) {
 	var entity *searchEntity
 	var reference *searchEntityReference
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, reference)
+	engine := test.PrepareTables(t, &Registry{}, 5, 6, "", entity, reference)
 
 	for i := 1; i <= 10; i++ {
 		engine.Flush(&searchEntity{Name: fmt.Sprintf("name %d", i), ReferenceOne: &searchEntityReference{Name: fmt.Sprintf("name %d", i)}})
@@ -67,7 +68,7 @@ func TestSearch(t *testing.T) {
 	assert.Len(t, ids, 8)
 	assert.Equal(t, uint64(3), ids[0])
 
-	engine = prepareTables(t, &Registry{}, 5, 6, "")
+	engine = test.PrepareTables(t, &Registry{}, 5, 6, "")
 	assert.PanicsWithError(t, "entity 'beeorm.searchEntity' is not registered", func() {
 		engine.Search(NewWhere("ID > 0"), nil, &rows)
 	})

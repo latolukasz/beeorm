@@ -14,12 +14,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-const timeFormat = "2006-01-02 15:04:05"
-const dateformat = "2006-01-02"
+const TimeFormat = "2006-01-02 15:04:05"
+const DateFormat = "2006-01-02"
 const zeroDateSeconds = 31622400
 const timeStampSeconds = 62167219200
 
-var timeSupportedLayouts = []string{timeFormat, dateformat, time.RFC3339}
+var timeSupportedLayouts = []string{TimeFormat, DateFormat, time.RFC3339}
 
 var disableCacheHashCheck bool
 

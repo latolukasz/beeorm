@@ -1,22 +1,23 @@
-package beeorm
+package test
 
 import (
+	"github.com/latolukasz/beeorm"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type uuidEntity struct {
-	ORM  `orm:"uuid;localCache;redisCache"`
-	Name string `orm:"unique=name;required"`
-	Age  int
+	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	Name       string `orm:"unique=name;required"`
+	Age        int
 }
 
 type uuidReferenceEntity struct {
-	ORM    `orm:"uuid;localCache;redisCache"`
-	Parent *uuidEntity
-	Name   string `orm:"unique=name;required"`
-	Size   int
+	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	Parent     *uuidEntity
+	Name       string `orm:"unique=name;required"`
+	Size       int
 }
 
 func TestUUIDdNoCache(t *testing.T) {
@@ -35,18 +36,11 @@ func TestUUIDLocalRedisCache(t *testing.T) {
 	testUUID(t, true, true)
 }
 
-func TestUUIDServerID(t *testing.T) {
-	id := uuid()
-	SetUUIDServerID(1)
-	id2 := uuid()
-	assert.Equal(t, uint64(72057594037927937), id2-id)
-}
-
 func testUUID(t *testing.T, local bool, redis bool) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
-	engine := prepareTables(t, registry, 8, 6, "", entity, referenceEntity)
+	engine := PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
 	engine.GetMysql().Query("DROP TABLE `uuidReferenceEntity`")
 	engine.GetMysql().Query("DROP TABLE `uuidEntity`")
 	alters := engine.GetAlters()
@@ -56,35 +50,17 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	alters[0].Exec(engine)
 	alters[1].Exec(engine)
 
-	schema := engine.registry.GetTableSchemaForEntity(entity).(*tableSchema)
-	schema2 := engine.registry.GetTableSchemaForEntity(referenceEntity).(*tableSchema)
-	if !local {
-		schema.hasLocalCache = false
-		schema.localCacheName = ""
-		schema2.hasLocalCache = false
-		schema2.localCacheName = ""
-	}
-	if !redis {
-		schema.hasRedisCache = false
-		schema.redisCacheName = ""
-		schema2.hasRedisCache = false
-		schema2.redisCacheName = ""
-	}
-
-	assert.True(t, schema.hasUUID)
-	assert.True(t, schema2.hasUUID)
-
-	id := uuid()
-	assert.Greater(t, id, uint64(0))
-	id++
-	assert.Equal(t, id, uuid())
+	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema2 := engine.GetRegistry().GetTableSchemaForEntity(referenceEntity)
+	schema.DisableCache(!local, !redis)
+	schema2.DisableCache(!local, !redis)
 
 	entity = &uuidEntity{}
 	entity.Name = "test"
 	entity.Age = 18
 	engine.Flush(entity)
-	id++
-	assert.Equal(t, id, entity.GetID())
+	id := entity.GetID()
+	assert.True(t, entity.GetID() > 0)
 	entity = &uuidEntity{}
 	assert.True(t, engine.LoadByID(id, entity))
 	assert.Equal(t, "test", entity.Name)

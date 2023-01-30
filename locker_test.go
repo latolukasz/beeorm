@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"github.com/latolukasz/beeorm/test"
 	"testing"
 	"time"
 
@@ -23,7 +24,7 @@ func testLocker(t *testing.T, namespace string) {
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
-	testLogger := &testLogHandler{}
+	testLogger := &test.MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 
 	l := engine.GetRedis().GetLocker()

@@ -1,28 +1,27 @@
-package beeorm
+package test
 
 import (
 	"context"
 	"database/sql"
+	"github.com/latolukasz/beeorm"
+	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
-type testLogHandler struct {
+type MockLogHandler struct {
 	Logs []map[string]interface{}
 }
 
-func (h *testLogHandler) Handle(log map[string]interface{}) {
+func (h *MockLogHandler) Handle(log map[string]interface{}) {
 	h.Logs = append(h.Logs, log)
 }
 
-func (h *testLogHandler) clear() {
+func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (engine *engineImplementation) {
+func PrepareTables(t *testing.T, registry *beeorm.Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...beeorm.Entity) (engine beeorm.Engine) {
 	if mySQLVersion == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -52,7 +51,7 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		panic(err)
 	}
 
-	engine = vRegistry.CreateEngine().(*engineImplementation)
+	engine = vRegistry.CreateEngine()
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}
@@ -84,28 +83,26 @@ func prepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
 
-	runLazyFlushConsumer(engine, true)
+	RunLazyFlushConsumer(engine, true)
 
 	return engine
 }
 
-func runLazyFlushConsumer(engine Engine, garbage bool) {
-	consumer := NewLazyFlushConsumer(engine)
-	consumer.DisableBlockMode()
-	consumer.blockTime = time.Millisecond
+func RunLazyFlushConsumer(engine beeorm.Engine, garbage bool) {
+	consumer := beeorm.NewLazyFlushConsumer(engine)
+	consumer.SetBlockTime(0)
 	consumer.Digest(context.Background())
 
 	if garbage {
-		garbageConsumer := NewStreamGarbageCollectorConsumer(engine)
-		garbageConsumer.DisableBlockMode()
-		garbageConsumer.blockTime = time.Millisecond
+		garbageConsumer := beeorm.NewStreamGarbageCollectorConsumer(engine)
+		garbageConsumer.SetBlockTime(0)
 		garbageConsumer.Digest(context.Background())
 	}
 }
 
-type mockDBClient struct {
-	db                  dbClient
-	tx                  dbClientTX
+type MockDBClient struct {
+	OriginDB            beeorm.DBClient
+	TX                  beeorm.DBClientTX
 	ExecMock            func(query string, args ...interface{}) (sql.Result, error)
 	ExecContextMock     func(context context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRowMock        func(query string, args ...interface{}) *sql.Row
@@ -117,65 +114,65 @@ type mockDBClient struct {
 	RollbackMock        func() error
 }
 
-func (m *mockDBClient) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDBClient) Exec(query string, args ...interface{}) (sql.Result, error) {
 	if m.ExecMock != nil {
 		return m.ExecMock(query, args...)
 	}
-	return m.db.Exec(query, args...)
+	return m.OriginDB.Exec(query, args...)
 }
 
-func (m *mockDBClient) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDBClient) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
 	if m.ExecMock != nil {
 		return m.ExecContextMock(ctx, query, args...)
 	}
-	return m.db.ExecContext(ctx, query, args...)
+	return m.OriginDB.ExecContext(ctx, query, args...)
 }
 
-func (m *mockDBClient) QueryRow(query string, args ...interface{}) *sql.Row {
+func (m *MockDBClient) QueryRow(query string, args ...interface{}) *sql.Row {
 	if m.QueryRowMock != nil {
 		return m.QueryRowMock(query, args...)
 	}
-	return m.db.QueryRow(query, args...)
+	return m.OriginDB.QueryRow(query, args...)
 }
 
-func (m *mockDBClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (m *MockDBClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
 	if m.QueryRowMock != nil {
 		return m.QueryRowContextMock(ctx, query, args...)
 	}
-	return m.db.QueryRowContext(ctx, query, args...)
+	return m.OriginDB.QueryRowContext(ctx, query, args...)
 }
 
-func (m *mockDBClient) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (m *MockDBClient) Query(query string, args ...interface{}) (*sql.Rows, error) {
 	if m.QueryMock != nil {
 		return m.QueryMock(query, args...)
 	}
-	return m.db.Query(query, args...)
+	return m.OriginDB.Query(query, args...)
 }
 
-func (m *mockDBClient) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (m *MockDBClient) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
 	if m.QueryMock != nil {
 		return m.QueryContextMock(ctx, query, args...)
 	}
-	return m.db.QueryContext(ctx, query, args...)
+	return m.OriginDB.QueryContext(ctx, query, args...)
 }
 
-func (m *mockDBClient) Begin() (*sql.Tx, error) {
+func (m *MockDBClient) Begin() (*sql.Tx, error) {
 	if m.BeginMock != nil {
 		return m.BeginMock()
 	}
-	return m.db.Begin()
+	return m.OriginDB.Begin()
 }
 
-func (m *mockDBClient) Rollback() error {
+func (m *MockDBClient) Rollback() error {
 	if m.RollbackMock != nil {
 		return m.RollbackMock()
 	}
-	return m.tx.Rollback()
+	return m.TX.Rollback()
 }
 
-func (m *mockDBClient) Commit() error {
+func (m *MockDBClient) Commit() error {
 	if m.CommitMock != nil {
 		return m.CommitMock()
 	}
-	return m.tx.Commit()
+	return m.TX.Commit()
 }

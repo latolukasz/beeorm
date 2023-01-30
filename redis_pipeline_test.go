@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"github.com/latolukasz/beeorm/test"
 	"testing"
 	"time"
 
@@ -21,7 +22,7 @@ func TestRedisPipeline(t *testing.T) {
 
 	r.Set("a", "A", 10*time.Second)
 	r.Set("c", "C", 10*time.Second)
-	testLogger := &testLogHandler{}
+	testLogger := &test.MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	c1 := pipeLine.Get("a")
 	c2 := pipeLine.Get("b")

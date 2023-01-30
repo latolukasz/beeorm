@@ -88,6 +88,7 @@ type TableSchema interface {
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetOption(plugin, key string) interface{}
 	GetOptionString(plugin, key string) string
+	DisableCache(local, redis bool)
 }
 
 type SettableTableSchema interface {
@@ -653,6 +654,17 @@ func (tableSchema *tableSchema) GetOptionString(plugin, key string) string {
 		return ""
 	}
 	return val.(string)
+}
+
+func (tableSchema *tableSchema) DisableCache(local, redis bool) {
+	if local {
+		tableSchema.localCacheName = ""
+		tableSchema.hasLocalCache = false
+	}
+	if redis {
+		tableSchema.redisCacheName = ""
+		tableSchema.hasRedisCache = false
+	}
 }
 
 func (tableSchema *tableSchema) SetOption(plugin, key string, value interface{}) {

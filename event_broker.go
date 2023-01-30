@@ -121,7 +121,7 @@ type EventsConsumer interface {
 	Consume(ctx context.Context, count int, handler EventConsumerHandler) bool
 	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
-	DisableBlockMode()
+	SetBlockTime(seconds int)
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
@@ -155,8 +155,14 @@ type eventsConsumer struct {
 	garbageLastTick int64
 }
 
-func (b *eventConsumerBase) DisableBlockMode() {
-	b.block = false
+func (b *eventConsumerBase) SetBlockTime(seconds int) {
+	if seconds <= 0 {
+		b.block = false
+		b.blockTime = 0
+		return
+	}
+	b.block = true
+	b.blockTime = time.Duration(seconds) * time.Second
 }
 
 func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {

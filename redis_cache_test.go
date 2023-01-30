@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"github.com/latolukasz/beeorm/test"
 	"io"
 	"log"
 	"testing"
@@ -44,12 +45,12 @@ func testRedis(t *testing.T, namespace string, version int) {
 
 	r := engine.GetRedis()
 
-	testLogger := &testLogHandler{}
+	testLogger := &test.MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
 	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 	r.FlushDB()
-	testLogger.clear()
+	testLogger.Clear()
 
 	valid := false
 	val := r.GetSet("test_get_set", time.Second*10, func() interface{} {
@@ -347,7 +348,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
 	engine = validatedRegistry.CreateEngine()
-	testLogger = &testLogHandler{}
+	testLogger = &test.MockLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
 		engine.GetRedis().Get("invalid")
