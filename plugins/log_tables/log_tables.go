@@ -3,6 +3,7 @@ package log_tables
 import (
 	"database/sql"
 	"fmt"
+	"github.com/latolukasz/beeorm"
 	"regexp"
 	"strconv"
 	"strings"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
-	orm "github.com/latolukasz/beeorm"
 )
 
 const PluginCodeLog = "beeorm/log_tables"
@@ -31,7 +31,7 @@ func (p *LogTablesPlugin) GetCode() string {
 	return PluginCodeLog
 }
 
-func (p *LogTablesPlugin) InterfaceInitTableSchema(schema orm.SettableTableSchema, _ *orm.Registry) error {
+func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
 	logPoolName := schema.GetTag("ORM", "log", "default", "")
 	if logPoolName == "" {
 		return nil
@@ -51,7 +51,7 @@ func (p *LogTablesPlugin) InterfaceInitTableSchema(schema orm.SettableTableSchem
 	return nil
 }
 
-func SetMetaData(engine orm.Engine, key string, value interface{}) {
+func SetMetaData(engine beeorm.Engine, key string, value interface{}) {
 	before := engine.GetOption(PluginCodeLog, "meta")
 	if before == nil {
 		engine.SetOption(PluginCodeLog, metaOption, map[string]interface{}{key: value})
@@ -60,7 +60,7 @@ func SetMetaData(engine orm.Engine, key string, value interface{}) {
 	}
 }
 
-func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *orm.Registry, validatedRegistry orm.ValidatedRegistry) error {
+func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, validatedRegistry beeorm.ValidatedRegistry) error {
 	hasLog := false
 	for entityName := range validatedRegistry.GetEntities() {
 		poolName := validatedRegistry.GetTableSchema(entityName).GetOptionString(PluginCodeLog, poolOption)
@@ -87,7 +87,7 @@ func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *orm.Registry, vali
 	return nil
 }
 
-func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema orm.TableSchema) (alters []orm.Alter, keepTables map[string][]string) {
+func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.TableSchema) (alters []beeorm.Alter, keepTables map[string][]string) {
 	poolName := schema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
 		return nil, nil
@@ -95,7 +95,7 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema o
 	tableName := schema.GetOptionString(PluginCodeLog, tableNameOption)
 	db := engine.GetMysql(poolName)
 	var tableDef string
-	hasLogTable := db.QueryRow(orm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
+	hasLogTable := db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
 	var logTableSchema string
 	if db.GetPoolConfig().GetVersion() == 5 {
 		logTableSchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,\n  "+
@@ -110,25 +110,25 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine orm.Engine, schema o
 	}
 
 	if !hasLogTable {
-		alters = append(alters, orm.Alter{SQL: logTableSchema, Safe: true, Pool: poolName})
+		alters = append(alters, beeorm.Alter{SQL: logTableSchema, Safe: true, Pool: poolName})
 	} else {
 		var skip, createTableDB string
-		db.QueryRow(orm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
+		db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
 		createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", db.GetPoolConfig().GetDatabase()), 1) + ";"
 		re := regexp.MustCompile(" AUTO_INCREMENT=[0-9]+ ")
 		createTableDB = re.ReplaceAllString(createTableDB, " ")
 		if logTableSchema != createTableDB {
-			db.QueryRow(orm.NewWhere("1"))
-			isEmpty := !db.QueryRow(orm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
+			db.QueryRow(beeorm.NewWhere("1"))
+			isEmpty := !db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
 			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetPoolConfig().GetDatabase(), tableName)
-			alters = append(alters, orm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName})
-			alters = append(alters, orm.Alter{SQL: logTableSchema, Safe: true, Pool: poolName})
+			alters = append(alters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName})
+			alters = append(alters, beeorm.Alter{SQL: logTableSchema, Safe: true, Pool: poolName})
 		}
 	}
 	return alters, map[string][]string{poolName: {tableName}}
 }
 
-func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine orm.Engine, flush *orm.EntitySQLFlush, cacheFlusher orm.FlusherCacheSetter) {
+func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flush *beeorm.EntitySQLFlush, cacheFlusher beeorm.FlusherCacheSetter) {
 	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
 	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
@@ -167,13 +167,13 @@ type LogQueueValue struct {
 	ID        uint64
 	LogID     uint64
 	Meta      map[string]interface{}
-	Before    orm.Bind
-	Changes   orm.Bind
+	Before    beeorm.Bind
+	Changes   beeorm.Bind
 	Updated   time.Time
 }
 
-func EventHandler(engine orm.Engine) orm.EventConsumerHandler {
-	return func(events []orm.Event) {
+func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
+	return func(events []beeorm.Event) {
 		values := make(map[string][]*LogQueueValue)
 		for _, event := range events {
 			var data LogQueueValue
@@ -197,7 +197,7 @@ type EntityLog struct {
 	Changes  map[string]interface{}
 }
 
-func GetEntityLogs(engine orm.Engine, tableSchema orm.TableSchema, entityID uint64, pager *orm.Pager, where *orm.Where) []EntityLog {
+func GetEntityLogs(engine beeorm.Engine, tableSchema beeorm.TableSchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
 	var results []EntityLog
 	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
 	if poolName == "" {
@@ -205,10 +205,10 @@ func GetEntityLogs(engine orm.Engine, tableSchema orm.TableSchema, entityID uint
 	}
 	db := engine.GetMysql(poolName)
 	if pager == nil {
-		pager = orm.NewPager(1, 1000)
+		pager = beeorm.NewPager(1, 1000)
 	}
 	if where == nil {
-		where = orm.NewWhere("1")
+		where = beeorm.NewWhere("1")
 	}
 	tableName := tableSchema.GetOptionString(PluginCodeLog, tableNameOption)
 	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableName + " WHERE "
@@ -249,17 +249,17 @@ func GetEntityLogs(engine orm.Engine, tableSchema orm.TableSchema, entityID uint
 	return results
 }
 
-func handleLogEvents(engine orm.Engine, values map[string][]*LogQueueValue) {
+func handleLogEvents(engine beeorm.Engine, values map[string][]*LogQueueValue) {
 	for poolName, rows := range values {
 		poolDB := engine.GetMysql(poolName)
 		query := ""
 		for _, value := range rows {
 			/* #nosec */
 			query += "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)" +
-				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(TimeFormat) + "',"
+				strconv.FormatUint(value.ID, 10) + ",'" + value.Updated.Format(beeorm.TimeFormat) + "',"
 			params := make([]interface{}, 5)
 			params[0] = value.ID
-			params[1] = value.Updated.Format(TimeFormat)
+			params[1] = value.Updated.Format(beeorm.TimeFormat)
 			if value.Meta != nil {
 				params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
 			}
