@@ -138,10 +138,19 @@ func testLogReceiver(t *testing.T, redisVersion int) {
 	assert.Equal(t, "Poland", logs[1].Before["Country"])
 	assert.Equal(t, "Germany", logs[1].Changes["Country"])
 
+	engine.Delete(e1)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	assert.Len(t, logs, 3)
+	assert.NotNil(t, logs[2].Before)
+	assert.Nil(t, logs[2].Changes)
+	assert.Len(t, logs[2].Before, 3)
+	assert.Equal(t, "Germany", logs[2].Before["Country"])
+	assert.Equal(t, "John", logs[2].Before["Name"])
+	assert.Equal(t, "Smith", logs[2].Before["LastName"])
+
 	// TODO insert on duplikate
 
-	//engine.Delete(e1)
-	//consumer.Digest(context.Background())
 	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
 	//assert.Len(t, logs, 1)
 	//assert.NotNil(t, logs[0].Meta)
