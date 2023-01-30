@@ -175,25 +175,21 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Len(t, logs[1].Changes, 1)
 	assert.Equal(t, "Duplicated last name", logs[1].Changes["LastName"])
 
-	// TODO jak jets on duplicate key in update jest w cached query error
+	e3 = &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
+	engine.FlushLazy(e3)
+	test.RunLazyFlushConsumer(engine, true)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
 
-	//e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
-	//engine.FlushLazy(e3)
-	//receiver := orm.NewBackgroundConsumer(engine)
-	//receiver.DisableBlockMode()
-	////receiver.blockTime = time.Millisecond
-	//receiver.Digest(context.Background())
-	//
-	//logs = schema.GetEntityLogs(engine, 3, nil, nil)
-	//assert.Len(t, logs, 1)
-	//assert.NotNil(t, logs[0].Changes)
-	//assert.Nil(t, logs[0].Before)
-	//assert.NotNil(t, logs[0].Meta)
-	//assert.Equal(t, uint64(3), logs[0].EntityID)
-	//assert.Equal(t, "Adam", logs[0].Changes["Name"])
-	//assert.Equal(t, "Brazil", logs[0].Changes["Country"])
-	//assert.Equal(t, "Pol", logs[0].Changes["LastName"])
-	//
+	logs = GetEntityLogs(engine, schema, 6, nil, nil)
+	assert.Len(t, logs, 1)
+	assert.NotNil(t, logs[0].Changes)
+	assert.Nil(t, logs[0].Before)
+	assert.NotNil(t, logs[0].Meta)
+	assert.Equal(t, uint64(6), logs[0].EntityID)
+	assert.Equal(t, "Adam", logs[0].Changes["Name"])
+	assert.Equal(t, "Brazil", logs[0].Changes["Country"])
+	assert.Equal(t, "Pol", logs[0].Changes["LastName"])
+
 	//engine.LoadByID(3, e3)
 	//e3.Name = "Eva"
 	//engine.FlushLazy(e3)
