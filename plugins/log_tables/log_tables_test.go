@@ -177,15 +177,6 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 
 	// TODO jak jets on duplicate key in update jest w cached query error
 
-	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
-	//assert.Len(t, logs, 1)
-	//assert.NotNil(t, logs[0].Meta)
-	//assert.Equal(t, float64(12), logs[0].Meta["user_id"])
-	//assert.Nil(t, logs[0].Changes)
-	//assert.Equal(t, "John2", logs[0].Before["Name"])
-	//assert.Equal(t, "Germany", logs[0].Before["Country"])
-	//assert.Equal(t, "Summer", logs[0].Before["LastName"])
-	//
 	//e3 := &logReceiverEntity1{Name: "Adam", LastName: "Pol", Country: "Brazil"}
 	//engine.FlushLazy(e3)
 	//receiver := orm.NewBackgroundConsumer(engine)
