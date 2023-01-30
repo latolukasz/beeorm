@@ -175,6 +175,8 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Len(t, logs[1].Changes, 1)
 	assert.Equal(t, "Duplicated last name", logs[1].Changes["LastName"])
 
+	// TODO jak jets on duplicate key in update jest w cached query error
+
 	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))
 	//assert.Len(t, logs, 1)
 	//assert.NotNil(t, logs[0].Meta)

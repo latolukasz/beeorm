@@ -99,7 +99,6 @@ func TestDBErrors(t *testing.T) {
 	})
 	db.Commit()
 
-	db.Begin()
 	mock := &MockDBClient{OriginDB: db.GetDBClient()}
 	db.SetMockDBClient(mock)
 	mock.BeginMock = func() (*sql.Tx, error) {
