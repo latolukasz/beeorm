@@ -170,11 +170,9 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
 	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
 	assert.Len(t, logs, 2)
-	assert.NotNil(t, logs[1].Before)
+	assert.Nil(t, logs[1].Before)
 	assert.NotNil(t, logs[1].Changes)
-	assert.Len(t, logs[1].Before, 1)
 	assert.Len(t, logs[1].Changes, 1)
-	assert.Equal(t, "NULL", logs[1].Before["LastName"])
 	assert.Equal(t, "Duplicated last name", logs[1].Changes["LastName"])
 
 	//logs = schema.GetEntityLogs(engine, 2, nil, orm.NewWhere("`ID` = ?", 4))

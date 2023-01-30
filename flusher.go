@@ -352,15 +352,8 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 		if rowsAffected == 2 {
 			e.Action = Update
 			e.clearLocalCache = true
-			oldEntity := f.engine.GetRegistry().GetTableSchema(e.EntityName).NewEntity()
-			f.engine.LoadByID(result.LastInsertId(), oldEntity)
-			oldBind, _ := oldEntity.getORM().buildDirtyBind(newSerializer(nil), true)
-			e.Update = Bind{}
-			e.Old = oldBind.Old
+			e.Update = e.UpdateOnDuplicate
 			for column, value := range e.UpdateOnDuplicate {
-				if oldBind.Old[column] != value {
-					e.Update[column] = value
-				}
 				if e.entity != nil {
 					err := e.entity.SetField(column, value)
 					checkError(err)
