@@ -226,16 +226,11 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	logs = GetEntityLogs(engine, engine.GetRegistry().GetTableSchemaForEntity(entity3), 1, nil, nil)
 	assert.Len(t, logs, 0)
 
-	//engine.LoadByID(2, e1)
-	//e1.LastName = "Winter"
-	//engine.Flush(e1)
-	//engine.GetMysql("log").Exec("DROP TABLE `_log_default_logReceiverEntity1`")
-	//assert.NotPanics(t, func() {
-	//	receiver.Digest(context.Background())
-	//})
-	//statistics = engine.GetEventBroker().GetStreamGroupStatistics(LogTablesChannelName, orm.BackgroundConsumerGroupName)
-	//if redisVersion == 7 {
-	//	assert.Equal(t, int64(0), statistics.Lag)
-	//}
-	//assert.Equal(t, uint64(0), statistics.Pending)
+	engine.LoadByID(2, e1)
+	e1.LastName = "Winter"
+	engine.Flush(e1)
+	engine.GetMysql("log").Exec("DROP TABLE `_log_log_logReceiverEntity1`")
+	assert.NotPanics(t, func() {
+		consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	})
 }
