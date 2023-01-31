@@ -3,10 +3,11 @@ package beeorm
 import (
 	"context"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/shamaton/msgpack"
 )
@@ -207,7 +208,7 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		case <-ctx.Done():
 			return true
 		case <-timer.C:
-			if !lock.Refresh(ctx) {
+			if !lock.Refresh(ctx, r.lockTTL) {
 				return false
 			}
 			timer.Reset(r.lockTick)

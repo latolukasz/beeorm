@@ -1,8 +1,9 @@
 package test
 
 import (
-	"github.com/redis/go-redis/v9"
 	"testing"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/latolukasz/beeorm"
 

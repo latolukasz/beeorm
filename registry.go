@@ -3,7 +3,6 @@ package beeorm
 import (
 	"database/sql"
 	"fmt"
-	"github.com/redis/go-redis/v9"
 	"log"
 	"math"
 	"os"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 
 	"github.com/pkg/errors"
 
