@@ -214,53 +214,18 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Len(t, logs[2].Before, 3)
 	assert.Equal(t, "Eva", logs[2].Before["Name"])
 
-	//logs = schema.GetEntityLogs(engine, 3, nil, orm.NewWhere("ID IN ? ORDER BY ID DESC", []int{4, 5, 6}))
-	//assert.Len(t, logs, 2)
-	//assert.Equal(t, uint64(6), logs[0].LogID)
-	//assert.Equal(t, uint64(5), logs[1].LogID)
-	//
-	//logs = schema.GetEntityLogs(engine, 3, orm.NewPager(2, 2), nil)
-	//assert.Len(t, logs, 1)
-	//assert.Equal(t, uint64(7), logs[0].LogID)
-	//
-	//logs = engine.GetRegistry().GetTableSchemaForEntity(entity3).GetEntityLogs(engine, 1, nil, nil)
-	//assert.Len(t, logs, 0)
-	//
-	//e4 := &logReceiverEntity2{}
-	//e5 := &logReceiverEntity2{}
-	//engine.LoadByID(1, e4)
-	//engine.LoadByID(2, e5)
-	//flusher = engine.NewFlusher()
-	//engine.GetMysql().Begin()
-	//e4.Age = 34
-	//flusher.Track(e4)
-	//_ = flusher.FlushWithCheck()
-	//_ = flusher.FlushWithCheck()
-	//e5.Name = "Lucas"
-	//flusher.Track(e5)
-	//_ = flusher.FlushWithCheck()
-	//logger := &testLogHandler{}
-	//engine.RegisterQueryLogger(logger, true, true, false)
-	//engine.GetMysql().Commit()
-	//assert.Len(t, logger.Logs, 2)
-	//assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
-	//assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
-	//
-	//engine.GetMysql().Begin()
-	//flusher = engine.NewFlusher()
-	//flusher.Flush()
-	//e4.Age = 100
-	//flusher.Track(e4)
-	//flusher.Flush()
-	//flusher = engine.NewFlusher()
-	//flusher.Track(e4)
-	//flusher.Flush()
-	//logger.clear()
-	//engine.GetMysql().Commit()
-	//assert.Len(t, logger.Logs, 2)
-	//assert.Equal(t, "COMMIT", logger.Logs[0]["operation"])
-	//assert.Equal(t, "PIPELINE EXEC", logger.Logs[1]["operation"])
-	//
+	logs = GetEntityLogs(engine, schema, 3, nil, beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
+	assert.Len(t, logs, 2)
+	assert.Len(t, logs[0].Before, 3)
+	assert.Len(t, logs[1].Before, 1)
+
+	logs = GetEntityLogs(engine, schema, 3, beeorm.NewPager(2, 1), beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
+	assert.Len(t, logs, 1)
+	assert.Len(t, logs[0].Before, 1)
+
+	logs = GetEntityLogs(engine, engine.GetRegistry().GetTableSchemaForEntity(entity3), 1, nil, nil)
+	assert.Len(t, logs, 0)
+
 	//engine.LoadByID(2, e1)
 	//e1.LastName = "Winter"
 	//engine.Flush(e1)
