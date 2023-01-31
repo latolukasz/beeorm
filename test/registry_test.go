@@ -1,11 +1,10 @@
 package test
 
 import (
+	"github.com/redis/go-redis/v9"
 	"testing"
 
 	"github.com/latolukasz/beeorm"
-
-	"github.com/go-redis/redis/v9"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -4,12 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"strings"
 	"time"
 
 	"github.com/shamaton/msgpack"
-
-	"github.com/go-redis/redis/v9"
 )
 
 type RedisCacheSetter interface {

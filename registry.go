@@ -3,6 +3,7 @@ package beeorm
 import (
 	"database/sql"
 	"fmt"
+	"github.com/redis/go-redis/v9"
 	"log"
 	"math"
 	"os"
@@ -13,7 +14,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/go-redis/redis/v9"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
 )
 

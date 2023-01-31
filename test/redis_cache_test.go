@@ -2,12 +2,11 @@ package test
 
 import (
 	"context"
+	"github.com/redis/go-redis/v9"
 	"testing"
 	"time"
 
 	"github.com/latolukasz/beeorm"
-
-	"github.com/go-redis/redis/v9"
 
 	"github.com/stretchr/testify/assert"
 )
