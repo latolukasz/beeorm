@@ -1,9 +1,10 @@
 package test
 
 import (
-	"github.com/latolukasz/beeorm"
 	"os"
 	"testing"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/stretchr/testify/assert"
 	"gopkg.in/yaml.v2"

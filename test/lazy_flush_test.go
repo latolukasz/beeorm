@@ -2,10 +2,11 @@ package test
 
 import (
 	"context"
+	"testing"
+
 	"github.com/go-sql-driver/mysql"
 	"github.com/latolukasz/beeorm"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type lazyReceiverEntity struct {

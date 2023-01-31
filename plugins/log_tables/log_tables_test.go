@@ -2,10 +2,11 @@ package log_tables
 
 import (
 	"context"
+	"testing"
+
 	"github.com/latolukasz/beeorm"
 	"github.com/latolukasz/beeorm/test"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 type logReceiverEntity1 struct {

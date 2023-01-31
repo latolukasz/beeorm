@@ -3,10 +3,11 @@ package test
 import (
 	"context"
 	"database/sql"
-	"github.com/latolukasz/beeorm"
-	"github.com/stretchr/testify/assert"
 	"reflect"
 	"testing"
+
+	"github.com/latolukasz/beeorm"
+	"github.com/stretchr/testify/assert"
 )
 
 type MockLogHandler struct {

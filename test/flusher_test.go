@@ -3,9 +3,10 @@ package test
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/latolukasz/beeorm"
 	"testing"
 	"time"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/stretchr/testify/assert"
 )

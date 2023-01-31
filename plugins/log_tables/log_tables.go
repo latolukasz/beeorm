@@ -3,12 +3,13 @@ package log_tables
 import (
 	"database/sql"
 	"fmt"
-	"github.com/go-sql-driver/mysql"
-	"github.com/latolukasz/beeorm"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+	"github.com/latolukasz/beeorm"
 
 	jsoniter "github.com/json-iterator/go"
 )

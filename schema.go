@@ -3,11 +3,12 @@ package beeorm
 import (
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type Alter struct {

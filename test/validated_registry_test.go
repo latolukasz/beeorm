@@ -1,9 +1,10 @@
 package test
 
 import (
-	"github.com/latolukasz/beeorm"
 	"reflect"
 	"testing"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/stretchr/testify/assert"
 )

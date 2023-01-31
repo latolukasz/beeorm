@@ -3,10 +3,11 @@ package test
 import (
 	"context"
 	"fmt"
-	"github.com/latolukasz/beeorm"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/pkg/errors"
 

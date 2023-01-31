@@ -2,8 +2,9 @@ package test
 
 import (
 	"database/sql"
-	"github.com/latolukasz/beeorm"
 	"testing"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/pkg/errors"
 

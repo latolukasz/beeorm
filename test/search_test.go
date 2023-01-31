@@ -2,8 +2,9 @@ package test
 
 import (
 	"fmt"
-	"github.com/latolukasz/beeorm"
 	"testing"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/stretchr/testify/assert"
 )

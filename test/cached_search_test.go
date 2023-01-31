@@ -1,10 +1,11 @@
 package test
 
 import (
-	"github.com/latolukasz/beeorm"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/latolukasz/beeorm"
 
 	"github.com/stretchr/testify/assert"
 )
