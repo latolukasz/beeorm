@@ -686,7 +686,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			}
 			break
 		case Delete:
-			if lazy {
+			if lazy && hasLocalCache {
 				f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, cacheNilValue)
 				break
 			}

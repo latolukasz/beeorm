@@ -149,8 +149,6 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "John", logs[2].Before["Name"])
 	assert.Equal(t, "Smith", logs[2].Before["LastName"])
 
-	// TODO insert on duplikate
-
 	e1 = &logReceiverEntity1{Name: "Duplicate"}
 	e1.SetOnDuplicateKeyUpdate(beeorm.Bind{"LastName": "Duplicated"})
 	engine.Flush(e1)
@@ -190,38 +188,32 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "Brazil", logs[0].Changes["Country"])
 	assert.Equal(t, "Pol", logs[0].Changes["LastName"])
 
-	//engine.LoadByID(3, e3)
-	//e3.Name = "Eva"
-	//engine.FlushLazy(e3)
-	//receiver.Digest(context.Background())
-	//
-	//logs = schema.GetEntityLogs(engine, 3, nil, nil)
-	//assert.Len(t, logs, 2)
-	//assert.NotNil(t, logs[1].Changes)
-	//assert.NotNil(t, logs[1].Before)
-	//assert.NotNil(t, logs[1].Meta)
-	//assert.Equal(t, uint64(3), logs[1].EntityID)
-	//assert.Equal(t, "Eva", logs[1].Changes["Name"])
-	//assert.Equal(t, "Adam", logs[1].Before["Name"])
-	//assert.Equal(t, "Brazil", logs[1].Before["Country"])
-	//assert.Equal(t, "Pol", logs[1].Before["LastName"])
-	//
-	//engine.LoadByID(3, e3)
-	//flusher = engine.NewFlusher()
-	//flusher.Delete(e3)
-	//flusher.FlushLazy()
-	//receiver.Digest(context.Background())
-	//
-	//logs = schema.GetEntityLogs(engine, 3, nil, nil)
-	//assert.Len(t, logs, 3)
-	//assert.Nil(t, logs[2].Changes)
-	//assert.NotNil(t, logs[2].Before)
-	//assert.NotNil(t, logs[2].Meta)
-	//assert.Equal(t, uint64(3), logs[2].EntityID)
-	//assert.Equal(t, "Eva", logs[2].Before["Name"])
-	//assert.Equal(t, "Brazil", logs[2].Before["Country"])
-	//assert.Equal(t, "Pol", logs[2].Before["LastName"])
-	//
+	engine.LoadByID(3, e3)
+	e3.Name = "Eva"
+	engine.FlushLazy(e3)
+	test.RunLazyFlushConsumer(engine, true)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	logs = GetEntityLogs(engine, schema, 3, nil, nil)
+	assert.Len(t, logs, 2)
+	assert.NotNil(t, logs[1].Before)
+	assert.NotNil(t, logs[1].Changes)
+	assert.Len(t, logs[1].Before, 1)
+	assert.Len(t, logs[1].Changes, 1)
+	assert.Equal(t, "Eva", logs[1].Changes["Name"])
+
+	engine.LoadByID(3, e3)
+	flusher = engine.NewFlusher()
+	flusher.Delete(e3)
+	flusher.FlushLazy()
+	test.RunLazyFlushConsumer(engine, true)
+	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	logs = GetEntityLogs(engine, schema, 3, nil, nil)
+	assert.Len(t, logs, 3)
+	assert.NotNil(t, logs[2].Before)
+	assert.Nil(t, logs[2].Changes)
+	assert.Len(t, logs[2].Before, 3)
+	assert.Equal(t, "Eva", logs[2].Before["Name"])
+
 	//logs = schema.GetEntityLogs(engine, 3, nil, orm.NewWhere("ID IN ? ORDER BY ID DESC", []int{4, 5, 6}))
 	//assert.Len(t, logs, 2)
 	//assert.Equal(t, uint64(6), logs[0].LogID)
