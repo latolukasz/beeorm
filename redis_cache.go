@@ -908,7 +908,25 @@ func (r *redisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (s
 		message += fmt.Sprintf(" COUNT %d BLOCK %s NOACK %v", a.Count, a.Block.String(), a.NoAck)
 		r.fillLogFields("XREADGROUP", message, start, false, nil)
 	}
-	streams, err := r.client.XReadGroup(ctx, a).Result()
+
+	var err error
+	if a.Block > 0 {
+		c := make(chan int)
+		go func() {
+			streams, err = r.client.XReadGroup(ctx, a).Result()
+			close(c)
+		}()
+		select {
+		case <-ctx.Done():
+			close(c)
+			return
+		case <-c:
+			break
+		}
+	} else {
+		streams, err = r.client.XReadGroup(ctx, a).Result()
+	}
+
 	if err == redis.Nil {
 		err = nil
 	}

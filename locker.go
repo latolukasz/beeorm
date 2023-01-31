@@ -101,10 +101,6 @@ func (l *Lock) Release() {
 	checkError(err)
 }
 
-func (l *Lock) Token() string {
-	return l.lock.Token()
-}
-
 func (l *Lock) TTL(ctx context.Context) time.Duration {
 	start := getNow(l.engine.hasRedisLogger)
 	t, err := l.lock.TTL(ctx)

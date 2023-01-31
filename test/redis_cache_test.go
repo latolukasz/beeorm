@@ -313,7 +313,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	defer cancel()
 	now := time.Now()
 	streams = r.XReadGroup(ctx, &redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},
-		Consumer: "test-consumer-ab", Block: time.Second * 30})
+		Consumer: "test-consumer-ab", Block: time.Second * 3})
 	assert.LessOrEqual(t, time.Since(now).Milliseconds(), int64(350))
 
 	script := `
