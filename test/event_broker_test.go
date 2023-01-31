@@ -313,6 +313,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		valid = false
 	})
 	assert.True(t, valid)
+	engine.GetRedis().Del("test-stream")
 
 	type testStructEvent struct {
 		Name string

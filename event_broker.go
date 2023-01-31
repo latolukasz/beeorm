@@ -158,7 +158,7 @@ type eventsConsumer struct {
 func (b *eventConsumerBase) SetBlockTime(seconds int) {
 	if seconds <= 0 {
 		b.block = false
-		b.blockTime = 0
+		b.blockTime = -1
 		return
 	}
 	b.block = true
@@ -193,7 +193,7 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 
 	attributes := &consumeAttributes{
 		Pending:   true,
-		BlockTime: -1,
+		BlockTime: r.blockTime,
 		Name:      name,
 		Count:     count,
 		Handler:   handler,

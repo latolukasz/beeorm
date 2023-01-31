@@ -910,7 +910,7 @@ func (r *redisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (s
 	}
 
 	var err error
-	if a.Block > 0 {
+	if a.Block >= 0 {
 		c := make(chan int)
 		go func() {
 			streams, err = r.client.XReadGroup(ctx, a).Result()
@@ -918,7 +918,6 @@ func (r *redisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (s
 		}()
 		select {
 		case <-ctx.Done():
-			close(c)
 			return
 		case <-c:
 			break
@@ -932,7 +931,7 @@ func (r *redisCache) XReadGroup(ctx context.Context, a *redis.XReadGroupArgs) (s
 	}
 	if r.engine.hasRedisLogger && a.Block < 0 {
 		message := fmt.Sprintf("XREADGROUP %s %s STREAMS %s", a.Group, a.Consumer, strings.Join(a.Streams, " "))
-		message += fmt.Sprintf(" COUNT %d BLOCK %s NOACK %v", a.Count, a.Block.String(), a.NoAck)
+		message += fmt.Sprintf(" COUNT %d NOACK %v", a.Count, a.NoAck)
 		r.fillLogFields("XREADGROUP", message, start, false, err)
 	}
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
