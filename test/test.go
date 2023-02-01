@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 	"github.com/stretchr/testify/assert"
 )
 

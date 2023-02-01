@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 	"github.com/stretchr/testify/assert"
 )
 

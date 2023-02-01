@@ -6,7 +6,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 
 	jsoniter "github.com/json-iterator/go"
 )

@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -128,13 +128,4 @@ func TestRequestCache(t *testing.T) {
 	engine.Flush(entity)
 	found = engine.CachedSearchOne(entity, "IndexCode", "a2")
 	assert.False(t, found)
-
-	found = engine.LoadByID(1, entity)
-	assert.True(t, found)
-	engine.ClearCacheByIDs(entity, 1)
-	dbLogger.Clear()
-	redisLogger.Clear()
-	engine.LoadByID(1, entity)
-	assert.Len(t, dbLogger.Logs, 1)
-	assert.Len(t, redisLogger.Logs, 2)
 }

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -131,12 +131,6 @@ type flushEntity struct {
 }
 
 type flushEntityReference struct {
-	beeorm.ORM `orm:"localCache;redisCache"`
-	Name       string
-	Age        int
-}
-
-type flushEntityBenchmark struct {
 	beeorm.ORM `orm:"localCache;redisCache"`
 	Name       string
 	Age        int

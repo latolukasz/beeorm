@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/latolukasz/beeorm"
-	"github.com/latolukasz/beeorm/test"
+	"github.com/latolukasz/beeorm/v2"
+	"github.com/latolukasz/beeorm/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 

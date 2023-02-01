@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/latolukasz/beeorm"
+	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/pkg/errors"
 
