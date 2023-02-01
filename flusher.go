@@ -62,6 +62,7 @@ type Flusher interface {
 	FlushWithCheck() error
 	FlushWithFullCheck() error
 	FlushLazy()
+	Clear()
 	Delete(entity ...Entity) Flusher
 	ForceDelete(entity ...Entity) Flusher
 }
@@ -514,7 +515,7 @@ func (f *flusher) FlushWithFullCheck() error {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				f.clear()
+				f.Clear()
 				asErr := r.(error)
 				err = asErr
 			}
@@ -528,7 +529,7 @@ func (f *flusher) FlushLazy() {
 	f.flushTrackedEntities(true)
 }
 
-func (f *flusher) clear() {
+func (f *flusher) Clear() {
 	f.trackedEntities = nil
 	f.trackedEntitiesCounter = 0
 	f.events = nil
@@ -550,7 +551,7 @@ func (f *flusher) flushWithCheck() error {
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				f.clear()
+				f.Clear()
 				asErr := convertSQLError(r.(error))
 				assErr1, is := asErr.(*ForeignKeyError)
 				if is {
