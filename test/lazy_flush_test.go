@@ -214,4 +214,11 @@ func TestLazyFlush(t *testing.T) {
 	receiver.Digest(context.Background())
 	assert.True(t, valid)
 	assert.True(t, valid2)
+
+	e1 = &lazyReceiverEntity{}
+	e1.Name = "Adam"
+	engine.FlushLazy(e1)
+	assert.PanicsWithError(t, "getting ID from lazy flushed entity not allowed", func() {
+		e1.GetID()
+	})
 }

@@ -45,6 +45,7 @@ type ORM struct {
 	inDB                 bool
 	delete               bool
 	fakeDelete           bool
+	lazy                 bool
 	value                reflect.Value
 	elem                 reflect.Value
 }
@@ -58,6 +59,9 @@ func (orm *ORM) getORM() *ORM {
 }
 
 func (orm *ORM) GetID() uint64 {
+	if orm.lazy {
+		panic(errors.New("getting ID from lazy flushed entity not allowed"))
+	}
 	return orm.id
 }
 

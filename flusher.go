@@ -93,6 +93,11 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		}
 		f.localCacheSetters = nil
 		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events)
+		for _, e := range f.events {
+			if e.ID == 0 && e.entity != nil {
+				e.entity.getORM().lazy = true
+			}
+		}
 		f.events = nil
 		return
 	}
