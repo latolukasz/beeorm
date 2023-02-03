@@ -14,7 +14,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const PluginCodeLog = "beeorm/log_tables"
+const PluginCode = "github.com/latolukasz/beeorm/plugins/log_tables"
 const LogTablesChannelName = "orm-table-log-channel"
 const LogTablesConsumerGroupName = "log-tables-consumer"
 const poolOption = "pool"
@@ -29,7 +29,7 @@ func Init() *LogTablesPlugin {
 }
 
 func (p *LogTablesPlugin) GetCode() string {
-	return PluginCodeLog
+	return PluginCode
 }
 
 func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
@@ -37,8 +37,8 @@ func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSc
 	if logPoolName == "" {
 		return nil
 	}
-	schema.SetOption(PluginCodeLog, poolOption, logPoolName)
-	schema.SetOption(PluginCodeLog, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
+	schema.SetOption(PluginCode, poolOption, logPoolName)
+	schema.SetOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
 	skipLogs := make([]string, 0)
 	for _, columnName := range schema.GetColumns() {
 		skipLog := schema.GetTag(columnName, skipLogOption, "1", "")
@@ -47,15 +47,15 @@ func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSc
 		}
 	}
 	if len(skipLogs) > 0 {
-		schema.SetOption(PluginCodeLog, skipLogOption, skipLogs)
+		schema.SetOption(PluginCode, skipLogOption, skipLogs)
 	}
 	return nil
 }
 
 func SetMetaData(engine beeorm.Engine, key, value string) {
-	before := engine.GetOption(PluginCodeLog, "meta")
+	before := engine.GetOption(PluginCode, "meta")
 	if before == nil {
-		engine.SetOption(PluginCodeLog, metaOption, map[string]string{key: value})
+		engine.SetOption(PluginCode, metaOption, map[string]string{key: value})
 	} else {
 		before.(map[string]string)[key] = value
 	}
@@ -64,7 +64,7 @@ func SetMetaData(engine beeorm.Engine, key, value string) {
 func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, validatedRegistry beeorm.ValidatedRegistry) error {
 	hasLog := false
 	for entityName := range validatedRegistry.GetEntities() {
-		poolName := validatedRegistry.GetTableSchema(entityName).GetOptionString(PluginCodeLog, poolOption)
+		poolName := validatedRegistry.GetTableSchema(entityName).GetOptionString(PluginCode, poolOption)
 		if poolName != "" {
 			_, has := validatedRegistry.GetMySQLPools()[poolName]
 			if !has {
@@ -89,11 +89,11 @@ func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, v
 }
 
 func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.TableSchema) (alters []beeorm.Alter, keepTables map[string][]string) {
-	poolName := schema.GetOptionString(PluginCodeLog, poolOption)
+	poolName := schema.GetOptionString(PluginCode, poolOption)
 	if poolName == "" {
 		return nil, nil
 	}
-	tableName := schema.GetOptionString(PluginCodeLog, tableNameOption)
+	tableName := schema.GetOptionString(PluginCode, tableNameOption)
 	db := engine.GetMysql(poolName)
 	var tableDef string
 	hasLogTable := db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
@@ -131,11 +131,11 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schem
 
 func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flush *beeorm.EntitySQLFlush, cacheFlusher beeorm.FlusherCacheSetter) {
 	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
-	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
+	poolName := tableSchema.GetOptionString(PluginCode, poolOption)
 	if poolName == "" {
 		return
 	}
-	skippedFields := tableSchema.GetOption(PluginCodeLog, skipLogOption)
+	skippedFields := tableSchema.GetOption(PluginCode, skipLogOption)
 	if flush.Update != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {
@@ -149,13 +149,13 @@ func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flu
 		}
 	}
 	val := &LogQueueValue{
-		TableName: tableSchema.GetOptionString(PluginCodeLog, tableNameOption),
+		TableName: tableSchema.GetOptionString(PluginCode, tableNameOption),
 		ID:        flush.ID,
 		PoolName:  poolName,
 		Before:    flush.Old,
 		Changes:   flush.Update,
 		Updated:   time.Now()}
-	meta := engine.GetOption(PluginCodeLog, metaOption)
+	meta := engine.GetOption(PluginCode, metaOption)
 	if meta != nil {
 		val.Meta = meta.(map[string]string)
 	}
@@ -200,7 +200,7 @@ type EntityLog struct {
 
 func GetEntityLogs(engine beeorm.Engine, tableSchema beeorm.TableSchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
 	var results []EntityLog
-	poolName := tableSchema.GetOptionString(PluginCodeLog, poolOption)
+	poolName := tableSchema.GetOptionString(PluginCode, poolOption)
 	if poolName == "" {
 		return results
 	}
@@ -211,7 +211,7 @@ func GetEntityLogs(engine beeorm.Engine, tableSchema beeorm.TableSchema, entityI
 	if where == nil {
 		where = beeorm.NewWhere("1")
 	}
-	tableName := tableSchema.GetOptionString(PluginCodeLog, tableNameOption)
+	tableName := tableSchema.GetOptionString(PluginCode, tableNameOption)
 	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableName + " WHERE "
 	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
 	fullQuery += "AND " + where.String() + " " + pager.String()
