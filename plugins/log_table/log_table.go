@@ -117,7 +117,7 @@ func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 			if schema == nil {
 				continue
 			}
-			poolName := schema.GetMysqlPool()
+			poolName := schema.GetOptionString(PluginCode, poolOption)
 			_, has := values[poolName]
 			if !has {
 				values[poolName] = make([]*logEvent, 0)
@@ -199,7 +199,8 @@ func handleLogEvents(engine beeorm.Engine, values map[string][]*logEvent) {
 			defer poolDB.Rollback()
 			for _, value := range rows {
 				schema := engine.GetRegistry().GetTableSchema(value.crudEvent.EntityName)
-				query := "INSERT INTO `" + schema.GetTableName() + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
+				tableName := schema.GetOptionString(PluginCode, tableNameOption)
+				query := "INSERT INTO `" + tableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)
 				params[0] = value.crudEvent.ID
 				params[1] = value.crudEvent.Updated.Format(beeorm.TimeFormat)
