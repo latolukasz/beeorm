@@ -95,10 +95,14 @@ func RunLazyFlushConsumer(engine beeorm.Engine, garbage bool) {
 	consumer.Digest(context.Background())
 
 	if garbage {
-		garbageConsumer := beeorm.NewStreamGarbageCollectorConsumer(engine)
-		garbageConsumer.SetBlockTime(0)
-		garbageConsumer.Digest(context.Background())
+		RunStreamGarbageCollectorConsumer(engine)
 	}
+}
+
+func RunStreamGarbageCollectorConsumer(engine beeorm.Engine) {
+	garbageConsumer := beeorm.NewStreamGarbageCollectorConsumer(engine)
+	garbageConsumer.SetBlockTime(0)
+	garbageConsumer.Digest(context.Background())
 }
 
 type MockDBClient struct {

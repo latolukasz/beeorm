@@ -17,8 +17,8 @@ type Plugin struct {
 }
 
 type Options struct {
-	DefaultRedisPool string
 	TagName          string
+	DefaultRedisPool string
 }
 
 func Init(options *Options) *Plugin {

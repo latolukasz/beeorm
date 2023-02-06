@@ -3,11 +3,12 @@ package log_table
 import (
 	"database/sql"
 	"fmt"
-	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/latolukasz/beeorm/v2"
@@ -16,18 +17,29 @@ import (
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/log_table"
-const LogTablesConsumerGroupName = "log-tables-consumer"
+const ConsumerGroupName = "log-tables-consumer"
+const defaultTagName = "log-table"
 const poolOption = "pool"
-const tableNameOption = "table_name"
+const tableNameOption = "log-table"
 
-type Plugin struct{
+type Plugin struct {
 	options *Options
 }
 type Options struct {
+	TagName          string
 	DefaultMySQLPool string
 }
 
 func Init(options *Options) *Plugin {
+	if options == nil {
+		options = &Options{}
+	}
+	if options.DefaultMySQLPool == "" {
+		options.DefaultMySQLPool = "default"
+	}
+	if options.TagName == "" {
+		options.TagName = defaultTagName
+	}
 	return &Plugin{options}
 }
 
@@ -35,51 +47,17 @@ func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
+func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
+	registry.RegisterRedisStreamConsumerGroups(crud_stream.ChannelName, ConsumerGroupName)
+}
+
 func (p *Plugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
-	logPoolName := schema.GetTag("ORM", "log_table", "default", "")
+	logPoolName := schema.GetTag("ORM", p.options.TagName, p.options.DefaultMySQLPool, "")
 	if logPoolName == "" {
 		return nil
 	}
 	schema.SetOption(PluginCode, poolOption, logPoolName)
 	schema.SetOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
-	return nil
-}
-
-func (p *Plugin) InterfaceRegistryValidate(registry *beeorm.Registry, validatedRegistry beeorm.ValidatedRegistry) error {
-	hasCrudStreamPlugin := false
-	for _, code := range validatedRegistry.GetPlugins() {
-		if code == crud_stream.PluginCode {
-			hasCrudStreamPlugin = true
-			break
-		}
-	}
-	if !hasCrudStreamPlugin {
-		return fmt.Errorf("%s: required plugin %s is missing", PluginCode, crud_stream.PluginCode)
-	}
-	hasLog := false
-	for entityName := range validatedRegistry.GetEntities() {
-		poolName := validatedRegistry.GetTableSchema(entityName).GetOptionString(PluginCode, poolOption)
-		if poolName != "" {
-			_, has := validatedRegistry.GetMySQLPools()[poolName]
-			if !has {
-				return fmt.Errorf("invalid log tables pool name `%s` in %s entity", poolName, entityName)
-			}
-			hasLog = true
-		}
-	}
-	if hasLog {
-		hasStream := false
-		for _, streams := range validatedRegistry.GetRedisStreams() {
-			consumers, has := streams[crud_stream.ChannelName]
-			if has {
-				for _, consumer := range consumers
-				break
-			}
-		}
-		if !hasStream {
-			registry.RegisterRedisStream(LogTablesChannelName, "default", []string{LogTablesConsumerGroupName})
-		}
-	}
 	return nil
 }
 
@@ -124,17 +102,27 @@ func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.
 	return alters, map[string][]string{poolName: {tableName}}
 }
 
+type logEvent struct {
+	crudEvent *crud_stream.CrudEvent
+	source    beeorm.Event
+}
+
 func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 	return func(events []beeorm.Event) {
-		values := make(map[string][]*LogQueueValue)
+		values := make(map[string][]*logEvent)
 		for _, event := range events {
-			var data LogQueueValue
+			var data crud_stream.CrudEvent
 			event.Unserialize(&data)
-			_, has := values[data.PoolName]
-			if !has {
-				values[data.PoolName] = make([]*LogQueueValue, 0)
+			schema := engine.GetRegistry().GetTableSchema(data.EntityName)
+			if schema == nil {
+				continue
 			}
-			values[data.PoolName] = append(values[data.PoolName], &data)
+			poolName := schema.GetMysqlPool()
+			_, has := values[poolName]
+			if !has {
+				values[poolName] = make([]*logEvent, 0)
+			}
+			values[poolName] = append(values[poolName], &logEvent{crudEvent: &data, source: event})
 		}
 		handleLogEvents(engine, values)
 	}
@@ -201,7 +189,7 @@ func GetEntityLogs(engine beeorm.Engine, tableSchema beeorm.TableSchema, entityI
 	return results
 }
 
-func handleLogEvents(engine beeorm.Engine, values map[string][]*LogQueueValue) {
+func handleLogEvents(engine beeorm.Engine, values map[string][]*logEvent) {
 	for poolName, rows := range values {
 		poolDB := engine.GetMysql(poolName)
 		if len(rows) > 1 {
@@ -210,19 +198,20 @@ func handleLogEvents(engine beeorm.Engine, values map[string][]*LogQueueValue) {
 		func() {
 			defer poolDB.Rollback()
 			for _, value := range rows {
-				/* #nosec */
-				query := "INSERT INTO `" + value.TableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
+				schema := engine.GetRegistry().GetTableSchema(value.crudEvent.EntityName)
+				query := "INSERT INTO `" + schema.GetTableName() + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)
-				params[0] = value.ID
-				params[1] = value.Updated.Format(beeorm.TimeFormat)
-				if value.Meta != nil {
-					params[2], _ = jsoniter.ConfigFastest.MarshalToString(value.Meta)
+				params[0] = value.crudEvent.ID
+				params[1] = value.crudEvent.Updated.Format(beeorm.TimeFormat)
+				meta := value.source.Meta()
+				if len(meta) > 0 {
+					params[2], _ = jsoniter.ConfigFastest.MarshalToString(meta)
 				}
-				if len(value.Before) > 0 {
-					params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
+				if len(value.crudEvent.Before) > 0 {
+					params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.crudEvent.Before)
 				}
-				if len(value.Changes) > 0 {
-					params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
+				if len(value.crudEvent.Changes) > 0 {
+					params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.crudEvent.Changes)
 				}
 				func() {
 					defer func() {
