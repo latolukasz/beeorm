@@ -43,6 +43,8 @@ type Engine interface {
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
+	SetMeta(key, value string)
+	GetMeta() Bind
 	SetOption(plugin, key string, value interface{})
 	GetOption(plugin, key string) interface{}
 }
@@ -60,6 +62,7 @@ type engineImplementation struct {
 	hasDBLogger            bool
 	hasLocalCacheLogger    bool
 	eventBroker            *eventBroker
+	meta                   Bind
 	options                map[string]map[string]interface{}
 	sync.Mutex
 }
@@ -75,6 +78,18 @@ func (e *engineImplementation) Clone() Engine {
 		hasDBLogger:            e.hasDBLogger,
 		hasLocalCacheLogger:    e.hasLocalCacheLogger,
 	}
+}
+
+func (e *engineImplementation) SetMeta(key, value string) {
+	if e.meta == nil {
+		e.meta = Bind{key: value}
+	} else {
+		e.meta[key] = value
+	}
+}
+
+func (e *engineImplementation) GetMeta() Bind {
+	return e.meta
 }
 
 func (e *engineImplementation) SetOption(plugin, key string, value interface{}) {

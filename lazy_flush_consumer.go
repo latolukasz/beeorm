@@ -38,18 +38,21 @@ func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
 	return r.consumer.Consume(ctx, 500, func(events []Event) {
 		lazyEvents := make([]*EntitySQLFlush, 0)
 		for _, e := range events {
-			switch e.Stream() {
-			case LazyFlushChannelName:
-				var data []*EntitySQLFlush
-				e.Unserialize(&data)
-				lazyEvents = append(lazyEvents, data...)
-			}
+			var data []*EntitySQLFlush
+			e.Unserialize(&data)
+			lazyEvents = append(lazyEvents, data...)
 		}
 		r.handleEvents(events, lazyEvents)
 	})
 }
 
 func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQLFlush) {
+	for i, e := range events {
+		meta := e.Meta()
+		if len(meta) > 0 {
+			lazyEvents[i].Meta = meta
+		}
+	}
 	defer func() {
 		if rec := recover(); rec != nil {
 			_, isMySQLError := rec.(*mysql.MySQLError)

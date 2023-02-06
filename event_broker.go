@@ -16,7 +16,7 @@ type Event interface {
 	Ack()
 	ID() string
 	Stream() string
-	Tag(key string) (value string)
+	Meta() Bind
 	Unserialize(val interface{})
 	delete()
 }
@@ -27,6 +27,7 @@ type event struct {
 	message  redis.XMessage
 	ack      bool
 	deleted  bool
+	meta     Bind
 }
 
 type garbageCollectorEvent struct {
@@ -53,12 +54,16 @@ func (ev *event) Stream() string {
 	return ev.stream
 }
 
-func (ev *event) Tag(key string) (value string) {
-	val, has := ev.message.Values[key]
-	if has {
-		return val.(string)
+func (ev *event) Meta() Bind {
+	if ev.meta == nil {
+		ev.meta = Bind{}
+		for key, value := range ev.message.Values {
+			if key != "s" {
+				ev.meta[key] = value.(string)
+			}
+		}
 	}
-	return ""
+	return ev.meta
 }
 
 func (ev *event) Unserialize(value interface{}) {
@@ -68,7 +73,7 @@ func (ev *event) Unserialize(value interface{}) {
 }
 
 type EventBroker interface {
-	Publish(stream string, body interface{}, meta ...string) (id string)
+	Publish(stream string, body interface{}, meta Bind) (id string)
 	Consumer(group string) EventsConsumer
 	GetStreamsStatistics(stream ...string) []*RedisStreamStatistics
 	GetStreamStatistics(stream string) *RedisStreamStatistics
@@ -79,18 +84,27 @@ type eventBroker struct {
 	engine *engineImplementation
 }
 
-func createEventSlice(body interface{}, meta []string) []string {
+func createEventSlice(body interface{}, meta Bind) []string {
+	l := len(meta) * 2
+	if body != nil {
+		l += 2
+	}
+	values := make([]string, l)
+	i := 0
+	for key, value := range meta {
+		values[i] = key
+		i++
+		values[i] = value
+		i++
+	}
+
 	if body == nil {
-		return meta
+		return values
 	}
 	asString, err := msgpack.Marshal(body)
 	checkError(err)
-	values := make([]string, len(meta)+2)
-	values[0] = "s"
-	values[1] = string(asString)
-	for k, v := range meta {
-		values[k+2] = v
-	}
+	values[i] = "s"
+	values[i+1] = string(asString)
 	return values
 }
 
@@ -103,7 +117,7 @@ func (e *engineImplementation) GetEventBroker() EventBroker {
 	return e.eventBroker
 }
 
-func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) (id string) {
+func (eb *eventBroker) Publish(stream string, body interface{}, meta Bind) (id string) {
 	return eb.engine.GetRedis(getRedisCodeForStream(eb.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
 }
 
@@ -346,7 +360,7 @@ func (r *eventsConsumer) garbage() {
 	now := time.Now().Unix()
 	if (now - r.garbageLastTick) >= 10 {
 		garbageEvent := garbageCollectorEvent{Group: r.group, Pool: r.redis.config.GetCode()}
-		r.engine.GetEventBroker().Publish(StreamGarbageCollectorChannelName, garbageEvent)
+		r.engine.GetEventBroker().Publish(StreamGarbageCollectorChannelName, garbageEvent, nil)
 		r.garbageLastTick = now
 	}
 }

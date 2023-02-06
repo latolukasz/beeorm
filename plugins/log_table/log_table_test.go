@@ -1,4 +1,4 @@
-package log_tables
+package log_table
 
 import (
 	"context"

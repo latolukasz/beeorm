@@ -156,7 +156,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
 	var reference *flushEntityReference
 	registry := &beeorm.Registry{}
-	registry.RegisterRedisStream("entity_changed", "default", []string{"test-group-1"})
+	registry.RegisterRedisStream("entity_changed", "default")
+	registry.RegisterRedisStreamConsumerGroups("entity_changed", "test-group-1")
 	registry.RegisterEnumStruct("test.testEnum", testEnum)
 	registry.RegisterEnumStruct("test.testSet", testSet)
 	engine := PrepareTables(t, registry, 5, 6, "", entity, reference)

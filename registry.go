@@ -125,21 +125,14 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
 	if !has {
-		r.RegisterRedisStream(LazyFlushChannelName, "default", []string{LazyFlushGroupName})
-	}
-	for _, plugin := range r.plugins {
-		interfaceRegistryValidate, isInterfaceRegistryValidate := plugin.(PluginInterfaceRegistryValidate)
-		if isInterfaceRegistryValidate {
-			err = interfaceRegistryValidate.InterfaceRegistryValidate(r, registry)
-			if err != nil {
-				return nil, err
-			}
-		}
+		r.RegisterRedisStream(LazyFlushChannelName, "default")
+		r.RegisterRedisStreamConsumerGroups(LazyFlushChannelName, LazyFlushGroupName)
 	}
 	if len(r.redisStreamGroups) > 0 {
 		_, has = r.redisStreamPools[StreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(StreamGarbageCollectorChannelName, "default", []string{StreamGarbageCollectorGroupName})
+			r.RegisterRedisStream(StreamGarbageCollectorChannelName, "default")
+			r.RegisterRedisStreamConsumerGroups(StreamGarbageCollectorChannelName, StreamGarbageCollectorGroupName)
 		}
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
@@ -170,6 +163,10 @@ func (r *Registry) GetDefaultCollate() string {
 }
 
 func (r *Registry) RegisterPlugin(plugin Plugin) {
+	interfaceInitRegistry, isInterfaceInitRegistry := plugin.(PluginInterfaceInitRegistry)
+	if isInterfaceInitRegistry {
+		interfaceInitRegistry.PluginInterfaceInitRegistry(r)
+	}
 	r.plugins = append(r.plugins, plugin)
 }
 
@@ -272,24 +269,38 @@ func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
 }
 
-func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []string) {
+func (r *Registry) RegisterRedisStream(name string, redisPool string) {
 	if r.redisStreamGroups == nil {
 		r.redisStreamGroups = make(map[string]map[string]map[string]bool)
 		r.redisStreamPools = make(map[string]string)
 	}
 	_, has := r.redisStreamPools[name]
-	if has {
-		panic(fmt.Errorf("stream with name %s already exists", name))
+	if !has {
+		r.redisStreamPools[name] = redisPool
 	}
-	r.redisStreamPools[name] = redisPool
 	if r.redisStreamGroups[redisPool] == nil {
 		r.redisStreamGroups[redisPool] = make(map[string]map[string]bool)
 	}
-	groupsMap := make(map[string]bool, len(groups))
-	for _, group := range groups {
-		groupsMap[group] = true
+	if r.redisStreamGroups[redisPool][name] == nil {
+		r.redisStreamGroups[redisPool][name] = make(map[string]bool)
 	}
-	r.redisStreamGroups[redisPool][name] = groupsMap
+}
+
+func (r *Registry) RegisterRedisStreamConsumerGroups(stream string, groups ...string) {
+	if len(groups) == 0 {
+		return
+	}
+	if r.redisStreamPools == nil || len(r.redisStreamPools[stream]) == 0 {
+		panic(fmt.Errorf("redis stream %s is not registered", stream))
+	}
+	list, has := r.redisStreamGroups[r.redisStreamPools[stream]][stream]
+	if !has {
+		list = make(map[string]bool)
+		r.redisStreamGroups[r.redisStreamPools[stream]][stream] = list
+	}
+	for _, name := range groups {
+		list[name] = true
+	}
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {

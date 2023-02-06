@@ -4,12 +4,12 @@ type Plugin interface {
 	GetCode() string
 }
 
-type PluginInterfaceInitTableSchema interface {
-	InterfaceInitTableSchema(schema SettableTableSchema, registry *Registry) error
+type PluginInterfaceInitRegistry interface {
+	PluginInterfaceInitRegistry(registry *Registry)
 }
 
-type PluginInterfaceRegistryValidate interface {
-	InterfaceRegistryValidate(registry *Registry, validatedRegistry ValidatedRegistry) error
+type PluginInterfaceInitTableSchema interface {
+	InterfaceInitTableSchema(schema SettableTableSchema, registry *Registry) error
 }
 
 type PluginInterfaceSchemaCheck interface {

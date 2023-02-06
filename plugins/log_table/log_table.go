@@ -1,8 +1,9 @@
-package log_tables
+package log_table
 
 import (
 	"database/sql"
 	"fmt"
+	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
 	"regexp"
 	"strconv"
 	"strings"
@@ -14,54 +15,47 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const PluginCode = "github.com/latolukasz/beeorm/plugins/log_tables"
-const LogTablesChannelName = "orm-table-log-channel"
+const PluginCode = "github.com/latolukasz/beeorm/plugins/log_table"
 const LogTablesConsumerGroupName = "log-tables-consumer"
 const poolOption = "pool"
 const tableNameOption = "table_name"
-const skipLogOption = "skip-table-log"
-const metaOption = "meta"
 
-type LogTablesPlugin struct{}
-
-func Init() *LogTablesPlugin {
-	return &LogTablesPlugin{}
+type Plugin struct{
+	options *Options
+}
+type Options struct {
+	DefaultMySQLPool string
 }
 
-func (p *LogTablesPlugin) GetCode() string {
+func Init(options *Options) *Plugin {
+	return &Plugin{options}
+}
+
+func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
-func (p *LogTablesPlugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
-	logPoolName := schema.GetTag("ORM", "log", "default", "")
+func (p *Plugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
+	logPoolName := schema.GetTag("ORM", "log_table", "default", "")
 	if logPoolName == "" {
 		return nil
 	}
 	schema.SetOption(PluginCode, poolOption, logPoolName)
 	schema.SetOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
-	skipLogs := make([]string, 0)
-	for _, columnName := range schema.GetColumns() {
-		skipLog := schema.GetTag(columnName, skipLogOption, "1", "")
-		if skipLog == "1" {
-			skipLogs = append(skipLogs, columnName)
-		}
-	}
-	if len(skipLogs) > 0 {
-		schema.SetOption(PluginCode, skipLogOption, skipLogs)
-	}
 	return nil
 }
 
-func SetMetaData(engine beeorm.Engine, key, value string) {
-	before := engine.GetOption(PluginCode, "meta")
-	if before == nil {
-		engine.SetOption(PluginCode, metaOption, map[string]string{key: value})
-	} else {
-		before.(map[string]string)[key] = value
+func (p *Plugin) InterfaceRegistryValidate(registry *beeorm.Registry, validatedRegistry beeorm.ValidatedRegistry) error {
+	hasCrudStreamPlugin := false
+	for _, code := range validatedRegistry.GetPlugins() {
+		if code == crud_stream.PluginCode {
+			hasCrudStreamPlugin = true
+			break
+		}
 	}
-}
-
-func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, validatedRegistry beeorm.ValidatedRegistry) error {
+	if !hasCrudStreamPlugin {
+		return fmt.Errorf("%s: required plugin %s is missing", PluginCode, crud_stream.PluginCode)
+	}
 	hasLog := false
 	for entityName := range validatedRegistry.GetEntities() {
 		poolName := validatedRegistry.GetTableSchema(entityName).GetOptionString(PluginCode, poolOption)
@@ -76,8 +70,9 @@ func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, v
 	if hasLog {
 		hasStream := false
 		for _, streams := range validatedRegistry.GetRedisStreams() {
-			_, hasStream = streams[LogTablesChannelName]
-			if hasStream {
+			consumers, has := streams[crud_stream.ChannelName]
+			if has {
+				for _, consumer := range consumers
 				break
 			}
 		}
@@ -88,7 +83,7 @@ func (p *LogTablesPlugin) InterfaceRegistryValidate(registry *beeorm.Registry, v
 	return nil
 }
 
-func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.TableSchema) (alters []beeorm.Alter, keepTables map[string][]string) {
+func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.TableSchema) (alters []beeorm.Alter, keepTables map[string][]string) {
 	poolName := schema.GetOptionString(PluginCode, poolOption)
 	if poolName == "" {
 		return nil, nil
@@ -127,50 +122,6 @@ func (p *LogTablesPlugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schem
 		}
 	}
 	return alters, map[string][]string{poolName: {tableName}}
-}
-
-func (p *LogTablesPlugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flush *beeorm.EntitySQLFlush, cacheFlusher beeorm.FlusherCacheSetter) {
-	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
-	poolName := tableSchema.GetOptionString(PluginCode, poolOption)
-	if poolName == "" {
-		return
-	}
-	skippedFields := tableSchema.GetOption(PluginCode, skipLogOption)
-	if flush.Update != nil && skippedFields != nil {
-		skipped := 0
-		for _, skip := range skippedFields.([]string) {
-			_, has := flush.Update[skip]
-			if has {
-				skipped++
-			}
-		}
-		if skipped == len(flush.Update) {
-			return
-		}
-	}
-	val := &LogQueueValue{
-		TableName: tableSchema.GetOptionString(PluginCode, tableNameOption),
-		ID:        flush.ID,
-		PoolName:  poolName,
-		Before:    flush.Old,
-		Changes:   flush.Update,
-		Updated:   time.Now()}
-	meta := engine.GetOption(PluginCode, metaOption)
-	if meta != nil {
-		val.Meta = meta.(map[string]string)
-	}
-	cacheFlusher.PublishToStream(LogTablesChannelName, val)
-}
-
-type LogQueueValue struct {
-	PoolName  string
-	TableName string
-	ID        uint64
-	LogID     uint64
-	Meta      beeorm.Bind
-	Before    beeorm.Bind
-	Changes   beeorm.Bind
-	Updated   time.Time
 }
 
 func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {

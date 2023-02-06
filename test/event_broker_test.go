@@ -17,7 +17,8 @@ import (
 func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group-1", "test-group-2"})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group-1", "test-group-2")
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	engine := validatedRegistry.CreateEngine()
@@ -28,7 +29,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 		Name string
 	}
 	for i := 1; i <= 10; i++ {
-		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	flusher.Flush()
 
@@ -48,7 +49,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	assert.Equal(t, int64(0), engine.GetRedis().XLen("test-stream"))
 
 	for i := 1; i <= 10; i++ {
-		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	flusher.Flush()
 	assert.PanicsWithError(t, "stop", func() {
@@ -62,7 +63,8 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	engine := validatedRegistry.CreateEngine()
@@ -79,7 +81,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	iterations1 := false
 	iterations2 := false
@@ -113,7 +115,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	iterations1 = false
 	iterations2 = false
@@ -148,7 +150,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	consumer = broker.Consumer("test-group")
 	consumer.SetBlockTime(0)
@@ -174,12 +176,14 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 func TestRedisStreamGroupConsumer(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 11)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group", "test-group-multi"})
-	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group", "test-group-multi"})
-	assert.PanicsWithError(t, "stream with name test-stream already exists", func() {
-		registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
+	registry.RegisterRedisStream("test-stream-a", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream-a", "test-group", "test-group-multi")
+
+	registry.RegisterRedisStream("test-stream-b", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream-b", "test-group", "test-group-multi")
+
 	ctx, cancel := context.WithCancel(context.Background())
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
@@ -197,7 +201,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	e := &testEvent{}
 
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	iterations := 0
 	consumer.Consume(ctx, 5, func(events []beeorm.Event) {
@@ -242,7 +246,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 
 	engine.GetRedis().XTrim("test-stream", 0)
 	for i := 11; i <= 20; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	iterations = 0
 	consumer.Consume(context.Background(), 5, func(events []beeorm.Event) {
@@ -263,13 +267,13 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 
 	engine.GetRedis().FlushDB()
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	consumer = broker.Consumer("test-group-multi")
 	consumer.SetBlockTime(0)
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream-a", testEvent{fmt.Sprintf("a%d", i)})
-		engine.GetEventBroker().Publish("test-stream-b", testEvent{fmt.Sprintf("b%d", i)})
+		engine.GetEventBroker().Publish("test-stream-a", testEvent{fmt.Sprintf("a%d", i)}, nil)
+		engine.GetEventBroker().Publish("test-stream-b", testEvent{fmt.Sprintf("b%d", i)}, nil)
 	}
 	consumer.Consume(context.Background(), 8, func(events []beeorm.Event) {
 		iterations++
@@ -287,7 +291,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	valid := false
 	consumer = broker.Consumer("test-group")
 	for i := 1; i <= 10; i++ {
-		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)})
+		engine.GetEventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
 	go func() {
 		consumer = broker.Consumer("test-group")
@@ -322,8 +326,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 
 	engine = validatedRegistry.CreateEngine()
 	flusher := engine.NewFlusher()
-	flusher.PublishToStream("test-stream", testStructEvent{Name: "a", Age: 18})
-	flusher.PublishToStream("test-stream", testStructEvent{Name: "b", Age: 20})
+	flusher.PublishToStream("test-stream", testStructEvent{Name: "a", Age: 18}, nil)
+	flusher.PublishToStream("test-stream", testStructEvent{Name: "b", Age: 20}, nil)
 	flusher.Flush()
 	valid = false
 	consumer = engine.GetEventBroker().Consumer("test-group")
@@ -345,8 +349,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	flusher.PublishToStream("test-stream", "test", "tag", "val1", "tag2", "val2")
-	flusher.PublishToStream("test-stream", nil, "tag3", "val3")
+	flusher.PublishToStream("test-stream", "test", beeorm.Bind{"tag": "val1", "tag2": "val2"})
+	flusher.PublishToStream("test-stream", nil, beeorm.Bind{"tag3": "val3"})
 	flusher.Flush()
 	valid = false
 	consumer.Consume(context.Background(), 10, func(events []beeorm.Event) {
@@ -355,10 +359,10 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		data := ""
 		events[0].Unserialize(&data)
 		assert.Equal(t, "test", data)
-		assert.Equal(t, "val1", events[0].Tag("tag"))
-		assert.Equal(t, "val2", events[0].Tag("tag2"))
-		assert.Equal(t, "", events[0].Tag("tag3"))
-		assert.Equal(t, "val3", events[1].Tag("tag3"))
+		assert.Equal(t, "val1", events[0].Meta()["tag"])
+		assert.Equal(t, "val2", events[0].Meta()["tag2"])
+		assert.Equal(t, "", events[0].Meta()["tag3"])
+		assert.Equal(t, "val3", events[1].Meta()["tag3"])
 	})
 	assert.True(t, valid)
 
@@ -368,7 +372,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	engine.GetRedis().FlushDB()
 	flusher = engine.NewFlusher()
 	for i := 0; i < 100; i++ {
-		flusher.PublishToStream("test-stream", "a")
+		flusher.PublishToStream("test-stream", "a", nil)
 	}
 	flusher.Flush()
 	broker = engine.GetEventBroker()
@@ -391,12 +395,12 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	engine = validatedRegistry.CreateEngine()
 	engine.GetRedis().FlushDB()
 	flusher = engine.NewFlusher()
-	flusher.PublishToStream("test-stream", "a")
+	flusher.PublishToStream("test-stream", "a", nil)
 	flusher.Flush()
 	broker = engine.GetEventBroker()
 
 	assert.PanicsWithError(t, "unregistered stream test-stream-invalid", func() {
-		flusher.PublishToStream("test-stream-invalid", testStructEvent{Name: "a", Age: 18})
+		flusher.PublishToStream("test-stream-invalid", testStructEvent{Name: "a", Age: 18}, nil)
 	})
 	assert.PanicsWithError(t, "unregistered streams for group test-group-invalid", func() {
 		broker.Consumer("test-group-invalid")

@@ -24,6 +24,7 @@ type EntitySQLFlush struct {
 	Old               Bind
 	Update            Bind
 	UpdateOnDuplicate Bind
+	Meta              Bind
 	TempID            uint64
 	References        map[string]uint64
 	flushed           bool

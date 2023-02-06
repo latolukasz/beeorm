@@ -14,7 +14,8 @@ import (
 func TestRedisPipeline(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()

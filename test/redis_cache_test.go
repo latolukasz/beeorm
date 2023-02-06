@@ -35,9 +35,13 @@ func testRedis(t *testing.T, namespace string, version int) {
 		url = "localhost:6381"
 	}
 	registry.RegisterRedis(url, namespace, 15)
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
-	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
+	registry.RegisterRedisStream("test-stream-a", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream-a", "test-group")
+	registry.RegisterRedisStream("test-stream-b", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream-b", "test-group")
+
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
@@ -181,17 +185,17 @@ func testRedis(t *testing.T, namespace string, version int) {
 
 	assert.NotEmpty(t, r.Info("modules"))
 
-	id := engine.GetEventBroker().Publish("test-stream", "a")
+	id := engine.GetEventBroker().Publish("test-stream", "a", nil)
 	assert.NotEmpty(t, id)
 	assert.Equal(t, int64(1), r.XLen("test-stream"))
 	assert.Equal(t, int64(1), r.XTrim("test-stream", 0))
 	assert.Equal(t, int64(0), r.XLen("test-stream"))
 
-	engine.GetEventBroker().Publish("test-stream", "a1")
-	engine.GetEventBroker().Publish("test-stream", "a2")
-	engine.GetEventBroker().Publish("test-stream", "a3")
-	engine.GetEventBroker().Publish("test-stream", "a4")
-	engine.GetEventBroker().Publish("test-stream", "a5")
+	engine.GetEventBroker().Publish("test-stream", "a1", nil)
+	engine.GetEventBroker().Publish("test-stream", "a2", nil)
+	engine.GetEventBroker().Publish("test-stream", "a3", nil)
+	engine.GetEventBroker().Publish("test-stream", "a4", nil)
+	engine.GetEventBroker().Publish("test-stream", "a5", nil)
 	res, has := r.XGroupCreate("test-stream", "test-group", "0")
 	assert.Equal(t, "OK", res)
 	assert.False(t, has)
@@ -233,7 +237,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Equal(t, "\xa2a5", events[0].Values["s"])
 	assert.Equal(t, "\xa2a4", events[1].Values["s"])
 
-	tmpEventID := engine.GetEventBroker().Publish("test-stream", "new")
+	tmpEventID := engine.GetEventBroker().Publish("test-stream", "new", nil)
 	assert.Equal(t, int64(1), r.XDel("test-stream", tmpEventID))
 	events = r.XRevRange("test-stream", "+", "-", 2)
 	assert.Len(t, events, 2)
@@ -299,8 +303,8 @@ func testRedis(t *testing.T, namespace string, version int) {
 	infoGroups = r.XInfoGroups("test-stream")
 	assert.Equal(t, int64(1), infoGroups[0].Consumers)
 
-	engine.GetEventBroker().Publish("test-stream-a", "a1")
-	engine.GetEventBroker().Publish("test-stream-b", "b1")
+	engine.GetEventBroker().Publish("test-stream-a", "a1", nil)
+	engine.GetEventBroker().Publish("test-stream-b", "b1", nil)
 	r.XGroupCreate("test-stream-a", "test-group-ab", "0")
 	r.XGroupCreate("test-stream-b", "test-group-ab", "0")
 	streams = r.XReadGroup(context.Background(), &redis.XReadGroupArgs{Group: "test-group-ab", Streams: []string{"test-stream-a", "test-stream-b", ">", ">"},

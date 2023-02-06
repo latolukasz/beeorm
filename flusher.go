@@ -8,6 +8,10 @@ import (
 
 type Bind map[string]string
 
+func (m Bind) Get(key string) string {
+	return m[key]
+}
+
 type DuplicatedKeyError struct {
 	Message string
 	Index   string
@@ -52,7 +56,7 @@ func (err *ForeignKeyError) Error() string {
 type FlusherCacheSetter interface {
 	GetLocalCacheSetter(code ...string) LocalCacheSetter
 	GetRedisCacheSetter(code ...string) RedisCacheSetter
-	PublishToStream(stream string, body interface{}, meta ...string)
+	PublishToStream(stream string, body interface{}, meta Bind)
 }
 
 type Flusher interface {
@@ -92,7 +96,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 			cache.flush()
 		}
 		f.localCacheSetters = nil
-		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events)
+		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events, f.engine.GetMeta())
 		for _, e := range f.events {
 			if e.ID == 0 && e.entity != nil {
 				e.entity.getORM().lazy = true
@@ -100,6 +104,11 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		}
 		f.events = nil
 		return
+	}
+	if len(f.engine.GetMeta()) > 0 {
+		for _, e := range f.events {
+			e.Meta = f.engine.GetMeta()
+		}
 	}
 	checkReferences := true
 	startTransaction := make(map[*DB]bool)
@@ -503,7 +512,7 @@ func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
 	return cache
 }
 
-func (f *flusher) PublishToStream(stream string, body interface{}, meta ...string) {
+func (f *flusher) PublishToStream(stream string, body interface{}, meta Bind) {
 	f.GetRedisCacheSetter(getRedisCodeForStream(f.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
 }
 

@@ -17,6 +17,7 @@ type ValidatedRegistry interface {
 	GetLocalCachePools() map[string]LocalCachePoolConfig
 	GetRedisPools() map[string]RedisPoolConfig
 	GetEntities() map[string]reflect.Type
+	GetPlugins() []string
 }
 
 type validatedRegistry struct {
@@ -40,6 +41,14 @@ func (r *validatedRegistry) GetSourceRegistry() *Registry {
 
 func (r *validatedRegistry) GetEntities() map[string]reflect.Type {
 	return r.entities
+}
+
+func (r *validatedRegistry) GetPlugins() []string {
+	codes := make([]string, len(r.plugins))
+	for i, plugin := range r.plugins {
+		codes[i] = plugin.GetCode()
+	}
+	return codes
 }
 
 func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {

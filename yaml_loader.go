@@ -49,6 +49,7 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 func validateStreams(registry *Registry, value interface{}, key string) {
 	def := fixYamlMap(value, key)
 	for name, groups := range def {
+		registry.RegisterRedisStream(name, key)
 		asSlice, ok := groups.([]interface{})
 		if !ok {
 			panic(fmt.Errorf("streams '%v' is not valid", groups))
@@ -57,7 +58,7 @@ func validateStreams(registry *Registry, value interface{}, key string) {
 		for i, val := range asSlice {
 			asString[i] = fmt.Sprintf("%v", val)
 		}
-		registry.RegisterRedisStream(name, key, asString)
+		registry.RegisterRedisStreamConsumerGroups(name, asString...)
 	}
 }
 

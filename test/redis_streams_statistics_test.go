@@ -14,7 +14,8 @@ func TestRedisStreamsStatus(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterRedis("localhost:6382", "", 11)
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
-	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
+	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	engine := validatedRegistry.CreateEngine()
@@ -41,7 +42,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 		Name string
 	}
 	for i := 1; i <= 10001; i++ {
-		flusher.PublishToStream("test-stream", testEvent{"b"})
+		flusher.PublishToStream("test-stream", testEvent{"b"}, nil)
 	}
 	flusher.Flush()
 	time.Sleep(time.Millisecond * 500)
@@ -76,7 +77,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	assert.Equal(t, uint64(0), statsSingle.Groups[0].Pending)
 	assert.Len(t, statsSingle.Groups[0].Consumers, 0)
 
-	flusher.PublishToStream("test-stream", testEvent{"a"})
+	flusher.PublishToStream("test-stream", testEvent{"a"}, nil)
 	flusher.Flush()
 	assert.Panics(t, func() {
 		consumer.Consume(context.Background(), 10, func(events []beeorm.Event) {

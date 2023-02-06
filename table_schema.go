@@ -396,15 +396,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 			oneRefs = append(oneRefs, key)
 		}
 	}
-	for _, plugin := range registry.plugins {
-		interfaceInitTableSchema, isInterfaceInitTableSchema := plugin.(PluginInterfaceInitTableSchema)
-		if isInterfaceInitTableSchema {
-			err := interfaceInitTableSchema.InterfaceInitTableSchema(tableSchema, registry)
-			if err != nil {
-				return err
-			}
-		}
-	}
 	hasUUID := tableSchema.getTag("uuid", "true", "false") == "true"
 	if hasUUID {
 		idField, is := entityType.FieldByName("ID")
@@ -513,6 +504,15 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.uniqueIndices = uniqueIndicesSimple
 	tableSchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
 	tableSchema.hasUUID = hasUUID
+	for _, plugin := range registry.plugins {
+		interfaceInitTableSchema, isInterfaceInitTableSchema := plugin.(PluginInterfaceInitTableSchema)
+		if isInterfaceInitTableSchema {
+			err := interfaceInitTableSchema.InterfaceInitTableSchema(tableSchema, registry)
+			if err != nil {
+				return err
+			}
+		}
+	}
 	return tableSchema.validateIndexes(uniqueIndices, indices)
 }
 
