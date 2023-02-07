@@ -38,7 +38,7 @@ func TestValidatedRegistry(t *testing.T) {
 	entities := validated.GetEntities()
 	assert.Len(t, entities, 1)
 	assert.Equal(t, reflect.TypeOf(validatedRegistryEntity{}), entities["test.validatedRegistryEntity"])
-	assert.Nil(t, validated.GetTableSchema("invalid"))
+	assert.Nil(t, validated.GetEntitySchema("invalid"))
 
 	enum := validated.GetEnum("enum_map")
 	assert.Equal(t, []string{"a", "b"}, enum.GetFields())
@@ -73,10 +73,10 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, 50, localCachePools["another"].GetLimit())
 
 	assert.PanicsWithError(t, "entity 'test.validatedRegistryNotRegisteredEntity' is not registered", func() {
-		validated.GetTableSchemaForEntity(&validatedRegistryNotRegisteredEntity{})
+		validated.GetEntitySchemaForEntity(&validatedRegistryNotRegisteredEntity{})
 	})
 
-	usage := validated.GetTableSchemaForEntity(entity).GetUsage(validated)
+	usage := validated.GetEntitySchemaForEntity(entity).GetUsage(validated)
 	assert.NotNil(t, usage)
 	assert.Len(t, usage, 1)
 	for _, data := range usage {

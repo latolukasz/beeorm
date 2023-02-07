@@ -38,7 +38,7 @@ func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
-func (p *Plugin) InterfaceInitTableSchema(schema beeorm.SettableTableSchema, _ *beeorm.Registry) error {
+func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
 	crudStream := schema.GetTag("ORM", p.options.TagName, "true", "false")
 	if crudStream != "true" {
 		return nil
@@ -62,11 +62,11 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 }
 
 func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flush *beeorm.EntitySQLFlush, cacheFlusher beeorm.FlusherCacheSetter) {
-	tableSchema := engine.GetRegistry().GetTableSchema(flush.EntityName)
-	if tableSchema.GetOption(PluginCode, hasCrudStreamOption) != true {
+	entitySchema := engine.GetRegistry().GetEntitySchema(flush.EntityName)
+	if entitySchema.GetOption(PluginCode, hasCrudStreamOption) != true {
 		return
 	}
-	skippedFields := tableSchema.GetOption(PluginCode, skipCrudStreamOption)
+	skippedFields := entitySchema.GetOption(PluginCode, skipCrudStreamOption)
 	if flush.Update != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {

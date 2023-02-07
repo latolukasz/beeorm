@@ -11,7 +11,7 @@ func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager
 	return searchIDs(engine, where, pager, true, entityType)
 }
 
-func prepareScan(schema *tableSchema) (pointers []interface{}) {
+func prepareScan(schema *entitySchema) (pointers []interface{}) {
 	count := len(schema.columnNames) + 1
 	pointers = make([]interface{}, count)
 	id := uint64(0)
@@ -122,9 +122,9 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *entitySchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
-	schema := orm.tableSchema
+	schema := orm.entitySchema
 	whereQuery := where.String()
 	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
@@ -158,7 +158,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
-	schema := getTableSchema(engine.registry, entityType)
+	schema := getEntitySchema(engine.registry, entityType)
 	whereQuery := where.String()
 	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
@@ -191,7 +191,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 	return totalRows
 }
 
-func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *entitySchema, []interface{}) {
 	return searchRow(serializer, engine, where, entity, references)
 }
 
@@ -199,7 +199,7 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := getTableSchema(engine.registry, entityType)
+	schema := getEntitySchema(engine.registry, entityType)
 	whereQuery := where.String()
 	if !where.showFakeDeleted && schema.hasFakeDelete {
 		/* #nosec */
@@ -222,7 +222,7 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 	return result, totalRows
 }
 
-func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, where *Where, schema *tableSchema, foundRows int) int {
+func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, where *Where, schema *entitySchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows

@@ -334,7 +334,7 @@ func (e *engineImplementation) load(serializer *serializer, entity Entity, refer
 	if entity.IsLoaded() {
 		if len(references) > 0 {
 			orm := entity.getORM()
-			warmUpReferences(serializer, e, orm.tableSchema, orm.elem, references, false)
+			warmUpReferences(serializer, e, orm.entitySchema, orm.elem, references, false)
 		}
 		return true
 	}

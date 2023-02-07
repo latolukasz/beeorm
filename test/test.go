@@ -74,10 +74,10 @@ func PrepareTables(t *testing.T, registry *beeorm.Registry, mySQLVersion, redisV
 		if eType.Kind() == reflect.Ptr {
 			eType = eType.Elem()
 		}
-		tableSchema := vRegistry.GetTableSchema(eType.String())
-		tableSchema.TruncateTable(engine)
-		tableSchema.UpdateSchema(engine)
-		localCache, has := tableSchema.GetLocalCache(engine)
+		entitySchema := vRegistry.GetEntitySchema(eType.String())
+		entitySchema.TruncateTable(engine)
+		entitySchema.UpdateSchema(engine)
+		localCache, has := entitySchema.GetLocalCache(engine)
 		if has {
 			localCache.Clear()
 		}

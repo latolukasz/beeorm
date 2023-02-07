@@ -198,7 +198,7 @@ func testSchema(t *testing.T, version int) {
 	engine.GetMysql().Exec(alters[0].SQL)
 	engine.GetMysql().Exec(alters[1].SQL)
 
-	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
+	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
 	assert.Equal(t, "test.schemaEntity", schema.GetType().String())
 	references := schema.GetReferences()
 	assert.Len(t, references, 2)
@@ -225,7 +225,7 @@ func testSchema(t *testing.T, version int) {
 	assert.Len(t, alters, 1)
 	assert.False(t, alters[0].Safe)
 	assert.Equal(t, "ALTER TABLE `test`.`schemaEntityRef`\n    DROP COLUMN `Year2`;", alters[0].SQL)
-	engine.GetRegistry().GetTableSchemaForEntity(&schemaEntityRef{}).UpdateSchemaAndTruncateTable(engine)
+	engine.GetRegistry().GetEntitySchemaForEntity(&schemaEntityRef{}).UpdateSchemaAndTruncateTable(engine)
 	alters = engine.GetAlters()
 	assert.Len(t, alters, 0)
 
@@ -265,7 +265,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "invalid entity struct 'test.schemaEntity': unregistered enum test.testEnum")
 
 	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "", &schemaToDropEntity{})
-	schema = engine.GetRegistry().GetTableSchemaForEntity(&schemaToDropEntity{})
+	schema = engine.GetRegistry().GetEntitySchemaForEntity(&schemaToDropEntity{})
 	schema.DropTable(engine)
 	has, alters := schema.GetSchemaChanges(engine)
 	assert.True(t, has)

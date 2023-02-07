@@ -48,7 +48,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	_, offset := time.Now().Zone()
 	registry.timeOffset = int64(offset)
 	l := len(r.entities)
-	registry.tableSchemas = make(map[reflect.Type]*tableSchema, l)
+	registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	registry.entities = make(map[string]reflect.Type)
 	if registry.mySQLServers == nil {
 		registry.mySQLServers = make(map[string]MySQLPoolConfig)
@@ -115,12 +115,12 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		registry.enums[k] = v
 	}
 	for name, entityType := range r.entities {
-		tableSchema := &tableSchema{}
-		err := tableSchema.init(r, entityType)
+		entitySchema := &entitySchema{}
+		err := entitySchema.init(r, entityType)
 		if err != nil {
 			return nil, err
 		}
-		registry.tableSchemas[entityType] = tableSchema
+		registry.entitySchemas[entityType] = entitySchema
 		registry.entities[name] = entityType
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
@@ -140,7 +140,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	registry.plugins = r.plugins
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	e := registry.CreateEngine()
-	for _, schema := range registry.tableSchemas {
+	for _, schema := range registry.entitySchemas {
 		_, err := checkStruct(schema, e.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())

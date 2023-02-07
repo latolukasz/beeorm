@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *tableSchema, hasMissing bool) {
+func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
 	lenIDs := len(ids)
 	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
 	if lenIDs == 0 {
@@ -19,7 +19,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
 
-	schema = getTableSchema(engine.registry, t)
+	schema = getEntitySchema(engine.registry, t)
 	hasLocalCache := schema.hasLocalCache
 	hasRedis := schema.hasRedisCache
 
@@ -166,8 +166,8 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	return
 }
 
-func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *tableSchema, rows reflect.Value, references []string, many bool) {
-	dbMap := make(map[string]map[*tableSchema]map[string][]Entity)
+func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *entitySchema, rows reflect.Value, references []string, many bool) {
+	dbMap := make(map[string]map[*entitySchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
 	var redisMap map[string]map[string][]Entity
 	l := 1
@@ -202,7 +202,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 		if !has {
 			panic(fmt.Errorf("reference tag %s is not valid", ref))
 		}
-		parentSchema := engine.registry.tableSchemas[engine.registry.entities[parentRef]]
+		parentSchema := engine.registry.entitySchemas[engine.registry.entities[parentRef]]
 		hasLocalCache := parentSchema.hasLocalCache
 		if !hasLocalCache && engine.hasRequestCache {
 			hasLocalCache = true
@@ -351,17 +351,17 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 	for refName, entities := range referencesNextEntities {
 		l := len(entities)
 		if l == 1 {
-			warmUpReferences(serializer, engine, entities[0].getORM().tableSchema, reflect.ValueOf(entities[0]),
+			warmUpReferences(serializer, engine, entities[0].getORM().entitySchema, reflect.ValueOf(entities[0]),
 				referencesNextNames[refName], false)
 		} else if l > 1 {
-			warmUpReferences(serializer, engine, entities[0].getORM().tableSchema, reflect.ValueOf(entities),
+			warmUpReferences(serializer, engine, entities[0].getORM().entitySchema, reflect.ValueOf(entities),
 				referencesNextNames[refName], true)
 		}
 	}
 }
 
 func fillRef(key string, localMap map[string]map[string][]Entity,
-	redisMap map[string]map[string][]Entity, dbMap map[string]map[*tableSchema]map[string][]Entity) {
+	redisMap map[string]map[string][]Entity, dbMap map[string]map[*entitySchema]map[string][]Entity) {
 	for _, p := range localMap {
 		delete(p, key)
 	}
@@ -375,8 +375,8 @@ func fillRef(key string, localMap map[string]map[string][]Entity,
 	}
 }
 
-func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *tableSchema,
-	dbMap map[string]map[*tableSchema]map[string][]Entity,
+func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *entitySchema,
+	dbMap map[string]map[*entitySchema]map[string][]Entity,
 	localMap map[string]map[string][]Entity, redisMap map[string]map[string][]Entity) {
 	_, has := referencesNextEntities[refName]
 	if has {
@@ -384,7 +384,7 @@ func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities 
 	}
 	cacheKey := parentSchema.getCacheKey(id)
 	if dbMap[parentSchema.mysqlPoolName] == nil {
-		dbMap[parentSchema.mysqlPoolName] = make(map[*tableSchema]map[string][]Entity)
+		dbMap[parentSchema.mysqlPoolName] = make(map[*entitySchema]map[string][]Entity)
 	}
 	if dbMap[parentSchema.mysqlPoolName][parentSchema] == nil {
 		dbMap[parentSchema.mysqlPoolName][parentSchema] = make(map[string][]Entity)

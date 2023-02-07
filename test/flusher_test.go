@@ -162,8 +162,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	registry.RegisterEnumStruct("test.testSet", testSet)
 	engine := PrepareTables(t, registry, 5, 6, "", entity, reference)
 
-	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
-	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference)
+	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
+	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(reference)
 	schema.DisableCache(!local, !redis)
 	schema2.DisableCache(!local, !redis)
 

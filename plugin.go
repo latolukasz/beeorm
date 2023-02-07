@@ -8,12 +8,12 @@ type PluginInterfaceInitRegistry interface {
 	PluginInterfaceInitRegistry(registry *Registry)
 }
 
-type PluginInterfaceInitTableSchema interface {
-	InterfaceInitTableSchema(schema SettableTableSchema, registry *Registry) error
+type PluginInterfaceInitEntitySchema interface {
+	InterfaceInitEntitySchema(schema SettableEntitySchema, registry *Registry) error
 }
 
 type PluginInterfaceSchemaCheck interface {
-	PluginInterfaceSchemaCheck(engine Engine, schema TableSchema) (alters []Alter, keepTables map[string][]string)
+	PluginInterfaceSchemaCheck(engine Engine, schema EntitySchema) (alters []Alter, keepTables map[string][]string)
 }
 
 type PluginInterfaceEntityFlushed interface {

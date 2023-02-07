@@ -19,7 +19,7 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
-	schema := getTableSchema(engine.registry, entityType)
+	schema := getEntitySchema(engine.registry, entityType)
 	definition, has := schema.cachedIndexes[indexName]
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))
@@ -219,7 +219,7 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 func cachedSearchOne(serializer *serializer, engine *engineImplementation, entity Entity, indexName string, fillStruct bool, arguments []interface{}, references []string) (has bool) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
-	schema := getTableSchema(engine.registry, entityType)
+	schema := getEntitySchema(engine.registry, entityType)
 	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", entityType.String()))
 	}
@@ -281,6 +281,6 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	return false
 }
 
-func getCacheKeySearch(tableSchema *tableSchema, indexName string, parameters ...interface{}) string {
-	return tableSchema.cachePrefix + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
+func getCacheKeySearch(entitySchema *entitySchema, indexName string, parameters ...interface{}) string {
+	return entitySchema.cachePrefix + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
 }

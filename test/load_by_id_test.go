@@ -80,17 +80,17 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2)
 
-	schemas := make([]beeorm.TableSchema, 0)
+	schemas := make([]beeorm.EntitySchema, 0)
 	registry := engine.GetRegistry()
-	schemas = append(schemas, registry.GetTableSchemaForEntity(entity))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(entity))
 
-	schemas = append(schemas, registry.GetTableSchemaForEntity(entityRedis))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(entityLocal))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(entityNoCache))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(reference))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(reference2))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference2))
-	schemas = append(schemas, registry.GetTableSchemaForEntity(subReference))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityRedis))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityLocal))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityNoCache))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(reference))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(reference2))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(subReference2))
+	schemas = append(schemas, registry.GetEntitySchemaForEntity(subReference))
 
 	for _, schema := range schemas {
 		schema.DisableCache(!local, !redis)
@@ -118,10 +118,10 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
-	schema := engine.GetRegistry().GetTableSchemaForCachePrefix("528af")
+	schema := engine.GetRegistry().GetEntitySchemaForCachePrefix("528af")
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
-	schema = engine.GetRegistry().GetTableSchemaForCachePrefix("invalid")
+	schema = engine.GetRegistry().GetEntitySchemaForCachePrefix("invalid")
 	assert.Nil(t, schema)
 
 	entity = &loadByIDEntity{}

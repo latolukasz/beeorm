@@ -130,7 +130,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 				if len(e.References) > 0 {
 					checkReferences = true
 				} else {
-					schema := f.engine.registry.GetTableSchema(e.EntityName)
+					schema := f.engine.registry.GetEntitySchema(e.EntityName)
 					db := schema.GetMysql(f.engine)
 					byDB, hasDB := group[db]
 					if !hasDB {
@@ -376,7 +376,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			e.UpdateOnDuplicate = nil
 		} else if rowsAffected == 0 {
 			if e.entity != nil && e.ID == 0 {
-				schema := f.engine.GetRegistry().GetTableSchemaForEntity(e.entity).(*tableSchema)
+				schema := f.engine.GetRegistry().GetEntitySchemaForEntity(e.entity).(*entitySchema)
 			OUTER:
 				for _, uniqueIndex := range schema.uniqueIndices {
 					fields := make([]string, 0)
@@ -611,7 +611,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 		f.checkReferencesToInsert(entity, entitySQLFlushData, references)
 
 		currentID := entity.GetID()
-		if orm.tableSchema.hasUUID && !orm.inDB && currentID == 0 {
+		if orm.entitySchema.hasUUID && !orm.inDB && currentID == 0 {
 			currentID = uuid()
 			orm.id = currentID
 			entitySQLFlushData.ID = currentID
@@ -628,7 +628,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		if e.skip || e.ID == 0 {
 			continue
 		}
-		schema := f.engine.registry.GetTableSchema(e.EntityName).(*tableSchema)
+		schema := f.engine.registry.GetEntitySchema(e.EntityName).(*entitySchema)
 		hasLocalCache := schema.hasLocalCache
 		localCacheCode := schema.localCacheName
 		hasRedis := schema.hasRedisCache
@@ -721,7 +721,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 }
 
 func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *EntitySQLFlush, references map[uintptr]Entity) {
-	for _, refName := range entity.getORM().tableSchema.refOne {
+	for _, refName := range entity.getORM().entitySchema.refOne {
 		refValue := entity.getORM().elem.FieldByName(refName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
@@ -739,7 +739,7 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *Ent
 	}
 }
 
-func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
+func (f *flusher) getCacheQueriesKeys(schema *entitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.cachedIndexesAll {
 		if !addedDeleted && schema.hasFakeDelete {

@@ -55,8 +55,8 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entityNoFakeDelete *cachedSearchEntityNoFakeDelete
 	var entityRef *cachedSearchRefEntity
 	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
-	schema := engine.GetRegistry().GetTableSchemaForEntity(entity)
-	schemaNoFakeDelete := engine.GetRegistry().GetTableSchemaForEntity(entityNoFakeDelete)
+	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
+	schemaNoFakeDelete := engine.GetRegistry().GetEntitySchemaForEntity(entityNoFakeDelete)
 	schema.DisableCache(!localCache, !redisCache)
 	schemaNoFakeDelete.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {

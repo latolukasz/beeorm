@@ -7,9 +7,9 @@ import (
 
 type ValidatedRegistry interface {
 	CreateEngine() Engine
-	GetTableSchema(entityName string) TableSchema
-	GetTableSchemaForEntity(entity Entity) TableSchema
-	GetTableSchemaForCachePrefix(cachePrefix string) TableSchema
+	GetEntitySchema(entityName string) EntitySchema
+	GetEntitySchemaForEntity(entity Entity) EntitySchema
+	GetEntitySchemaForCachePrefix(cachePrefix string) EntitySchema
 	GetSourceRegistry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
@@ -22,7 +22,7 @@ type ValidatedRegistry interface {
 
 type validatedRegistry struct {
 	registry           *Registry
-	tableSchemas       map[reflect.Type]*tableSchema
+	entitySchemas      map[reflect.Type]*entitySchema
 	entities           map[string]reflect.Type
 	localCacheServers  map[string]LocalCachePoolConfig
 	mySQLServers       map[string]MySQLPoolConfig
@@ -96,28 +96,28 @@ func (r *validatedRegistry) CreateEngine() Engine {
 	return &engineImplementation{registry: r}
 }
 
-func (r *validatedRegistry) GetTableSchema(entityName string) TableSchema {
+func (r *validatedRegistry) GetEntitySchema(entityName string) EntitySchema {
 	t, has := r.entities[entityName]
 	if !has {
 		return nil
 	}
-	return getTableSchema(r, t)
+	return getEntitySchema(r, t)
 }
 
-func (r *validatedRegistry) GetTableSchemaForEntity(entity Entity) TableSchema {
+func (r *validatedRegistry) GetEntitySchemaForEntity(entity Entity) EntitySchema {
 	t := reflect.TypeOf(entity)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	tableSchema := getTableSchema(r, t)
-	if tableSchema == nil {
+	entitySchema := getEntitySchema(r, t)
+	if entitySchema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 	}
-	return tableSchema
+	return entitySchema
 }
 
-func (r *validatedRegistry) GetTableSchemaForCachePrefix(cachePrefix string) TableSchema {
-	for _, schema := range r.tableSchemas {
+func (r *validatedRegistry) GetEntitySchemaForCachePrefix(cachePrefix string) EntitySchema {
+	for _, schema := range r.entitySchemas {
 		if schema.cachePrefix == cachePrefix {
 			return schema
 		}

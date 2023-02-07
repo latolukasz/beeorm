@@ -8,9 +8,9 @@ import (
 
 const cacheNilValue = ""
 
-func loadByID(serializer *serializer, engine *engineImplementation, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *tableSchema) {
+func loadByID(serializer *serializer, engine *engineImplementation, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *entitySchema) {
 	orm := initIfNeeded(engine.registry, entity)
-	schema = orm.tableSchema
+	schema = orm.entitySchema
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
 	redisCache, hasRedis := schema.GetRedisCache(engine)
 	var cacheKey string
@@ -92,11 +92,11 @@ func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
 		value := reflect.ValueOf(entity)
 		elem := value.Elem()
 		t := elem.Type()
-		tableSchema := getTableSchema(registry, t)
-		if tableSchema == nil {
+		entitySchema := getEntitySchema(registry, t)
+		if entitySchema == nil {
 			panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 		}
-		orm.tableSchema = tableSchema
+		orm.entitySchema = entitySchema
 		orm.value = value
 		orm.elem = elem
 	}
