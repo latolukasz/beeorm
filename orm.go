@@ -105,7 +105,7 @@ func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
 	orm.onDuplicateKeyUpdate = bind
 }
 
-func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *EntitySQLFlush, has bool) {
+func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *entitySQLFlush, has bool) {
 	if orm.fakeDelete {
 		if orm.entitySchema.hasFakeDelete {
 			orm.elem.FieldByName("FakeDelete").SetBool(true)
@@ -117,7 +117,7 @@ func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entit
 	builder := newEntitySQLFlushBuilder(orm, forceFillOld)
 	builder.fill(serializer, orm.entitySchema.fields, orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.Update) > 0
-	return builder.EntitySQLFlush, has
+	return builder.entitySQLFlush, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {

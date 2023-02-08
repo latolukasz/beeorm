@@ -17,9 +17,9 @@ import (
 
 const NullBindValue = "NULL"
 
-type EntitySQLFlush struct {
+type entitySQLFlush struct {
 	Action            FlushType
-	EntityName        string
+	Entity            string
 	ID                uint64
 	Old               Bind
 	Update            Bind
@@ -33,8 +33,41 @@ type EntitySQLFlush struct {
 	entity            Entity
 }
 
+type EventEntityFlushQueryExecuted interface {
+	Type() FlushType
+	EntityName() string
+	EntityID() uint64
+	Before() Bind
+	After() Bind
+	EngineMeta() Bind
+}
+
+func (e *entitySQLFlush) Type() FlushType {
+	return e.Action
+}
+
+func (e *entitySQLFlush) EntityName() string {
+	return e.Entity
+}
+
+func (e *entitySQLFlush) EntityID() uint64 {
+	return e.ID
+}
+
+func (e *entitySQLFlush) Before() Bind {
+	return e.Old
+}
+
+func (e *entitySQLFlush) After() Bind {
+	return e.Update
+}
+
+func (e *entitySQLFlush) EngineMeta() Bind {
+	return e.Meta
+}
+
 type entityFlushBuilder struct {
-	*EntitySQLFlush
+	*entitySQLFlush
 	orm          *ORM
 	index        int
 	fillOld      bool
@@ -47,7 +80,7 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	if orm.delete {
 		action = Delete
 	} else if orm.onDuplicateKeyUpdate != nil {
-		action = InsertUpdate
+		action = insertUpdate
 	} else if orm.inDB {
 		action = Update
 		if !orm.IsLoaded() {
@@ -55,13 +88,13 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 		}
 	}
 	schema := orm.entitySchema
-	flushData := &EntitySQLFlush{}
+	flushData := &entitySQLFlush{}
 	flushData.Action = action
-	flushData.EntityName = schema.t.String()
+	flushData.Entity = schema.t.String()
 	flushData.ID = orm.GetID()
 	flushData.TempID = uint64(orm.value.Pointer())
 	b := &entityFlushBuilder{
-		EntitySQLFlush: flushData,
+		entitySQLFlush: flushData,
 		orm:            orm,
 		index:          -1,
 	}

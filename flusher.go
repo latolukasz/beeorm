@@ -25,16 +25,16 @@ type FlushType int
 
 const (
 	Insert FlushType = iota
-	InsertUpdate
 	Update
 	Delete
+	insertUpdate
 )
 
 func (ft FlushType) String() string {
 	switch ft {
 	case Insert:
 		return "INSERT"
-	case InsertUpdate:
+	case insertUpdate:
 		return "INSERT ON DUPLICATE KEY UPDATE"
 	case Update:
 		return "UPDATE"
@@ -76,13 +76,13 @@ type flusher struct {
 	trackedEntities        map[uintptr]Entity
 	trackedEntitiesCounter int
 	serializer             *serializer
-	events                 []*EntitySQLFlush
+	events                 []*entitySQLFlush
 	stringBuilder          strings.Builder
 	localCacheSetters      map[string]*localCacheSetter
 	redisCacheSetters      map[string]*redisCacheSetter
 }
 
-func (f *flusher) addFlushEvent(sqlFlush *EntitySQLFlush) {
+func (f *flusher) addFlushEvent(sqlFlush *entitySQLFlush) {
 	f.events = append(f.events, sqlFlush)
 }
 
@@ -122,7 +122,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		}()
 		for checkReferences {
 			checkReferences = false
-			group := make(map[*DB]map[string]map[FlushType][]*EntitySQLFlush)
+			group := make(map[*DB]map[string]map[FlushType][]*entitySQLFlush)
 			for _, e := range f.events {
 				if e.flushed {
 					continue
@@ -130,16 +130,16 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 				if len(e.References) > 0 {
 					checkReferences = true
 				} else {
-					schema := f.engine.registry.GetEntitySchema(e.EntityName)
+					schema := f.engine.registry.GetEntitySchema(e.Entity)
 					db := schema.GetMysql(f.engine)
 					byDB, hasDB := group[db]
 					if !hasDB {
-						byDB = make(map[string]map[FlushType][]*EntitySQLFlush)
+						byDB = make(map[string]map[FlushType][]*entitySQLFlush)
 						group[db] = byDB
 					}
 					byTable, hasTable := byDB[schema.GetTableName()]
 					if !hasTable {
-						byTable = make(map[FlushType][]*EntitySQLFlush)
+						byTable = make(map[FlushType][]*entitySQLFlush)
 						byDB[schema.GetTableName()] = byTable
 					}
 					byTable[e.Action] = append(byTable[e.Action], e)
@@ -187,7 +187,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 							}
 						}
 					}
-					insertUpdateEvents, hasInsertUpdates := byAction[InsertUpdate]
+					insertUpdateEvents, hasInsertUpdates := byAction[insertUpdate]
 					if hasInsertUpdates {
 						f.executeInsertOnDuplicateKeyUpdates(db, tableName, insertUpdateEvents)
 					}
@@ -219,7 +219,7 @@ func (f *flusher) flushCacheSetters() {
 	f.redisCacheSetters = nil
 }
 
-func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush) {
+func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
 	f.stringBuilder.WriteString("(ID")
@@ -272,7 +272,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*EntitySQLFlush)
 	}
 }
 
-func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush) {
+func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush) {
 	l := len(events)
 	for i, e := range events {
 		if e.flushed {
@@ -321,7 +321,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*EntitySQLFlush)
 	}
 }
 
-func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*EntitySQLFlush) {
+func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*entitySQLFlush) {
 	for _, e := range events {
 		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate)+1)
 		f.stringBuilder.Reset()
@@ -419,7 +419,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 	}
 }
 
-func (f *flusher) executeDeletes(db *DB, table string, events []*EntitySQLFlush) {
+func (f *flusher) executeDeletes(db *DB, table string, events []*entitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("DELETE FROM `" + table + "` WHERE ID IN(?")
 	f.stringBuilder.WriteString(strings.Repeat(",?", len(events)-1) + ")")
@@ -434,7 +434,7 @@ func (f *flusher) executeDeletes(db *DB, table string, events []*EntitySQLFlush)
 	}
 }
 
-func (f *flusher) executePluginInterfaceEntityFlushed(e *EntitySQLFlush) {
+func (f *flusher) executePluginInterfaceEntityFlushed(e *entitySQLFlush) {
 	for _, plugin := range f.engine.registry.plugins {
 		interfaceEntityFlushed, isInterfaceEntityFlushed := plugin.(PluginInterfaceEntityFlushed)
 		if isInterfaceEntityFlushed {
@@ -628,7 +628,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		if e.skip || e.ID == 0 {
 			continue
 		}
-		schema := f.engine.registry.GetEntitySchema(e.EntityName).(*entitySchema)
+		schema := f.engine.registry.GetEntitySchema(e.Entity).(*entitySchema)
 		hasLocalCache := schema.hasLocalCache
 		localCacheCode := schema.localCacheName
 		hasRedis := schema.hasRedisCache
@@ -720,7 +720,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 	}
 }
 
-func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *EntitySQLFlush, references map[uintptr]Entity) {
+func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *entitySQLFlush, references map[uintptr]Entity) {
 	for _, refName := range entity.getORM().entitySchema.refOne {
 		refValue := entity.getORM().elem.FieldByName(refName)
 		if refValue.IsValid() && !refValue.IsNil() {

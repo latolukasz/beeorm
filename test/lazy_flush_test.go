@@ -187,14 +187,14 @@ func TestLazyFlush(t *testing.T) {
 	receiver := beeorm.NewLazyFlushConsumer(engine)
 	receiver.SetBlockTime(0)
 
-	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, e *beeorm.EntitySQLFlush, queryError *mysql.MySQLError) error {
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, queryError *mysql.MySQLError) error {
 		valid = true
 		assert.NotNil(t, e)
-		assert.Equal(t, "test.lazyReceiverEntity", e.EntityName)
-		assert.Equal(t, beeorm.Insert, e.Action)
-		assert.Len(t, e.Old, 0)
-		assert.Len(t, e.Update, 4)
-		assert.Equal(t, "Ivona", e.Update["Name"])
+		assert.Equal(t, "test.lazyReceiverEntity", event.EntityName())
+		assert.Equal(t, beeorm.Insert, event.Type())
+		assert.Len(t, event.Before(), 0)
+		assert.Len(t, event.After(), 4)
+		assert.Equal(t, "Ivona", event.After()["Name"])
 		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
 		return queryError
 	})
@@ -204,10 +204,10 @@ func TestLazyFlush(t *testing.T) {
 	assert.True(t, valid)
 	valid = false
 	valid2 := false
-	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, e *beeorm.EntitySQLFlush, queryError *mysql.MySQLError) error {
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, queryError *mysql.MySQLError) error {
 		valid2 = true
 		assert.NotNil(t, e)
-		assert.Equal(t, "test.lazyReceiverEntity", e.EntityName)
+		assert.Equal(t, "test.lazyReceiverEntity", event.EntityName())
 		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
 		return nil
 	})

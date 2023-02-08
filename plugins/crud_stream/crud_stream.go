@@ -61,34 +61,34 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 	registry.RegisterRedisStream(ChannelName, p.options.DefaultRedisPool)
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, flush *beeorm.EntitySQLFlush, cacheFlusher beeorm.FlusherCacheSetter) {
-	entitySchema := engine.GetRegistry().GetEntitySchema(flush.EntityName)
+func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, cacheFlusher beeorm.FlusherCacheSetter) {
+	entitySchema := engine.GetRegistry().GetEntitySchema(event.EntityName())
 	if entitySchema.GetOption(PluginCode, hasCrudStreamOption) != true {
 		return
 	}
 	skippedFields := entitySchema.GetOption(PluginCode, skipCrudStreamOption)
-	if flush.Update != nil && skippedFields != nil {
+	if event.After() != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {
-			_, has := flush.Update[skip]
+			_, has := event.After()[skip]
 			if has {
 				skipped++
 			}
 		}
-		if skipped == len(flush.Update) {
+		if skipped == len(event.After()) {
 			return
 		}
 	}
 	val := &CrudEvent{
-		EntityName: flush.EntityName,
-		ID:         flush.ID,
-		Action:     flush.Action,
-		Changes:    flush.Update,
+		EntityName: event.EntityName(),
+		ID:         event.EntityID(),
+		Action:     event.Type(),
+		Changes:    event.After(),
 		Updated:    time.Now()}
-	if len(flush.Old) > 0 {
-		val.Before = flush.Old
+	if len(event.Before()) > 0 {
+		val.Before = event.Before()
 	}
-	cacheFlusher.PublishToStream(ChannelName, val, flush.Meta)
+	cacheFlusher.PublishToStream(ChannelName, val, event.EngineMeta())
 }
 
 type CrudEvent struct {

@@ -26,7 +26,7 @@ func NewLazyFlushConsumer(engine Engine) *LazyFlushConsumer {
 	return c
 }
 
-type LazyFlushQueryErrorResolver func(engine Engine, flush *EntitySQLFlush, queryError *mysql.MySQLError) error
+type LazyFlushQueryErrorResolver func(engine Engine, event EventEntityFlushQueryExecuted, queryError *mysql.MySQLError) error
 
 func (r *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
 	r.lazyFlushQueryErrorResolvers = append(r.lazyFlushQueryErrorResolvers, resolver)
@@ -36,9 +36,9 @@ func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
 	r.consumer = r.engine.GetEventBroker().Consumer(LazyFlushGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
 	return r.consumer.Consume(ctx, 500, func(events []Event) {
-		lazyEvents := make([]*EntitySQLFlush, 0)
+		lazyEvents := make([]*entitySQLFlush, 0)
 		for _, e := range events {
-			var data []*EntitySQLFlush
+			var data []*entitySQLFlush
 			e.Unserialize(&data)
 			lazyEvents = append(lazyEvents, data...)
 		}
@@ -46,7 +46,7 @@ func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
 	})
 }
 
-func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQLFlush) {
+func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*entitySQLFlush) {
 	for i, e := range events {
 		meta := e.Meta()
 		if len(meta) > 0 {
@@ -61,7 +61,7 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*EntitySQL
 			}
 			for i, e := range lazyEvents {
 				f := &flusher{engine: r.engine}
-				f.events = []*EntitySQLFlush{e}
+				f.events = []*entitySQLFlush{e}
 				func() {
 					defer func() {
 						if rec2 := recover(); rec2 != nil {
