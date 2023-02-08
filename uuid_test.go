@@ -1,24 +1,22 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type uuidEntity struct {
-	beeorm.ORM `orm:"uuid;localCache;redisCache"`
-	Name       string `orm:"unique=name;required"`
-	Age        int
+	ORM  `orm:"uuid;localCache;redisCache"`
+	Name string `orm:"unique=name;required"`
+	Age  int
 }
 
 type uuidReferenceEntity struct {
-	beeorm.ORM `orm:"uuid;localCache;redisCache"`
-	Parent     *uuidEntity
-	Name       string `orm:"unique=name;required"`
-	Size       int
+	ORM    `orm:"uuid;localCache;redisCache"`
+	Parent *uuidEntity
+	Name   string `orm:"unique=name;required"`
+	Size   int
 }
 
 func TestUUIDdNoCache(t *testing.T) {
@@ -38,7 +36,7 @@ func TestUUIDLocalRedisCache(t *testing.T) {
 }
 
 func testUUID(t *testing.T, local bool, redis bool) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
 	engine := PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
@@ -93,7 +91,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	assert.True(t, engine.LoadByID(id, entity))
 	assert.Equal(t, "Name 3", entity.Name)
 
-	id += 1
+	id++
 	entity = &uuidEntity{}
 	entity.Name = "test lazy"
 	entity.Age = 33

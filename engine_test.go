@@ -1,15 +1,13 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestEngine(t *testing.T) {
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
+	engine := PrepareTables(t, &Registry{}, 5, 6, "")
 	source := engine.GetRegistry().GetSourceRegistry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {

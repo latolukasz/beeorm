@@ -7,7 +7,6 @@ import (
 	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
 
 	"github.com/latolukasz/beeorm/v2"
-	"github.com/latolukasz/beeorm/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -52,7 +51,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(crud_stream.Init(nil))
 	registry.RegisterPlugin(Init(nil))
-	engine := test.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
+	engine := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity3`")
@@ -68,7 +67,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
 
 	assert.Equal(t, int64(2), engine.GetRedis().XLen(crud_stream.ChannelName))
-	test.RunStreamGarbageCollectorConsumer(engine)
+	beeorm.RunStreamGarbageCollectorConsumer(engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
 
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity1)
@@ -82,7 +81,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "John", logs[0].Changes["Name"])
 	assert.Equal(t, "Poland", logs[0].Changes["Country"])
 	assert.Equal(t, "Smith", logs[0].Changes["LastName"])
-	test.RunStreamGarbageCollectorConsumer(engine)
+	beeorm.RunStreamGarbageCollectorConsumer(engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
 
 	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(entity2)

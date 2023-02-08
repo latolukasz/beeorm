@@ -1,4 +1,4 @@
-package test
+package beeorm
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/latolukasz/beeorm/v2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +21,7 @@ func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *beeorm.Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...beeorm.Entity) (engine beeorm.Engine) {
+func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (engine Engine) {
 	if mySQLVersion == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
@@ -89,8 +88,8 @@ func PrepareTables(t *testing.T, registry *beeorm.Registry, mySQLVersion, redisV
 	return engine
 }
 
-func RunLazyFlushConsumer(engine beeorm.Engine, garbage bool) {
-	consumer := beeorm.NewLazyFlushConsumer(engine)
+func RunLazyFlushConsumer(engine Engine, garbage bool) {
+	consumer := NewLazyFlushConsumer(engine)
 	consumer.SetBlockTime(0)
 	consumer.Digest(context.Background())
 
@@ -99,15 +98,15 @@ func RunLazyFlushConsumer(engine beeorm.Engine, garbage bool) {
 	}
 }
 
-func RunStreamGarbageCollectorConsumer(engine beeorm.Engine) {
-	garbageConsumer := beeorm.NewStreamGarbageCollectorConsumer(engine)
+func RunStreamGarbageCollectorConsumer(engine Engine) {
+	garbageConsumer := NewStreamGarbageCollectorConsumer(engine)
 	garbageConsumer.SetBlockTime(0)
 	garbageConsumer.Digest(context.Background())
 }
 
 type MockDBClient struct {
-	OriginDB            beeorm.DBClient
-	TX                  beeorm.DBClientTX
+	OriginDB            DBClient
+	TX                  DBClientTX
 	ExecMock            func(query string, args ...interface{}) (sql.Result, error)
 	ExecContextMock     func(context context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRowMock        func(query string, args ...interface{}) *sql.Row

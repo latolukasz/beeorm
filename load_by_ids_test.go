@@ -1,28 +1,26 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type loadByIdsEntity struct {
-	beeorm.ORM   `orm:"localCache;redisCache"`
+	ORM          `orm:"localCache;redisCache"`
 	Name         string `orm:"max=100"`
 	ReferenceOne *loadByIdsReference
 }
 
 type loadByIdsReference struct {
-	beeorm.ORM   `orm:"localCache;redisCache"`
+	ORM          `orm:"localCache;redisCache"`
 	Name         string
 	ReferenceTwo *loadByIdsSubReference
 }
 
 type loadByIdsSubReference struct {
-	beeorm.ORM `orm:"localCache;redisCache"`
-	Name       string
+	ORM  `orm:"localCache;redisCache"`
+	Name string
 }
 
 func TestLoadByIdsNoCache(t *testing.T) {
@@ -45,7 +43,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var entity *loadByIdsEntity
 	var reference *loadByIdsReference
 	var subReference *loadByIdsSubReference
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, reference, subReference)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, reference, subReference)
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
 	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(reference)
 	schema3 := engine.GetRegistry().GetEntitySchemaForEntity(subReference)
@@ -243,8 +241,8 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Equal(t, uint64(3), rows[2].GetID())
 	}
 
-	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
-	assert.PanicsWithError(t, "entity 'test.loadByIdsEntity' is not registered", func() {
+	engine = PrepareTables(t, &Registry{}, 5, 6, "")
+	assert.PanicsWithError(t, "entity 'beeorm.loadByIdsEntity' is not registered", func() {
 		engine.LoadByIDs([]uint64{1}, &rows)
 	})
 }

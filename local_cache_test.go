@@ -1,15 +1,13 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestLocalCache(t *testing.T) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	registry.RegisterLocalCache(100)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)

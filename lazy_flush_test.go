@@ -1,25 +1,24 @@
-package test
+package beeorm
 
 import (
 	"context"
 	"testing"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/latolukasz/beeorm/v2"
 	"github.com/stretchr/testify/assert"
 )
 
 type lazyReceiverEntity struct {
-	beeorm.ORM   `orm:"localCache;redisCache;asyncRedisLazyFlush=default"`
+	ORM          `orm:"localCache;redisCache;asyncRedisLazyFlush=default"`
 	Name         string `orm:"unique=name"`
 	Age          uint64
-	EnumNullable string `orm:"enum=beeorm.TestEnum"`
+	EnumNullable string `orm:"enum=TestEnum"`
 	RefOne       *lazyReceiverReference
-	IndexAll     *beeorm.CachedQuery `query:""`
+	IndexAll     *CachedQuery `query:""`
 }
 
 type lazyReceiverReference struct {
-	beeorm.ORM
+	ORM
 	Name string
 }
 
@@ -27,8 +26,8 @@ func TestLazyFlush(t *testing.T) {
 	var entity *lazyReceiverEntity
 	var ref *lazyReceiverReference
 
-	registry := &beeorm.Registry{}
-	registry.RegisterEnum("beeorm.TestEnum", []string{"a", "b", "c"})
+	registry := &Registry{}
+	registry.RegisterEnum("TestEnum", []string{"a", "b", "c"})
 	engine := PrepareTables(t, registry, 5, 6, "", entity, ref)
 	engine.GetRedis().FlushDB()
 
@@ -124,7 +123,7 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "Tommy3", e3.Name)
 
 	e = &lazyReceiverEntity{Name: "Tommy2"}
-	e.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "38"})
+	e.SetOnDuplicateKeyUpdate(Bind{"Age": "38"})
 	engine.FlushLazy(e)
 	RunLazyFlushConsumer(engine, false)
 	engine.LoadByID(2, e)
@@ -184,14 +183,14 @@ func TestLazyFlush(t *testing.T) {
 	})
 	valid := false
 
-	receiver := beeorm.NewLazyFlushConsumer(engine)
+	receiver := NewLazyFlushConsumer(engine)
 	receiver.SetBlockTime(0)
 
-	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, queryError *mysql.MySQLError) error {
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, event EventEntityFlushed, queryError *mysql.MySQLError) error {
 		valid = true
 		assert.NotNil(t, e)
-		assert.Equal(t, "test.lazyReceiverEntity", event.EntityName())
-		assert.Equal(t, beeorm.Insert, event.Type())
+		assert.Equal(t, "beeorm.lazyReceiverEntity", event.EntityName())
+		assert.Equal(t, Insert, event.Type())
 		assert.Len(t, event.Before(), 0)
 		assert.Len(t, event.After(), 4)
 		assert.Equal(t, "Ivona", event.After()["Name"])
@@ -204,10 +203,10 @@ func TestLazyFlush(t *testing.T) {
 	assert.True(t, valid)
 	valid = false
 	valid2 := false
-	receiver.RegisterLazyFlushQueryErrorResolver(func(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, queryError *mysql.MySQLError) error {
+	receiver.RegisterLazyFlushQueryErrorResolver(func(engine Engine, event EventEntityFlushed, queryError *mysql.MySQLError) error {
 		valid2 = true
 		assert.NotNil(t, e)
-		assert.Equal(t, "test.lazyReceiverEntity", event.EntityName())
+		assert.Equal(t, "beeorm.lazyReceiverEntity", event.EntityName())
 		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
 		return nil
 	})

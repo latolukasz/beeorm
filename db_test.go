@@ -1,10 +1,8 @@
-package test
+package beeorm
 
 import (
 	"database/sql"
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/pkg/errors"
 
@@ -12,7 +10,7 @@ import (
 )
 
 type dbEntity struct {
-	beeorm.ORM
+	ORM
 	Name string
 }
 
@@ -29,7 +27,7 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity)
 	logger := &MockLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
 	testQueryLog := &MockLogHandler{}
@@ -42,7 +40,7 @@ func TestDB(t *testing.T) {
 
 	var id uint64
 	var name string
-	found := db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
+	found := db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
 	assert.True(t, found)
 	assert.Equal(t, uint64(1), id)
 	assert.Equal(t, "Tom", name)
@@ -54,12 +52,12 @@ func TestDB(t *testing.T) {
 	db.Rollback()
 	assert.False(t, db.IsInTransaction())
 	db.Rollback()
-	found = db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
 
 	db.Begin()
 	db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
-	found = db.QueryRow(beeorm.NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.True(t, found)
 	rows, def := db.Query("SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
 	assert.True(t, rows.Next())
@@ -86,7 +84,7 @@ func TestDB(t *testing.T) {
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity)
 	db := engine.GetMysql()
 	logger := &MockLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
@@ -151,7 +149,7 @@ func TestDBErrors(t *testing.T) {
 	})
 
 	assert.PanicsWithError(t, "Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'INVALID QUERY' at line 1", func() {
-		db.QueryRow(beeorm.NewWhere("INVALID QUERY"))
+		db.QueryRow(NewWhere("INVALID QUERY"))
 	})
 
 	mock.ExecMock = func(query string, args ...interface{}) (sql.Result, error) {

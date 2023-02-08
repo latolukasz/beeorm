@@ -1,10 +1,8 @@
-package test
+package beeorm
 
 import (
 	"testing"
 	"time"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -14,11 +12,11 @@ type ormEntityStruct struct {
 }
 
 type ormEntityRef struct {
-	beeorm.ORM
+	ORM
 }
 
 type ormEntity struct {
-	beeorm.ORM
+	ORM
 	Name           string
 	nameUnset      string
 	Uint           uint
@@ -50,7 +48,7 @@ type ormEntity struct {
 
 func TestORM(t *testing.T) {
 	var entity *ormEntity
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, &ormEntityRef{})
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, &ormEntityRef{})
 
 	entity = &ormEntity{nameUnset: ""}
 	id := entity.GetID()
@@ -225,7 +223,7 @@ func TestORM(t *testing.T) {
 
 	err = entity.SetField("TimeNullable", "2022-03-02T13:34:17Z")
 	assert.NoError(t, err)
-	assert.Equal(t, "2022-03-02 13:34:17", entity.TimeNullable.Format(beeorm.TimeFormat))
+	assert.Equal(t, "2022-03-02 13:34:17", entity.TimeNullable.Format(TimeFormat))
 
 	err = entity.SetField("TimeNullable", "hello")
 	assert.EqualError(t, err, "TimeNullable value hello is not valid")
@@ -235,14 +233,14 @@ func TestORM(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, timeNotNull, entity.Time)
 
-	timeNotNullString := timeNotNull.Format(beeorm.TimeFormat)
+	timeNotNullString := timeNotNull.Format(TimeFormat)
 	err = entity.SetField("Time", timeNotNullString)
 	assert.NoError(t, err)
-	assert.Equal(t, timeNotNull.Format(beeorm.TimeFormat), entity.Time.Format(beeorm.TimeFormat))
+	assert.Equal(t, timeNotNull.Format(TimeFormat), entity.Time.Format(TimeFormat))
 
 	err = entity.SetField("Time", "2022-03-02T13:34:17Z")
 	assert.NoError(t, err)
-	assert.Equal(t, "2022-03-02 13:34:17", entity.Time.Format(beeorm.TimeFormat))
+	assert.Equal(t, "2022-03-02 13:34:17", entity.Time.Format(TimeFormat))
 
 	err = entity.SetField("Time", "hello")
 	assert.EqualError(t, err, "Time value hello is not valid")

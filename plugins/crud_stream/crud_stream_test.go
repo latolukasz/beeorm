@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/latolukasz/beeorm/v2"
-	"github.com/latolukasz/beeorm/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,7 +22,7 @@ func TestCrudStream(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(Init(nil))
 	registry.RegisterRedisStreamConsumerGroups(ChannelName, "test-consumer")
-	engine := test.PrepareTables(t, registry, 8, 7, "", entity)
+	engine := beeorm.PrepareTables(t, registry, 8, 7, "", entity)
 
 	e1 := &crudStreamEntity{Name: "John", LastName: "Smith", Country: "Germany"}
 	engine.Flush(e1)
@@ -181,7 +180,7 @@ func TestCrudStream(t *testing.T) {
 	})
 	assert.False(t, valid)
 
-	test.RunLazyFlushConsumer(engine.GetRegistry().CreateEngine(), true)
+	beeorm.RunLazyFlushConsumer(engine.GetRegistry().CreateEngine(), true)
 	valid = false
 	consumer = engine.GetRegistry().CreateEngine().GetEventBroker().Consumer("test-consumer")
 	consumer.SetBlockTime(0)

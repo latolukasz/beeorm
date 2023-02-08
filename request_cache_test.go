@@ -1,24 +1,22 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type requestCacheEntity struct {
-	beeorm.ORM `orm:"redisCache"`
-	Name       string              `orm:"length=100;index=name"`
-	Code       string              `orm:"unique=code"`
-	IndexName  *beeorm.CachedQuery `query:":Name = ?"`
-	IndexCode  *beeorm.CachedQuery `queryOne:":Code = ?"`
+	ORM       `orm:"redisCache"`
+	Name      string       `orm:"length=100;index=name"`
+	Code      string       `orm:"unique=code"`
+	IndexName *CachedQuery `query:":Name = ?"`
+	IndexCode *CachedQuery `queryOne:":Code = ?"`
 }
 
 func TestRequestCache(t *testing.T) {
 	var entity *requestCacheEntity
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity)
 
 	flusher := engine.NewFlusher()
 	e := &requestCacheEntity{Name: "a", Code: "a1"}

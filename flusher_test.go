@@ -1,12 +1,10 @@
-package test
+package beeorm
 
 import (
 	"encoding/json"
 	"fmt"
 	"testing"
 	"time"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -79,7 +77,7 @@ func (av attributesValues) UnmarshalJSON(data []byte) error {
 }
 
 type flushEntity struct {
-	beeorm.ORM           `orm:"localCache;redisCache"`
+	ORM                  `orm:"localCache;redisCache"`
 	City                 string `orm:"unique=city"`
 	Name                 string `orm:"unique=name;required"`
 	NameTranslated       map[string]string
@@ -96,10 +94,10 @@ type flushEntity struct {
 	ReferenceTwo         *flushEntityReference `orm:"unique=ReferenceTwo"`
 	StringSlice          []string
 	StringSliceNotNull   []string `orm:"required"`
-	SetNullable          []string `orm:"set=test.testSet"`
-	SetNotNull           []string `orm:"set=test.testSet;required"`
-	EnumNullable         string   `orm:"enum=test.testEnum"`
-	EnumNotNull          string   `orm:"enum=test.testEnum;required"`
+	SetNullable          []string `orm:"set=beeorm.testSet"`
+	SetNotNull           []string `orm:"set=beeorm.testSet;required"`
+	EnumNullable         string   `orm:"enum=beeorm.testEnum"`
+	EnumNotNull          string   `orm:"enum=beeorm.testEnum;required"`
 	Ignored              []string `orm:"ignore"`
 	Blob                 []uint8
 	Bool                 bool
@@ -109,7 +107,7 @@ type flushEntity struct {
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
 	Float64Default       float64  `orm:"unsigned"`
 	Float64Signed        float64
-	CachedQuery          *beeorm.CachedQuery
+	CachedQuery          *CachedQuery
 	Time                 time.Time
 	TimeWithTime         time.Time `orm:"time"`
 	TimeNullable         *time.Time
@@ -131,9 +129,9 @@ type flushEntity struct {
 }
 
 type flushEntityReference struct {
-	beeorm.ORM `orm:"localCache;redisCache"`
-	Name       string
-	Age        int
+	ORM  `orm:"localCache;redisCache"`
+	Name string
+	Age  int
 }
 
 func TestFlushLocalRedis(t *testing.T) {
@@ -155,11 +153,11 @@ func TestFlushRedis(t *testing.T) {
 func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
 	var reference *flushEntityReference
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	registry.RegisterRedisStream("entity_changed", "default")
 	registry.RegisterRedisStreamConsumerGroups("entity_changed", "test-group-1")
-	registry.RegisterEnumStruct("test.testEnum", testEnum)
-	registry.RegisterEnumStruct("test.testSet", testSet)
+	registry.RegisterEnumStruct("beeorm.testEnum", testEnum)
+	registry.RegisterEnumStruct("beeorm.testSet", testSet)
 	engine := PrepareTables(t, registry, 5, 6, "", entity, reference)
 
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
@@ -226,9 +224,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTime.Format(beeorm.TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.Format(TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTimeNullable.Format(beeorm.TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTimeNullable.Format(TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
@@ -237,7 +235,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
 	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
-	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.FlushStruct.TestTime.Format(beeorm.TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.FlushStruct.TestTime.Format(TimeFormat))
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
@@ -270,7 +268,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.FlushStructPtr)
 
 	entity.ReferenceOne.Name = "John 2"
-	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: test.flushEntityReference [%d]", refOneID), func() {
+	assert.PanicsWithError(t, fmt.Sprintf("entity is not loaded and can't be updated: beeorm.flushEntityReference [%d]", refOneID), func() {
 		engine.Flush(entity.ReferenceOne)
 	})
 
@@ -363,8 +361,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
-		"BoolNullable": "NULL", "TimeWithTime": date.Format(beeorm.TimeFormat), "Time": date.Format(beeorm.DateFormat)})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
+		"BoolNullable": "NULL", "TimeWithTime": date.Format(TimeFormat), "Time": date.Format(DateFormat)})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint64(1), entity2.GetID())
@@ -377,10 +375,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 40, entity.Age)
 	assert.Equal(t, uint64(1), entity.GetID())
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, entity.Time.Format(beeorm.DateFormat), date.Format(beeorm.DateFormat))
+	assert.Equal(t, entity.Time.Format(DateFormat), date.Format(DateFormat))
 
 	entity2 = &flushEntity{Name: "Tom", Age: 12, EnumNotNull: "a"}
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{})
+	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(1), entity2.GetID())
 	entity = &flushEntity{}
@@ -389,7 +387,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2 = &flushEntity{Name: "Arthur", Age: 18, EnumNotNull: "a"}
 	entity2.ReferenceTwo = reference
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{})
+	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(6), entity2.GetID())
 
@@ -409,7 +407,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
-	assert.Equal(t, date.Format(beeorm.TimeFormat), entity.TimeWithTime.Format(beeorm.TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.Format(TimeFormat))
 	assert.Equal(t, "", entity.Name)
 	assert.Equal(t, "b", entity.EnumNullable)
 	assert.Nil(t, entity.IntNullable)
@@ -565,7 +563,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Clear()
 	entity2 = &flushEntity{Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(12), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
@@ -574,7 +572,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.False(t, found)
 	entity2 = &flushEntity{Name: "Frank", Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
@@ -583,7 +581,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2 = &flushEntity{Age: 1, EnumNotNull: "a"}
 	entity2.SetID(100)
-	entity2.SetOnDuplicateKeyUpdate(beeorm.Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(100), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)

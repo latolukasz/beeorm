@@ -1,17 +1,15 @@
-package test
+package beeorm
 
 import (
 	"testing"
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/latolukasz/beeorm/v2"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRegisterRedisSentinelWithOptions(t *testing.T) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	opt := redis.FailoverOptions{}
 	opt.Username = "test_user"
 	opt.Password = "test_pass"

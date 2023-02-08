@@ -1,4 +1,4 @@
-package test
+package beeorm
 
 import (
 	"context"
@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -29,7 +27,7 @@ func TestRedis7Namespaces(t *testing.T) {
 }
 
 func testRedis(t *testing.T, namespace string, version int) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	url := "localhost:6382"
 	if version == 7 {
 		url = "localhost:6381"
@@ -344,7 +342,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	r.FlushAll()
 	assert.Equal(t, int64(0), r.Exists("a"))
 
-	registry = &beeorm.Registry{}
+	registry = &Registry{}
 	registry.RegisterRedis("localhost:6399", "", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
@@ -355,7 +353,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 		engine.GetRedis().Get("invalid")
 	})
 
-	registry = &beeorm.Registry{}
+	registry = &Registry{}
 	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)

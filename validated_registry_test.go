@@ -1,16 +1,14 @@
-package test
+package beeorm
 
 import (
 	"reflect"
 	"testing"
 
-	"github.com/latolukasz/beeorm/v2"
-
 	"github.com/stretchr/testify/assert"
 )
 
 type validatedRegistryEntity struct {
-	beeorm.ORM
+	ORM
 	TestSub validatedRegistryStruct
 	Ref     *validatedRegistryEntity
 }
@@ -20,11 +18,11 @@ type validatedRegistryStruct struct {
 }
 
 type validatedRegistryNotRegisteredEntity struct {
-	beeorm.ORM
+	ORM
 }
 
 func TestValidatedRegistry(t *testing.T) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test")
 	registry.RegisterLocalCache(100)
 	registry.RegisterLocalCache(50, "another")
@@ -37,7 +35,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.NotNil(t, source)
 	entities := validated.GetEntities()
 	assert.Len(t, entities, 1)
-	assert.Equal(t, reflect.TypeOf(validatedRegistryEntity{}), entities["test.validatedRegistryEntity"])
+	assert.Equal(t, reflect.TypeOf(validatedRegistryEntity{}), entities["beeorm.validatedRegistryEntity"])
 	assert.Nil(t, validated.GetEntitySchema("invalid"))
 
 	enum := validated.GetEnum("enum_map")
@@ -72,7 +70,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, "another", localCachePools["another"].GetCode())
 	assert.Equal(t, 50, localCachePools["another"].GetLimit())
 
-	assert.PanicsWithError(t, "entity 'test.validatedRegistryNotRegisteredEntity' is not registered", func() {
+	assert.PanicsWithError(t, "entity 'beeorm.validatedRegistryNotRegisteredEntity' is not registered", func() {
 		validated.GetEntitySchemaForEntity(&validatedRegistryNotRegisteredEntity{})
 	})
 

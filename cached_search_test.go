@@ -1,41 +1,39 @@
-package test
+package beeorm
 
 import (
 	"strconv"
 	"testing"
 	"time"
 
-	"github.com/latolukasz/beeorm/v2"
-
 	"github.com/stretchr/testify/assert"
 )
 
 type cachedSearchEntity struct {
-	beeorm.ORM     `orm:"localCache;redisCache;"`
+	ORM            `orm:"localCache;redisCache;"`
 	Name           string `orm:"length=100;unique=FirstIndex"`
 	Age            uint16 `orm:"index=SecondIndex"`
 	Added          *time.Time
 	ReferenceOne   *cachedSearchRefEntity `orm:"index=IndexReference"`
 	Ignore         uint16                 `orm:"ignore"`
-	IndexAge       *beeorm.CachedQuery    `query:":Age = ? ORDER BY ID"`
-	IndexAll       *beeorm.CachedQuery    `query:""`
-	IndexName      *beeorm.CachedQuery    `queryOne:":Name = ?"`
-	IndexReference *beeorm.CachedQuery    `query:":ReferenceOne = ?"`
+	IndexAge       *CachedQuery           `query:":Age = ? ORDER BY ID"`
+	IndexAll       *CachedQuery           `query:""`
+	IndexName      *CachedQuery           `queryOne:":Name = ?"`
+	IndexReference *CachedQuery           `query:":ReferenceOne = ?"`
 	FakeDelete     bool                   `orm:"unique=FirstIndex:2;index=IndexReference:2,SecondIndex:2"`
 }
 
 type cachedSearchEntityNoFakeDelete struct {
-	beeorm.ORM `orm:"localCache;redisCache;"`
-	Name       string
-	Age        uint16              `orm:"index=SecondIndex"`
-	IndexAge   *beeorm.CachedQuery `query:":Age = ? ORDER BY ID"`
+	ORM      `orm:"localCache;redisCache;"`
+	Name     string
+	Age      uint16       `orm:"index=SecondIndex"`
+	IndexAge *CachedQuery `query:":Age = ? ORDER BY ID"`
 }
 
 type cachedSearchRefEntity struct {
-	beeorm.ORM
-	Name      string              `orm:"unique=FirstIndex"`
-	IndexName *beeorm.CachedQuery `queryOne:":Name = ?"`
-	IndexAll  *beeorm.CachedQuery `query:""`
+	ORM
+	Name      string       `orm:"unique=FirstIndex"`
+	IndexName *CachedQuery `queryOne:":Name = ?"`
+	IndexAll  *CachedQuery `query:""`
 }
 
 func TestCachedSearchLocal(t *testing.T) {
@@ -54,7 +52,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityNoFakeDelete *cachedSearchEntityNoFakeDelete
 	var entityRef *cachedSearchRefEntity
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
 	schemaNoFakeDelete := engine.GetRegistry().GetEntitySchemaForEntity(entityNoFakeDelete)
 	schema.DisableCache(!localCache, !redisCache)
@@ -77,7 +75,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		engine.Flush(e)
 	}
 
-	pager := beeorm.NewPager(1, 100)
+	pager := NewPager(1, 100)
 	var rows []*cachedSearchEntity
 	totalRows := engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 5, totalRows)
@@ -112,14 +110,14 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint64(10), rows[4].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
-	pager = beeorm.NewPager(2, 4)
+	pager = NewPager(2, 4)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 1)
 	assert.Equal(t, uint64(10), rows[0].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
-	pager = beeorm.NewPager(1, 5)
+	pager = NewPager(1, 5)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 5)
@@ -129,7 +127,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	rows[0].Age = 18
 	engine.Flush(rows[0])
 
-	pager = beeorm.NewPager(1, 10)
+	pager = NewPager(1, 10)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 6, totalRows)
 	assert.Len(t, rows, 6)
@@ -195,7 +193,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	has = engine.CachedSearchOne(&row, "IndexName", "Name 99")
 	assert.False(t, has)
 
-	pager = beeorm.NewPager(49, 1000)
+	pager = NewPager(49, 1000)
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", nil, 10)
@@ -219,7 +217,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {
 		engine.CachedSearchWithReferences(&rows, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
 	})
-	assert.PanicsWithError(t, "interface *test.cachedSearchEntity is no slice of beeorm.Entity", func() {
+	assert.PanicsWithError(t, "interface *beeorm.cachedSearchEntity is no slice of beeorm.Entity", func() {
 		engine.CachedSearchWithReferences(entity, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
 	})
 
@@ -227,7 +225,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		e := &cachedSearchEntity{Name: "NameNew " + strconv.Itoa(i), Age: uint16(77)}
 		engine.Flush(e)
 	}
-	pager = beeorm.NewPager(30, 1000)
+	pager = NewPager(30, 1000)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 77)
 	assert.Equal(t, 200, totalRows)
 
@@ -235,11 +233,11 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		e := &cachedSearchEntity{Name: "NameNew13 " + strconv.Itoa(i), Age: uint16(13)}
 		engine.Flush(e)
 	}
-	totalRows = engine.CachedSearch(&rows, "IndexAge", beeorm.NewPager(3, 10), 13)
+	totalRows = engine.CachedSearch(&rows, "IndexAge", NewPager(3, 10), 13)
 	assert.Equal(t, 10, totalRows)
 
 	if localCache {
-		pager = beeorm.NewPager(1, 100)
+		pager = NewPager(1, 100)
 		totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 		assert.Equal(t, 7, totalRows)
 		rows[0].Age = 17
@@ -279,19 +277,19 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 }
 
 func TestCachedSearchErrors(t *testing.T) {
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
+	engine := PrepareTables(t, &Registry{}, 5, 6, "")
 	var rows []*cachedSearchEntity
-	assert.PanicsWithError(t, "entity 'test.cachedSearchEntity' is not registered", func() {
+	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_ = engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	})
 	var row cachedSearchEntity
-	assert.PanicsWithError(t, "entity 'test.cachedSearchEntity' is not registered", func() {
+	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_ = engine.CachedSearchOne(&row, "IndexName", 10)
 	})
 
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
-	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, entityRef)
+	engine = PrepareTables(t, &Registry{}, 5, 6, "", entity, entityRef)
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
 		_ = engine.CachedSearch(&rows, "InvalidIndex", nil, 10)
 	})
@@ -300,18 +298,18 @@ func TestCachedSearchErrors(t *testing.T) {
 		_ = engine.CachedSearchOne(&row, "InvalidIndex", 10)
 	})
 
-	pager := beeorm.NewPager(51, 1000)
+	pager := NewPager(51, 1000)
 	assert.PanicsWithError(t, "max cache index page size (50000) exceeded IndexAge", func() {
 		_ = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	})
 
 	var rows2 []*cachedSearchRefEntity
-	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'test.cachedSearchRefEntity'", func() {
+	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'beeorm.cachedSearchRefEntity'", func() {
 		_ = engine.CachedSearch(&rows2, "IndexAll", nil, 10)
 	})
 
 	var row2 cachedSearchRefEntity
-	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'test.cachedSearchRefEntity'", func() {
+	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'beeorm.cachedSearchRefEntity'", func() {
 		_ = engine.CachedSearchOne(&row2, "IndexName", 10)
 	})
 }

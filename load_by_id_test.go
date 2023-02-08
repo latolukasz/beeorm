@@ -1,15 +1,13 @@
-package test
+package beeorm
 
 import (
 	"testing"
-
-	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type loadByIDEntity struct {
-	beeorm.ORM      `orm:"localCache;redisCache"`
+	ORM             `orm:"localCache;redisCache"`
 	Name            string `orm:"max=100"`
 	ReferenceOne    *loadByIDReference
 	ReferenceSecond *loadByIDReference
@@ -17,37 +15,37 @@ type loadByIDEntity struct {
 }
 
 type loadByIDRedisEntity struct {
-	beeorm.ORM `orm:"redisCache"`
+	ORM `orm:"redisCache"`
 }
 
 type loadByIDLocalEntity struct {
-	beeorm.ORM `orm:"localCache"`
+	ORM `orm:"localCache"`
 }
 
 type loadByIDNoCacheEntity struct {
-	beeorm.ORM
+	ORM
 	Name string
 }
 
 type loadByIDReference struct {
-	beeorm.ORM     `orm:"localCache;redisCache"`
+	ORM            `orm:"localCache;redisCache"`
 	Name           string
 	ReferenceTwo   *loadByIDSubReference
 	ReferenceThree *loadByIDSubReference2
 }
 
 type loadByIDReference2 struct {
-	beeorm.ORM `orm:"localCache;redisCache"`
-	Name       string
+	ORM  `orm:"localCache;redisCache"`
+	Name string
 }
 
 type loadByIDSubReference struct {
-	beeorm.ORM `orm:"localCache;redisCache"`
-	Name       string
+	ORM  `orm:"localCache;redisCache"`
+	Name string
 }
 
 type loadByIDSubReference2 struct {
-	beeorm.ORM   `orm:"localCache"`
+	ORM          `orm:"localCache"`
 	Name         string
 	ReferenceTwo *loadByIDSubReference
 }
@@ -77,10 +75,10 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	var reference2 *loadByIDReference2
 	var subReference2 *loadByIDSubReference2
 	var subReference *loadByIDSubReference
-	engine := PrepareTables(t, &beeorm.Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2)
 
-	schemas := make([]beeorm.EntitySchema, 0)
+	schemas := make([]EntitySchema, 0)
 	registry := engine.GetRegistry()
 	schemas = append(schemas, registry.GetEntitySchemaForEntity(entity))
 
@@ -183,9 +181,9 @@ func testLoadByID(t *testing.T, local, redis bool) {
 		assert.False(t, engine.LoadByID(999, entityLocalCache))
 	}
 
-	engine = PrepareTables(t, &beeorm.Registry{}, 5, 6, "")
+	engine = PrepareTables(t, &Registry{}, 5, 6, "")
 	entity = &loadByIDEntity{}
-	assert.PanicsWithError(t, "entity 'test.loadByIDEntity' is not registered", func() {
+	assert.PanicsWithError(t, "entity 'beeorm.loadByIDEntity' is not registered", func() {
 		engine.LoadByID(1, entity)
 	})
 }

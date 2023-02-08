@@ -1,4 +1,4 @@
-package test
+package beeorm
 
 import (
 	"testing"
@@ -6,13 +6,11 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"github.com/latolukasz/beeorm/v2"
-
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRedisPipeline(t *testing.T) {
-	registry := &beeorm.Registry{}
+	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
 	registry.RegisterRedisStream("test-stream", "default")
 	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
