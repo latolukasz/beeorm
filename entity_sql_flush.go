@@ -33,13 +33,18 @@ type entitySQLFlush struct {
 	entity            Entity
 }
 
-type EventEntityFlushQueryExecuted interface {
+type EventEntityFlushed interface {
 	Type() FlushType
 	EntityName() string
 	EntityID() uint64
 	Before() Bind
 	After() Bind
-	EngineMeta() Bind
+	MetaData() Bind
+}
+
+type EventEntityFlushing interface {
+	EventEntityFlushed
+	SetMetaData(key, value string)
 }
 
 func (e *entitySQLFlush) Type() FlushType {
@@ -62,8 +67,15 @@ func (e *entitySQLFlush) After() Bind {
 	return e.Update
 }
 
-func (e *entitySQLFlush) EngineMeta() Bind {
+func (e *entitySQLFlush) MetaData() Bind {
 	return e.Meta
+}
+
+func (e *entitySQLFlush) SetMetaData(key, value string) {
+	if e.Meta == nil {
+		e.Meta = Bind{}
+	}
+	e.Meta[key] = value
 }
 
 type entityFlushBuilder struct {

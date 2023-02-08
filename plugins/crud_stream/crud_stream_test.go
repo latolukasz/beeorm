@@ -156,8 +156,8 @@ func TestCrudStream(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	engine.SetMeta("source", "test")
-	engine.SetMeta("user", "me")
+	SetMetaData(engine, "source", "test")
+	SetMetaData(engine, "user", "me")
 	e1 = &crudStreamEntity{Name: "Hugo", LastName: "Winter", Country: "Poland"}
 	engine.Flush(e1)
 	valid = false
@@ -167,9 +167,9 @@ func TestCrudStream(t *testing.T) {
 		var crudEvent CrudEvent
 		events[0].Unserialize(&crudEvent)
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
-		assert.Len(t, events[0].Meta(), 2)
-		assert.Equal(t, "test", events[0].Meta().Get("source"))
-		assert.Equal(t, "me", events[0].Meta().Get("user"))
+		assert.Len(t, crudEvent.MetaData, 2)
+		assert.Equal(t, "test", crudEvent.MetaData.Get("source"))
+		assert.Equal(t, "me", crudEvent.MetaData.Get("user"))
 	})
 	assert.True(t, valid)
 
@@ -191,10 +191,10 @@ func TestCrudStream(t *testing.T) {
 		var crudEvent CrudEvent
 		events[0].Unserialize(&crudEvent)
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
-		assert.Len(t, events[0].Meta(), 2)
-		assert.Equal(t, "test", events[0].Meta().Get("source"))
-		assert.Equal(t, "me", events[0].Meta().Get("user"))
-		assert.Equal(t, "", events[0].Meta().Get("invalid"))
+		assert.Len(t, crudEvent.MetaData, 2)
+		assert.Equal(t, "test", crudEvent.MetaData.Get("source"))
+		assert.Equal(t, "me", crudEvent.MetaData.Get("user"))
+		assert.Equal(t, "", crudEvent.MetaData.Get("invalid"))
 		assert.Nil(t, crudEvent.Before)
 		assert.Len(t, crudEvent.Changes, 3)
 		assert.Equal(t, "Spain", crudEvent.Changes["Country"])

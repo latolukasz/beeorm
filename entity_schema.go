@@ -87,14 +87,13 @@ type EntitySchema interface {
 	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
 	GetTag(field, key, trueValue, defaultValue string) string
-	GetOption(plugin, key string) interface{}
-	GetOptionString(plugin, key string) string
+	GetPluginOption(plugin, key string) interface{}
 	DisableCache(local, redis bool)
 }
 
 type SettableEntitySchema interface {
 	EntitySchema
-	SetOption(plugin, key string, value interface{})
+	SetPluginOption(plugin, key string, value interface{})
 }
 
 type entitySchema struct {
@@ -642,7 +641,7 @@ func (entitySchema *entitySchema) GetTagBool(field, key string) bool {
 	return tag == "1"
 }
 
-func (entitySchema *entitySchema) GetOption(plugin, key string) interface{} {
+func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {
 	if entitySchema.options == nil {
 		return nil
 	}
@@ -651,14 +650,6 @@ func (entitySchema *entitySchema) GetOption(plugin, key string) interface{} {
 		return nil
 	}
 	return values[key]
-}
-
-func (entitySchema *entitySchema) GetOptionString(plugin, key string) string {
-	val := entitySchema.GetOption(plugin, key)
-	if val == nil {
-		return ""
-	}
-	return val.(string)
 }
 
 func (entitySchema *entitySchema) DisableCache(local, redis bool) {
@@ -672,7 +663,7 @@ func (entitySchema *entitySchema) DisableCache(local, redis bool) {
 	}
 }
 
-func (entitySchema *entitySchema) SetOption(plugin, key string, value interface{}) {
+func (entitySchema *entitySchema) SetPluginOption(plugin, key string, value interface{}) {
 	if entitySchema.options == nil {
 		entitySchema.options = map[string]map[string]interface{}{plugin: {key: value}}
 	} else {

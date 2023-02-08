@@ -11,6 +11,7 @@ const ChannelName = "beeorm-crud-stream"
 const defaultTagName = "crud-stream"
 const hasCrudStreamOption = "has-crud-stream"
 const skipCrudStreamOption = "skip-crud-stream"
+const metaDataOption = "meta-data"
 
 type Plugin struct {
 	options *Options
@@ -38,12 +39,23 @@ func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
+func SetMetaData(engine beeorm.Engine, key, value string) {
+	meta := engine.GetPluginOption(PluginCode, metaDataOption)
+	if meta == nil {
+		newMeta := beeorm.Bind{}
+		newMeta[key] = value
+		engine.SetPluginOption(PluginCode, metaDataOption, newMeta)
+		return
+	}
+	meta.(beeorm.Bind)[key] = value
+}
+
 func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
 	crudStream := schema.GetTag("ORM", p.options.TagName, "true", "false")
 	if crudStream != "true" {
 		return nil
 	}
-	schema.SetOption(PluginCode, hasCrudStreamOption, true)
+	schema.SetPluginOption(PluginCode, hasCrudStreamOption, true)
 	skip := make([]string, 0)
 	for _, columnName := range schema.GetColumns() {
 		skipLog := schema.GetTag(columnName, skipCrudStreamOption, "1", "")
@@ -52,7 +64,7 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 		}
 	}
 	if len(skip) > 0 {
-		schema.SetOption(PluginCode, skipCrudStreamOption, skip)
+		schema.SetPluginOption(PluginCode, skipCrudStreamOption, skip)
 	}
 	return nil
 }
@@ -61,12 +73,21 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 	registry.RegisterRedisStream(ChannelName, p.options.DefaultRedisPool)
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm.EventEntityFlushQueryExecuted, cacheFlusher beeorm.FlusherCacheSetter) {
+func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
+	metaData := engine.GetPluginOption(PluginCode, metaDataOption)
+	if metaData != nil {
+		for key, value := range metaData.(beeorm.Bind) {
+			event.SetMetaData(key, value)
+		}
+	}
+}
+
+func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm.EventEntityFlushed, cacheFlusher beeorm.FlusherCacheSetter) {
 	entitySchema := engine.GetRegistry().GetEntitySchema(event.EntityName())
-	if entitySchema.GetOption(PluginCode, hasCrudStreamOption) != true {
+	if entitySchema.GetPluginOption(PluginCode, hasCrudStreamOption) != true {
 		return
 	}
-	skippedFields := entitySchema.GetOption(PluginCode, skipCrudStreamOption)
+	skippedFields := entitySchema.GetPluginOption(PluginCode, skipCrudStreamOption)
 	if event.After() != nil && skippedFields != nil {
 		skipped := 0
 		for _, skip := range skippedFields.([]string) {
@@ -84,11 +105,12 @@ func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm
 		ID:         event.EntityID(),
 		Action:     event.Type(),
 		Changes:    event.After(),
+		MetaData:   event.MetaData(),
 		Updated:    time.Now()}
 	if len(event.Before()) > 0 {
 		val.Before = event.Before()
 	}
-	cacheFlusher.PublishToStream(ChannelName, val, event.EngineMeta())
+	cacheFlusher.PublishToStream(ChannelName, val, nil)
 }
 
 type CrudEvent struct {
@@ -97,5 +119,6 @@ type CrudEvent struct {
 	Action     beeorm.FlushType
 	Before     beeorm.Bind
 	Changes    beeorm.Bind
+	MetaData   beeorm.Bind
 	Updated    time.Time
 }

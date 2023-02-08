@@ -56,18 +56,18 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	if logPoolName == "" {
 		return nil
 	}
-	schema.SetOption(PluginCode, poolOption, logPoolName)
-	schema.SetOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
+	schema.SetPluginOption(PluginCode, poolOption, logPoolName)
+	schema.SetPluginOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
 	return nil
 }
 
 func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.EntitySchema) (alters []beeorm.Alter, keepTables map[string][]string) {
-	poolName := schema.GetOptionString(PluginCode, poolOption)
-	if poolName == "" {
+	poolName := schema.GetPluginOption(PluginCode, poolOption)
+	if poolName == nil {
 		return nil, nil
 	}
-	tableName := schema.GetOptionString(PluginCode, tableNameOption)
-	db := engine.GetMysql(poolName)
+	tableName := schema.GetPluginOption(PluginCode, tableNameOption)
+	db := engine.GetMysql(poolName.(string))
 	var tableDef string
 	hasLogTable := db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
 	var logEntitySchema string
@@ -84,7 +84,7 @@ func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.
 	}
 
 	if !hasLogTable {
-		alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName})
+		alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 	} else {
 		var skip, createTableDB string
 		db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
@@ -95,21 +95,16 @@ func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.
 			db.QueryRow(beeorm.NewWhere("1"))
 			isEmpty := !db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
 			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetPoolConfig().GetDatabase(), tableName)
-			alters = append(alters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName})
-			alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName})
+			alters = append(alters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName.(string)})
+			alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 		}
 	}
-	return alters, map[string][]string{poolName: {tableName}}
-}
-
-type logEvent struct {
-	crudEvent *crud_stream.CrudEvent
-	source    beeorm.Event
+	return alters, map[string][]string{poolName.(string): {tableName.(string)}}
 }
 
 func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 	return func(events []beeorm.Event) {
-		values := make(map[string][]*logEvent)
+		values := make(map[string][]*crud_stream.CrudEvent)
 		for _, event := range events {
 			var data crud_stream.CrudEvent
 			event.Unserialize(&data)
@@ -117,12 +112,12 @@ func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 			if schema == nil {
 				continue
 			}
-			poolName := schema.GetOptionString(PluginCode, poolOption)
-			_, has := values[poolName]
+			poolName := schema.GetPluginOption(PluginCode, poolOption)
+			_, has := values[poolName.(string)]
 			if !has {
-				values[poolName] = make([]*logEvent, 0)
+				values[poolName.(string)] = make([]*crud_stream.CrudEvent, 0)
 			}
-			values[poolName] = append(values[poolName], &logEvent{crudEvent: &data, source: event})
+			values[poolName.(string)] = append(values[poolName.(string)], &data)
 		}
 		handleLogEvents(engine, values)
 	}
@@ -139,19 +134,19 @@ type EntityLog struct {
 
 func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
 	var results []EntityLog
-	poolName := entitySchema.GetOptionString(PluginCode, poolOption)
+	poolName := entitySchema.GetPluginOption(PluginCode, poolOption)
 	if poolName == "" {
 		return results
 	}
-	db := engine.GetMysql(poolName)
+	db := engine.GetMysql(poolName.(string))
 	if pager == nil {
 		pager = beeorm.NewPager(1, 1000)
 	}
 	if where == nil {
 		where = beeorm.NewWhere("1")
 	}
-	tableName := entitySchema.GetOptionString(PluginCode, tableNameOption)
-	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableName + " WHERE "
+	tableName := entitySchema.GetPluginOption(PluginCode, tableNameOption)
+	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableName.(string) + " WHERE "
 	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
 	fullQuery += "AND " + where.String() + " " + pager.String()
 	rows, closeF := db.Query(fullQuery, where.GetParameters()...)
@@ -189,7 +184,7 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 	return results
 }
 
-func handleLogEvents(engine beeorm.Engine, values map[string][]*logEvent) {
+func handleLogEvents(engine beeorm.Engine, values map[string][]*crud_stream.CrudEvent) {
 	for poolName, rows := range values {
 		poolDB := engine.GetMysql(poolName)
 		if len(rows) > 1 {
@@ -198,21 +193,21 @@ func handleLogEvents(engine beeorm.Engine, values map[string][]*logEvent) {
 		func() {
 			defer poolDB.Rollback()
 			for _, value := range rows {
-				schema := engine.GetRegistry().GetEntitySchema(value.crudEvent.EntityName)
-				tableName := schema.GetOptionString(PluginCode, tableNameOption)
-				query := "INSERT INTO `" + tableName + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
+				schema := engine.GetRegistry().GetEntitySchema(value.EntityName)
+				tableName := schema.GetPluginOption(PluginCode, tableNameOption)
+				query := "INSERT INTO `" + tableName.(string) + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)
-				params[0] = value.crudEvent.ID
-				params[1] = value.crudEvent.Updated.Format(beeorm.TimeFormat)
-				meta := value.source.Meta()
+				params[0] = value.ID
+				params[1] = value.Updated.Format(beeorm.TimeFormat)
+				meta := value.MetaData
 				if len(meta) > 0 {
 					params[2], _ = jsoniter.ConfigFastest.MarshalToString(meta)
 				}
-				if len(value.crudEvent.Before) > 0 {
-					params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.crudEvent.Before)
+				if len(value.Before) > 0 {
+					params[3], _ = jsoniter.ConfigFastest.MarshalToString(value.Before)
 				}
-				if len(value.crudEvent.Changes) > 0 {
-					params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.crudEvent.Changes)
+				if len(value.Changes) > 0 {
+					params[4], _ = jsoniter.ConfigFastest.MarshalToString(value.Changes)
 				}
 				func() {
 					defer func() {

@@ -90,13 +90,23 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 	if len(f.events) == 0 {
 		return
 	}
+
+	for _, plugin := range f.engine.registry.plugins {
+		interfaceEntityFlushing, isInterfaceEntityFlushing := plugin.(PluginInterfaceEntityFlushing)
+		if isInterfaceEntityFlushing {
+			for _, e := range f.events {
+				interfaceEntityFlushing.PluginInterfaceEntityFlushing(f.engine, e)
+			}
+		}
+	}
+
 	if lazy {
 		f.buildCache(true, false)
 		for _, cache := range f.localCacheSetters {
 			cache.flush()
 		}
 		f.localCacheSetters = nil
-		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events, f.engine.GetMeta())
+		f.engine.GetEventBroker().Publish(LazyFlushChannelName, f.events, nil)
 		for _, e := range f.events {
 			if e.ID == 0 && e.entity != nil {
 				e.entity.getORM().lazy = true
@@ -104,11 +114,6 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		}
 		f.events = nil
 		return
-	}
-	if len(f.engine.GetMeta()) > 0 {
-		for _, e := range f.events {
-			e.Meta = f.engine.GetMeta()
-		}
 	}
 	checkReferences := true
 	startTransaction := make(map[*DB]bool)
