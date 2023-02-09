@@ -127,9 +127,9 @@ type EntityLog struct {
 	LogID    uint64
 	EntityID uint64
 	Date     time.Time
-	Meta     map[string]interface{}
-	Before   map[string]interface{}
-	Changes  map[string]interface{}
+	MetaData beeorm.Bind
+	Before   beeorm.Bind
+	After    beeorm.Bind
 }
 
 func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
@@ -162,7 +162,7 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 		log.LogID = id
 		log.EntityID = entityID
 		if meta.Valid {
-			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
+			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.MetaData)
 			if err != nil {
 				panic(err)
 			}
@@ -174,7 +174,7 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 			}
 		}
 		if changes.Valid {
-			err := jsoniter.ConfigFastest.UnmarshalFromString(changes.String, &log.Changes)
+			err := jsoniter.ConfigFastest.UnmarshalFromString(changes.String, &log.After)
 			if err != nil {
 				panic(err)
 			}
