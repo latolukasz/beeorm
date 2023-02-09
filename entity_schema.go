@@ -401,12 +401,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		}
 	}
 	hasUUID := entitySchema.getTag("uuid", "true", "false") == "true"
-	if hasUUID {
-		idField, is := entityType.FieldByName("ID")
-		if is && idField.Type.String() != "uint64" {
-			return fmt.Errorf("entity %s with uuid enabled must be unit64", entityType.String())
-		}
-	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
