@@ -162,6 +162,7 @@ type EventsConsumer interface {
 	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
 	DisableBlockMode()
+	SetBlockTime(ttl time.Duration)
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
@@ -197,6 +198,10 @@ type eventsConsumer struct {
 
 func (b *eventConsumerBase) DisableBlockMode() {
 	b.block = false
+}
+
+func (b *eventConsumerBase) SetBlockTime(ttl time.Duration) {
+	b.blockTime = ttl
 }
 
 func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {

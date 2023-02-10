@@ -87,6 +87,10 @@ func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
 	return sample
 }
 
+func (r *BackgroundConsumer) SetBlockTime(ttl time.Duration) {
+	r.eventConsumerBase.SetBlockTime(ttl)
+}
+
 func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 	r.consumer = r.engine.GetEventBroker().Consumer(BackgroundConsumerGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
