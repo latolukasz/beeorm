@@ -170,11 +170,8 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 	pool := engine.GetMysql(entitySchema.mysqlPoolName)
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName)
 	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName)
-	if !entitySchema.hasUUID {
-		columns[0][1] += " AUTO_INCREMENT"
-	}
 	for _, value := range columns {
-		createTableSQL += fmt.Sprintf("  %s,\n", value[1])
+		createTableSQL += fmt.Sprintf("  %s,\n", value.Definition)
 	}
 	for keyName, indexEntity := range indexes {
 		newIndexes = append(newIndexes, buildCreateIndexSQL(keyName, indexEntity))
@@ -191,7 +188,7 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 		createTableForeignKeysSQL += fmt.Sprintf("  %s,\n", value)
 	}
 
-	createTableSQL += "  PRIMARY KEY (`ID`)\n"
+	createTableSQL += " PRIMARY KEY (`ID`)\n"
 	collate := ""
 	if pool.GetPoolConfig().GetVersion() == 8 {
 		collate += " COLLATE=" + engine.registry.registry.defaultEncoding + "_" + engine.registry.registry.defaultCollate
@@ -213,7 +210,7 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 	newIndexes = make([]string, 0)
 	newForeignKeys = make([]string, 0)
 
-	var tableDBColumns = make([][2]string, 0)
+	var tableDBColumns = make([]*ColumnSchemaDefinition, 0)
 	var createTableDB string
 	pool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.tableName)), &skip, &createTableDB)
 
@@ -236,7 +233,7 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 		var line = strings.TrimRight(lines[x], ",")
 		line = strings.TrimLeft(line, " ")
 		var columnName = strings.Split(line, "`")[1]
-		tableDBColumns = append(tableDBColumns, [2]string{columnName, line})
+		tableDBColumns = append(tableDBColumns, &ColumnSchemaDefinition{columnName, line})
 	}
 
 	var rows []indexDB
@@ -272,42 +269,42 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 	for key, value := range columns {
 		var tableColumn string
 		if key < len(tableDBColumns) {
-			tableColumn = tableDBColumns[key][1]
+			tableColumn = tableDBColumns[key].Definition
 		}
-		if tableColumn == value[1] {
+		if tableColumn == value.Definition {
 			continue
 		}
 		hasName := -1
 		hasDefinition := -1
 		for z, v := range tableDBColumns {
-			if v[1] == value[1] {
+			if v.Definition == value.Definition {
 				hasDefinition = z
 			}
-			if v[0] == value[0] {
+			if v.ColumnName == value.ColumnName {
 				hasName = z
 			}
 		}
 		if hasName == -1 {
-			alter := fmt.Sprintf("ADD COLUMN %s", value[1])
+			alter := fmt.Sprintf("ADD COLUMN %s", value.Definition)
 			if key > 0 {
-				alter += fmt.Sprintf(" AFTER `%s`", columns[key-1][0])
+				alter += fmt.Sprintf(" AFTER `%s`", columns[key-1].ColumnName)
 			}
 			newColumns = append(newColumns, alter)
 			hasAlters = true
 		} else {
 			if hasDefinition == -1 {
-				alter := fmt.Sprintf("CHANGE COLUMN `%s` %s", value[0], value[1])
+				alter := fmt.Sprintf("CHANGE COLUMN `%s` %s", value.ColumnName, value.Definition)
 				if key > 0 {
 					/* #nosec */
-					alter += fmt.Sprintf(" AFTER `%s`", columns[key-1][0])
+					alter += fmt.Sprintf(" AFTER `%s`", columns[key-1].ColumnName)
 				}
 				/* #nosec */
-				changedColumns = append(changedColumns, [2]string{alter, fmt.Sprintf("CHANGED FROM %s", tableDBColumns[hasName][1])})
+				changedColumns = append(changedColumns, [2]string{alter, fmt.Sprintf("CHANGED FROM %s", tableDBColumns[hasName].Definition)})
 				hasAlters = true
 			} else {
-				alter := fmt.Sprintf("CHANGE COLUMN `%s` %s", value[0], value[1])
+				alter := fmt.Sprintf("CHANGE COLUMN `%s` %s", value.ColumnName, value.Definition)
 				if key > 0 {
-					alter += fmt.Sprintf(" AFTER `%s`", columns[key-1][0])
+					alter += fmt.Sprintf(" AFTER `%s`", columns[key-1].ColumnName)
 				}
 				changedColumns = append(changedColumns, [2]string{alter, "CHANGED ORDER"})
 				hasAlters = true
@@ -318,11 +315,11 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 OUTER:
 	for _, value := range tableDBColumns {
 		for _, v := range columns {
-			if v[0] == value[0] {
+			if v.ColumnName == value.ColumnName {
 				continue OUTER
 			}
 		}
-		droppedColumns = append(droppedColumns, fmt.Sprintf("DROP COLUMN `%s`", value[0]))
+		droppedColumns = append(droppedColumns, fmt.Sprintf("DROP COLUMN `%s`", value.ColumnName))
 		hasAlters = true
 	}
 
@@ -555,7 +552,7 @@ func buildCreateForeignKeySQL(keyName string, definition *foreignIndex) string {
 }
 
 func checkColumn(engine *engineImplementation, schema *entitySchema, field *reflect.StructField, indexes map[string]*index,
-	foreignKeys map[string]*foreignIndex, prefix string) ([][2]string, error) {
+	foreignKeys map[string]*foreignIndex, prefix string) ([]*ColumnSchemaDefinition, error) {
 	var definition string
 	var addNotNullIfNotSet bool
 	addDefaultNullIfNullable := true
@@ -657,17 +654,17 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 	case "uint16":
 		if attributes["year"] == "true" {
 			if version == 5 {
-				return [][2]string{{columnName, fmt.Sprintf("`%s` year(4) NOT NULL DEFAULT '0000'", columnName)}}, nil
+				return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year(4) NOT NULL DEFAULT '0000'", columnName)}}, nil
 			}
-			return [][2]string{{columnName, fmt.Sprintf("`%s` year NOT NULL DEFAULT '0000'", columnName)}}, nil
+			return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year NOT NULL DEFAULT '0000'", columnName)}}, nil
 		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(version, typeAsString, attributes, false)
 	case "*uint16":
 		if attributes["year"] == "true" {
 			if version == 5 {
-				return [][2]string{{columnName, fmt.Sprintf("`%s` year(4) DEFAULT NULL", columnName)}}, nil
+				return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year(4) DEFAULT NULL", columnName)}}, nil
 			}
-			return [][2]string{{columnName, fmt.Sprintf("`%s` year DEFAULT NULL", columnName)}}, nil
+			return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year DEFAULT NULL", columnName)}}, nil
 		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(version, typeAsString, attributes, true)
 	case "bool":
@@ -728,7 +725,7 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 	} else if !isNotNull && addDefaultNullIfNullable {
 		definition += " DEFAULT NULL"
 	}
-	return [][2]string{{columnName, fmt.Sprintf("`%s` %s", columnName, definition)}}, nil
+	return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` %s", columnName, definition)}}, nil
 }
 
 func handleInt(version int, typeAsString string, attributes map[string]string, nullable bool) (string, bool, string) {
@@ -927,9 +924,6 @@ func convertIntToSchema(version int, typeAsString string, attributes Bind) strin
 
 func (entitySchema *entitySchema) getIDType() (idType string, idAttributes Bind) {
 	idAttributes = Bind{}
-	if entitySchema.hasUUID {
-		return "uint64", idAttributes
-	}
 	idType = "uint"
 	switch entitySchema.getTag("id", "uint", "uint") {
 	case "tinyint":
@@ -949,15 +943,19 @@ func (entitySchema *entitySchema) getIDType() (idType string, idAttributes Bind)
 	return idType, idAttributes
 }
 
+type ColumnSchemaDefinition struct {
+	ColumnName string
+	Definition string
+}
+
 func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t reflect.Type, indexes map[string]*index,
-	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
-	columns := make([][2]string, 0)
+	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([]*ColumnSchemaDefinition, error) {
+	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {
 		version := entitySchema.GetMysql(engine).GetPoolConfig().GetVersion()
 		idType, idAttributes := entitySchema.getIDType()
 		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
-		idColumn := [2]string{"ID", "`ID` " + idColumnSchema}
-		columns = append(columns, idColumn)
+		columns = append(columns, &ColumnSchemaDefinition{"ID", "`ID` " + idColumnSchema + " AUTO_INCREMENT"})
 		_, hasID := t.FieldByName("ID")
 		if hasID {
 			return nil, errors.New("field with name ID not allowed")
@@ -989,8 +987,15 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 		}
 	}
 	if entitySchema.hasFakeDelete && subField == nil {
-		def := fmt.Sprintf("`FakeDelete` %s unsigned NOT NULL DEFAULT '0'", strings.Split(columns[0][1], " ")[1])
-		columns = append(columns, [2]string{"FakeDelete", def})
+		def := fmt.Sprintf("`FakeDelete` %s unsigned NOT NULL DEFAULT '0'", strings.Split(columns[0].Definition, " ")[1])
+		columns = append(columns, &ColumnSchemaDefinition{"FakeDelete", def})
+	}
+
+	for _, plugin := range engine.registry.plugins {
+		pluginInterfaceSchemaStructCheck, isPluginInterfaceSchemaStructCheck := plugin.(PluginInterfaceSchemaStructCheck)
+		if isPluginInterfaceSchemaStructCheck {
+			columns = pluginInterfaceSchemaStructCheck.PluginInterfaceSchemaStructCheck(engine, entitySchema, columns, t, subField, subFieldPrefix)
+		}
 	}
 	return columns, nil
 }

@@ -1,22 +1,23 @@
-package beeorm
+package uuid
 
 import (
+	"github.com/latolukasz/beeorm/v2"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
 type uuidEntity struct {
-	ORM  `orm:"uuid;localCache;redisCache"`
-	Name string `orm:"unique=name;required"`
-	Age  int
+	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	Name       string `orm:"unique=name;required"`
+	Age        int
 }
 
 type uuidReferenceEntity struct {
-	ORM    `orm:"uuid;localCache;redisCache"`
-	Parent *uuidEntity
-	Name   string `orm:"unique=name;required"`
-	Size   int
+	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	Parent     *uuidEntity
+	Name       string `orm:"unique=name;required"`
+	Size       int
 }
 
 func TestUUIDdNoCache(t *testing.T) {
@@ -36,10 +37,10 @@ func TestUUIDLocalRedisCache(t *testing.T) {
 }
 
 func testUUID(t *testing.T, local bool, redis bool) {
-	registry := &Registry{}
+	registry := &beeorm.Registry{}
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
-	engine := PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
+	engine := beeorm.PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
 	engine.GetMysql().Query("DROP TABLE `uuidReferenceEntity`")
 	engine.GetMysql().Query("DROP TABLE `uuidEntity`")
 	alters := engine.GetAlters()

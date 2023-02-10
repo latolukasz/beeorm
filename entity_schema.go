@@ -123,7 +123,6 @@ type entitySchema struct {
 	hasFakeDelete              bool
 	hasSearchableFakeDelete    bool
 	skipLogs                   []string
-	hasUUID                    bool
 	mapBindToScanPointer       mapBindToScanPointer
 	mapPointerToValue          mapPointerToValue
 	options                    map[string]map[string]interface{}
@@ -400,7 +399,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			oneRefs = append(oneRefs, key)
 		}
 	}
-	hasUUID := entitySchema.getTag("uuid", "true", "false") == "true"
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
@@ -501,7 +499,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.cachePrefix = cachePrefix
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	entitySchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
-	entitySchema.hasUUID = hasUUID
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
 		if isInterfaceInitEntitySchema {
