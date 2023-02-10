@@ -296,6 +296,7 @@ func (tableSchema *tableSchema) GetEntityLogs(engine Engine, entityID uint64, pa
 		log := EntityLog{}
 		log.LogID = id
 		log.EntityID = entityID
+		log.Date, _ = time.ParseInLocation(timeFormat, addedAt, time.Local)
 		if meta.Valid {
 			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
 			if err != nil {
