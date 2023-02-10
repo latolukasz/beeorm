@@ -1,9 +1,11 @@
 package uuid
 
 import (
-	"github.com/latolukasz/beeorm/v2"
+	"reflect"
 	"sync/atomic"
 	"time"
+
+	"github.com/latolukasz/beeorm/v2"
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/uuid"
@@ -40,10 +42,38 @@ func (p *Plugin) GetCode() string {
 }
 
 func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
-	hasUUID := schema.GetTag("ORM", p.options.TagName, "true", "")
-	if hasUUID != "true" {
+	if !p.hasUUID(schema) {
 		return nil
 	}
 	schema.SetPluginOption(PluginCode, hasUUIDOption, "true")
 	return nil
+}
+
+func (p *Plugin) PluginInterfaceSchemaStructCheck(engine beeorm.Engine, schema beeorm.EntitySchema, columns []*beeorm.ColumnSchemaDefinition,
+	_ reflect.Type, subField *reflect.StructField, _ string) []*beeorm.ColumnSchemaDefinition {
+	if subField != nil || !p.hasUUID(schema) {
+		return nil
+	}
+	mySQLVersion := schema.GetMysql(engine).GetPoolConfig().GetVersion()
+	if mySQLVersion == 8 {
+		columns[0].Definition = "`ID` bigint unsigned NOT NULL"
+	} else {
+		columns[0].Definition = "`ID` bigint(20) unsigned NOT NULL"
+	}
+	return columns
+}
+
+func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
+	if !event.Type().Is(beeorm.Insert) || event.EntityID() > 0 {
+		return
+	}
+	schema := engine.GetRegistry().GetEntitySchema(event.EntityName())
+	if !p.hasUUID(schema) {
+		return
+	}
+	event.SetID(p.uuid())
+}
+
+func (p *Plugin) hasUUID(schema beeorm.EntitySchema) bool {
+	return schema.GetTag("ORM", p.options.TagName, "true", "") == "true"
 }

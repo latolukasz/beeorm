@@ -1,8 +1,9 @@
 package uuid
 
 import (
-	"github.com/latolukasz/beeorm/v2"
 	"testing"
+
+	"github.com/latolukasz/beeorm/v2"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -38,15 +39,16 @@ func TestUUIDLocalRedisCache(t *testing.T) {
 
 func testUUID(t *testing.T, local bool, redis bool) {
 	registry := &beeorm.Registry{}
+	registry.RegisterPlugin(Init(nil))
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
 	engine := beeorm.PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
 	engine.GetMysql().Query("DROP TABLE `uuidReferenceEntity`")
 	engine.GetMysql().Query("DROP TABLE `uuidEntity`")
 	alters := engine.GetAlters()
-	assert.Len(t, alters, 2)
-	assert.Equal(t, "CREATE TABLE `test`.`uuidEntity` (\n  `ID` bigint unsigned NOT NULL,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Age` int NOT NULL DEFAULT '0',\n  UNIQUE INDEX `name` (`Name`),\n  PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[0].SQL)
-	assert.Equal(t, "CREATE TABLE `test`.`uuidReferenceEntity` (\n  `ID` bigint unsigned NOT NULL,\n  `Parent` bigint unsigned DEFAULT NULL,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Size` int NOT NULL DEFAULT '0',\n  UNIQUE INDEX `name` (`Name`),\n  PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[1].SQL)
+	assert.Len(t, alters, 3)
+	assert.Equal(t, "CREATE TABLE `test`.`uuidEntity` (\n  `ID` bigint unsigned NOT NULL,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Age` int NOT NULL DEFAULT '0',\n  UNIQUE INDEX `name` (`Name`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[0].SQL)
+	assert.Equal(t, "CREATE TABLE `test`.`uuidReferenceEntity` (\n  `ID` bigint unsigned NOT NULL,\n  `Parent` bigint unsigned DEFAULT NULL,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Size` int NOT NULL DEFAULT '0',\n  INDEX `Parent` (`Parent`),\n  UNIQUE INDEX `name` (`Name`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[1].SQL)
 	alters[0].Exec(engine)
 	alters[1].Exec(engine)
 

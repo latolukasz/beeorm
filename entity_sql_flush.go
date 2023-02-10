@@ -44,7 +44,9 @@ type EventEntityFlushed interface {
 
 type EventEntityFlushing interface {
 	EventEntityFlushed
+	SetID(id uint64)
 	SetMetaData(key, value string)
+	SetField(field, bind string, value interface{}) error
 }
 
 func (e *entitySQLFlush) Type() FlushType {
@@ -76,6 +78,21 @@ func (e *entitySQLFlush) SetMetaData(key, value string) {
 		e.Meta = Bind{}
 	}
 	e.Meta[key] = value
+}
+
+func (e *entitySQLFlush) SetID(id uint64) {
+	e.ID = id
+	if e.entity != nil {
+		e.entity.SetID(id)
+	}
+}
+
+func (e *entitySQLFlush) SetField(field, bind string, value interface{}) error {
+	e.Update[field] = bind
+	if e.entity != nil {
+		return e.entity.SetField(field, value)
+	}
+	return nil
 }
 
 type entityFlushBuilder struct {

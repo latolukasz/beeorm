@@ -575,7 +575,7 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 		unique := key == "unique"
 		if key == "index" && field.Type.Kind() == reflect.Ptr {
 			refOneSchema = getEntitySchema(engine.registry, field.Type.Elem())
-			if refOneSchema != nil && !refOneSchema.hasUUID {
+			if refOneSchema != nil {
 				_, hasSkipFK := attributes["skip_FK"]
 				if !hasSkipFK {
 					pool := refOneSchema.GetMysql(engine)
@@ -610,7 +610,7 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 		}
 	}
 
-	if refOneSchema != nil && !refOneSchema.hasUUID {
+	if refOneSchema != nil {
 		hasValidIndex := false
 		for _, i := range indexes {
 			if i.Columns[1] == columnName {
@@ -924,7 +924,7 @@ func convertIntToSchema(version int, typeAsString string, attributes Bind) strin
 
 func (entitySchema *entitySchema) getIDType() (idType string, idAttributes Bind) {
 	idAttributes = Bind{}
-	idType = "uint"
+	idType = "uint64"
 	switch entitySchema.getTag("id", "uint", "uint") {
 	case "tinyint":
 		idType = "uint8"
@@ -936,8 +936,8 @@ func (entitySchema *entitySchema) getIDType() (idType string, idAttributes Bind)
 		idType = "uint32"
 		idAttributes["mediumint"] = "true"
 		break
-	case "bigint":
-		idType = "uint64"
+	case "int":
+		idType = "uint32"
 		break
 	}
 	return idType, idAttributes

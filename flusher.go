@@ -44,6 +44,10 @@ func (ft FlushType) String() string {
 	return ""
 }
 
+func (ft FlushType) Is(target FlushType) bool {
+	return ft == target
+}
+
 type ForeignKeyError struct {
 	Message    string
 	Constraint string
@@ -614,13 +618,6 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 			continue
 		}
 		f.checkReferencesToInsert(entity, entitySQLFlushData, references)
-
-		currentID := entity.GetID()
-		if orm.entitySchema.hasUUID && !orm.inDB && currentID == 0 {
-			currentID = uuid()
-			orm.id = currentID
-			entitySQLFlushData.ID = currentID
-		}
 		f.addFlushEvent(entitySQLFlushData)
 	}
 	if len(references) > 0 {
