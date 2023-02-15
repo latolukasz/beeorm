@@ -53,8 +53,8 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 }
 
 type IndexSchemaDefinition struct {
-	name       string
-	unique     bool
+	Name       string
+	Unique     bool
 	columnsMap map[int]string
 }
 
@@ -66,20 +66,19 @@ type indexDB struct {
 	Column    string
 }
 
-func (ti *IndexSchemaDefinition) Name() string {
-	return ti.name
-}
-
-func (ti *IndexSchemaDefinition) IsUnique() bool {
-	return ti.unique
-}
-
-func (ti *IndexSchemaDefinition) Columns() []string {
+func (ti *IndexSchemaDefinition) GetColumns() []string {
 	columns := make([]string, len(ti.columnsMap))
-	for i := 0; i < len(columns); i++ {
-		columns[i] = ti.columnsMap[i]
+	for i := 1; i <= len(columns); i++ {
+		columns[i-1] = ti.columnsMap[i]
 	}
 	return columns
+}
+
+func (ti *IndexSchemaDefinition) SetColumns(columns []string) {
+	ti.columnsMap = make(map[int]string)
+	for i, column := range columns {
+		ti.columnsMap[i+1] = column
+	}
 }
 
 func (a Alter) Exec(engine Engine) {
@@ -170,7 +169,6 @@ func getAllTables(db sqlClient) []string {
 }
 
 func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) (has bool, alters []Alter) {
-
 	indexes := make(map[string]*IndexSchemaDefinition)
 	columns, err := checkStruct(entitySchema, engine, entitySchema.t, indexes, nil, "")
 	checkError(err)
@@ -223,14 +221,14 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 		for _, value := range rows {
 			hasCurrent := false
 			for _, current := range sqlSchema.DBIndexes {
-				if current.name == value.KeyName {
+				if current.Name == value.KeyName {
 					hasCurrent = true
 					current.columnsMap[value.Seq] = value.Column
 					break
 				}
 			}
 			if !hasCurrent {
-				current := &IndexSchemaDefinition{name: value.KeyName, unique: value.NonUnique == 0, columnsMap: map[int]string{value.Seq: value.Column}}
+				current := &IndexSchemaDefinition{Name: value.KeyName, Unique: value.NonUnique == 0, columnsMap: map[int]string{value.Seq: value.Column}}
 				sqlSchema.DBIndexes = append(sqlSchema.DBIndexes, current)
 			}
 		}
@@ -315,15 +313,15 @@ OUTER:
 
 	var droppedIndexes []string
 	var newIndexes []string
-	for keyName, indexEntity := range indexes {
+	for _, indexEntity := range sqlSchema.EntityIndexes {
 		hasIndex := false
 		for _, index := range sqlSchema.DBIndexes {
-			if index.name == keyName {
+			if index.Name == indexEntity.Name {
 				hasIndex = true
 				addIndexSQLEntity := buildCreateIndexSQL(indexEntity)
 				addIndexSQLDB := buildCreateIndexSQL(index)
 				if addIndexSQLEntity != addIndexSQLDB {
-					droppedIndexes = append(droppedIndexes, fmt.Sprintf("DROP INDEX `%s`", keyName))
+					droppedIndexes = append(droppedIndexes, fmt.Sprintf("DROP INDEX `%s`", indexEntity.Name))
 					newIndexes = append(newIndexes, addIndexSQLEntity)
 					hasAlters = true
 				}
@@ -337,9 +335,18 @@ OUTER:
 	}
 
 	for _, key := range sqlSchema.DBIndexes {
-		_, has = indexes[key.name]
-		if !has && key.name != "PRIMARY" {
-			droppedIndexes = append(droppedIndexes, fmt.Sprintf("DROP INDEX `%s`", key.name))
+		if key.Name == "PRIMARY" {
+			continue
+		}
+		hasIndex := false
+		for _, index := range sqlSchema.EntityIndexes {
+			if index.Name == key.Name {
+				hasIndex = true
+				break
+			}
+		}
+		if !hasIndex {
+			droppedIndexes = append(droppedIndexes, fmt.Sprintf("DROP INDEX `%s`", key.Name))
 			hasAlters = true
 		}
 	}
@@ -461,7 +468,7 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 				}
 				current, has := indexes[indexColumn[0]]
 				if !has {
-					current = &IndexSchemaDefinition{name: indexColumn[0], unique: unique, columnsMap: map[int]string{location: prefix + field.Name}}
+					current = &IndexSchemaDefinition{Name: indexColumn[0], Unique: unique, columnsMap: map[int]string{location: prefix + field.Name}}
 					indexes[indexColumn[0]] = current
 				} else {
 					current.columnsMap[location] = prefix + field.Name
@@ -810,7 +817,7 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 		field := t.Field(i)
 		if i == 0 && subField == nil {
 			for k, v := range entitySchema.uniqueIndicesGlobal {
-				current := &IndexSchemaDefinition{name: k, unique: true, columnsMap: map[int]string{}}
+				current := &IndexSchemaDefinition{Name: k, Unique: true, columnsMap: map[int]string{}}
 				for i, l := range v {
 					current.columnsMap[i+1] = l
 				}
@@ -848,8 +855,8 @@ func buildCreateIndexSQL(index *IndexSchemaDefinition) string {
 		}
 	}
 	indexType := "INDEX"
-	if index.unique {
+	if index.Unique {
 		indexType = "UNIQUE " + indexType
 	}
-	return fmt.Sprintf("ADD %s `%s` (%s)", indexType, index.name, strings.Join(indexColumns, ","))
+	return fmt.Sprintf("ADD %s `%s` (%s)", indexType, index.Name, strings.Join(indexColumns, ","))
 }

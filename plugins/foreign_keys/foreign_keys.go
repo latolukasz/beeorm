@@ -78,7 +78,7 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema beeorm.TableSQLSchemaDefinition) error {
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	refs := sqlSchema.EntitySchema.GetPluginOption(PluginCode, fkColumnsOption)
 	if refs == nil {
 		return nil
@@ -87,12 +87,24 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	foreignKeys := make(map[string]*foreignIndex)
 	for _, refColumn := range refsMap {
 		field, _ := sqlSchema.EntitySchema.GetType().FieldByName(refColumn)
-		refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Name())
+		refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Elem().String())
 		pool := refOneSchema.GetMysql(engine)
 		foreignKey := &foreignIndex{Column: refColumn, Table: refOneSchema.GetTableName(),
 			ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
 		name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType(), refColumn)
 		foreignKeys[name] = foreignKey // TODO only if not exists
+		hasIndex := false
+		for _, index := range sqlSchema.EntityIndexes {
+			if index.GetColumns()[0] == refColumn {
+				hasIndex = true
+				break
+			}
+		}
+		if !hasIndex {
+			index := &beeorm.IndexSchemaDefinition{Name: refColumn + "Ref", Unique: false}
+			index.SetColumns([]string{refColumn})
+			sqlSchema.EntityIndexes = append(sqlSchema.EntityIndexes, index)
+		}
 	}
 	if len(foreignKeys) == 0 {
 		return nil

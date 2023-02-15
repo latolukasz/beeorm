@@ -10,8 +10,8 @@ type foreignKeyEntity struct {
 	beeorm.ORM `orm:"fk"`
 	Name       string
 	MyRef      *foreignKeyReferenceEntity
-	MyRef2     *foreignKeyReferenceEntity
-	MyRef3     *foreignKeyReferenceEntity `orm:"fk=skip"`
+	MyRef2     *foreignKeyReferenceEntity `orm:"index=TestIndex"`
+	MyRefSkip  *foreignKeyReferenceEntity `orm:"fk=skip"`
 }
 
 type foreignKeyReferenceEntity struct {

@@ -82,7 +82,6 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		}
 	}
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
-
 	RunLazyFlushConsumer(engine, true)
 
 	return engine
