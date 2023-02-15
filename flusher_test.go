@@ -352,13 +352,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		engine.Flush(entity2)
 	})
 
-	entity2.Name = "Lucas"
-	entity2.ReferenceOne = &flushEntityReference{}
-	entity2.ReferenceOne.SetID(3)
-	assert.PanicsWithError(t, "Error 1452 (23000): Cannot add or update a child row: a foreign key constraint fails (`test`.`flushEntity`, CONSTRAINT `test:flushEntity:ReferenceOne` FOREIGN KEY (`ReferenceOne`) REFERENCES `flushEntityReference` (`ID`))", func() {
-		engine.Flush(entity2)
-	})
-
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
@@ -389,11 +382,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2.ReferenceTwo = reference
 	entity2.SetOnDuplicateKeyUpdate(Bind{})
 	engine.Flush(entity2)
-	assert.Equal(t, uint64(6), entity2.GetID())
+	assert.Equal(t, uint64(5), entity2.GetID())
 
 	entity = &flushEntity{}
-	engine.LoadByID(6, entity)
-	assert.Equal(t, uint64(6), entity.GetID())
+	engine.LoadByID(5, entity)
+	assert.Equal(t, uint64(5), entity.GetID())
 
 	engine.LoadByID(1, entity)
 	entity.Bool = false
@@ -534,10 +527,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(entity7)
 	err = flusher.FlushWithCheck()
 	assert.EqualError(t, err, "Duplicate entry 'test_check' for key 'name'")
-	entity7 = &flushEntity{Name: "test_check_2", EnumNotNull: "a", ReferenceOne: &flushEntityReference{}}
-	entity7.ReferenceOne.SetID(100)
-	err = engine.FlushWithCheck(entity7)
-	assert.EqualError(t, err, "foreign key error in key `test:flushEntity:ReferenceOne`")
 
 	flusher.Clear()
 	entity7 = &flushEntity{Name: "test_check_3", EnumNotNull: "Y"}

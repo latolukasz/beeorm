@@ -413,12 +413,6 @@ func convertSQLError(err error) error {
 			if len(labels) > 0 {
 				return &DuplicatedKeyError{Message: sqlErr.Message, Index: labels[1]}
 			}
-		} else if sqlErr.Number == 1451 || sqlErr.Number == 1452 {
-			var abortLabelReg, _ = regexp.Compile(" CONSTRAINT `(.*?)`")
-			labels := abortLabelReg.FindStringSubmatch(sqlErr.Message)
-			if len(labels) > 0 {
-				return &ForeignKeyError{Message: "foreign key error in key `" + labels[1] + "`", Constraint: labels[1]}
-			}
 		}
 	}
 	return err

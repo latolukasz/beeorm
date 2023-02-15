@@ -1,7 +1,6 @@
 package uuid
 
 import (
-	"reflect"
 	"sync/atomic"
 	"time"
 
@@ -49,18 +48,14 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceSchemaStructCheck(engine beeorm.Engine, schema beeorm.EntitySchema, columns []*beeorm.ColumnSchemaDefinition,
-	_ reflect.Type, subField *reflect.StructField, _ string) []*beeorm.ColumnSchemaDefinition {
-	if subField != nil || !p.hasUUID(schema) {
-		return nil
-	}
-	mySQLVersion := schema.GetMysql(engine).GetPoolConfig().GetVersion()
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+	mySQLVersion := sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetVersion()
 	if mySQLVersion == 8 {
-		columns[0].Definition = "`ID` bigint unsigned NOT NULL"
+		sqlSchema.EntityColumns[0].Definition = "`ID` bigint unsigned NOT NULL"
 	} else {
-		columns[0].Definition = "`ID` bigint(20) unsigned NOT NULL"
+		sqlSchema.EntityColumns[0].Definition = "`ID` bigint(20) unsigned NOT NULL"
 	}
-	return columns
+	return nil
 }
 
 func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {

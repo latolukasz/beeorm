@@ -141,7 +141,7 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	e := registry.CreateEngine()
 	for _, schema := range registry.entitySchemas {
-		_, err := checkStruct(schema, e.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
+		_, err := checkStruct(schema, e.(*engineImplementation), schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}

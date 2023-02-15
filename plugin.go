@@ -1,7 +1,5 @@
 package beeorm
 
-import "reflect"
-
 type Plugin interface {
 	GetCode() string
 }
@@ -14,9 +12,8 @@ type PluginInterfaceInitEntitySchema interface {
 	InterfaceInitEntitySchema(schema SettableEntitySchema, registry *Registry) error
 }
 
-type PluginInterfaceSchemaStructCheck interface {
-	PluginInterfaceSchemaStructCheck(engine Engine, schema EntitySchema, columns []*ColumnSchemaDefinition,
-		t reflect.Type, subField *reflect.StructField, subFieldPrefix string) []*ColumnSchemaDefinition
+type PluginInterfaceTableSQLSchemaDefinition interface {
+	PluginInterfaceTableSQLSchemaDefinition(engine Engine, sqlSchema *TableSQLSchemaDefinition) error
 }
 
 type PluginInterfaceSchemaCheck interface {

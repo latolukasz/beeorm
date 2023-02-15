@@ -48,15 +48,6 @@ func (ft FlushType) Is(target FlushType) bool {
 	return ft == target
 }
 
-type ForeignKeyError struct {
-	Message    string
-	Constraint string
-}
-
-func (err *ForeignKeyError) Error() string {
-	return err.Message
-}
-
 type FlusherCacheSetter interface {
 	GetLocalCacheSetter(code ...string) LocalCacheSetter
 	GetRedisCacheSetter(code ...string) RedisCacheSetter
@@ -576,14 +567,9 @@ func (f *flusher) flushWithCheck() error {
 			if r := recover(); r != nil {
 				f.Clear()
 				asErr := convertSQLError(r.(error))
-				assErr1, is := asErr.(*ForeignKeyError)
+				assErr, is := asErr.(*DuplicatedKeyError)
 				if is {
-					err = assErr1
-					return
-				}
-				assErr2, is := asErr.(*DuplicatedKeyError)
-				if is {
-					err = assErr2
+					err = assErr
 					return
 				}
 				panic(asErr)
