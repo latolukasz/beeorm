@@ -21,15 +21,6 @@ type Options struct {
 	TagName string
 }
 
-type ForeignKeyError struct {
-	Message    string
-	Constraint string
-}
-
-func (err *ForeignKeyError) Error() string {
-	return err.Message
-}
-
 type foreignIndex struct {
 	Column         string
 	Table          string
