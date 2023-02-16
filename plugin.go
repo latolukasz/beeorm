@@ -16,10 +16,6 @@ type PluginInterfaceTableSQLSchemaDefinition interface {
 	PluginInterfaceTableSQLSchemaDefinition(engine Engine, sqlSchema *TableSQLSchemaDefinition) error
 }
 
-type PluginInterfaceSchemaCheck interface {
-	PluginInterfaceSchemaCheck(engine Engine, schema EntitySchema) (alters []Alter, keepTables map[string][]string)
-}
-
 type PluginInterfaceEntityFlushing interface {
 	PluginInterfaceEntityFlushing(engine Engine, event EventEntityFlushing)
 }

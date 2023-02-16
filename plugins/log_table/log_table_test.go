@@ -52,6 +52,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	registry.RegisterPlugin(crud_stream.Init(nil))
 	registry.RegisterPlugin(Init(nil))
 	engine := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
+	assert.Len(t, engine.GetAlters(), 0)
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity1`")
 	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_log_logReceiverEntity3`")

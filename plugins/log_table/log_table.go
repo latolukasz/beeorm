@@ -51,22 +51,24 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 	registry.RegisterRedisStreamConsumerGroups(crud_stream.ChannelName, ConsumerGroupName)
 }
 
-func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
+func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, registry *beeorm.Registry) error {
 	logPoolName := schema.GetTag("ORM", p.options.TagName, p.options.DefaultMySQLPool, "")
 	if logPoolName == "" {
 		return nil
 	}
+	tableName := fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName())
 	schema.SetPluginOption(PluginCode, poolOption, logPoolName)
-	schema.SetPluginOption(PluginCode, tableNameOption, fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName()))
+	schema.SetPluginOption(PluginCode, tableNameOption, tableName)
+	registry.RegisterMySQLTable(logPoolName, tableName)
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.EntitySchema) (alters []beeorm.Alter, keepTables map[string][]string) {
-	poolName := schema.GetPluginOption(PluginCode, poolOption)
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+	poolName := sqlSchema.EntitySchema.GetPluginOption(PluginCode, poolOption)
 	if poolName == nil {
-		return nil, nil
+		return nil
 	}
-	tableName := schema.GetPluginOption(PluginCode, tableNameOption)
+	tableName := sqlSchema.EntitySchema.GetPluginOption(PluginCode, tableNameOption)
 	db := engine.GetMysql(poolName.(string))
 	var tableDef string
 	hasLogTable := db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
@@ -84,7 +86,7 @@ func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.
 	}
 
 	if !hasLogTable {
-		alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
+		sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 	} else {
 		var skip, createTableDB string
 		db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
@@ -95,11 +97,11 @@ func (p *Plugin) PluginInterfaceSchemaCheck(engine beeorm.Engine, schema beeorm.
 			db.QueryRow(beeorm.NewWhere("1"))
 			isEmpty := !db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
 			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetPoolConfig().GetDatabase(), tableName)
-			alters = append(alters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName.(string)})
-			alters = append(alters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
+			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName.(string)})
+			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 		}
 	}
-	return alters, map[string][]string{poolName.(string): {tableName.(string)}}
+	return nil
 }
 
 func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {

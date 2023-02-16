@@ -20,6 +20,7 @@ import (
 
 type Registry struct {
 	mysqlPools        map[string]MySQLPoolConfig
+	mysqlTables       map[string]map[string]bool
 	localCachePools   map[string]LocalCachePoolConfig
 	redisPools        map[string]RedisPoolConfig
 	entities          map[string]reflect.Type
@@ -210,6 +211,21 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 
 func (r *Registry) RegisterMySQLPool(dataSourceName string, code ...string) {
 	r.registerSQLPool(dataSourceName, code...)
+}
+
+func (r *Registry) RegisterMySQLTable(pool string, tableName ...string) {
+	if len(tableName) == 0 {
+		return
+	}
+	if r.mysqlTables == nil {
+		r.mysqlTables = map[string]map[string]bool{pool: {}}
+	}
+	if r.mysqlTables[pool] == nil {
+		r.mysqlTables[pool] = map[string]bool{}
+	}
+	for _, table := range tableName {
+		r.mysqlTables[pool][table] = true
+	}
 }
 
 func (r *Registry) RegisterLocalCache(size int, code ...string) {

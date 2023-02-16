@@ -109,34 +109,22 @@ func getAlters(engine *engineImplementation) (preAlters, alters, postAlters []Al
 			entitySchema := getEntitySchema(engine.registry, t)
 			tablesInEntities[entitySchema.mysqlPoolName][entitySchema.tableName] = true
 			pre, middle, post := getSchemaChanges(engine, entitySchema)
-			for _, plugin := range engine.registry.plugins {
-				pluginInterfaceSchemaCheck, isPluginInterfaceSchemaCheck := plugin.(PluginInterfaceSchemaCheck)
-				if isPluginInterfaceSchemaCheck {
-					extraAlters, skippedTables := pluginInterfaceSchemaCheck.PluginInterfaceSchemaCheck(engine, entitySchema)
-					if len(extraAlters) > 0 {
-						alters = append(alters, extraAlters...)
-					}
-					for pool, tableNames := range skippedTables {
-						for _, tableName := range tableNames {
-							tablesInEntities[pool][tableName] = true
-						}
-					}
-				}
-			}
 			preAlters = append(preAlters, pre...)
 			alters = append(alters, middle...)
 			postAlters = append(postAlters, post...)
 		}
 	}
-
 	for poolName, tables := range tablesInDB {
 		for tableName := range tables {
 			_, has := tablesInEntities[poolName][tableName]
 			if !has {
-				pool := engine.GetMysql(poolName)
-				dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
-				isEmpty := isTableEmptyInPool(engine, poolName, tableName)
-				alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
+				_, has = engine.registry.registry.mysqlTables[poolName][tableName]
+				if !has {
+					pool := engine.GetMysql(poolName)
+					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
+					isEmpty := isTableEmptyInPool(engine, poolName, tableName)
+					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
+				}
 			}
 		}
 	}

@@ -107,12 +107,14 @@ func testSchema(t *testing.T, version int) {
 	ref := &schemaEntityRef{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.testEnum", testEnum, "b")
+	registry.RegisterMySQLTable("default", "TestDropTable")
 	engine := PrepareTables(t, registry, version, 6, "", entity, ref)
 
 	engineDrop := PrepareTables(t, &Registry{}, version, 6, "")
 	for _, alter := range engineDrop.GetAlters() {
 		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
 	}
+	engineDrop.GetMysql().Exec("DROP TABLE IF EXISTS `TestDropTable`")
 
 	alters := engine.GetAlters()
 	assert.Len(t, alters, 2)
@@ -201,6 +203,7 @@ func testSchema(t *testing.T, version int) {
 	alters = engine.GetAlters()
 	assert.Len(t, alters, 0)
 
+	engine.GetMysql().Exec("CREATE TABLE `TestDropTable` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
 	engine.GetMysql().Exec("CREATE TABLE `invalid_table` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
 	alters = engine.GetAlters()
 	assert.Len(t, alters, 1)
