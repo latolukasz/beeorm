@@ -26,6 +26,8 @@ type TableSQLSchemaDefinition struct {
 	DBIndexes      []*IndexSchemaDefinition
 	DBCreateSchema string
 	DBEncoding     string
+	PreAlters      []Alter
+	PostAlters     []Alter
 }
 
 func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
@@ -85,7 +87,7 @@ func (a Alter) Exec(engine Engine) {
 	engine.GetMysql(a.Pool).Exec(a.SQL)
 }
 
-func getAlters(engine *engineImplementation) (alters []Alter) {
+func getAlters(engine *engineImplementation) (preAlters, alters, postAlters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
@@ -106,7 +108,7 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 		for _, t := range engine.registry.entities {
 			entitySchema := getEntitySchema(engine.registry, t)
 			tablesInEntities[entitySchema.mysqlPoolName][entitySchema.tableName] = true
-			has, newAlters := entitySchema.GetSchemaChanges(engine)
+			pre, middle, post := getSchemaChanges(engine, entitySchema)
 			for _, plugin := range engine.registry.plugins {
 				pluginInterfaceSchemaCheck, isPluginInterfaceSchemaCheck := plugin.(PluginInterfaceSchemaCheck)
 				if isPluginInterfaceSchemaCheck {
@@ -121,10 +123,9 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 					}
 				}
 			}
-			if !has {
-				continue
-			}
-			alters = append(alters, newAlters...)
+			preAlters = append(preAlters, pre...)
+			alters = append(alters, middle...)
+			postAlters = append(postAlters, post...)
 		}
 	}
 
@@ -142,7 +143,7 @@ func getAlters(engine *engineImplementation) (alters []Alter) {
 	sort.Slice(alters, func(i int, j int) bool {
 		return len(alters[i].SQL) < len(alters[j].SQL)
 	})
-	return alters
+	return
 }
 
 func isTableEmptyInPool(engine *engineImplementation, poolName string, tableName string) bool {
@@ -168,7 +169,7 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) (has bool, alters []Alter) {
+func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
 	columns, err := checkStruct(entitySchema, engine, entitySchema.t, indexes, nil, "")
 	checkError(err)
@@ -241,10 +242,14 @@ func getSchemaChanges(engine *engineImplementation, entitySchema *entitySchema) 
 			checkError(err)
 		}
 	}
-
+	if sqlSchema.PreAlters != nil {
+		preAlters = append(preAlters, sqlSchema.PreAlters...)
+	}
 	if !hasTable {
-		alters = []Alter{{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.mysqlPoolName}}
-		has = true
+		alters = append(alters, Alter{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.mysqlPoolName})
+		if sqlSchema.PostAlters != nil {
+			postAlters = append(postAlters, sqlSchema.PostAlters...)
+		}
 		return
 	}
 	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.registry.registry.defaultEncoding
@@ -351,6 +356,9 @@ OUTER:
 		}
 	}
 	if !hasAlters {
+		if sqlSchema.PostAlters != nil {
+			postAlters = append(postAlters, sqlSchema.PostAlters...)
+		}
 		return
 	}
 
@@ -401,7 +409,6 @@ OUTER:
 		}
 	}
 
-	alters = make([]Alter, 0)
 	if hasAlterNormal {
 		safe := false
 		if len(droppedColumns) == 0 && len(changedColumns) == 0 {
@@ -420,8 +427,10 @@ OUTER:
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.registry.defaultEncoding, collate)
 		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.mysqlPoolName})
 	}
-	has = true
-	return has, alters
+	if sqlSchema.PostAlters != nil {
+		postAlters = append(postAlters, sqlSchema.PostAlters...)
+	}
+	return
 }
 
 func isTableEmpty(db sqlClient, tableName string) bool {

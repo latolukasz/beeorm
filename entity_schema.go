@@ -248,7 +248,11 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 }
 
 func (entitySchema *entitySchema) GetSchemaChanges(engine Engine) (has bool, alters []Alter) {
-	return getSchemaChanges(engine.(*engineImplementation), entitySchema)
+	pre, alters, post := getSchemaChanges(engine.(*engineImplementation), entitySchema)
+	final := pre
+	final = append(final, alters...)
+	final = append(final, post...)
+	return len(final) > 0, final
 }
 
 func (entitySchema *entitySchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {

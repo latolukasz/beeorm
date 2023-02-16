@@ -312,7 +312,11 @@ func (e *engineImplementation) LoadByIDs(ids []uint64, entities interface{}, ref
 }
 
 func (e *engineImplementation) GetAlters() (alters []Alter) {
-	return getAlters(e)
+	pre, alters, post := getAlters(e)
+	final := pre
+	final = append(final, alters...)
+	final = append(final, post...)
+	return final
 }
 
 func (e *engineImplementation) load(serializer *serializer, entity Entity, references ...string) bool {

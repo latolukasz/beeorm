@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/google/go-cmp/cmp"
+
 	"github.com/latolukasz/beeorm/v2"
 )
 
@@ -84,7 +86,8 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		return nil
 	}
 	refsMap := refs.([]string)
-	foreignKeys := make(map[string]*foreignIndex)
+	addForeignKeys := make(map[string]*foreignIndex)
+	dropForeignKeys := make(map[string]*foreignIndex)
 	for _, refColumn := range refsMap {
 		field, _ := sqlSchema.EntitySchema.GetType().FieldByName(refColumn)
 		refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Elem().String())
@@ -92,7 +95,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		foreignKey := &foreignIndex{Column: refColumn, Table: refOneSchema.GetTableName(),
 			ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
 		name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType(), refColumn)
-		foreignKeys[name] = foreignKey // TODO only if not exists
+		addForeignKeys[name] = foreignKey
 		hasIndex := false
 		for _, index := range sqlSchema.EntityIndexes {
 			if index.GetColumns()[0] == refColumn {
@@ -106,49 +109,95 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 			sqlSchema.EntityIndexes = append(sqlSchema.EntityIndexes, index)
 		}
 	}
-	if len(foreignKeys) == 0 {
+	var dbForeignKeys map[string]*foreignIndex
+	if sqlSchema.DBCreateSchema != "" {
+		dbForeignKeys = getForeignKeys(engine, sqlSchema)
+		for name, fk := range dbForeignKeys {
+			current, hasCurrent := addForeignKeys[name]
+			if !hasCurrent {
+				dropForeignKeys[name] = fk
+				continue
+			}
+			if cmp.Equal(current, fk) {
+				delete(addForeignKeys, name)
+			} else {
+				dropForeignKeys[name] = fk
+			}
+		}
+	}
+	if len(addForeignKeys) == 0 && len(dropForeignKeys) == 0 {
 		return nil
 	}
-	newForeignKeys := make([]string, 0)
-	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
 
-	for keyName, foreignKey := range foreignKeys {
-		newForeignKeys = append(newForeignKeys, buildCreateForeignKeySQL(keyName, foreignKey))
+	if len(dropForeignKeys) > 0 {
+		oldForeignKeys := make([]string, 0)
+		dropForeignKeysSQL := alterSQL
+		for keyName := range dropForeignKeys {
+			oldForeignKeys = append(oldForeignKeys, buildDropForeignKeySQL(keyName))
+		}
+		sort.Strings(oldForeignKeys)
+		for i, value := range oldForeignKeys {
+			dropForeignKeysSQL += value
+			if i == len(oldForeignKeys)-1 {
+				dropForeignKeysSQL += ";"
+			} else {
+				dropForeignKeysSQL += ",\n"
+			}
+		}
+		sqlSchema.PreAlters = append(sqlSchema.PreAlters, beeorm.Alter{
+			SQL:  dropForeignKeysSQL,
+			Safe: true,
+			Pool: sqlSchema.EntitySchema.GetMysqlPool(),
+		})
 	}
-	sort.Strings(newForeignKeys)
-	for _, value := range newForeignKeys {
-		createTableForeignKeysSQL += fmt.Sprintf("  %s,\n", value)
-	}
-	//TODO add to alter
 
-	// TODO gdy jest usuwana tabela nalezy wpierw zrobic:
-	//dropForeignKeyAlter := getDropForeignKeysAlter(engine, tableName, poolName)
-	//if dropForeignKeyAlter != "" {
-	//	alters = append(alters, Alter{SQL: dropForeignKeyAlter, Safe: true, Pool: poolName})
-	//}
+	if len(addForeignKeys) > 0 {
+		newForeignKeys := make([]string, 0)
+		addForeignKeysSQL := alterSQL
+		for keyName, foreignKey := range addForeignKeys {
+			newForeignKeys = append(newForeignKeys, buildCreateForeignKeySQL(keyName, foreignKey))
+		}
+		sort.Strings(newForeignKeys)
+		for i, value := range newForeignKeys {
+			addForeignKeysSQL += value
+			if i == len(newForeignKeys)-1 {
+				addForeignKeysSQL += ";"
+			} else {
+				addForeignKeysSQL += ",\n"
+			}
+		}
+		sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{
+			SQL:  addForeignKeysSQL,
+			Safe: true,
+			Pool: sqlSchema.EntitySchema.GetMysqlPool(),
+		})
+	}
 	return nil
 }
 
 func buildCreateForeignKeySQL(keyName string, definition *foreignIndex) string {
-	/* #nosec */
 	return fmt.Sprintf("ADD CONSTRAINT `%s` FOREIGN KEY (`%s`) REFERENCES `%s`.`%s` (`ID`) ON DELETE %s",
 		keyName, definition.Column, definition.ParentDatabase, definition.Table, definition.OnDelete)
 }
 
-// TODO
-func getForeignKeys(engine beeorm.Engine, createTableDB string, tableName string, poolName string) map[string]*foreignIndex {
+func buildDropForeignKeySQL(keyName string) string {
+	return fmt.Sprintf("DROP FOREIGN KEY `%s`", keyName)
+}
+
+func getForeignKeys(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) map[string]*foreignIndex {
 	var rows2 []foreignKeyDB
 	query := "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_TABLE_SCHEMA " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
 		"AND TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'"
-	pool := engine.GetMysql(poolName)
-	results, def := pool.Query(fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), tableName))
+	pool := sqlSchema.EntitySchema.GetMysql(engine)
+	results, def := pool.Query(fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName()))
 	defer def()
 	for results.Next() {
 		var row foreignKeyDB
 		results.Scan(&row.ConstraintName, &row.ColumnName, &row.ReferencedTableName, &row.ReferencedEntitySchema)
 		row.OnDelete = "RESTRICT"
-		for _, line := range strings.Split(createTableDB, "\n") {
+		for _, line := range strings.Split(sqlSchema.DBCreateSchema, "\n") {
 			line = strings.TrimSpace(strings.TrimRight(line, ","))
 			if strings.Index(line, fmt.Sprintf("CONSTRAINT `%s`", row.ConstraintName)) == 0 {
 				words := strings.Split(line, " ")
@@ -167,24 +216,4 @@ func getForeignKeys(engine beeorm.Engine, createTableDB string, tableName string
 		foreignKeysDB[value.ConstraintName] = foreignKey
 	}
 	return foreignKeysDB
-}
-
-// TODO pobrac
-func getDropForeignKeysAlter(engine beeorm.Engine, tableName string, poolName string) string {
-	var skip string
-	var createTableDB string
-	pool := engine.GetMysql(poolName)
-	pool.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
-	alter := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableName)
-	foreignKeysDB := getForeignKeys(engine, createTableDB, tableName, poolName)
-	if len(foreignKeysDB) == 0 {
-		return ""
-	}
-	droppedForeignKeys := make([]string, 0)
-	for keyName := range foreignKeysDB {
-		droppedForeignKeys = append(droppedForeignKeys, fmt.Sprintf("DROP FOREIGN KEY `%s`", keyName))
-	}
-	alter += strings.Join(droppedForeignKeys, ",\t\n")
-	alter = strings.TrimRight(alter, ",") + ";"
-	return alter
 }
