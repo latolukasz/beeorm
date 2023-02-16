@@ -36,7 +36,8 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(Init(nil))
 	engine := beeorm.PrepareTables(t, registry, mySQLVersion, 7, "", entity, ref)
-
+	assert.Len(t, engine.GetRegistry().GetPlugins(), 1)
+	assert.Equal(t, PluginCode, engine.GetRegistry().GetPlugins()[0])
 	engineDrop := beeorm.PrepareTables(t, &beeorm.Registry{}, mySQLVersion, 6, "")
 	for _, alter := range engineDrop.GetAlters() {
 		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
