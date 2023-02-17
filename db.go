@@ -20,7 +20,7 @@ type MySQLPoolConfig interface {
 	GetVersion() int
 	getClient() *sql.DB
 	getAutoincrement() uint64
-	getMaxConnections() int
+	getPoolOptions() MySQLPoolOptions
 }
 
 type mySQLPoolConfig struct {
@@ -30,7 +30,7 @@ type mySQLPoolConfig struct {
 	client         *sql.DB
 	autoincrement  uint64
 	version        int
-	maxConnections int
+	options        MySQLPoolOptions
 }
 
 func (p *mySQLPoolConfig) GetCode() string {
@@ -57,8 +57,8 @@ func (p *mySQLPoolConfig) getAutoincrement() uint64 {
 	return p.autoincrement
 }
 
-func (p *mySQLPoolConfig) getMaxConnections() int {
-	return p.maxConnections
+func (p *mySQLPoolConfig) getPoolOptions() MySQLPoolOptions {
+	return p.options
 }
 
 type ExecResult interface {

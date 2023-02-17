@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func (r *Registry) InitByYaml(yaml map[string]interface{}) {
@@ -39,11 +40,23 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 }
 
 func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
-	asString, ok := value.(string)
-	if !ok {
-		panic(fmt.Errorf("mysql uri '%v' is not valid", value))
+	def := fixYamlMap(value, key)
+	uri := ""
+	options := MySQLPoolOptions{}
+	for k, v := range def {
+		switch k {
+		case "uri":
+			uri = validateOrmString(v, "uri")
+		case "ConnMaxLifetime":
+			connMaxLifetime := validateOrmInt(v, "ConnMaxLifetime")
+			options.ConnMaxLifetime = time.Duration(connMaxLifetime) * time.Second
+		case "MaxOpenConnections":
+			options.MaxOpenConnections = validateOrmInt(v, "MaxOpenConnections")
+		case "MaxIdleConnections":
+			options.MaxIdleConnections = validateOrmInt(v, "MaxIdleConnections")
+		}
 	}
-	registry.RegisterMySQLPool(asString, key)
+	registry.RegisterMySQLPool(uri, options, key)
 }
 
 func validateStreams(registry *Registry, value interface{}, key string) {

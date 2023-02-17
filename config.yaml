@@ -2,7 +2,11 @@ default:
   mysqlEncoding: utf8
   mysqlCollate: 0900_ai_ci
   disableCacheHashCheck: true
-  mysql: root:root@tcp(localhost:3308)/test
+  mysql:
+    uri: root:root@tcp(localhost:3308)/test
+    ConnMaxLifetime: 30
+    MaxOpenConnections: 10
+    MaxIdleConnections: 10
   redis: localhost:6382:0
   streams:
     stream-1:

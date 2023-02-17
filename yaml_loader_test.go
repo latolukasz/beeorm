@@ -27,7 +27,7 @@ func TestYamlLoader(t *testing.T) {
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml["default"] = map[string]interface{}{"mysql": []string{}}
-	assert.PanicsWithError(t, "mysql uri '[]' is not valid", func() {
+	assert.PanicsWithError(t, "orm yaml key default is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)
 	})
 

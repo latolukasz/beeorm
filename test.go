@@ -22,12 +22,13 @@ func (h *MockLogHandler) Clear() {
 }
 
 func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (engine Engine) {
+	poolOptions := MySQLPoolOptions{}
 	if mySQLVersion == 5 {
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test?limit_connections=10")
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", "log")
+		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test", poolOptions)
+		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", poolOptions, "log")
 	} else {
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test")
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test_log", "log")
+		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test", poolOptions)
+		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test_log", poolOptions, "log")
 	}
 	if redisVersion == 6 {
 		registry.RegisterRedis("localhost:6382", redisNamespace, 15)

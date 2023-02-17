@@ -77,17 +77,26 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
 		checkError(err)
-		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.9), 1))
-		maxLimit := v.getMaxConnections()
-		if maxLimit == 0 {
-			maxLimit = maxConnections
+
+		maxLimit := 100
+		if v.getPoolOptions().MaxOpenConnections > 0 {
+			maxLimit = int(math.Min(float64(v.getPoolOptions().MaxOpenConnections), float64(maxConnections)))
+		} else {
+			maxLimit = int(math.Min(float64(maxLimit), float64(maxConnections)))
 		}
-		maxLimit = int(math.Min(float64(maxConnections), float64(maxLimit)))
-		waitTimeout = int(math.Max(float64(waitTimeout), 180))
-		waitTimeout = int(math.Min(float64(waitTimeout), 180))
+		maxIdle := maxLimit
+		if v.getPoolOptions().MaxIdleConnections > 0 {
+			maxIdle = int(math.Min(float64(v.getPoolOptions().MaxIdleConnections), float64(maxLimit)))
+		}
+		maxDuration := 5 * time.Minute
+		if v.getPoolOptions().ConnMaxLifetime > 0 {
+			maxDuration = time.Duration(int(math.Min(v.getPoolOptions().ConnMaxLifetime.Seconds(), float64(waitTimeout)))) * time.Second
+		} else {
+			maxDuration = time.Duration(int(math.Min(maxDuration.Seconds(), float64(waitTimeout)))) * time.Second
+		}
 		db.SetMaxOpenConns(maxLimit)
-		db.SetMaxIdleConns(maxLimit)
-		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
+		db.SetMaxIdleConns(maxIdle)
+		db.SetConnMaxLifetime(maxDuration)
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
 	}
@@ -209,8 +218,14 @@ func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...st
 	r.enums[code] = &e
 }
 
-func (r *Registry) RegisterMySQLPool(dataSourceName string, code ...string) {
-	r.registerSQLPool(dataSourceName, code...)
+type MySQLPoolOptions struct {
+	ConnMaxLifetime    time.Duration
+	MaxOpenConnections int
+	MaxIdleConnections int
+}
+
+func (r *Registry) RegisterMySQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
+	r.registerSQLPool(dataSourceName, poolOptions, code...)
 }
 
 func (r *Registry) RegisterMySQLTable(pool string, tableName ...string) {
@@ -319,28 +334,17 @@ func (r *Registry) RegisterRedisStreamConsumerGroups(stream string, groups ...st
 	}
 }
 
-func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {
+func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
 	dbCode := "default"
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	db := &mySQLPoolConfig{code: dbCode, dataSourceName: dataSourceName}
+	db := &mySQLPoolConfig{code: dbCode, dataSourceName: dataSourceName, options: poolOptions}
 	if r.mysqlPools == nil {
 		r.mysqlPools = make(map[string]MySQLPoolConfig)
 	}
 	parts := strings.Split(dataSourceName, "/")
 	dbName := strings.Split(parts[len(parts)-1], "?")[0]
-
-	pos := strings.Index(dataSourceName, "limit_connections=")
-	if pos > 0 {
-		val := dataSourceName[pos+18:]
-		val = strings.Split(val, "&")[0]
-		db.maxConnections, _ = strconv.Atoi(val)
-		dataSourceName = strings.Replace(dataSourceName, "limit_connections="+val, "", -1)
-		dataSourceName = strings.Trim(dataSourceName, "?&")
-		dataSourceName = strings.Replace(dataSourceName, "?&", "?", -1)
-		db.dataSourceName = dataSourceName
-	}
 	db.databaseName = dbName
 	r.mysqlPools[dbCode] = db
 }

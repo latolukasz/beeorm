@@ -215,25 +215,25 @@ func testSchema(t *testing.T, version int) {
 	}
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterEntity(&schemaInvalidIndexEntity{})
 	_, err := registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIndexEntity': invalid index position 'invalid' in index 'TestIndex'")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterEntity(&schemaInvalidMaxStringEntity{})
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidMaxStringEntity': invalid max string: invalid")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterEntity(&schemaInvalidIDEntity{})
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field with name ID not allowed")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterLocalCache(1000)
 	registry.RegisterEntity(&schemaEntity{})
 	_, err = registry.Validate()
@@ -248,7 +248,7 @@ func testSchema(t *testing.T, version int) {
 	assert.Equal(t, "CREATE TABLE `test`.`schemaToDropEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema struct {
 		ORM `orm:"mysql=invalid"`
 		ID  uint
@@ -258,7 +258,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "mysql pool 'invalid' not found")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema2 struct {
 		ORM `orm:"localCache=invalid"`
 		ID  uint
@@ -268,7 +268,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "local cache pool 'invalid' not found")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema3 struct {
 		ORM `orm:"redisCache=invalid"`
 		ID  uint
@@ -278,7 +278,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool, "other")
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{}, "other")
 	type invalidSchema4 struct {
 		ORM `orm:"mysql=other"`
 	}
@@ -287,7 +287,7 @@ func testSchema(t *testing.T, version int) {
 	assert.NoError(t, err)
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema5 struct {
 		ORM
 		Name string `orm:"index=test,test2"`
@@ -297,7 +297,7 @@ func testSchema(t *testing.T, version int) {
 	assert.NotNil(t, err)
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema6 struct {
 		ORM
 		Name      string
@@ -308,7 +308,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema6")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema7 struct {
 		ORM
 		Name      string
@@ -319,7 +319,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "missing index for cached query 'IndexName' in beeorm.invalidSchema7")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema8 struct {
 		ORM
 		Name      string       `orm:"unique=TestUniqueIndex"`
@@ -331,7 +331,7 @@ func testSchema(t *testing.T, version int) {
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema8")
 
 	registry = &Registry{}
-	registry.RegisterMySQLPool(pool)
+	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	type invalidSchema9 struct {
 		ORM
 		Name      string `orm:"index=TestIndex"`
