@@ -107,6 +107,7 @@ func RunStreamGarbageCollectorConsumer(engine Engine) {
 type MockDBClient struct {
 	OriginDB            DBClient
 	TX                  DBClientTX
+	PrepareMock         func(query string) (*sql.Stmt, error)
 	ExecMock            func(query string, args ...interface{}) (sql.Result, error)
 	ExecContextMock     func(context context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRowMock        func(query string, args ...interface{}) *sql.Row
@@ -116,6 +117,13 @@ type MockDBClient struct {
 	BeginMock           func() (*sql.Tx, error)
 	CommitMock          func() error
 	RollbackMock        func() error
+}
+
+func (m *MockDBClient) Prepare(query string) (*sql.Stmt, error) {
+	if m.PrepareMock != nil {
+		return m.PrepareMock(query)
+	}
+	return m.OriginDB.Prepare(query)
 }
 
 func (m *MockDBClient) Exec(query string, args ...interface{}) (sql.Result, error) {

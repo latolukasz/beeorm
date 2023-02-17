@@ -66,6 +66,13 @@ type ExecResult interface {
 	RowsAffected() uint64
 }
 
+type PreparedStmt interface {
+	Exec(args ...any) ExecResult
+	Query(args ...any) (rows Rows, close func())
+	QueryRow(args []interface{}, toFill ...interface{}) (found bool)
+	Close() error
+}
+
 type execResult struct {
 	r sql.Result
 }
@@ -86,6 +93,7 @@ type sqlClient interface {
 	Begin() error
 	Commit() error
 	Rollback() (bool, error)
+	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRow(query string, args ...interface{}) SQLRow
@@ -95,6 +103,7 @@ type sqlClient interface {
 }
 
 type DBClientQuery interface {
+	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
 	QueryRow(query string, args ...interface{}) *sql.Row
@@ -153,6 +162,21 @@ func (db *standardSQLClient) Rollback() (bool, error) {
 	}
 	db.tx = nil
 	return true, nil
+}
+
+func (db *standardSQLClient) Prepare(query string) (*sql.Stmt, error) {
+	if db.tx != nil {
+		res, err := db.tx.Prepare(query)
+		if err != nil {
+			return nil, err
+		}
+		return res, nil
+	}
+	res, err := db.db.Prepare(query)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result, error) {
@@ -262,6 +286,79 @@ func (r *rowsStruct) Scan(dest ...interface{}) {
 	checkError(err)
 }
 
+type preparedStmtStruct struct {
+	stmt  *sql.Stmt
+	db    *DB
+	query string
+}
+
+func (p preparedStmtStruct) Exec(args ...any) ExecResult {
+	start := getNow(p.db.engine.hasDBLogger)
+	rows, err := p.stmt.Exec(args...)
+	if p.db.engine.hasDBLogger {
+		message := p.query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
+		}
+		p.db.fillLogFields("PREPARED EXEC", message, start, err)
+	}
+	checkError(err)
+	return &execResult{r: rows}
+}
+
+func (p preparedStmtStruct) Query(args ...any) (rows Rows, close func()) {
+	start := getNow(p.db.engine.hasDBLogger)
+	result, err := p.stmt.Query(args...)
+	if p.db.engine.hasDBLogger {
+		message := p.query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
+		}
+		p.db.fillLogFields("SELECT PREPARED", message, start, err)
+	}
+	checkError(err)
+	return &rowsStruct{result}, func() {
+		if result != nil {
+			err := result.Err()
+			_ = result.Close()
+			checkError(err)
+		}
+	}
+}
+
+func (p preparedStmtStruct) QueryRow(args []interface{}, toFill ...interface{}) (found bool) {
+	start := getNow(p.db.engine.hasDBLogger)
+	row := p.stmt.QueryRow(args...)
+	err := row.Scan(toFill...)
+	message := ""
+	if p.db.engine.hasDBLogger {
+		message = p.query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
+		}
+	}
+	if err != nil {
+		if err.Error() == "sql: no rows in result set" {
+			if p.db.engine.hasDBLogger {
+				p.db.fillLogFields("SELECT PREPARED", message, start, nil)
+			}
+			return false
+		}
+		if p.db.engine.hasDBLogger {
+			p.db.fillLogFields("SELECT PREPARED", message, start, err)
+		}
+		panic(err)
+	}
+	if p.db.engine.hasDBLogger {
+		p.db.fillLogFields("SELECT PREPARED", message, start, nil)
+	}
+	return true
+}
+
+func (p preparedStmtStruct) Close() error {
+	return p.stmt.Close()
+}
+
 type SQLRow interface {
 	Scan(dest ...interface{}) error
 }
@@ -329,11 +426,24 @@ func (db *DB) Rollback() {
 	db.inTransaction = false
 }
 
+func (db *DB) Prepare(query string) (stmt PreparedStmt, close func()) {
+	start := getNow(db.engine.hasDBLogger)
+	result, err := db.client.Prepare(query)
+	if db.engine.hasDBLogger {
+		message := query
+		db.fillLogFields("PREPARE", message, start, err)
+	}
+	checkError(err)
+	return &preparedStmtStruct{result, db, query}, func() {
+		if result != nil {
+			_ = result.Close()
+		}
+	}
+}
+
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 	results, err := db.exec(query, args...)
-	if err != nil {
-		panic(err)
-	}
+	checkError(err)
 	return results
 }
 
