@@ -11,7 +11,6 @@ type searchEntity struct {
 	ORM          `orm:"localCache;redisCache"`
 	Name         string
 	ReferenceOne *searchEntityReference
-	FakeDelete   bool
 }
 
 type searchEntityReference struct {

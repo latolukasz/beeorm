@@ -101,7 +101,6 @@ type flushEntity struct {
 	Ignored              []string `orm:"ignore"`
 	Blob                 []uint8
 	Bool                 bool
-	FakeDelete           bool
 	Float64              float64  `orm:"precision=10"`
 	Decimal              float64  `orm:"decimal=5,2"`
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
@@ -471,8 +470,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, engine.IsDirty(entity2))
 	engine.Delete(entity2)
 	found = engine.LoadByID(10, entity2)
-	assert.True(t, found)
-	assert.True(t, entity2.FakeDelete)
+	assert.False(t, found)
 
 	engine.Flush(&flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982, EnumNotNull: "a"})
 	entity3 := &flushEntity{}
@@ -581,10 +579,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	flusher.Clear()
 	engine.LoadByID(6, entity)
-	flusher.ForceDelete(entity)
+	flusher.Delete(entity)
 	entity = &flushEntity{}
 	engine.LoadByID(7, entity)
-	flusher.ForceDelete(entity)
+	flusher.Delete(entity)
 	flusher.Flush()
 	found = engine.LoadByID(6, entity)
 	assert.False(t, found)
@@ -666,17 +664,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.GetLocalCache().Clear()
 	engine.GetRedis().FlushDB()
-	assert.True(t, engine.LoadByID(100, entity))
-	assert.True(t, entity.FakeDelete)
-	assert.False(t, engine.IsDirty(entity))
-	engine.ForceDelete(entity)
-	engine.GetLocalCache().Clear()
-	engine.GetRedis().FlushDB()
 	assert.False(t, engine.LoadByID(100, entity))
 
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
-	engine.ForceDelete(entity)
+	engine.Delete(entity)
 	flusher = engine.NewFlusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntityReference{})
@@ -690,7 +682,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntity{Name: "Adam"})
 	err = flusher.FlushWithCheck()
-	assert.NotNil(t, err)
+	assert.Nil(t, err)
 
 	entity = schema.NewEntity().(*flushEntity)
 	entity.Name = "WithID"

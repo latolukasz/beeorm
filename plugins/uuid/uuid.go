@@ -41,14 +41,17 @@ func (p *Plugin) GetCode() string {
 }
 
 func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
-	if !p.hasUUID(schema) {
+	if schema.GetTag("ORM", p.options.TagName, "true", "") != "true" {
 		return nil
 	}
-	schema.SetPluginOption(PluginCode, hasUUIDOption, "true")
+	schema.SetPluginOption(PluginCode, hasUUIDOption, true)
 	return nil
 }
 
 func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+	if sqlSchema.EntitySchema.GetPluginOption(PluginCode, hasUUIDOption) != true {
+		return nil
+	}
 	mySQLVersion := sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetVersion()
 	if mySQLVersion == 8 {
 		sqlSchema.EntityColumns[0].Definition = "`ID` bigint unsigned NOT NULL"
@@ -63,12 +66,8 @@ func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeor
 		return
 	}
 	schema := engine.GetRegistry().GetEntitySchema(event.EntityName())
-	if !p.hasUUID(schema) {
+	if schema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return
 	}
 	event.SetID(p.uuid())
-}
-
-func (p *Plugin) hasUUID(schema beeorm.EntitySchema) bool {
-	return schema.GetTag("ORM", p.options.TagName, "true", "") == "true"
 }

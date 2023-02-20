@@ -22,3 +22,7 @@ type PluginInterfaceEntityFlushing interface {
 type PluginInterfaceEntityFlushed interface {
 	PluginInterfaceEntityFlushed(engine Engine, event EventEntityFlushed, cacheFlusher FlusherCacheSetter)
 }
+
+type PluginInterfaceEntitySearch interface {
+	PluginInterfaceEntitySearch(engine Engine, schema EntitySchema, where *Where) *Where
+}

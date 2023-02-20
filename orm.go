@@ -28,11 +28,12 @@ type Entity interface {
 	GetID() uint64
 	SetID(id uint64)
 	markToDelete()
-	forceMarkToDelete()
 	IsLoaded() bool
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetField(field string, value interface{}) error
 	Clone() Entity
+	SetMetaData(key, value string)
+	GetMetaData() Bind
 }
 
 type ORM struct {
@@ -40,11 +41,11 @@ type ORM struct {
 	entitySchema         *entitySchema
 	id                   uint64
 	onDuplicateKeyUpdate Bind
+	meta                 Bind
 	initialised          bool
 	loaded               bool
 	inDB                 bool
 	delete               bool
-	fakeDelete           bool
 	lazy                 bool
 	value                reflect.Value
 	elem                 reflect.Value
@@ -69,6 +70,22 @@ func (orm *ORM) SetID(id uint64) {
 	orm.id = id
 }
 
+func (orm *ORM) SetMetaData(key, value string) {
+	if orm.meta == nil {
+		if value != "" {
+			orm.meta = Bind{key: value}
+		}
+	} else if value == "" {
+		delete(orm.meta, key)
+	} else {
+		orm.meta[key] = value
+	}
+}
+
+func (orm *ORM) GetMetaData() Bind {
+	return orm.meta
+}
+
 func (orm *ORM) Clone() Entity {
 	newEntity := orm.entitySchema.NewEntity()
 	for i, field := range orm.entitySchema.fields.fields {
@@ -90,10 +107,6 @@ func (orm *ORM) copyBinary() []byte {
 }
 
 func (orm *ORM) markToDelete() {
-	orm.fakeDelete = true
-}
-
-func (orm *ORM) forceMarkToDelete() {
 	orm.delete = true
 }
 
@@ -106,13 +119,6 @@ func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
 }
 
 func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *entitySQLFlush, has bool) {
-	if orm.fakeDelete {
-		if orm.entitySchema.hasFakeDelete {
-			orm.elem.FieldByName("FakeDelete").SetBool(true)
-		} else {
-			orm.delete = true
-		}
-	}
 	serializer.Reset(orm.binary)
 	builder := newEntitySQLFlushBuilder(orm, forceFillOld)
 	builder.fill(serializer, orm.entitySchema.fields, orm.elem, true)
@@ -169,10 +175,6 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 			unix -= orm.entitySchema.registry.timeOffset
 		}
 		serializer.SerializeInteger(unix)
-		index++
-	}
-	if fields.fakeDelete > 0 {
-		serializer.SerializeBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
 	for range fields.strings {
@@ -334,9 +336,6 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 			}
 			serialized.SerializeInteger(unix)
 		}
-	}
-	if fields.fakeDelete > 0 {
-		serialized.SerializeBool(elem.Field(fields.fakeDelete).Bool())
 	}
 	for _, i := range fields.strings {
 		serialized.SerializeString(elem.Field(i).String())
@@ -508,9 +507,6 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		} else {
 			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
 		}
-	}
-	if fields.fakeDelete > 0 {
-		elem.Field(fields.fakeDelete).SetBool(serializer.DeserializeBool())
 	}
 	for _, i := range fields.strings {
 		elem.Field(i).SetString(serializer.DeserializeString())

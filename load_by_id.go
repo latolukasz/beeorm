@@ -57,7 +57,6 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 		}
 	}
 	where := NewWhere("`ID` = ?", id)
-	where.ShowFakeDeleted()
 	found, _, data := searchRow(serializer, engine, where, entity, nil)
 	if !found {
 		if localCache != nil {

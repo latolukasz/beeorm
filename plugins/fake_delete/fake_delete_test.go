@@ -1,0 +1,73 @@
+package fake_delete
+
+import (
+	"testing"
+
+	"github.com/latolukasz/beeorm/v2"
+
+	"github.com/stretchr/testify/assert"
+)
+
+type fakeDeleteEntity struct {
+	beeorm.ORM
+	Name       string `orm:"unique=name;required"`
+	Age        int    `orm:"index=AgeWeight"`
+	Weight     int    `orm:"index=AgeWeight:2"`
+	FakeDelete bool
+}
+
+type noFakeDeleteEntity struct {
+	beeorm.ORM
+	Name string
+}
+
+func TestFakeDeleteMySQL5(t *testing.T) {
+	testFakeDelete(t, 5)
+}
+
+func TestFakeDeleteMySQL8(t *testing.T) {
+	testFakeDelete(t, 8)
+}
+
+func testFakeDelete(t *testing.T, mySQLVersion int) {
+	registry := &beeorm.Registry{}
+	registry.RegisterPlugin(Init(nil))
+	var entity *fakeDeleteEntity
+	var entityNoFakeDelete *noFakeDeleteEntity
+	engine := beeorm.PrepareTables(t, registry, mySQLVersion, 6, "", entity, entityNoFakeDelete)
+	engine.GetMysql().Query("DROP TABLE `fakeDeleteEntity`")
+	engine.GetMysql().Query("DROP TABLE `noFakeDeleteEntity`")
+	alters := engine.GetAlters()
+	assert.Len(t, alters, 2)
+	if mySQLVersion == 5 {
+		assert.Equal(t, "CREATE TABLE `test`.`noFakeDeleteEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) DEFAULT NULL,\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
+		assert.Equal(t, "CREATE TABLE `test`.`fakeDeleteEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) NOT NULL DEFAULT '',\n  `Age` int(11) NOT NULL DEFAULT '0',\n  `Weight` int(11) NOT NULL DEFAULT '0',\n  `FakeDelete` bigint(20) unsigned NOT NULL,\n  INDEX `AgeWeight` (`Age`,`Weight`,`FakeDelete`),\n  INDEX `FakeDelete` (`FakeDelete`),\n  UNIQUE INDEX `name` (`Name`,`FakeDelete`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[1].SQL)
+	} else {
+		assert.Equal(t, "CREATE TABLE `test`.`noFakeDeleteEntity` (\n  `ID` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL,\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[0].SQL)
+		assert.Equal(t, "CREATE TABLE `test`.`fakeDeleteEntity` (\n  `ID` bigint unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Age` int NOT NULL DEFAULT '0',\n  `Weight` int NOT NULL DEFAULT '0',\n  `FakeDelete` bigint unsigned NOT NULL,\n  INDEX `AgeWeight` (`Age`,`Weight`,`FakeDelete`),\n  INDEX `FakeDelete` (`FakeDelete`),\n  UNIQUE INDEX `name` (`Name`,`FakeDelete`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[1].SQL)
+	}
+	alters[0].Exec(engine)
+	alters[1].Exec(engine)
+	assert.Len(t, engine.GetAlters(), 0)
+
+	entity = &fakeDeleteEntity{Name: "A", Age: 10, Weight: 180}
+	engine.Flush(entity)
+
+	var rows []*fakeDeleteEntity
+	total := engine.SearchWithCount(beeorm.NewWhere("`FakeDelete` = 0"), nil, &rows)
+	assert.Equal(t, 1, total)
+
+	engine.Delete(entity)
+	total = engine.SearchWithCount(beeorm.NewWhere("`FakeDelete` = ID"), nil, &rows)
+	assert.Equal(t, 1, total)
+
+	total = engine.SearchWithCount(beeorm.NewWhere("1"), nil, &rows)
+	assert.Equal(t, 0, total)
+	total = engine.SearchWithCount(beeorm.NewWhere("1 ORDER BY ID DESC"), nil, &rows)
+	assert.Equal(t, 0, total)
+
+	ForceDelete(entity)
+	engine.Delete(entity)
+	total = engine.SearchWithCount(beeorm.NewWhere("1"), nil, &rows)
+	assert.Equal(t, 0, total)
+}

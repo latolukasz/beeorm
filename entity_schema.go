@@ -120,8 +120,6 @@ type entitySchema struct {
 	searchCacheName            string
 	cachePrefix                string
 	structureHash              uint64
-	hasFakeDelete              bool
-	hasSearchableFakeDelete    bool
 	skipLogs                   []string
 	mapBindToScanPointer       mapBindToScanPointer
 	mapPointerToValue          mapPointerToValue
@@ -147,7 +145,6 @@ type tableFields struct {
 	sliceStringsSets        []int
 	sets                    []Enum
 	bytes                   []int
-	fakeDelete              int
 	booleans                []int
 	booleansNullable        []int
 	floats                  []int
@@ -319,12 +316,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
 	cachedQueriesTrackedFields := make(map[string]bool)
-	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
-	if has && fakeDeleteField.Type.String() == "bool" {
-		entitySchema.hasFakeDelete = true
-		searchable := entitySchema.tags["FakeDelete"] != nil && entitySchema.tags["FakeDelete"]["searchable"] == "true"
-		entitySchema.hasSearchableFakeDelete = searchable
-	}
 	for key, values := range entitySchema.tags {
 		isOne := false
 		query, has := values["query"]
@@ -354,17 +345,8 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 				}
 				query = strings.Replace(query, variable, fmt.Sprintf("`%s`", fieldName), 1)
 			}
-			if entitySchema.hasFakeDelete && len(variables) > 0 {
-				fields = append(fields, "FakeDelete")
-			}
 			if query == "" {
-				if entitySchema.hasFakeDelete {
-					query = "`FakeDelete` = 0 ORDER BY `ID`"
-				} else {
-					query = "1 ORDER BY `ID`"
-				}
-			} else if entitySchema.hasFakeDelete {
-				query = "`FakeDelete` = 0 AND " + query
+				query = "1 ORDER BY `ID`"
 			}
 			queryLower := strings.ToLower(queryOrigin)
 			posOrderBy := strings.Index(queryLower, "order by")
@@ -586,9 +568,6 @@ func (entitySchema *entitySchema) validateIndexes(uniqueIndices map[string]map[i
 				}
 				valid := 0
 				key := len(columns)
-				if columns[len(columns)] == "FakeDelete" {
-					key--
-				}
 				for i := len(v.OrderFields); i > 0; i-- {
 					if columns[key] == v.OrderFields[i-1] {
 						valid++
@@ -862,13 +841,9 @@ func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAt
 
 func (entitySchema *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
-	if attributes.GetColumnName() == "FakeDelete" {
-		attributes.Fields.fakeDelete = attributes.Index
-	} else {
-		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
-		entitySchema.mapBindToScanPointer[columnName] = scanBoolPointer
-		entitySchema.mapPointerToValue[columnName] = pointerBoolScan
-	}
+	attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
+	entitySchema.mapBindToScanPointer[columnName] = scanBoolPointer
+	entitySchema.mapPointerToValue[columnName] = pointerBoolScan
 }
 
 func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
@@ -1083,9 +1058,6 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.times...)
 	ids = append(ids, fields.dates...)
 	timesEnd := len(ids)
-	if fields.fakeDelete > 0 {
-		ids = append(ids, fields.fakeDelete)
-	}
 	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.uintegersNullable...)
 	ids = append(ids, fields.integersNullable...)

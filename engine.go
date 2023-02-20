@@ -21,7 +21,6 @@ type Engine interface {
 	FlushWithFullCheck(entity ...Entity) error
 	Delete(entity ...Entity)
 	DeleteLazy(entity ...Entity)
-	ForceDelete(entity ...Entity)
 	GetRegistry() ValidatedRegistry
 	SearchWithCount(where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int)
 	Search(where *Where, pager *Pager, entities interface{}, references ...string)
@@ -230,13 +229,6 @@ func (e *engineImplementation) DeleteLazy(entity ...Entity) {
 		e.markToDelete()
 	}
 	e.FlushLazy(entity...)
-}
-
-func (e *engineImplementation) ForceDelete(entity ...Entity) {
-	for _, entity := range entity {
-		entity.forceMarkToDelete()
-	}
-	e.Flush(entity...)
 }
 
 func (e *engineImplementation) GetRegistry() ValidatedRegistry {

@@ -56,11 +56,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	if fields.fakeDelete > 0 {
-		v := uint64(0)
-		pointers[start] = &v
-		start++
-	}
 	for range fields.strings {
 		v := sql.NullString{}
 		pointers[start] = &v
@@ -126,9 +121,6 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.entitySchema
 	whereQuery := where.String()
-	if !where.showFakeDeleted && schema.hasFakeDelete {
-		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
-	}
 	/* #nosec */
 	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
 
@@ -159,11 +151,15 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
 	schema := getEntitySchema(engine.registry, entityType)
-	whereQuery := where.String()
-	if !where.showFakeDeleted && schema.hasFakeDelete {
-		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
-		where = NewWhere(whereQuery, where.parameters)
+
+	for _, plugin := range engine.registry.plugins {
+		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
+		if isInterfaceEntitySearch {
+			where = interfaceEntitySearch.PluginInterfaceEntitySearch(engine, schema, where)
+		}
 	}
+
+	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
@@ -201,11 +197,6 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 	}
 	schema := getEntitySchema(engine.registry, entityType)
 	whereQuery := where.String()
-	if !where.showFakeDeleted && schema.hasFakeDelete {
-		/* #nosec */
-		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
-		where = NewWhere(whereQuery, where.parameters)
-	}
 	/* #nosec */
 	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)

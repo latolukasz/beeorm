@@ -45,6 +45,9 @@ type EventEntityFlushed interface {
 type EventEntityFlushing interface {
 	EventEntityFlushed
 	SetID(id uint64)
+	SetType(t FlushType)
+	SetBefore(before Bind)
+	SetAfter(before Bind)
 	SetMetaData(key, value string)
 	SetField(field, bind string, value interface{}) error
 }
@@ -85,6 +88,18 @@ func (e *entitySQLFlush) SetID(id uint64) {
 	if e.entity != nil {
 		e.entity.SetID(id)
 	}
+}
+
+func (e *entitySQLFlush) SetType(t FlushType) {
+	e.Action = t
+}
+
+func (e *entitySQLFlush) SetBefore(before Bind) {
+	e.Old = before
+}
+
+func (e *entitySQLFlush) SetAfter(after Bind) {
+	e.Update = after
 }
 
 func (e *entitySQLFlush) SetField(field, bind string, value interface{}) error {
@@ -133,6 +148,9 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	if b.fillNew || b.forceFillOld {
 		b.Old = make(Bind)
 	}
+	for k, v := range orm.meta {
+		flushData.SetMetaData(k, v)
+	}
 	return b
 }
 
@@ -147,7 +165,6 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 	b.buildFloats(serializer, fields, value)
 	b.buildTimes(serializer, fields, value)
 	b.buildDates(serializer, fields, value)
-	b.buildFakeDelete(serializer, fields, value)
 	b.buildStrings(serializer, fields, value)
 	b.buildUIntegersNullable(serializer, fields, value)
 	b.buildIntegersNullable(serializer, fields, value)
@@ -420,32 +437,6 @@ var dateFieldDataProvider = fieldDataProvider{
 
 func (b *entityFlushBuilder) buildDates(s *serializer, fields *tableFields, value reflect.Value) {
 	b.build(s, fields, value, fields.dates, dateFieldDataProvider)
-}
-
-func (b *entityFlushBuilder) buildFakeDelete(s *serializer, fields *tableFields, value reflect.Value) {
-	if fields.fakeDelete == 0 {
-		return
-	}
-	b.build(
-		s,
-		fields,
-		value,
-		[]int{fields.fakeDelete},
-		fieldDataProvider{
-			fieldGetter: func(field reflect.Value) interface{} {
-				return field.Bool()
-			},
-			serializeGetter: func(s *serializer, _ reflect.Value) interface{} {
-				return s.DeserializeBool()
-			},
-			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
-				if val.(bool) {
-					return strconv.FormatUint(b.ID, 10)
-				}
-				return "0"
-			},
-		},
-	)
 }
 
 func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, value reflect.Value) {

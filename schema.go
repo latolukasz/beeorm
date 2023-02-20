@@ -516,9 +516,6 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(version, typeAsString, attributes, true)
 	case "bool":
-		if columnName == "FakeDelete" {
-			return nil, nil
-		}
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"
 	case "*bool":
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", false, "nil"
@@ -833,10 +830,6 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 		if fieldColumns != nil {
 			columns = append(columns, fieldColumns...)
 		}
-	}
-	if entitySchema.hasFakeDelete && subField == nil {
-		def := fmt.Sprintf("`FakeDelete` %s unsigned NOT NULL DEFAULT '0'", strings.Split(columns[0].Definition, " ")[1])
-		columns = append(columns, &ColumnSchemaDefinition{"FakeDelete", def})
 	}
 	return columns, nil
 }

@@ -6,9 +6,8 @@ import (
 )
 
 type Where struct {
-	query           string
-	parameters      []interface{}
-	showFakeDeleted bool
+	query      string
+	parameters []interface{}
 }
 
 func (where *Where) String() string {
@@ -27,11 +26,6 @@ func (where *Where) SetParameters(params ...interface{}) *Where {
 
 func (where *Where) GetParameters() []interface{} {
 	return where.parameters
-}
-
-func (where *Where) ShowFakeDeleted() *Where {
-	where.showFakeDeleted = true
-	return where
 }
 
 func (where *Where) Append(query string, parameters ...interface{}) {
@@ -57,5 +51,5 @@ func NewWhere(query string, parameters ...interface{}) *Where {
 		}
 		finalParameters = append(finalParameters, value)
 	}
-	return &Where{query, finalParameters, false}
+	return &Where{query, finalParameters}
 }

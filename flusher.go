@@ -63,7 +63,6 @@ type Flusher interface {
 	FlushLazy()
 	Clear()
 	Delete(entity ...Entity) Flusher
-	ForceDelete(entity ...Entity) Flusher
 }
 
 type flusher struct {
@@ -472,14 +471,6 @@ func (f *flusher) Delete(entity ...Entity) Flusher {
 	return f
 }
 
-func (f *flusher) ForceDelete(entity ...Entity) Flusher {
-	for _, e := range entity {
-		e.forceMarkToDelete()
-	}
-	f.Track(entity...)
-	return f
-}
-
 func (f *flusher) GetLocalCacheSetter(code ...string) LocalCacheSetter {
 	dbCode := "default"
 	if len(code) > 0 {
@@ -730,9 +721,6 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 func (f *flusher) getCacheQueriesKeys(schema *entitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.cachedIndexesAll {
-		if !addedDeleted && schema.hasFakeDelete {
-			_, addedDeleted = bind["FakeDelete"]
-		}
 		if addedDeleted && len(definition.TrackedFields) == 0 {
 			keys = append(keys, getCacheKeySearch(schema, indexName))
 		}
@@ -745,9 +733,7 @@ func (f *flusher) getCacheQueriesKeys(schema *entitySchema, bind, current Bind, 
 					if !has || old {
 						val = current[trackedFieldSub]
 					}
-					if !schema.hasFakeDelete || trackedFieldSub != "FakeDelete" {
-						attributes = append(attributes, val)
-					}
+					attributes = append(attributes, val)
 				}
 				keys = append(keys, getCacheKeySearch(schema, indexName, attributes...))
 				break

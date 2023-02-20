@@ -19,14 +19,6 @@ type cachedSearchEntity struct {
 	IndexAll       *CachedQuery           `query:""`
 	IndexName      *CachedQuery           `queryOne:":Name = ?"`
 	IndexReference *CachedQuery           `query:":ReferenceOne = ?"`
-	FakeDelete     bool                   `orm:"unique=FirstIndex:2;index=IndexReference:2,SecondIndex:2"`
-}
-
-type cachedSearchEntityNoFakeDelete struct {
-	ORM      `orm:"localCache;redisCache;"`
-	Name     string
-	Age      uint16       `orm:"index=SecondIndex"`
-	IndexAge *CachedQuery `query:":Age = ? ORDER BY ID"`
 }
 
 type cachedSearchRefEntity struct {
@@ -50,13 +42,10 @@ func TestCachedSearchLocalRedis(t *testing.T) {
 
 func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
-	var entityNoFakeDelete *cachedSearchEntityNoFakeDelete
 	var entityRef *cachedSearchRefEntity
-	engine := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
+	engine := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity)
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
-	schemaNoFakeDelete := engine.GetRegistry().GetEntitySchemaForEntity(entityNoFakeDelete)
 	schema.DisableCache(!localCache, !redisCache)
-	schemaNoFakeDelete.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {
 		engine.Flush(&cachedSearchRefEntity{Name: "Name " + strconv.Itoa(i)})
 	}
@@ -258,22 +247,6 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	RunLazyFlushConsumer(engine, false)
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 0, totalRows)
-
-	if localCache {
-
-		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "A", Age: 10})
-		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "B", Age: 10})
-		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "C", Age: 10})
-		var rowsNoFakeDelete []*cachedSearchEntityNoFakeDelete
-
-		engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
-		engine.DeleteLazy(rowsNoFakeDelete[1])
-		totalRows = engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
-		assert.Equal(t, 2, totalRows)
-		assert.Len(t, rowsNoFakeDelete, 2)
-		assert.Equal(t, "A", rowsNoFakeDelete[0].Name)
-		assert.Equal(t, "C", rowsNoFakeDelete[1].Name)
-	}
 }
 
 func TestCachedSearchErrors(t *testing.T) {
