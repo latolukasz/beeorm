@@ -117,9 +117,12 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *entitySchema, []interface{}) {
+func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, isSearch bool, references []string) (bool, *entitySchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.entitySchema
+	if isSearch {
+		where = runPluginInterfaceEntitySearch(engine, where, schema)
+	}
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
@@ -141,6 +144,16 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 	return true, schema, pointers
 }
 
+func runPluginInterfaceEntitySearch(engine *engineImplementation, where *Where, schema *entitySchema) *Where {
+	for _, plugin := range engine.registry.plugins {
+		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
+		if isInterfaceEntitySearch {
+			where = interfaceEntitySearch.PluginInterfaceEntitySearch(engine, schema, where)
+		}
+	}
+	return where
+}
+
 func search(serializer *serializer, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
@@ -151,13 +164,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
 	schema := getEntitySchema(engine.registry, entityType)
-
-	for _, plugin := range engine.registry.plugins {
-		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
-		if isInterfaceEntitySearch {
-			where = interfaceEntitySearch.PluginInterfaceEntitySearch(engine, schema, where)
-		}
-	}
+	where = runPluginInterfaceEntitySearch(engine, where, schema)
 
 	whereQuery := where.String()
 	/* #nosec */
@@ -188,7 +195,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 }
 
 func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *entitySchema, []interface{}) {
-	return searchRow(serializer, engine, where, entity, references)
+	return searchRow(serializer, engine, where, entity, true, references)
 }
 
 func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
@@ -196,6 +203,7 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 		pager = NewPager(1, 50000)
 	}
 	schema := getEntitySchema(engine.registry, entityType)
+	where = runPluginInterfaceEntitySearch(engine, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()

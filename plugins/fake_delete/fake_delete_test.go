@@ -51,23 +51,42 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 	assert.Len(t, engine.GetAlters(), 0)
 
 	entity = &fakeDeleteEntity{Name: "A", Age: 10, Weight: 180}
+	entity2 := &fakeDeleteEntity{Name: "B", Age: 20, Weight: 200}
 	engine.Flush(entity)
+	engine.Flush(entity2)
 
 	var rows []*fakeDeleteEntity
 	total := engine.SearchWithCount(beeorm.NewWhere("`FakeDelete` = 0"), nil, &rows)
-	assert.Equal(t, 1, total)
+	assert.Equal(t, 2, total)
 
 	engine.Delete(entity)
 	total = engine.SearchWithCount(beeorm.NewWhere("`FakeDelete` = ID"), nil, &rows)
 	assert.Equal(t, 1, total)
+	assert.Equal(t, "A", rows[0].Name)
 
 	total = engine.SearchWithCount(beeorm.NewWhere("1"), nil, &rows)
-	assert.Equal(t, 0, total)
+	assert.Equal(t, 1, total)
+	assert.Equal(t, "B", rows[0].Name)
 	total = engine.SearchWithCount(beeorm.NewWhere("1 ORDER BY ID DESC"), nil, &rows)
-	assert.Equal(t, 0, total)
+	assert.Equal(t, 1, total)
+	assert.Equal(t, "B", rows[0].Name)
 
+	entity = &fakeDeleteEntity{}
+	found := engine.SearchOne(beeorm.NewWhere("1 ORDER BY ID ASC"), entity)
+	assert.True(t, found)
+	assert.Equal(t, "B", entity.Name)
+	ids := engine.SearchIDs(beeorm.NewWhere("1 ORDER BY ID ASC"), beeorm.NewPager(1, 100), entity)
+	assert.Len(t, ids, 1)
+	assert.Equal(t, uint64(2), ids[0])
+
+	found = engine.LoadByID(1, entity)
+	assert.True(t, found)
+
+	found = engine.LoadByIDs([]uint64{1}, &rows)
+	assert.True(t, found)
+
+	assert.True(t, engine.LoadByID(2, entity))
 	ForceDelete(entity)
 	engine.Delete(entity)
-	total = engine.SearchWithCount(beeorm.NewWhere("1"), nil, &rows)
-	assert.Equal(t, 0, total)
+	assert.False(t, engine.LoadByID(2, entity))
 }

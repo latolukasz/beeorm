@@ -57,7 +57,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 		}
 	}
 	where := NewWhere("`ID` = ?", id)
-	found, _, data := searchRow(serializer, engine, where, entity, nil)
+	found, _, data := searchRow(serializer, engine, where, entity, false, nil)
 	if !found {
 		if localCache != nil {
 			localCache.Set(cacheKey, cacheNilValue)
