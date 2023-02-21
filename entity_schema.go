@@ -71,6 +71,7 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 
 type EntitySchema interface {
 	GetTableName() string
+	GetEntityName() string
 	GetType() reflect.Type
 	NewEntity() Entity
 	DropTable(engine Engine)
@@ -169,6 +170,10 @@ func getEntitySchema(registry *validatedRegistry, entityType reflect.Type) *enti
 
 func (entitySchema *entitySchema) GetTableName() string {
 	return entitySchema.tableName
+}
+
+func (entitySchema *entitySchema) GetEntityName() string {
+	return entitySchema.t.String()
 }
 
 func (entitySchema *entitySchema) GetType() reflect.Type {
