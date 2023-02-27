@@ -105,7 +105,7 @@ func (e *engineImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []
 	return append(logs, toAdd)
 }
 
-func fillLogFields(handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
+func fillLogFields(engine Engine, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	fields := map[string]interface{}{
 		"operation": operation,
 		"query":     query,
@@ -114,6 +114,10 @@ func fillLogFields(handlers []LogHandler, pool, source, operation, query string,
 	}
 	if cacheMiss {
 		fields["miss"] = "TRUE"
+	}
+	meta := engine.GetMetaData()
+	if len(meta) > 0 {
+		fields["meta"] = meta
 	}
 	if start != nil {
 		now := time.Now()

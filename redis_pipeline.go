@@ -179,5 +179,5 @@ func (c *PipeLineBool) Result() bool {
 
 func (rp *RedisPipeLine) fillLogFields(start *time.Time, err error) {
 	query := strings.Join(rp.log, " ")
-	fillLogFields(rp.r.engine.queryLoggersRedis, rp.pool, sourceRedis, "PIPELINE EXEC", query, start, false, err)
+	fillLogFields(rp.r.engine, rp.r.engine.queryLoggersRedis, rp.pool, sourceRedis, "PIPELINE EXEC", query, start, false, err)
 }

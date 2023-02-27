@@ -44,6 +44,8 @@ type Engine interface {
 	EnableQueryDebugCustom(mysql, redis, local bool)
 	SetPluginOption(plugin, key string, value interface{})
 	GetPluginOption(plugin, key string) interface{}
+	SetMetaData(key, value string)
+	GetMetaData() Bind
 }
 
 type engineImplementation struct {
@@ -60,6 +62,7 @@ type engineImplementation struct {
 	hasLocalCacheLogger    bool
 	eventBroker            *eventBroker
 	options                map[string]map[string]interface{}
+	meta                   Bind
 	sync.Mutex
 }
 
@@ -98,6 +101,18 @@ func (e *engineImplementation) GetPluginOption(plugin, key string) interface{} {
 		return nil
 	}
 	return values[key]
+}
+
+func (e *engineImplementation) SetMetaData(key, value string) {
+	if e.meta == nil {
+		e.meta = Bind{key: value}
+		return
+	}
+	e.meta[key] = value
+}
+
+func (e *engineImplementation) GetMetaData() Bind {
+	return e.meta
 }
 
 func (e *engineImplementation) EnableRequestCache() {

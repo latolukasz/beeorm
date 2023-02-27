@@ -18,6 +18,7 @@ type ValidatedRegistry interface {
 	GetRedisPools() map[string]RedisPoolConfig
 	GetEntities() map[string]reflect.Type
 	GetPlugins() []string
+	GetPlugin(code string) Plugin
 }
 
 type validatedRegistry struct {
@@ -49,6 +50,15 @@ func (r *validatedRegistry) GetPlugins() []string {
 		codes[i] = plugin.GetCode()
 	}
 	return codes
+}
+
+func (r *validatedRegistry) GetPlugin(code string) Plugin {
+	for _, plugin := range r.plugins {
+		if plugin.GetCode() == code {
+			return plugin
+		}
+	}
+	return nil
 }
 
 func (r *validatedRegistry) GetRedisStreams() map[string]map[string][]string {
@@ -93,7 +103,14 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 }
 
 func (r *validatedRegistry) CreateEngine() Engine {
-	return &engineImplementation{registry: r}
+	engine := &engineImplementation{registry: r}
+	for _, plugin := range engine.registry.plugins {
+		interfaceEngineCreated, isInterfaceEngineCreated := plugin.(PluginInterfaceEngineCreated)
+		if isInterfaceEngineCreated {
+			interfaceEngineCreated.PluginInterfaceEngineCreated(engine)
+		}
+	}
+	return engine
 }
 
 func (r *validatedRegistry) GetEntitySchema(entityName string) EntitySchema {

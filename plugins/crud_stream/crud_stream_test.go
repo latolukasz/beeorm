@@ -155,8 +155,8 @@ func TestCrudStream(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	SetMetaData(engine, "source", "test")
-	SetMetaData(engine, "user", "me")
+	engine.SetMetaData("source", "test")
+	engine.SetMetaData("user", "me")
 	e1 = &crudStreamEntity{Name: "Hugo", LastName: "Winter", Country: "Poland"}
 	engine.Flush(e1)
 	valid = false
@@ -190,7 +190,8 @@ func TestCrudStream(t *testing.T) {
 		var crudEvent CrudEvent
 		events[0].Unserialize(&crudEvent)
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
-		assert.Len(t, crudEvent.MetaData, 2)
+		assert.Len(t, crudEvent.MetaData, 3)
+		assert.Equal(t, "1", crudEvent.MetaData.Get("lazy"))
 		assert.Equal(t, "test", crudEvent.MetaData.Get("source"))
 		assert.Equal(t, "me", crudEvent.MetaData.Get("user"))
 		assert.Equal(t, "", crudEvent.MetaData.Get("invalid"))

@@ -12,7 +12,7 @@ require (
 	github.com/redis/go-redis/v9 v9.0.2
 	github.com/segmentio/fasthash v1.0.3
 	github.com/shamaton/msgpack v1.2.1
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.2
 	gopkg.in/yaml.v2 v2.4.0
 )
 

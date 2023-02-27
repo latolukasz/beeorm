@@ -96,8 +96,8 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "18", logs[0].After["Age"])
 	assert.Equal(t, "Tom", logs[0].After["Name"])
 
-	crud_stream.SetMetaData(engine, "user_id", "12")
-	crud_stream.SetMetaData(engine, "country", "Poland")
+	engine.SetMetaData("user_id", "12")
+	engine.SetMetaData("country", "Poland")
 	flusher := engine.NewFlusher()
 	e := &logReceiverEntity1{Name: "John2"}
 	e3 := &logReceiverEntity1{Name: "John3"}

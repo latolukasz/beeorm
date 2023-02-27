@@ -19,7 +19,8 @@ type LazyFlushConsumer struct {
 
 func NewLazyFlushConsumer(engine Engine) *LazyFlushConsumer {
 	c := &LazyFlushConsumer{}
-	c.engine = engine.(*engineImplementation)
+	c.engine = engine.Clone().(*engineImplementation)
+	c.engine.SetMetaData("lazy", "1")
 	c.block = true
 	c.blockTime = time.Second * 30
 	c.flusher = &flusher{engine: engine.(*engineImplementation)}

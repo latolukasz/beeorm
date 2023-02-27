@@ -1167,7 +1167,7 @@ func (r *redisCache) FlushDB() {
 }
 
 func (r *redisCache) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {
-	fillLogFields(r.engine.queryLoggersRedis, r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
+	fillLogFields(r.engine, r.engine.queryLoggersRedis, r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
 }
 
 func (r *redisCache) addNamespacePrefix(key string) string {

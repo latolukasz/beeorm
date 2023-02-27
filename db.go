@@ -511,7 +511,7 @@ func (db *DB) Query(query string, args ...interface{}) (rows Rows, close func())
 
 func (db *DB) fillLogFields(operation, query string, start *time.Time, err error) {
 	query = strings.ReplaceAll(query, "\n", " ")
-	fillLogFields(db.engine.queryLoggersDB, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
+	fillLogFields(db.engine, db.engine.queryLoggersDB, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
 }
 
 func convertSQLError(err error) error {

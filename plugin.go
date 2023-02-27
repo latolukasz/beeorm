@@ -26,3 +26,7 @@ type PluginInterfaceEntityFlushed interface {
 type PluginInterfaceEntitySearch interface {
 	PluginInterfaceEntitySearch(engine Engine, schema EntitySchema, where *Where) *Where
 }
+
+type PluginInterfaceEngineCreated interface {
+	PluginInterfaceEngineCreated(engine Engine)
+}

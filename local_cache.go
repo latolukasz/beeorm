@@ -222,5 +222,5 @@ func (c *localCache) getLruMutex(s string) *localCacheLruMutex {
 }
 
 func (c *localCache) fillLogFields(operation, query string, cacheMiss bool) {
-	fillLogFields(c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
+	fillLogFields(c.engine, c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

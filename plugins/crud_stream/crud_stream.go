@@ -11,7 +11,6 @@ const ChannelName = "beeorm-crud-stream"
 const defaultTagName = "crud-stream"
 const hasCrudStreamOption = "has-crud-stream"
 const skipCrudStreamOption = "skip-crud-stream"
-const metaDataOption = "meta-data"
 
 type Plugin struct {
 	options *Options
@@ -39,17 +38,6 @@ func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
-func SetMetaData(engine beeorm.Engine, key, value string) {
-	meta := engine.GetPluginOption(PluginCode, metaDataOption)
-	if meta == nil {
-		newMeta := beeorm.Bind{}
-		newMeta[key] = value
-		engine.SetPluginOption(PluginCode, metaDataOption, newMeta)
-		return
-	}
-	meta.(beeorm.Bind)[key] = value
-}
-
 func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
 	crudStream := schema.GetTag("ORM", p.options.TagName, "true", "false")
 	if crudStream != "true" {
@@ -74,9 +62,9 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 }
 
 func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
-	metaData := engine.GetPluginOption(PluginCode, metaDataOption)
+	metaData := engine.GetMetaData()
 	if metaData != nil {
-		for key, value := range metaData.(beeorm.Bind) {
+		for key, value := range metaData {
 			event.SetMetaData(key, value)
 		}
 	}

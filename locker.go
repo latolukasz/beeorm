@@ -132,5 +132,5 @@ func (l *Lock) Refresh(ctx context.Context, ttl time.Duration) bool {
 }
 
 func (l *Locker) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {
-	fillLogFields(l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
+	fillLogFields(l.r.engine, l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
 }
