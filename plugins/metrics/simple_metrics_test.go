@@ -62,4 +62,12 @@ func TestMysqlMetrics(t *testing.T) {
 
 	plugin.ClearStats()
 	engine.LoadByID(2, entity)
+	dbStats = plugin.GetMySQLStats()
+	assert.Equal(t, uint64(1), dbStats["default"][Query]["simplemetricsentity"][false].counter)
+
+	plugin.ClearStats()
+	date := ""
+	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT NOW();"), &date)
+	dbStats = plugin.GetMySQLStats()
+	assert.Equal(t, uint64(1), dbStats["default"][Query]["unknown"][false].counter)
 }

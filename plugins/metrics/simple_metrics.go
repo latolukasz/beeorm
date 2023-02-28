@@ -14,9 +14,10 @@ type Plugin struct {
 	mySQLLogHandler *mySQLLogHandler
 }
 type Options struct {
-	MySQL      bool
-	Redis      bool
-	LocalCache bool
+	MySQL           bool
+	MySQLTableLimit int
+	Redis           bool
+	LocalCache      bool
 }
 
 type mySQLQuery struct {
@@ -25,6 +26,8 @@ type mySQLQuery struct {
 }
 
 type MySQLQueryType uint8
+
+const mySQLTableLimit = 50000
 
 const (
 	Query MySQLQueryType = iota
@@ -45,8 +48,30 @@ type MySQLFlushTypeGroup map[MySQLQueryType]MySQLTableGroup
 type MySQLStats map[PoolName]MySQLFlushTypeGroup
 
 type mySQLLogHandler struct {
+	p       *Plugin
 	m       sync.Mutex
 	queries MySQLStats
+}
+
+func Init(options *Options) *Plugin {
+	if options == nil {
+		options = &Options{}
+	}
+	if options.MySQLTableLimit == 0 {
+		options.MySQLTableLimit = mySQLTableLimit
+	}
+	plugin := &Plugin{options: options}
+	if options.MySQL {
+		plugin.mySQLLogHandler = &mySQLLogHandler{
+			p:       plugin,
+			queries: MySQLStats{},
+		}
+	}
+	return plugin
+}
+
+func (p *Plugin) GetCode() string {
+	return PluginCode
 }
 
 func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
@@ -125,6 +150,9 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 		l2 = MySQLTableGroup{}
 		l1[queryType] = l2
 	}
+	if len(l2) == ml.p.options.MySQLTableLimit {
+		return
+	}
 	l3 := l2[table]
 	if l3 == nil {
 		l3 = MySQLTableLazyGroup{}
@@ -150,23 +178,6 @@ func (ml *mySQLLogHandler) clearTableName(table string) TableName {
 		name = s[1]
 	}
 	return TableName(strings.Trim(name, "`'"))
-}
-
-func Init(options *Options) *Plugin {
-	if options == nil {
-		options = &Options{}
-	}
-	plugin := &Plugin{options: options}
-	if options.MySQL {
-		plugin.mySQLLogHandler = &mySQLLogHandler{
-			queries: MySQLStats{},
-		}
-	}
-	return plugin
-}
-
-func (p *Plugin) GetCode() string {
-	return PluginCode
 }
 
 func (p *Plugin) GetMySQLStats() MySQLStats {
