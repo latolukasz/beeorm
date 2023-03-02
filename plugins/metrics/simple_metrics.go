@@ -1,8 +1,10 @@
 package simple_metrics
 
 import (
+	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/latolukasz/beeorm/v2"
 )
@@ -14,20 +16,50 @@ type Plugin struct {
 	mySQLLogHandler *mySQLLogHandler
 }
 type Options struct {
-	MySQL           bool
-	MySQLTableLimit int
-	Redis           bool
-	LocalCache      bool
+	mySQLMetricsLimits    int
+	mySQLSlowQueriesLimit int
+}
+
+func InitOptions() *Options {
+	return &Options{}
+}
+
+func (o *Options) EnableMySQLMetrics(metricsLimits int) *Options {
+	o.mySQLMetricsLimits = metricsLimits
+	return o
+}
+
+func (o *Options) EnableMySQLSlowQuery(maxQueries int) *Options {
+	o.mySQLSlowQueriesLimit = maxQueries
+	return o
+}
+
+type MySQLQuery struct {
+	Counter     uint64
+	SlowQueries uint64
+	TotalTime   uint64
+	Table       string
+	Pool        string
+	Operation   MySQLQueryType
 }
 
 type mySQLQuery struct {
-	counter uint64
-	time    uint64
+	Counter     uint64
+	Time        uint64
+	SlowQueries uint64
+}
+
+type MySQLSLowQuery struct {
+	Query    string
+	Pool     string
+	Duration time.Duration
+}
+
+func (sq *MySQLSLowQuery) String() string {
+	return "[" + string(sq.Pool) + "][" + sq.Duration.String() + "] " + sq.Query
 }
 
 type MySQLQueryType uint8
-
-const mySQLTableLimit = 50000
 
 const (
 	Query MySQLQueryType = iota
@@ -39,32 +71,33 @@ const (
 	Other
 )
 
-type PoolName string
-type TableName string
-type Lazy bool
-type MySQLTableLazyGroup map[Lazy]*mySQLQuery
-type MySQLTableGroup map[TableName]MySQLTableLazyGroup
-type MySQLFlushTypeGroup map[MySQLQueryType]MySQLTableGroup
-type MySQLStats map[PoolName]MySQLFlushTypeGroup
+type poolName string
+type tableName string
+type lazyQuery bool
+type mySQLTableLazyGroup map[lazyQuery]*mySQLQuery
+type mySQLTableGroup map[tableName]mySQLTableLazyGroup
+type mySQLFlushTypeGroup map[MySQLQueryType]mySQLTableGroup
+type mySQLQueriesStats map[poolName]mySQLFlushTypeGroup
 
 type mySQLLogHandler struct {
-	p       *Plugin
-	m       sync.Mutex
-	queries MySQLStats
+	p                  *Plugin
+	m                  sync.Mutex
+	queries            mySQLQueriesStats
+	slowQueries        *mySqlSlowQueryTreeNode
+	slowQueriesCounter int
+	mySQLMetricsLimits int
 }
 
 func Init(options *Options) *Plugin {
 	if options == nil {
 		options = &Options{}
 	}
-	if options.MySQLTableLimit == 0 {
-		options.MySQLTableLimit = mySQLTableLimit
-	}
 	plugin := &Plugin{options: options}
-	if options.MySQL {
+	if options.mySQLMetricsLimits > 0 || options.mySQLSlowQueriesLimit > 0 {
 		plugin.mySQLLogHandler = &mySQLLogHandler{
-			p:       plugin,
-			queries: MySQLStats{},
+			p:                  plugin,
+			queries:            mySQLQueriesStats{},
+			mySQLMetricsLimits: options.mySQLMetricsLimits,
 		}
 	}
 	return plugin
@@ -75,20 +108,53 @@ func (p *Plugin) GetCode() string {
 }
 
 func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
-	pool := PoolName(log["pool"].(string))
-	lazy := Lazy(false)
+	t := log["microseconds"].(int64)
+	query := strings.ToLower(log["query"].(string))
+	pool := poolName(log["pool"].(string))
+	lazy := lazyQuery(false)
 	meta, hasMeta := log["meta"]
+	slow := false
 	if hasMeta {
 		metaData, isMetaData := meta.(beeorm.Bind)
 		if isMetaData && metaData["lazy"] == "1" {
 			lazy = true
 		}
 	}
-	time := uint64(log["microseconds"].(int64))
+	if !lazy && ml.p.options.mySQLSlowQueriesLimit > 0 {
+		if ml.slowQueriesCounter < ml.p.options.mySQLSlowQueriesLimit {
+			node := ml.slowQueries.insert(&MySQLSLowQuery{
+				Query:    query,
+				Pool:     string(pool),
+				Duration: time.Microsecond * time.Duration(t),
+			})
+			if ml.slowQueries == nil {
+				ml.slowQueries = node
+			}
+			ml.slowQueriesCounter++
+		} else if ml.slowQueries != nil {
+			min, parent := ml.slowQueries.findMin(nil)
+			if min.value.Duration.Microseconds() <= t {
+				if parent == nil {
+					ml.slowQueries = ml.slowQueries.right
+				} else {
+					parent.left = min.right
+				}
+				ml.slowQueries.insert(&MySQLSLowQuery{
+					Query:    query,
+					Pool:     string(pool),
+					Duration: time.Microsecond * time.Duration(t),
+				})
+				slow = true
+			}
+		}
+	}
+
+	if ml.mySQLMetricsLimits <= 0 {
+		return
+	}
 	operation := log["operation"].(string)
-	query := strings.ToLower(log["query"].(string))
 	splitQuery := strings.Split(query, " ")
-	table := TableName("unknown")
+	table := tableName("unknown")
 	queryType := Other
 	switch operation {
 	case "SELECT":
@@ -140,34 +206,36 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 	}
 	ml.m.Lock()
 	defer ml.m.Unlock()
+
 	l1 := ml.queries[pool]
 	if l1 == nil {
-		l1 = MySQLFlushTypeGroup{}
+		l1 = mySQLFlushTypeGroup{}
 		ml.queries[pool] = l1
 	}
 	l2 := l1[queryType]
 	if l2 == nil {
-		l2 = MySQLTableGroup{}
+		l2 = mySQLTableGroup{}
 		l1[queryType] = l2
-	}
-	if len(l2) == ml.p.options.MySQLTableLimit {
-		return
 	}
 	l3 := l2[table]
 	if l3 == nil {
-		l3 = MySQLTableLazyGroup{}
+		l3 = mySQLTableLazyGroup{}
 		l2[table] = l3
 	}
 	l4 := l3[lazy]
 	if l4 == nil {
 		l4 = &mySQLQuery{}
 		l3[lazy] = l4
+		ml.mySQLMetricsLimits--
 	}
-	l4.counter++
-	l4.time += time
+	l4.Counter++
+	l4.Time += uint64(t)
+	if slow {
+		l4.SlowQueries++
+	}
 }
 
-func (ml *mySQLLogHandler) clearTableName(table string) TableName {
+func (ml *mySQLLogHandler) clearTableName(table string) tableName {
 	s := strings.Split(table, "(")
 	if len(s) > 1 {
 		table = s[0]
@@ -177,26 +245,110 @@ func (ml *mySQLLogHandler) clearTableName(table string) TableName {
 	if len(s) > 1 {
 		name = s[1]
 	}
-	return TableName(strings.Trim(name, "`'"))
+	return tableName(strings.Trim(name, "`'"))
 }
 
-func (p *Plugin) GetMySQLStats() MySQLStats {
+func (p *Plugin) GetMySQLQueriesStats(l bool) []MySQLQuery {
 	if p.mySQLLogHandler == nil {
 		return nil
 	}
-	return p.mySQLLogHandler.queries
+	results := make([]MySQLQuery, 0)
+	for pool, l1 := range p.mySQLLogHandler.queries {
+		for operation, l2 := range l1 {
+			for table, l3 := range l2 {
+				q, has := l3[lazyQuery(l)]
+				if has {
+					query := MySQLQuery{
+						Counter:     q.Counter,
+						TotalTime:   q.Time,
+						Pool:        string(pool),
+						Table:       string(table),
+						Operation:   operation,
+						SlowQueries: q.SlowQueries,
+					}
+					results = append(results, query)
+				}
+			}
+		}
+	}
+	sort.SliceStable(results, func(l, r int) bool {
+		return results[l].TotalTime > results[r].TotalTime
+	})
+	return results
 }
 
-func (p *Plugin) ClearStats() {
-	if p.options.MySQL {
+func (p *Plugin) GetMySQLSlowQueriesStats() []*MySQLSLowQuery {
+	if p.mySQLLogHandler == nil {
+		return nil
+	}
+	return p.mySQLLogHandler.slowQueries.getChildren()
+}
+
+func (p *Plugin) ClearMySQLStats() {
+	if p.mySQLLogHandler != nil {
 		p.mySQLLogHandler.m.Lock()
 		defer p.mySQLLogHandler.m.Unlock()
-		p.mySQLLogHandler.queries = MySQLStats{}
+		p.mySQLLogHandler.queries = mySQLQueriesStats{}
+		p.mySQLLogHandler.mySQLMetricsLimits = p.options.mySQLMetricsLimits
+	}
+}
+
+func (p *Plugin) ClearMySQLSlowQueries() {
+	if p.mySQLLogHandler != nil {
+		p.mySQLLogHandler.m.Lock()
+		defer p.mySQLLogHandler.m.Unlock()
+		p.mySQLLogHandler.slowQueries = nil
+		p.mySQLLogHandler.slowQueriesCounter = 0
 	}
 }
 
 func (p *Plugin) PluginInterfaceEngineCreated(engine beeorm.Engine) {
-	if p.options.MySQL {
+	if p.mySQLLogHandler != nil {
 		engine.RegisterQueryLogger(p.mySQLLogHandler, true, false, false)
 	}
+}
+
+type mySqlSlowQueryTreeNode struct {
+	value *MySQLSLowQuery
+	left  *mySqlSlowQueryTreeNode
+	right *mySqlSlowQueryTreeNode
+}
+
+func (n *mySqlSlowQueryTreeNode) insert(value *MySQLSLowQuery) *mySqlSlowQueryTreeNode {
+	if n == nil {
+		return &mySqlSlowQueryTreeNode{value: value}
+	}
+	if value.Duration < n.value.Duration {
+		n.left = n.left.insert(value)
+	} else {
+		n.right = n.right.insert(value)
+	}
+	return n
+}
+
+func (n *mySqlSlowQueryTreeNode) findMin(p *mySqlSlowQueryTreeNode) (min, parent *mySqlSlowQueryTreeNode) {
+	if n == nil {
+		return n, nil
+	}
+	if n.left != nil {
+		return n.left.findMin(n)
+	}
+	return n, p
+}
+
+func (n *mySqlSlowQueryTreeNode) getChildren() []*MySQLSLowQuery {
+	if n == nil {
+		return nil
+	}
+	res := make([]*MySQLSLowQuery, 0)
+	r := n.right.getChildren()
+	if r != nil {
+		res = append(res, n.right.getChildren()...)
+	}
+	res = append(res, n.value)
+	l := n.left.getChildren()
+	if l != nil {
+		res = append(res, l...)
+	}
+	return res
 }
