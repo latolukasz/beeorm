@@ -16,7 +16,7 @@ func TestMysqlMetrics(t *testing.T) {
 	registry := &beeorm.Registry{}
 	var entity *simpleMetricsEntity
 
-	plugin := Init(InitOptions().EnableMySQLMetrics(100).EnableMySQLSlowQuery(5))
+	plugin := Init(InitOptions().EnableMySQLMetrics().EnableMySQLSlowQuery(5))
 	registry.RegisterPlugin(plugin)
 	engine := beeorm.PrepareTables(t, registry, 8, 6, "", entity)
 

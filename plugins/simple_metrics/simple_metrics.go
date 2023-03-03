@@ -10,13 +10,14 @@ import (
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/simple_metrics"
+const metricsLimits = 50000
 
 type Plugin struct {
 	options         *Options
 	mySQLLogHandler *mySQLLogHandler
 }
 type Options struct {
-	mySQLMetricsLimits    int
+	mySQLMetrics          bool
 	mySQLSlowQueriesLimit int
 }
 
@@ -24,8 +25,8 @@ func InitOptions() *Options {
 	return &Options{}
 }
 
-func (o *Options) EnableMySQLMetrics(metricsLimits int) *Options {
-	o.mySQLMetricsLimits = metricsLimits
+func (o *Options) EnableMySQLMetrics() *Options {
+	o.mySQLMetrics = true
 	return o
 }
 
@@ -93,11 +94,15 @@ func Init(options *Options) *Plugin {
 		options = &Options{}
 	}
 	plugin := &Plugin{options: options}
-	if options.mySQLMetricsLimits > 0 || options.mySQLSlowQueriesLimit > 0 {
+	if options.mySQLMetrics || options.mySQLSlowQueriesLimit > 0 {
+		mySQLMetricsLimits := 0
+		if options.mySQLMetrics {
+			mySQLMetricsLimits = metricsLimits
+		}
 		plugin.mySQLLogHandler = &mySQLLogHandler{
 			p:                  plugin,
 			queries:            mySQLQueriesStats{},
-			mySQLMetricsLimits: options.mySQLMetricsLimits,
+			mySQLMetricsLimits: mySQLMetricsLimits,
 		}
 	}
 	return plugin
@@ -289,7 +294,10 @@ func (p *Plugin) ClearMySQLStats() {
 		p.mySQLLogHandler.m.Lock()
 		defer p.mySQLLogHandler.m.Unlock()
 		p.mySQLLogHandler.queries = mySQLQueriesStats{}
-		p.mySQLLogHandler.mySQLMetricsLimits = p.options.mySQLMetricsLimits
+		p.mySQLLogHandler.mySQLMetricsLimits = 0
+		if p.options.mySQLMetrics {
+			p.mySQLLogHandler.mySQLMetricsLimits = metricsLimits
+		}
 	}
 }
 
