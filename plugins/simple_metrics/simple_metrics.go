@@ -10,29 +10,15 @@ import (
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/simple_metrics"
-const metricsLimits = 50000
+const defaultMySQLMetricsLimits = 50000
+const defaultMySQLSlowQueriesLimits = 500
 
 type Plugin struct {
 	options         *Options
 	mySQLLogHandler *mySQLLogHandler
 }
 type Options struct {
-	mySQLMetrics          bool
-	mySQLSlowQueriesLimit int
-}
-
-func InitOptions() *Options {
-	return &Options{}
-}
-
-func (o *Options) EnableMySQLMetrics() *Options {
-	o.mySQLMetrics = true
-	return o
-}
-
-func (o *Options) EnableMySQLSlowQuery(maxQueries int) *Options {
-	o.mySQLSlowQueriesLimit = maxQueries
-	return o
+	MySQLSlowQueriesLimit int
 }
 
 type MySQLQuery struct {
@@ -63,13 +49,13 @@ func (sq *MySQLSLowQuery) String() string {
 type MySQLQueryType uint8
 
 const (
-	Query MySQLQueryType = iota
-	Insert
-	Update
-	Delete
-	Show
-	Alter
-	Other
+	QUERY MySQLQueryType = iota
+	INSERT
+	UPDATE
+	DELETE
+	SHOW
+	ALTER
+	OTHER
 )
 
 type poolName string
@@ -93,17 +79,14 @@ func Init(options *Options) *Plugin {
 	if options == nil {
 		options = &Options{}
 	}
+	if options.MySQLSlowQueriesLimit == 0 {
+		options.MySQLSlowQueriesLimit = defaultMySQLSlowQueriesLimits
+	}
 	plugin := &Plugin{options: options}
-	if options.mySQLMetrics || options.mySQLSlowQueriesLimit > 0 {
-		mySQLMetricsLimits := 0
-		if options.mySQLMetrics {
-			mySQLMetricsLimits = metricsLimits
-		}
-		plugin.mySQLLogHandler = &mySQLLogHandler{
-			p:                  plugin,
-			queries:            mySQLQueriesStats{},
-			mySQLMetricsLimits: mySQLMetricsLimits,
-		}
+	plugin.mySQLLogHandler = &mySQLLogHandler{
+		p:                  plugin,
+		queries:            mySQLQueriesStats{},
+		mySQLMetricsLimits: defaultMySQLMetricsLimits,
 	}
 	return plugin
 }
@@ -125,8 +108,8 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 			lazy = true
 		}
 	}
-	if !lazy && ml.p.options.mySQLSlowQueriesLimit > 0 {
-		if ml.slowQueriesCounter < ml.p.options.mySQLSlowQueriesLimit {
+	if !lazy {
+		if ml.slowQueriesCounter < ml.p.options.MySQLSlowQueriesLimit {
 			node := ml.slowQueries.insert(&MySQLSLowQuery{
 				Query:    query,
 				Pool:     string(pool),
@@ -160,12 +143,12 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 	operation := log["operation"].(string)
 	splitQuery := strings.Split(query, " ")
 	table := tableName("unknown")
-	queryType := Other
+	queryType := OTHER
 	switch operation {
 	case "SELECT":
 		switch splitQuery[0] {
 		case "select":
-			queryType = Query
+			queryType = QUERY
 			for k, part := range splitQuery[2:] {
 				if part == "from" {
 					table = ml.clearTableName(splitQuery[k+3])
@@ -174,7 +157,7 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 			}
 			break
 		case "show":
-			queryType = Show
+			queryType = SHOW
 			if splitQuery[1] == "tables" && splitQuery[2] == "like" {
 				table = ml.clearTableName(splitQuery[3])
 			} else if splitQuery[1] == "create" && splitQuery[2] == "table" {
@@ -188,23 +171,23 @@ func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
 	case "EXEC":
 		switch splitQuery[0] {
 		case "update":
-			queryType = Update
+			queryType = UPDATE
 			table = ml.clearTableName(splitQuery[1])
 			break
 		case "insert":
-			queryType = Insert
+			queryType = INSERT
 			table = ml.clearTableName(splitQuery[2])
 			break
 		case "delete":
-			queryType = Delete
+			queryType = DELETE
 			table = ml.clearTableName(splitQuery[2])
 			break
 		case "alter":
-			queryType = Alter
+			queryType = ALTER
 			table = ml.clearTableName(splitQuery[2])
 			break
 		case "set":
-			queryType = Alter
+			queryType = ALTER
 			break
 		}
 		break
@@ -254,9 +237,6 @@ func (ml *mySQLLogHandler) clearTableName(table string) tableName {
 }
 
 func (p *Plugin) GetMySQLQueriesStats(l bool) []MySQLQuery {
-	if p.mySQLLogHandler == nil {
-		return nil
-	}
 	results := make([]MySQLQuery, 0)
 	for pool, l1 := range p.mySQLLogHandler.queries {
 		for operation, l2 := range l1 {
@@ -283,37 +263,20 @@ func (p *Plugin) GetMySQLQueriesStats(l bool) []MySQLQuery {
 }
 
 func (p *Plugin) GetMySQLSlowQueriesStats() []*MySQLSLowQuery {
-	if p.mySQLLogHandler == nil {
-		return nil
-	}
 	return p.mySQLLogHandler.slowQueries.getChildren()
 }
 
 func (p *Plugin) ClearMySQLStats() {
-	if p.mySQLLogHandler != nil {
-		p.mySQLLogHandler.m.Lock()
-		defer p.mySQLLogHandler.m.Unlock()
-		p.mySQLLogHandler.queries = mySQLQueriesStats{}
-		p.mySQLLogHandler.mySQLMetricsLimits = 0
-		if p.options.mySQLMetrics {
-			p.mySQLLogHandler.mySQLMetricsLimits = metricsLimits
-		}
-	}
-}
-
-func (p *Plugin) ClearMySQLSlowQueries() {
-	if p.mySQLLogHandler != nil {
-		p.mySQLLogHandler.m.Lock()
-		defer p.mySQLLogHandler.m.Unlock()
-		p.mySQLLogHandler.slowQueries = nil
-		p.mySQLLogHandler.slowQueriesCounter = 0
-	}
+	p.mySQLLogHandler.m.Lock()
+	defer p.mySQLLogHandler.m.Unlock()
+	p.mySQLLogHandler.queries = mySQLQueriesStats{}
+	p.mySQLLogHandler.mySQLMetricsLimits = defaultMySQLMetricsLimits
+	p.mySQLLogHandler.slowQueries = nil
+	p.mySQLLogHandler.slowQueriesCounter = 0
 }
 
 func (p *Plugin) PluginInterfaceEngineCreated(engine beeorm.Engine) {
-	if p.mySQLLogHandler != nil {
-		engine.RegisterQueryLogger(p.mySQLLogHandler, true, false, false)
-	}
+	engine.RegisterQueryLogger(p.mySQLLogHandler, true, false, false)
 }
 
 type mySqlSlowQueryTreeNode struct {
