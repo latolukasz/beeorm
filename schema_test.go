@@ -184,7 +184,7 @@ func testSchema(t *testing.T, version int) {
 	references := schema.GetReferences()
 	assert.Len(t, references, 2)
 	columns := schema.GetColumns()
-	assert.Len(t, columns, 47)
+	assert.Len(t, columns, 48)
 
 	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` ADD INDEX `TestIndex2` (`Name`);")
 	alters = engine.GetAlters()

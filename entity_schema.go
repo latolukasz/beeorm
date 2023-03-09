@@ -110,6 +110,7 @@ type entitySchema struct {
 	cachedIndexesAll           map[string]*cachedQueryDefinition
 	cachedIndexesTrackedFields map[string]bool
 	columnNames                []string
+	columnNamesWithID          []string
 	columnMapping              map[string]int
 	uniqueIndices              map[string][]string
 	uniqueIndicesGlobal        map[string][]string
@@ -235,7 +236,7 @@ func (entitySchema *entitySchema) GetReferences() []string {
 }
 
 func (entitySchema *entitySchema) GetColumns() []string {
-	return entitySchema.columnNames
+	return entitySchema.columnNamesWithID
 }
 
 func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
@@ -467,6 +468,8 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 1, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
+	entitySchema.columnNamesWithID = []string{"ID"}
+	entitySchema.columnNamesWithID = append(entitySchema.columnNamesWithID, entitySchema.columnNames...)
 	columnMapping := make(map[string]int)
 	for i, name := range entitySchema.columnNames {
 		columnMapping[name] = i
