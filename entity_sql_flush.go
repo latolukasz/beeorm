@@ -128,14 +128,14 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	} else if orm.inDB {
 		action = Update
 		if !orm.IsLoaded() {
-			panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", orm.elem.Type().String(), orm.GetID()))
+			panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", orm.elem.Type().String(), orm.ID))
 		}
 	}
 	schema := orm.entitySchema
 	flushData := &entitySQLFlush{}
 	flushData.Action = action
 	flushData.Entity = schema.t.String()
-	flushData.ID = orm.GetID()
+	flushData.ID = orm.ID
 	flushData.TempID = uint64(orm.value.Pointer())
 	b := &entityFlushBuilder{
 		entitySQLFlush: flushData,

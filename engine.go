@@ -335,10 +335,9 @@ func (e *engineImplementation) load(serializer *serializer, entity Entity, refer
 		return true
 	}
 	orm := initIfNeeded(e.registry, entity)
-	id := orm.GetID()
 	found := false
-	if id > 0 {
-		found, _ = loadByID(serializer, e, id, entity, true, references...)
+	if orm.ID > 0 {
+		found, _ = loadByID(serializer, e, orm.ID, entity, true, references...)
 	}
 	return found
 }

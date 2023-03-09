@@ -259,7 +259,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush)
 			orm.inDB = true
 			orm.loaded = true
 			if e.ID == 0 {
-				orm.id = newID
+				orm.ID = newID
 			}
 			orm.serialize(f.getSerializer())
 		}
@@ -392,7 +392,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					id := uint64(0)
 					if db.QueryRow(where, &id) {
 						e.ID = id
-						e.entity.getORM().id = id
+						e.entity.getORM().ID = id
 					}
 					break
 				}
@@ -408,7 +408,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			orm.loaded = true
 			orm.serialize(f.getSerializer())
 			if rowsAffected > 0 {
-				orm.id = result.LastInsertId()
+				orm.ID = result.LastInsertId()
 			}
 		}
 		if rowsAffected > 0 {

@@ -126,7 +126,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 4, totalRows)
 	assert.Len(t, rows, 4)
-	assert.Equal(t, uint64(2), rows[0].GetID())
+	assert.Equal(t, uint64(2), rows[0].ID)
 
 	totalRows = engine.CachedSearch(&rows, "IndexAll", pager)
 	assert.Equal(t, 10, totalRows)

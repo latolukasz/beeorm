@@ -37,9 +37,9 @@ type Entity interface {
 }
 
 type ORM struct {
+	ID                   uint64
 	binary               []byte
 	entitySchema         *entitySchema
-	id                   uint64
 	onDuplicateKeyUpdate Bind
 	meta                 Bind
 	initialised          bool
@@ -59,17 +59,6 @@ func (orm *ORM) getORM() *ORM {
 	return orm
 }
 
-func (orm *ORM) GetID() uint64 {
-	if orm.lazy {
-		panic(errors.New("getting ID from lazy flushed entity not allowed"))
-	}
-	return orm.id
-}
-
-func (orm *ORM) SetID(id uint64) {
-	orm.id = id
-}
-
 func (orm *ORM) SetMetaData(key, value string) {
 	if orm.meta == nil {
 		if value != "" {
@@ -80,6 +69,17 @@ func (orm *ORM) SetMetaData(key, value string) {
 	} else {
 		orm.meta[key] = value
 	}
+}
+
+func (orm *ORM) GetID() uint64 {
+	if orm.lazy {
+		panic(errors.New("getting ID from lazy flushed entity not allowed"))
+	}
+	return orm.ID
+}
+
+func (orm *ORM) SetID(id uint64) {
+	orm.ID = id
 }
 
 func (orm *ORM) GetMetaData() Bind {
@@ -456,7 +456,7 @@ func (orm *ORM) deserialize(id uint64, serializer *serializer) {
 	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.t.String()))
 	}
-	orm.id = id
+	orm.ID = id
 	orm.deserializeFields(serializer, orm.entitySchema.fields, orm.elem)
 	orm.loaded = true
 }
@@ -473,7 +473,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		if id > 0 {
 			e := getEntitySchema(orm.entitySchema.registry, fields.refsTypes[k]).NewEntity()
 			o := e.getORM()
-			o.id = id
+			o.ID = id
 			o.inDB = true
 			f.Set(o.value)
 		} else if !isNil {

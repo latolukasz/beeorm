@@ -40,7 +40,7 @@ type schemaInvalidMaxStringEntity struct {
 
 type schemaInvalidIDEntity struct {
 	ORM
-	ID uint64
+	ID uint32
 }
 
 type schemaToDropEntity struct {
@@ -228,6 +228,8 @@ func testSchema(t *testing.T, version int) {
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterEntity(&schemaInvalidIDEntity{})
+	vv := &schemaInvalidIDEntity{}
+	vv.ID = 23
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field with name ID not allowed")
 

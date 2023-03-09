@@ -801,8 +801,8 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 		idType, idAttributes := entitySchema.getIDType()
 		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
 		columns = append(columns, &ColumnSchemaDefinition{"ID", "`ID` " + idColumnSchema + " AUTO_INCREMENT"})
-		_, hasID := t.FieldByName("ID")
-		if hasID {
+		f, hasID := t.FieldByName("ID")
+		if hasID && len(f.Index) == 1 || f.Index[0] != 0 || f.Index[1] != 0 {
 			return nil, errors.New("field with name ID not allowed")
 		}
 	}

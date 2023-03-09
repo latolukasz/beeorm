@@ -3,7 +3,7 @@ module github.com/latolukasz/beeorm/v2
 go 1.19
 
 require (
-	github.com/bsm/redislock v0.9.0
+	github.com/bsm/redislock v0.9.1
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/google/go-cmp v0.5.9
