@@ -73,31 +73,30 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 
 func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	refs := sqlSchema.EntitySchema.GetPluginOption(PluginCode, fkColumnsOption)
-	if refs == nil {
-		return nil
-	}
-	refsMap := refs.([]string)
 	addForeignKeys := make(map[string]*foreignIndex)
 	dropForeignKeys := make(map[string]*foreignIndex)
-	for _, refColumn := range refsMap {
-		field, _ := sqlSchema.EntitySchema.GetType().FieldByName(refColumn)
-		refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Elem().String())
-		pool := refOneSchema.GetMysql(engine)
-		foreignKey := &foreignIndex{Column: refColumn, Table: refOneSchema.GetTableName(),
-			ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
-		name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType(), refColumn)
-		addForeignKeys[name] = foreignKey
-		hasIndex := false
-		for _, index := range sqlSchema.EntityIndexes {
-			if index.GetColumns()[0] == refColumn {
-				hasIndex = true
-				break
+	if refs != nil {
+		refsMap := refs.([]string)
+		for _, refColumn := range refsMap {
+			field, _ := sqlSchema.EntitySchema.GetType().FieldByName(refColumn)
+			refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Elem().String())
+			pool := refOneSchema.GetMysql(engine)
+			foreignKey := &foreignIndex{Column: refColumn, Table: refOneSchema.GetTableName(),
+				ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
+			name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType().Name(), refColumn)
+			addForeignKeys[name] = foreignKey
+			hasIndex := false
+			for _, index := range sqlSchema.EntityIndexes {
+				if index.GetColumns()[0] == refColumn {
+					hasIndex = true
+					break
+				}
 			}
-		}
-		if !hasIndex {
-			index := &beeorm.IndexSchemaDefinition{Name: refColumn + "Ref", Unique: false}
-			index.SetColumns([]string{refColumn})
-			sqlSchema.EntityIndexes = append(sqlSchema.EntityIndexes, index)
+			if !hasIndex {
+				index := &beeorm.IndexSchemaDefinition{Name: refColumn, Unique: false}
+				index.SetColumns([]string{refColumn})
+				sqlSchema.EntityIndexes = append(sqlSchema.EntityIndexes, index)
+			}
 		}
 	}
 	var dbForeignKeys map[string]*foreignIndex
