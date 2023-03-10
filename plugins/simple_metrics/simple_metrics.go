@@ -46,17 +46,15 @@ func (sq *MySQLSLowQuery) String() string {
 	return "[" + string(sq.Pool) + "][" + sq.Duration.String() + "] " + sq.Query
 }
 
-type MySQLQueryType uint8
+type MySQLQueryType string
 
-const (
-	QUERY MySQLQueryType = iota
-	INSERT
-	UPDATE
-	DELETE
-	SHOW
-	ALTER
-	OTHER
-)
+const QUERY = MySQLQueryType("QUERY")
+const INSERT = MySQLQueryType("INSERT")
+const UPDATE = MySQLQueryType("UPDATE")
+const DELETE = MySQLQueryType("DELETE")
+const SHOW = MySQLQueryType("SHOW")
+const ALTER = MySQLQueryType("ALTER")
+const OTHER = MySQLQueryType("OTHER")
 
 type poolName string
 type tableName string
