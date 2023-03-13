@@ -97,7 +97,14 @@ func TestMysqlMetrics(t *testing.T) {
 
 	plugin.ClearMySQLStats()
 	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &date)
+	dbStats = plugin.GetMySQLQueriesStats(false)
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 	assert.Equal(t, "unknown", dbStats[0].Table)
+
+	plugin.ClearMySQLStats()
+	DisableMetrics(engine)
+	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &date)
+	dbStats = plugin.GetMySQLQueriesStats(false)
+	assert.Len(t, dbStats, 0)
 }

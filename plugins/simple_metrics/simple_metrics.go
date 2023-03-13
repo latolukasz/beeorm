@@ -12,6 +12,7 @@ import (
 const PluginCode = "github.com/latolukasz/beeorm/plugins/simple_metrics"
 const defaultMySQLMetricsLimits = 50000
 const defaultMySQLSlowQueriesLimits = 500
+const disableMetricsMetaData = "_simple_metrics_disable"
 
 type Plugin struct {
 	options         *Options
@@ -89,11 +90,18 @@ func Init(options *Options) *Plugin {
 	return plugin
 }
 
+func DisableMetrics(engine beeorm.Engine) {
+	engine.SetMetaData(disableMetricsMetaData, "1")
+}
+
 func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
-func (ml *mySQLLogHandler) Handle(log map[string]interface{}) {
+func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface{}) {
+	if engine.GetMetaData()[disableMetricsMetaData] == "1" {
+		return
+	}
 	t := log["microseconds"].(int64)
 	query := strings.ToLower(log["query"].(string))
 	pool := poolName(log["pool"].(string))
