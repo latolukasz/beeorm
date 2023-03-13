@@ -56,13 +56,13 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 		return nil
 	}
 	globalFK := schema.GetTag("ORM", p.options.TagName, "true", "") == "true"
-	fkList := make([]string, 0)
-	for _, column := range refs {
-		columnTag := schema.GetTag(column, p.options.TagName, "true", "")
+	fkList := make([]beeorm.EntitySchemaReference, 0)
+	for _, reference := range refs {
+		columnTag := schema.GetTag(reference.ColumnName, p.options.TagName, "true", "")
 		if globalFK && columnTag != "skip" {
-			fkList = append(fkList, column)
+			fkList = append(fkList, reference)
 		} else if columnTag == "true" {
-			fkList = append(fkList, column)
+			fkList = append(fkList, reference)
 		}
 	}
 	if len(fkList) > 0 {
@@ -76,25 +76,24 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	addForeignKeys := make(map[string]*foreignIndex)
 	dropForeignKeys := make(map[string]*foreignIndex)
 	if refs != nil {
-		refsMap := refs.([]string)
-		for _, refColumn := range refsMap {
-			field, _ := sqlSchema.EntitySchema.GetType().FieldByName(refColumn)
-			refOneSchema := engine.GetRegistry().GetEntitySchema(field.Type.Elem().String())
+		references := refs.([]beeorm.EntitySchemaReference)
+		for _, reference := range references {
+			refOneSchema := engine.GetRegistry().GetEntitySchema(reference.EntityName)
 			pool := refOneSchema.GetMysql(engine)
-			foreignKey := &foreignIndex{Column: refColumn, Table: refOneSchema.GetTableName(),
+			foreignKey := &foreignIndex{Column: reference.ColumnName, Table: refOneSchema.GetTableName(),
 				ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
-			name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType().Name(), refColumn)
+			name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType().Name(), reference.ColumnName)
 			addForeignKeys[name] = foreignKey
 			hasIndex := false
 			for _, index := range sqlSchema.EntityIndexes {
-				if index.GetColumns()[0] == refColumn {
+				if index.GetColumns()[0] == reference.ColumnName {
 					hasIndex = true
 					break
 				}
 			}
 			if !hasIndex {
-				index := &beeorm.IndexSchemaDefinition{Name: refColumn, Unique: false}
-				index.SetColumns([]string{refColumn})
+				index := &beeorm.IndexSchemaDefinition{Name: reference.ColumnName, Unique: false}
+				index.SetColumns([]string{reference.ColumnName})
 				sqlSchema.EntityIndexes = append(sqlSchema.EntityIndexes, index)
 			}
 		}

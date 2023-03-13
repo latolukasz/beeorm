@@ -182,7 +182,25 @@ func testSchema(t *testing.T, version int) {
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
 	assert.Equal(t, "beeorm.schemaEntity", schema.GetType().String())
 	references := schema.GetReferences()
-	assert.Len(t, references, 2)
+	assert.Len(t, references, 3)
+	i := 0
+	for _, reference := range references {
+		switch reference.ColumnName {
+		case "SubStructSubRefInStruct":
+			assert.Equal(t, []string{"SubStruct", "SubRefInStruct"}, reference.FieldPath)
+			assert.Equal(t, "beeorm.schemaEntityRef", reference.EntityName)
+			i++
+		case "RefOne":
+			assert.Equal(t, []string{"RefOne"}, reference.FieldPath)
+			assert.Equal(t, "beeorm.schemaEntityRef", reference.EntityName)
+			i++
+		case "SubRefInStruct":
+			assert.Equal(t, []string{"SubRefInStruct"}, reference.FieldPath)
+			assert.Equal(t, "beeorm.schemaEntityRef", reference.EntityName)
+			i++
+		}
+	}
+	assert.Equal(t, 3, i)
 	columns := schema.GetColumns()
 	assert.Len(t, columns, 48)
 

@@ -175,7 +175,10 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 		l = rows.Len()
 	}
 	if references[0] == "*" {
-		references = schema.refOne
+		references = make([]string, len(schema.references))
+		for i, reference := range schema.references {
+			references[i] = reference.ColumnName
+		}
 	}
 	var referencesNextNames map[string][]string
 	var referencesNextEntities map[string][]Entity

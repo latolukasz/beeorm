@@ -69,6 +69,12 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 	return enum
 }
 
+type EntitySchemaReference struct {
+	ColumnName string
+	FieldPath  []string
+	EntityName string
+}
+
 type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
@@ -82,7 +88,7 @@ type EntitySchema interface {
 	GetMysqlPool() string
 	GetLocalCache(engine Engine) (cache LocalCache, has bool)
 	GetRedisCache(engine Engine) (cache RedisCache, has bool)
-	GetReferences() []string
+	GetReferences() []EntitySchemaReference
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
@@ -114,7 +120,7 @@ type entitySchema struct {
 	columnMapping              map[string]int
 	uniqueIndices              map[string][]string
 	uniqueIndicesGlobal        map[string][]string
-	refOne                     []string
+	references                 []EntitySchemaReference
 	localCacheName             string
 	hasLocalCache              bool
 	redisCacheName             string
@@ -231,8 +237,8 @@ func (entitySchema *entitySchema) GetRedisCache(engine Engine) (cache RedisCache
 	return engine.GetRedis(entitySchema.redisCacheName), true
 }
 
-func (entitySchema *entitySchema) GetReferences() []string {
-	return entitySchema.refOne
+func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
+	return entitySchema.references
 }
 
 func (entitySchema *entitySchema) GetColumns() []string {
@@ -290,7 +296,7 @@ func (entitySchema *entitySchema) getUsage(fields *tableFields, t reflect.Type, 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
 	entitySchema.tags = extractTags(registry, entityType, "")
-	oneRefs := make([]string, 0)
+	references := make([]EntitySchemaReference, 0)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
 	entitySchema.mysqlPoolName = entitySchema.getTag("mysql", "default", "default")
@@ -386,9 +392,14 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 				cachedQueriesTrackedFields[name] = true
 			}
 		}
-		_, has = values["ref"]
-		if has {
-			oneRefs = append(oneRefs, key)
+		refEntity, hasReference := values["ref"]
+		if hasReference {
+			reference := EntitySchemaReference{
+				ColumnName: key,
+				FieldPath:  strings.Split(values["refPath"], "."),
+				EntityName: refEntity,
+			}
+			references = append(references, reference)
 		}
 	}
 	uniqueIndices := make(map[string]map[int]string)
@@ -446,23 +457,23 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	for _, ref := range oneRefs {
+	for _, reference := range references {
 		has := false
 		for _, v := range indices {
-			if v[1] == ref {
+			if v[1] == reference.ColumnName {
 				has = true
 				break
 			}
 		}
 		if !has {
 			for _, v := range uniqueIndices {
-				if v[1] == ref {
+				if v[1] == reference.ColumnName {
 					has = true
 					break
 				}
 			}
 			if !has {
-				indices["_"+ref] = map[int]string{1: ref}
+				indices["_"+reference.ColumnName] = map[int]string{1: reference.ColumnName}
 			}
 		}
 	}
@@ -489,7 +500,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.hasLocalCache = localCache != ""
 	entitySchema.redisCacheName = redisCache
 	entitySchema.hasRedisCache = redisCache != ""
-	entitySchema.refOne = oneRefs
+	entitySchema.references = references
 	entitySchema.cachePrefix = cachePrefix
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	entitySchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
@@ -977,6 +988,7 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 		if hasIgnore {
 			continue
 		}
+		name := prefix + field.Name
 		refOne := ""
 		hasRef := false
 		if field.Type.Kind().String() == "ptr" {
@@ -990,22 +1002,26 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 		query, hasQuery := field.Tag.Lookup("query")
 		queryOne, hasQueryOne := field.Tag.Lookup("queryOne")
 		if hasQuery {
-			if fields[field.Name] == nil {
-				fields[field.Name] = make(map[string]string)
+			if fields[name] == nil {
+				fields[name] = make(map[string]string)
 			}
-			fields[field.Name]["query"] = query
+			fields[name]["query"] = query
 		}
 		if hasQueryOne {
-			if fields[field.Name] == nil {
-				fields[field.Name] = make(map[string]string)
+			if fields[name] == nil {
+				fields[name] = make(map[string]string)
 			}
 			fields[field.Name]["queryOne"] = queryOne
 		}
 		if hasRef {
-			if fields[field.Name] == nil {
-				fields[field.Name] = make(map[string]string)
+			if fields[name] == nil {
+				fields[name] = make(map[string]string)
 			}
-			fields[field.Name]["ref"] = refOne
+			fields[name]["ref"] = refOne
+			fields[name]["refPath"] = field.Name
+			if prefix != "" {
+				fields[name]["refPath"] = prefix + "." + field.Name
+			}
 		}
 	}
 	return

@@ -700,8 +700,8 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 }
 
 func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *entitySQLFlush, references map[uintptr]Entity) {
-	for _, refName := range entity.getORM().entitySchema.refOne {
-		refValue := entity.getORM().elem.FieldByName(refName)
+	for _, reference := range entity.getORM().entitySchema.references {
+		refValue := entity.getORM().elem.FieldByName(reference.ColumnName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
 			initIfNeeded(f.engine.registry, refEntity)
@@ -709,9 +709,9 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 				address := refValue.Pointer()
 				references[address] = refEntity
 				if entitySQLFlushData.References == nil {
-					entitySQLFlushData.References = map[string]uint64{refName: uint64(address)}
+					entitySQLFlushData.References = map[string]uint64{reference.ColumnName: uint64(address)}
 				} else {
-					entitySQLFlushData.References[refName] = uint64(address)
+					entitySQLFlushData.References[reference.ColumnName] = uint64(address)
 				}
 			}
 		}
