@@ -154,7 +154,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		index++
 	}
 	for range fields.booleans {
-		serializer.SerializeBool(*pointers[index].(*bool))
+		serializer.SerializeBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
 	for range fields.floats {

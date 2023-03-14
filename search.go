@@ -37,7 +37,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		start++
 	}
 	for range fields.booleans {
-		v := false
+		v := uint64(0)
 		pointers[start] = &v
 		start++
 	}

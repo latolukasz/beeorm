@@ -52,6 +52,8 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 
 	entity = &fakeDeleteEntity{Name: "A", Age: 10, Weight: 180}
 	entity2 := &fakeDeleteEntity{Name: "B", Age: 20, Weight: 200}
+	entity.SetID(17557)
+	entity2.SetID(17558)
 	engine.Flush(entity)
 	engine.Flush(entity2)
 
@@ -77,16 +79,16 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 	assert.Equal(t, "B", entity.Name)
 	ids := engine.SearchIDs(beeorm.NewWhere("1 ORDER BY ID ASC"), beeorm.NewPager(1, 100), entity)
 	assert.Len(t, ids, 1)
-	assert.Equal(t, uint64(2), ids[0])
+	assert.Equal(t, uint64(17558), ids[0])
 
-	found = engine.LoadByID(1, entity)
+	found = engine.LoadByID(17557, entity)
 	assert.True(t, found)
 
-	found = engine.LoadByIDs([]uint64{1}, &rows)
+	found = engine.LoadByIDs([]uint64{17557}, &rows)
 	assert.True(t, found)
 
-	assert.True(t, engine.LoadByID(2, entity))
+	assert.True(t, engine.LoadByID(17558, entity))
 	ForceDelete(entity)
 	engine.Delete(entity)
-	assert.False(t, engine.LoadByID(2, entity))
+	assert.False(t, engine.LoadByID(17558, entity))
 }

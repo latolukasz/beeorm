@@ -56,7 +56,7 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, r
 	if logPoolName == "" {
 		return nil
 	}
-	tableName := fmt.Sprintf("_log_%s_%s", logPoolName, schema.GetTableName())
+	tableName := fmt.Sprintf("_log_%s_%s", schema.GetMysqlPool(), schema.GetTableName())
 	schema.SetPluginOption(PluginCode, poolOption, logPoolName)
 	schema.SetPluginOption(PluginCode, tableNameOption, tableName)
 	registry.RegisterMySQLTable(logPoolName, tableName)
