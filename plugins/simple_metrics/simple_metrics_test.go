@@ -9,6 +9,7 @@ import (
 
 type simpleMetricsEntity struct {
 	beeorm.ORM
+	ID   uint64
 	Name string `orm:"required"`
 }
 

@@ -11,6 +11,7 @@ import (
 
 type dbEntity struct {
 	ORM
+	ID   uint64
 	Name string
 }
 

@@ -10,6 +10,7 @@ import (
 
 type cachedSearchEntity struct {
 	ORM            `orm:"localCache;redisCache;"`
+	ID             uint64
 	Name           string `orm:"length=100;unique=FirstIndex"`
 	Age            uint16 `orm:"index=SecondIndex"`
 	Added          *time.Time
@@ -23,6 +24,7 @@ type cachedSearchEntity struct {
 
 type cachedSearchRefEntity struct {
 	ORM
+	ID        uint64
 	Name      string       `orm:"unique=FirstIndex"`
 	IndexName *CachedQuery `queryOne:":Name = ?"`
 	IndexAll  *CachedQuery `query:""`
@@ -53,8 +55,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entities = make([]interface{}, 10)
 	for i := 1; i <= 5; i++ {
 		e := &cachedSearchEntity{Name: "Name " + strconv.Itoa(i), Age: uint16(10)}
-		e.ReferenceOne = &cachedSearchRefEntity{}
-		e.ReferenceOne.SetID(uint64(i))
+		e.ReferenceOne = &cachedSearchRefEntity{ID: uint64(i)}
 		entities[i-1] = e
 		engine.Flush(e)
 	}
@@ -120,7 +121,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 6, totalRows)
 	assert.Len(t, rows, 6)
+
 	assert.Equal(t, uint64(1), rows[0].GetID())
+	assert.Equal(t, uint64(1), rows[0].ReferenceOne.ID)
 	assert.Equal(t, uint64(6), rows[1].GetID())
 
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
@@ -240,8 +243,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
 	assert.Equal(t, 1, totalRows)
 	assert.NotNil(t, rows[0])
-	e := &cachedSearchEntity{}
-	e.SetID(4)
+	e := &cachedSearchEntity{ID: 4}
 	engine.Load(e)
 	engine.DeleteLazy(e)
 	RunLazyFlushConsumer(engine, false)

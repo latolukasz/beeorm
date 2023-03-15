@@ -10,6 +10,7 @@ import (
 
 type foreignKeyEntity struct {
 	beeorm.ORM `orm:"fk"`
+	ID         uint64
 	Name       string
 	MyRef      *foreignKeyReferenceEntity
 	MyRef2     *foreignKeyReferenceEntity `orm:"index=TestIndex"`
@@ -18,6 +19,7 @@ type foreignKeyEntity struct {
 
 type foreignKeyReferenceEntity struct {
 	beeorm.ORM
+	ID   uint64
 	Name string
 }
 

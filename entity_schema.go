@@ -116,7 +116,6 @@ type entitySchema struct {
 	cachedIndexesAll           map[string]*cachedQueryDefinition
 	cachedIndexesTrackedFields map[string]bool
 	columnNames                []string
-	columnNamesWithID          []string
 	columnMapping              map[string]int
 	uniqueIndices              map[string][]string
 	uniqueIndicesGlobal        map[string][]string
@@ -242,7 +241,7 @@ func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
 }
 
 func (entitySchema *entitySchema) GetColumns() []string {
-	return entitySchema.columnNamesWithID
+	return entitySchema.columnNames
 }
 
 func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
@@ -479,8 +478,9 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 1, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
-	entitySchema.columnNamesWithID = []string{"ID"}
-	entitySchema.columnNamesWithID = append(entitySchema.columnNamesWithID, entitySchema.columnNames...)
+	if len(entitySchema.fieldsQuery) > 0 {
+		entitySchema.fieldsQuery = entitySchema.fieldsQuery[1:]
+	}
 	columnMapping := make(map[string]int)
 	for i, name := range entitySchema.columnNames {
 		columnMapping[name] = i
@@ -1067,6 +1067,7 @@ func (entitySchema *entitySchema) NewEntity() Entity {
 	orm.entitySchema = entitySchema
 	orm.value = val
 	orm.elem = val.Elem()
+	orm.idElem = orm.elem.Field(1)
 	return e
 }
 

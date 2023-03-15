@@ -10,6 +10,7 @@ import (
 
 type lazyReceiverEntity struct {
 	ORM          `orm:"localCache;redisCache;asyncRedisLazyFlush=default"`
+	ID           uint64
 	Name         string `orm:"unique=name"`
 	Age          uint64
 	EnumNullable string `orm:"enum=TestEnum"`
@@ -19,6 +20,7 @@ type lazyReceiverEntity struct {
 
 type lazyReceiverReference struct {
 	ORM
+	ID   uint64
 	Name string
 }
 
@@ -146,8 +148,7 @@ func TestLazyFlush(t *testing.T) {
 	loaded = engine.LoadByID(1, e)
 	assert.False(t, loaded)
 
-	e = &lazyReceiverEntity{}
-	e.SetID(100)
+	e = &lazyReceiverEntity{ID: 100}
 	engine.Flush(e)
 	engine.DeleteLazy(e)
 	e = &lazyReceiverEntity{}
@@ -192,7 +193,7 @@ func TestLazyFlush(t *testing.T) {
 		assert.Equal(t, "beeorm.lazyReceiverEntity", event.EntityName())
 		assert.Equal(t, Insert, event.Type())
 		assert.Len(t, event.Before(), 0)
-		assert.Len(t, event.After(), 4)
+		assert.Len(t, event.After(), 5)
 		assert.Equal(t, "Ivona", event.After()["Name"])
 		assert.Error(t, queryError, "Error 1062 (23000): Duplicate entry 'Ivona' for key 'name'")
 		return queryError

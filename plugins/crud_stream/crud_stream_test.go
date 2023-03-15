@@ -11,6 +11,7 @@ import (
 
 type crudStreamEntity struct {
 	beeorm.ORM `orm:"crud-stream;redisCache"`
+	ID         uint64
 	Name       string `orm:"unique=name"`
 	LastName   string
 	Country    string `orm:"skip-crud-stream"`
@@ -40,7 +41,7 @@ func TestCrudStream(t *testing.T) {
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
 		assert.Len(t, events[0].Meta(), 0)
 		assert.Nil(t, crudEvent.Before)
-		assert.Len(t, crudEvent.Changes, 3)
+		assert.Len(t, crudEvent.Changes, 4)
 		assert.Equal(t, "Germany", crudEvent.Changes["Country"])
 		assert.Equal(t, "Smith", crudEvent.Changes["LastName"])
 		assert.Equal(t, "John", crudEvent.Changes["Name"])
@@ -52,7 +53,7 @@ func TestCrudStream(t *testing.T) {
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
 		assert.Len(t, events[0].Meta(), 0)
 		assert.Nil(t, crudEvent.Before)
-		assert.Len(t, crudEvent.Changes, 3)
+		assert.Len(t, crudEvent.Changes, 4)
 		assert.Equal(t, "Poland", crudEvent.Changes["Country"])
 		assert.Equal(t, "Kowalski", crudEvent.Changes["LastName"])
 		assert.Equal(t, "Adam", crudEvent.Changes["Name"])
@@ -100,7 +101,7 @@ func TestCrudStream(t *testing.T) {
 		events[0].Unserialize(&crudEvent)
 		assert.Equal(t, beeorm.Delete, crudEvent.Action)
 		assert.Len(t, events[0].Meta(), 0)
-		assert.Len(t, crudEvent.Before, 3)
+		assert.Len(t, crudEvent.Before, 4)
 		assert.Nil(t, crudEvent.Changes)
 		assert.Equal(t, "France", crudEvent.Before["Country"])
 		assert.Equal(t, "Smith", crudEvent.Before["LastName"])
@@ -124,7 +125,7 @@ func TestCrudStream(t *testing.T) {
 		assert.Equal(t, beeorm.Insert, crudEvent.Action)
 		assert.Len(t, events[0].Meta(), 0)
 		assert.Nil(t, crudEvent.Before)
-		assert.Len(t, crudEvent.Changes, 3)
+		assert.Len(t, crudEvent.Changes, 4)
 		assert.Equal(t, "France", crudEvent.Changes["Country"])
 		assert.Equal(t, "Ivona", crudEvent.Changes["Name"])
 		assert.Equal(t, "Summer", crudEvent.Changes["LastName"])
@@ -196,7 +197,7 @@ func TestCrudStream(t *testing.T) {
 		assert.Equal(t, "me", crudEvent.MetaData.Get("user"))
 		assert.Equal(t, "", crudEvent.MetaData.Get("invalid"))
 		assert.Nil(t, crudEvent.Before)
-		assert.Len(t, crudEvent.Changes, 3)
+		assert.Len(t, crudEvent.Changes, 4)
 		assert.Equal(t, "Spain", crudEvent.Changes["Country"])
 		assert.Equal(t, "Snow", crudEvent.Changes["LastName"])
 		assert.Equal(t, "Veronica", crudEvent.Changes["Name"])

@@ -550,7 +550,7 @@ func checkColumn(engine *engineImplementation, schema *entitySchema, field *refl
 		} else if kind == "ptr" {
 			subSchema := getEntitySchema(engine.registry, field.Type.Elem())
 			if subSchema != nil {
-				definition = handleReferenceOne(version, subSchema)
+				definition = handleReferenceOne(version, subSchema, attributes)
 				addNotNullIfNotSet = false
 				addDefaultNullIfNullable = true
 			} else {
@@ -695,9 +695,11 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 	return "date", !nullable, true, defaultValue
 }
 
-func handleReferenceOne(version int, schema *entitySchema) string {
-	idType, idAttributes := schema.getIDType()
-	return convertIntToSchema(version, idType, idAttributes)
+func handleReferenceOne(version int, schema *entitySchema, attributes map[string]string) string {
+	if schema.t.NumField() <= 1 {
+		return convertIntToSchema(version, "uint64", attributes)
+	}
+	return convertIntToSchema(version, schema.t.Field(1).Type.String(), attributes)
 }
 
 func convertIntToSchema(version int, typeAsString string, attributes Bind) string {
@@ -767,27 +769,6 @@ func convertIntToSchema(version int, typeAsString string, attributes Bind) strin
 	}
 }
 
-func (entitySchema *entitySchema) getIDType() (idType string, idAttributes Bind) {
-	idAttributes = Bind{}
-	idType = "uint64"
-	switch entitySchema.getTag("id", "uint", "uint") {
-	case "tinyint":
-		idType = "uint8"
-		break
-	case "smallint":
-		idType = "uint16"
-		break
-	case "mediumint":
-		idType = "uint32"
-		idAttributes["mediumint"] = "true"
-		break
-	case "int":
-		idType = "uint32"
-		break
-	}
-	return idType, idAttributes
-}
-
 type ColumnSchemaDefinition struct {
 	ColumnName string
 	Definition string
@@ -797,13 +778,13 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 	subField *reflect.StructField, subFieldPrefix string) ([]*ColumnSchemaDefinition, error) {
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {
-		version := entitySchema.GetMysql(engine).GetPoolConfig().GetVersion()
-		idType, idAttributes := entitySchema.getIDType()
-		idColumnSchema := convertIntToSchema(version, idType, idAttributes) + " NOT NULL"
-		columns = append(columns, &ColumnSchemaDefinition{"ID", "`ID` " + idColumnSchema + " AUTO_INCREMENT"})
 		f, hasID := t.FieldByName("ID")
-		if hasID && len(f.Index) == 1 || f.Index[0] != 0 || f.Index[1] != 0 {
-			return nil, errors.New("field with name ID not allowed")
+		if !hasID || len(f.Index) != 1 || f.Index[0] != 1 {
+			return nil, errors.New("field ID on position 1 is missing")
+		}
+		idType := f.Type.String()
+		if idType != "uint" && idType != "uint8" && idType != "uint16" && idType != "uint32" && idType != "uint64" {
+			return nil, errors.New("invalid type of ID column")
 		}
 	}
 	max := t.NumField() - 1
@@ -830,6 +811,9 @@ func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t ref
 		if fieldColumns != nil {
 			columns = append(columns, fieldColumns...)
 		}
+	}
+	if subField == nil {
+		columns[0].Definition += " AUTO_INCREMENT"
 	}
 	return columns, nil
 }

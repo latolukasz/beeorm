@@ -86,7 +86,7 @@ func (e *entitySQLFlush) SetMetaData(key, value string) {
 func (e *entitySQLFlush) SetID(id uint64) {
 	e.ID = id
 	if e.entity != nil {
-		e.entity.SetID(id)
+		e.entity.getORM().idElem.SetUint(id)
 	}
 }
 
@@ -124,18 +124,18 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	if orm.delete {
 		action = Delete
 	} else if orm.onDuplicateKeyUpdate != nil {
-		action = insertUpdate
+		action = InsertUpdate
 	} else if orm.inDB {
 		action = Update
 		if !orm.IsLoaded() {
-			panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", orm.elem.Type().String(), orm.ID))
+			panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", orm.elem.Type().String(), orm.GetID()))
 		}
 	}
 	schema := orm.entitySchema
 	flushData := &entitySQLFlush{}
 	flushData.Action = action
 	flushData.Entity = schema.t.String()
-	flushData.ID = orm.ID
+	flushData.ID = orm.GetID()
 	flushData.TempID = uint64(orm.value.Pointer())
 	b := &entityFlushBuilder{
 		entitySQLFlush: flushData,
@@ -306,7 +306,7 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 				if field.IsNil() {
 					return uint64(0)
 				}
-				return field.Interface().(Entity).GetID()
+				return field.Elem().Field(1).Uint()
 			},
 			serializeGetter: serializeGetterUint,
 			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {

@@ -66,7 +66,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 					e := schema.NewEntity()
 					k := cacheKeysMap[cacheKeys[i]]
 					newSlice.Index(k).Set(e.getORM().value)
-					fillFromBinary(serializer, ids[k], engine.registry, val.([]byte), e)
+					fillFromBinary(serializer, engine.registry, val.([]byte), e)
 					hasValid = true
 				} else {
 					hasMissing = true
@@ -91,7 +91,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 					e := schema.NewEntity()
 					k := cacheKeysMap[cacheKeys[i]]
 					newSlice.Index(k).Set(e.getORM().value)
-					fillFromBinary(serializer, ids[k], engine.registry, []byte(val.(string)), e)
+					fillFromBinary(serializer, engine.registry, []byte(val.(string)), e)
 					if hasLocalCache {
 						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
 					}
@@ -110,7 +110,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		}
 	}
 	if len(idsDB) > 0 {
-		query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
+		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
 		for _, id := range idsDB[1:] {
 			query += "," + strconv.FormatUint(id, 10)
 		}
@@ -127,7 +127,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 			e := schema.NewEntity()
 			k := cacheKeysMap[cacheKey]
 			newSlice.Index(k).Set(e.getORM().value)
-			fillFromDBRow(serializer, id, engine.registry, pointers, e)
+			fillFromDBRow(serializer, engine.registry, pointers, e)
 			if hasLocalCache {
 				localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().copyBinary())
 			}
@@ -253,7 +253,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			if has && fromCache != cacheNilValue {
 				data := fromCache.([]byte)
 				for _, r := range v[key] {
-					fillFromBinary(serializer, r.GetID(), engine.registry, data, r)
+					fillFromBinary(serializer, engine.registry, data, r)
 				}
 				fillRef(key, localMap, redisMap, dbMap)
 			}
@@ -268,7 +268,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				if fromCache != nil && fromCache != cacheNilValue {
 					data := fromCache.([]byte)
 					for _, r := range v[keys[key]] {
-						fillFromBinary(serializer, r.GetID(), engine.registry, data, r)
+						fillFromBinary(serializer, engine.registry, data, r)
 					}
 					fillRef(keys[key], localMap, redisMap, dbMap)
 				}
@@ -289,7 +289,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
 			if fromCache != nil && fromCache != cacheNilValue {
 				for _, r := range v[keys[key]] {
-					fillFromBinary(serializer, r.GetID(), engine.registry, []byte(fromCache.(string)), r)
+					fillFromBinary(serializer, engine.registry, []byte(fromCache.(string)), r)
 				}
 				fillRef(keys[key], nil, redisMap, dbMap)
 			}
@@ -318,7 +318,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 					results.Scan(pointers...)
 					id := *pointers[0].(*uint64)
 					for _, r := range v2[schema.getCacheKey(id)] {
-						fillFromDBRow(serializer, id, engine.registry, pointers, r)
+						fillFromDBRow(serializer, engine.registry, pointers, r)
 					}
 				}
 			}()

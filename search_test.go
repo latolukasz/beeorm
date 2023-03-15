@@ -9,12 +9,14 @@ import (
 
 type searchEntity struct {
 	ORM          `orm:"localCache;redisCache"`
+	ID           uint64
 	Name         string
 	ReferenceOne *searchEntityReference
 }
 
 type searchEntityReference struct {
 	ORM
+	ID   uint64
 	Name string
 }
 
@@ -26,8 +28,7 @@ func TestSearch(t *testing.T) {
 	for i := 1; i <= 10; i++ {
 		engine.Flush(&searchEntity{Name: fmt.Sprintf("name %d", i), ReferenceOne: &searchEntityReference{Name: fmt.Sprintf("name %d", i)}})
 	}
-	entity = &searchEntity{}
-	entity.SetID(1)
+	entity = &searchEntity{ID: 1}
 	engine.Load(entity)
 	engine.Flush(entity)
 

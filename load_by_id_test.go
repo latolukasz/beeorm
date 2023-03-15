@@ -8,6 +8,7 @@ import (
 
 type loadByIDEntity struct {
 	ORM             `orm:"localCache;redisCache"`
+	ID              uint64
 	Name            string `orm:"max=100"`
 	ReferenceOne    *loadByIDReference
 	ReferenceSecond *loadByIDReference
@@ -16,19 +17,23 @@ type loadByIDEntity struct {
 
 type loadByIDRedisEntity struct {
 	ORM `orm:"redisCache"`
+	ID  uint64
 }
 
 type loadByIDLocalEntity struct {
 	ORM `orm:"localCache"`
+	ID  uint64
 }
 
 type loadByIDNoCacheEntity struct {
 	ORM
+	ID   uint64
 	Name string
 }
 
 type loadByIDReference struct {
 	ORM            `orm:"localCache;redisCache"`
+	ID             uint64
 	Name           string
 	ReferenceTwo   *loadByIDSubReference
 	ReferenceThree *loadByIDSubReference2
@@ -36,16 +41,19 @@ type loadByIDReference struct {
 
 type loadByIDReference2 struct {
 	ORM  `orm:"localCache;redisCache"`
+	ID   uint64
 	Name string
 }
 
 type loadByIDSubReference struct {
 	ORM  `orm:"localCache;redisCache"`
+	ID   uint64
 	Name string
 }
 
 type loadByIDSubReference2 struct {
 	ORM          `orm:"localCache"`
+	ID           uint64
 	Name         string
 	ReferenceTwo *loadByIDSubReference
 }
@@ -116,7 +124,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
-	schema := engine.GetRegistry().GetEntitySchemaForCachePrefix("528af")
+	schema := engine.GetRegistry().GetEntitySchemaForCachePrefix("6e009")
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
 	schema = engine.GetRegistry().GetEntitySchemaForCachePrefix("invalid")
@@ -139,8 +147,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
-	entity = &loadByIDEntity{}
-	entity.SetID(id)
+	entity = &loadByIDEntity{ID: id}
 	engine.Load(entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)

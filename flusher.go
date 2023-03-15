@@ -27,14 +27,14 @@ const (
 	Insert FlushType = iota
 	Update
 	Delete
-	insertUpdate
+	InsertUpdate
 )
 
 func (ft FlushType) String() string {
 	switch ft {
 	case Insert:
 		return "INSERT"
-	case insertUpdate:
+	case InsertUpdate:
 		return "INSERT ON DUPLICATE KEY UPDATE"
 	case Update:
 		return "UPDATE"
@@ -186,9 +186,9 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 							}
 						}
 					}
-					insertUpdateEvents, hasInsertUpdates := byAction[insertUpdate]
+					InsertUpdateEvents, hasInsertUpdates := byAction[InsertUpdate]
 					if hasInsertUpdates {
-						f.executeInsertOnDuplicateKeyUpdates(db, tableName, insertUpdateEvents)
+						f.executeInsertOnDuplicateKeyUpdates(db, tableName, InsertUpdateEvents)
 					}
 					updateEvents, hasUpdates := byAction[Update]
 					if hasUpdates {
@@ -221,30 +221,27 @@ func (f *flusher) flushCacheSetters() {
 func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
-	f.stringBuilder.WriteString("(ID")
+	f.stringBuilder.WriteString("(")
 	k := 0
 	columns := make([]string, len(events[0].Update))
 	for column := range events[0].Update {
-		f.stringBuilder.WriteString(",`" + column + "`")
+		if k > 0 {
+			f.stringBuilder.WriteString(",")
+		}
+		f.stringBuilder.WriteString("`" + column + "`")
 		columns[k] = column
 		k++
 	}
 	f.stringBuilder.WriteString(") VALUES")
-	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)) + ")"
+	valuesPart := "(?" + strings.Repeat(",?", len(events[0].Update)-1) + ")"
 	f.stringBuilder.WriteString(valuesPart)
 	f.stringBuilder.WriteString(strings.Repeat(","+valuesPart, len(events)-1))
 
 	args := make([]interface{}, 0)
 	for _, e := range events {
-		id := e.ID
-		if id > 0 {
-			args = append(args, id)
-		} else {
-			args = append(args, nil)
-		}
 		for _, column := range columns {
 			val := e.Update[column]
-			if val == NullBindValue {
+			if val == NullBindValue || (column == "ID" && val == "0") {
 				args = append(args, nil)
 			} else {
 				args = append(args, val)
@@ -259,7 +256,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush)
 			orm.inDB = true
 			orm.loaded = true
 			if e.ID == 0 {
-				orm.ID = newID
+				orm.idElem.SetUint(newID)
 			}
 			orm.serialize(f.getSerializer())
 		}
@@ -322,17 +319,17 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush)
 
 func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*entitySQLFlush) {
 	for _, e := range events {
-		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate)+1)
+		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate))
 		f.stringBuilder.Reset()
 		f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
-		f.stringBuilder.WriteString("(ID")
-		if events[0].ID > 0 {
-			args[0] = events[0].ID
-		}
-		k := 1
+		f.stringBuilder.WriteString("(")
+		k := 0
 		for column, value := range events[0].Update {
-			f.stringBuilder.WriteString(",`" + column + "`")
-			if value == NullBindValue {
+			if k > 0 {
+				f.stringBuilder.WriteString(",")
+			}
+			f.stringBuilder.WriteString("`" + column + "`")
+			if value == NullBindValue || (column == "ID" && value == "0") {
 				args[k] = nil
 			} else {
 				args[k] = value
@@ -340,7 +337,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			k++
 		}
 		f.stringBuilder.WriteString(") VALUES(?")
-		f.stringBuilder.WriteString(strings.Repeat(",?", len(events[0].Update)))
+		f.stringBuilder.WriteString(strings.Repeat(",?", len(events[0].Update)-1))
 		f.stringBuilder.WriteString(") ON DUPLICATE KEY UPDATE ")
 		if len(events[0].UpdateOnDuplicate) == 0 {
 			f.stringBuilder.WriteString("ID=ID")
@@ -392,7 +389,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					id := uint64(0)
 					if db.QueryRow(where, &id) {
 						e.ID = id
-						e.entity.getORM().ID = id
+						e.entity.getORM().idElem.SetUint(id)
 					}
 					break
 				}
@@ -406,10 +403,10 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			orm := e.entity.getORM()
 			orm.inDB = true
 			orm.loaded = true
-			orm.serialize(f.getSerializer())
 			if rowsAffected > 0 {
-				orm.ID = result.LastInsertId()
+				orm.idElem.SetUint(result.LastInsertId())
 			}
+			orm.serialize(f.getSerializer())
 		}
 		if rowsAffected > 0 {
 			e.ID = result.LastInsertId()

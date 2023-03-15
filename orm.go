@@ -26,7 +26,6 @@ var disableCacheHashCheck bool
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
-	SetID(id uint64)
 	markToDelete()
 	IsLoaded() bool
 	SetOnDuplicateKeyUpdate(bind Bind)
@@ -37,7 +36,6 @@ type Entity interface {
 }
 
 type ORM struct {
-	ID                   uint64
 	binary               []byte
 	entitySchema         *entitySchema
 	onDuplicateKeyUpdate Bind
@@ -49,6 +47,7 @@ type ORM struct {
 	lazy                 bool
 	value                reflect.Value
 	elem                 reflect.Value
+	idElem               reflect.Value
 }
 
 func DisableCacheHashCheck() {
@@ -75,11 +74,10 @@ func (orm *ORM) GetID() uint64 {
 	if orm.lazy {
 		panic(errors.New("getting ID from lazy flushed entity not allowed"))
 	}
-	return orm.ID
-}
-
-func (orm *ORM) SetID(id uint64) {
-	orm.ID = id
+	if !orm.initialised {
+		panic(errors.New("getting ID from non initialised entity not allowed"))
+	}
+	return orm.idElem.Uint()
 }
 
 func (orm *ORM) GetMetaData() Bind {
@@ -97,6 +95,7 @@ func (orm *ORM) Clone() Entity {
 			}
 		}
 	}
+	newEntity.getORM().idElem.SetUint(0)
 	return newEntity
 }
 
@@ -132,7 +131,7 @@ func (orm *ORM) serialize(serializer *serializer) {
 }
 
 func (orm *ORM) deserializeFromDB(serializer *serializer, pointers []interface{}) {
-	orm.deserializeStructFromDB(serializer, 1, orm.entitySchema.fields, pointers, true)
+	orm.deserializeStructFromDB(serializer, 0, orm.entitySchema.fields, pointers, true)
 	orm.binary = serializer.Read()
 }
 
@@ -288,7 +287,8 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		serialized.SerializeUInteger(orm.entitySchema.structureHash)
 	}
 	for _, i := range fields.uintegers {
-		serialized.SerializeUInteger(elem.Field(i).Uint())
+		v := elem.Field(i).Uint()
+		serialized.SerializeUInteger(v)
 	}
 	for _, i := range fields.refs {
 		f := elem.Field(i)
@@ -450,20 +450,20 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 	}
 }
 
-func (orm *ORM) deserialize(id uint64, serializer *serializer) {
+func (orm *ORM) deserialize(serializer *serializer) {
 	serializer.Reset(orm.binary)
 	hash := serializer.DeserializeUInteger()
 	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.t.String()))
 	}
-	orm.ID = id
 	orm.deserializeFields(serializer, orm.entitySchema.fields, orm.elem)
 	orm.loaded = true
 }
 
 func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.uintegers {
-		elem.Field(i).SetUint(serializer.DeserializeUInteger())
+		v := serializer.DeserializeUInteger()
+		elem.Field(i).SetUint(v)
 	}
 	k := 0
 	for _, i := range fields.refs {
@@ -473,7 +473,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		if id > 0 {
 			e := getEntitySchema(orm.entitySchema.registry, fields.refsTypes[k]).NewEntity()
 			o := e.getORM()
-			o.ID = id
+			o.idElem.SetUint(id)
 			o.inDB = true
 			f.Set(o.value)
 		} else if !isNil {
@@ -938,9 +938,9 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 						if id == 0 {
 							f.Set(reflect.Zero(f.Type()))
 						} else {
-							val := reflect.New(f.Type().Elem())
-							val.Interface().(Entity).SetID(id)
-							f.Set(val)
+							newRef := orm.entitySchema.registry.GetEntitySchema(f.Type().Elem().String()).NewEntity()
+							newRef.getORM().idElem.SetUint(id)
+							f.Set(reflect.ValueOf(newRef))
 						}
 					}
 				}

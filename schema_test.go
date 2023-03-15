@@ -25,30 +25,34 @@ type schemaSubFieldsIndex struct {
 
 type schemaEntityRef struct {
 	ORM
+	ID   uint64
 	Name string `orm:"required"`
 }
 
 type schemaInvalidIndexEntity struct {
 	ORM
+	ID   uint64
 	Name string `orm:"index=TestIndex:invalid"`
 }
 
 type schemaInvalidMaxStringEntity struct {
 	ORM
+	ID   uint64
 	Name string `orm:"length=invalid"`
 }
 
 type schemaInvalidIDEntity struct {
 	ORM
-	ID uint32
 }
 
 type schemaToDropEntity struct {
 	ORM
+	ID uint64
 }
 
 type schemaEntity struct {
 	ORM             `orm:"localCache;log;unique=TestUniqueGlobal:Year,SubStructSubAge|TestUniqueGlobal2:Uint32"`
+	ID              uint64
 	Name            string `orm:"index=TestIndex;required"`
 	NameNullable    string
 	NameMax         string  `orm:"length=max"`
@@ -246,10 +250,8 @@ func testSchema(t *testing.T, version int) {
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
 	registry.RegisterEntity(&schemaInvalidIDEntity{})
-	vv := &schemaInvalidIDEntity{}
-	vv.ID = 23
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field with name ID not allowed")
+	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIDEntity': field ID on position 1 is missing")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})
@@ -300,6 +302,7 @@ func testSchema(t *testing.T, version int) {
 	registry.RegisterMySQLPool(pool, MySQLPoolOptions{}, "other")
 	type invalidSchema4 struct {
 		ORM `orm:"mysql=other"`
+		ID  uint64
 	}
 	registry.RegisterEntity(&invalidSchema4{})
 	_, err = registry.Validate()

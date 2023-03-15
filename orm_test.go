@@ -13,10 +13,12 @@ type ormEntityStruct struct {
 
 type ormEntityRef struct {
 	ORM
+	ID uint64
 }
 
 type ormEntity struct {
 	ORM
+	ID             uint64
 	Name           string
 	nameUnset      string
 	Uint           uint
@@ -51,7 +53,7 @@ func TestORM(t *testing.T) {
 	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, &ormEntityRef{})
 
 	entity = &ormEntity{nameUnset: ""}
-	id := entity.GetID()
+	id := entity.ID
 	assert.Equal(t, uint64(0), id)
 
 	err := entity.SetField("Name", "hello")

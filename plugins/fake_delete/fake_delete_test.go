@@ -10,6 +10,7 @@ import (
 
 type fakeDeleteEntity struct {
 	beeorm.ORM
+	ID         uint64
 	Name       string `orm:"unique=name;required"`
 	Age        int    `orm:"index=AgeWeight"`
 	Weight     int    `orm:"index=AgeWeight:2"`
@@ -18,6 +19,7 @@ type fakeDeleteEntity struct {
 
 type noFakeDeleteEntity struct {
 	beeorm.ORM
+	ID   uint64
 	Name string
 }
 
@@ -50,10 +52,8 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 	alters[1].Exec(engine)
 	assert.Len(t, engine.GetAlters(), 0)
 
-	entity = &fakeDeleteEntity{Name: "A", Age: 10, Weight: 180}
-	entity2 := &fakeDeleteEntity{Name: "B", Age: 20, Weight: 200}
-	entity.SetID(17557)
-	entity2.SetID(17558)
+	entity = &fakeDeleteEntity{ID: 17557, Name: "A", Age: 10, Weight: 180}
+	entity2 := &fakeDeleteEntity{ID: 17558, Name: "B", Age: 20, Weight: 200}
 	engine.Flush(entity)
 	engine.Flush(entity2)
 

@@ -12,6 +12,7 @@ import (
 
 type logReceiverEntity1 struct {
 	beeorm.ORM `orm:"crud-stream;log-table=log;redisCache"`
+	ID         uint64
 	Name       string
 	LastName   string
 	Country    string
@@ -19,18 +20,21 @@ type logReceiverEntity1 struct {
 
 type logReceiverEntity2 struct {
 	beeorm.ORM `orm:"crud-stream;redisCache;log-table"`
+	ID         uint64
 	Name       string
 	Age        uint64
 }
 
 type logReceiverEntity3 struct {
 	beeorm.ORM `orm:"crud-stream;log-table=log"`
+	ID         uint64
 	Name       string
 	Age        uint64
 }
 
 type logReceiverEntity4 struct {
 	beeorm.ORM `orm:"crud-stream"`
+	ID         uint64
 	Name       string
 	Age        uint64
 }
@@ -146,14 +150,14 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Len(t, logs, 3)
 	assert.NotNil(t, logs[2].Before)
 	assert.Nil(t, logs[2].After)
-	assert.Len(t, logs[2].Before, 3)
+	assert.Len(t, logs[2].Before, 4)
 	assert.Equal(t, "Germany", logs[2].Before["Country"])
 	assert.Equal(t, "John", logs[2].Before["Name"])
 	assert.Equal(t, "Smith", logs[2].Before["LastName"])
 
 	logs = GetEntityLogs(engine, schema, 1, nil, beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
 	assert.Len(t, logs, 2)
-	assert.Len(t, logs[0].Before, 3)
+	assert.Len(t, logs[0].Before, 4)
 	assert.Len(t, logs[1].Before, 1)
 
 	logs = GetEntityLogs(engine, schema, 1, beeorm.NewPager(2, 1), beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))

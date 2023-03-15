@@ -28,7 +28,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 					return false, schema
 				}
 				data := e.([]byte)
-				fillFromBinary(serializer, id, engine.registry, data, entity)
+				fillFromBinary(serializer, engine.registry, data, entity)
 				if len(references) > 0 {
 					warmUpReferences(serializer, engine, schema, orm.value, references, false)
 				}
@@ -45,7 +45,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 					}
 					return false, schema
 				}
-				fillFromBinary(serializer, id, engine.registry, []byte(row), entity)
+				fillFromBinary(serializer, engine.registry, []byte(row), entity)
 				if len(references) > 0 {
 					warmUpReferences(serializer, engine, schema, orm.value, references, false)
 				}
@@ -98,6 +98,7 @@ func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {
 		orm.entitySchema = entitySchema
 		orm.value = value
 		orm.elem = elem
+		orm.idElem = elem.Field(1)
 	}
 	return orm
 }

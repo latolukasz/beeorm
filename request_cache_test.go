@@ -8,6 +8,7 @@ import (
 
 type requestCacheEntity struct {
 	ORM       `orm:"redisCache"`
+	ID        uint64
 	Name      string       `orm:"length=100;index=name"`
 	Code      string       `orm:"unique=code"`
 	IndexName *CachedQuery `query:":Name = ?"`

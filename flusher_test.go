@@ -78,6 +78,7 @@ func (av attributesValues) UnmarshalJSON(data []byte) error {
 
 type flushEntity struct {
 	ORM                  `orm:"localCache;redisCache"`
+	ID                   uint64
 	City                 string `orm:"unique=city"`
 	Name                 string `orm:"unique=name;required"`
 	NameTranslated       map[string]string
@@ -129,6 +130,7 @@ type flushEntity struct {
 
 type flushEntityReference struct {
 	ORM  `orm:"localCache;redisCache"`
+	ID   uint64
 	Name string
 	Age  int
 }
@@ -211,8 +213,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found := engine.LoadByID(2, entity)
 	assert.False(t, found)
 	found = engine.LoadByID(1, entity)
-
 	assert.True(t, found)
+	assert.Equal(t, uint64(1), entity.ID)
 	assert.Equal(t, "Tom", entity.Name)
 	assert.Equal(t, 12, entity.Age)
 	assert.Equal(t, uint(7), entity.Uint)
@@ -320,6 +322,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
+	assert.Equal(t, uint64(1), entity.ID)
 	assert.Equal(t, 42, *entity.IntNullable)
 	assert.Equal(t, int8(4), *entity.Int8Nullable)
 	assert.Equal(t, int16(4), *entity.Int16Nullable)
@@ -360,7 +363,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint64(1), entity2.GetID())
 	assert.Equal(t, 40, entity2.Age)
 	entity = &flushEntity{}
-	engine.LoadByID(1, entity)
+	assert.True(t, engine.LoadByID(1, entity))
 	assert.Equal(t, "Tom", entity.Name)
 	assert.Equal(t, "Moscow", entity.City)
 	assert.Nil(t, entity.UintNullable)
@@ -423,8 +426,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	engine.LoadByID(id, entity)
 	assert.Equal(t, "a", entity.EnumNotNull)
 
-	entity2 = &flushEntity{Name: "Adam", Age: 20, EnumNotNull: "a"}
-	entity2.SetID(10)
+	entity2 = &flushEntity{ID: 10, Name: "Adam", Age: 20, EnumNotNull: "a"}
 	engine.Flush(entity2)
 	found = engine.LoadByID(10, entity2)
 	assert.True(t, found)
@@ -548,8 +550,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	})
 
 	flusher.Clear()
-	entity2 = &flushEntity{Name: "Eva", Age: 1, EnumNotNull: "a"}
-	entity2.SetID(100)
+	entity2 = &flushEntity{ID: 100, Name: "Eva", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(12), entity2.GetID())
@@ -557,8 +558,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
 	assert.False(t, found)
-	entity2 = &flushEntity{Name: "Frank", Age: 1, EnumNotNull: "a"}
-	entity2.SetID(100)
+	entity2 = &flushEntity{ID: 100, Name: "Frank", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	entity2 = &flushEntity{}
@@ -566,8 +566,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.True(t, found)
 	assert.Equal(t, 1, entity2.Age)
 
-	entity2 = &flushEntity{Age: 1, EnumNotNull: "a"}
-	entity2.SetID(100)
+	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(100), entity2.GetID())
@@ -686,7 +685,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity = schema.NewEntity().(*flushEntity)
 	entity.Name = "WithID"
-	entity.SetID(676)
+	entity.ID = 676
 	engine.Flush(entity)
 	entity = &flushEntity{}
 	assert.True(t, engine.LoadByID(676, entity))

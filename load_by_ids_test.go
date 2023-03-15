@@ -8,18 +8,21 @@ import (
 
 type loadByIdsEntity struct {
 	ORM          `orm:"localCache;redisCache"`
+	ID           uint64
 	Name         string `orm:"max=100"`
 	ReferenceOne *loadByIdsReference
 }
 
 type loadByIdsReference struct {
 	ORM          `orm:"localCache;redisCache"`
+	ID           uint64
 	Name         string
 	ReferenceTwo *loadByIdsSubReference
 }
 
 type loadByIdsSubReference struct {
 	ORM  `orm:"localCache;redisCache"`
+	ID   uint64
 	Name string
 }
 

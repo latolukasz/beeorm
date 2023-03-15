@@ -10,12 +10,14 @@ import (
 
 type uuidEntity struct {
 	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	ID         uint64
 	Name       string `orm:"unique=name;required"`
 	Age        int
 }
 
 type uuidReferenceEntity struct {
 	beeorm.ORM `orm:"uuid;localCache;redisCache"`
+	ID         uint64
 	Parent     *uuidEntity
 	Name       string `orm:"unique=name;required"`
 	Size       int

@@ -12,11 +12,9 @@ func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager
 }
 
 func prepareScan(schema *entitySchema) (pointers []interface{}) {
-	count := len(schema.columnNames) + 1
+	count := len(schema.columnNames)
 	pointers = make([]interface{}, count)
-	id := uint64(0)
-	pointers[0] = &id
-	prepareScanForFields(schema.fields, 1, pointers)
+	prepareScanForFields(schema.fields, 0, pointers)
 	return pointers
 }
 
@@ -136,8 +134,7 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	id := *pointers[0].(*uint64)
-	fillFromDBRow(serializer, id, engine.registry, pointers, entity)
+	fillFromDBRow(serializer, engine.registry, pointers, entity)
 	if len(references) > 0 {
 		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 	}
@@ -180,8 +177,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
-		id := *pointers[0].(*uint64)
-		fillFromDBRow(serializer, id, engine.registry, pointers, value.Interface().(Entity))
+		fillFromDBRow(serializer, engine.registry, pointers, value.Interface().(Entity))
 		val = reflect.Append(val, value)
 		i++
 	}
@@ -239,21 +235,20 @@ func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, wh
 	return totalRows
 }
 
-func fillFromDBRow(serializer *serializer, id uint64, registry *validatedRegistry, pointers []interface{}, entity Entity) {
+func fillFromDBRow(serializer *serializer, registry *validatedRegistry, pointers []interface{}, entity Entity) {
 	orm := initIfNeeded(registry, entity)
-	orm.ID = id
 	orm.inDB = true
 	orm.loaded = true
 	orm.deserializeFromDB(serializer, pointers)
-	orm.deserialize(id, serializer)
+	orm.deserialize(serializer)
 }
 
-func fillFromBinary(serializer *serializer, id uint64, registry *validatedRegistry, binary []byte, entity Entity) {
+func fillFromBinary(serializer *serializer, registry *validatedRegistry, binary []byte, entity Entity) {
 	orm := initIfNeeded(registry, entity)
 	orm.inDB = true
 	orm.loaded = true
 	orm.binary = binary
-	orm.deserialize(id, serializer)
+	orm.deserialize(serializer)
 }
 
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {
