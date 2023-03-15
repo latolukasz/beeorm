@@ -279,6 +279,9 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			}
 		}
 		if b.fillNew {
+			if b.Update == nil {
+				b.Update = Bind{}
+			}
 			if isNil {
 				b.Update[name] = NullBindValue
 			} else {
