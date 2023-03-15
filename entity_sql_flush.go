@@ -84,7 +84,14 @@ func (e *entitySQLFlush) SetMetaData(key, value string) {
 }
 
 func (e *entitySQLFlush) SetID(id uint64) {
+	if e.ID == id {
+		return
+	}
 	e.ID = id
+	if e.Update == nil {
+		e.Update = Bind{}
+	}
+	e.Update["ID"] = strconv.FormatUint(id, 10)
 	if e.entity != nil {
 		e.entity.getORM().idElem.SetUint(id)
 	}
