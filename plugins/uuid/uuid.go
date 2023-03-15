@@ -1,6 +1,7 @@
 package uuid
 
 import (
+	"fmt"
 	"sync/atomic"
 	"time"
 
@@ -43,6 +44,9 @@ func (p *Plugin) GetCode() string {
 func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _ *beeorm.Registry) error {
 	if schema.GetTag("ORM", p.options.TagName, "true", "") != "true" {
 		return nil
+	}
+	if schema.GetType().Field(1).Type.String() != "uint64" {
+		return fmt.Errorf("ID field in %s must be uint64", schema.GetType().String())
 	}
 	schema.SetPluginOption(PluginCode, hasUUIDOption, true)
 	return nil

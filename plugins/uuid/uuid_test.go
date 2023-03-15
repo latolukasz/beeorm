@@ -23,6 +23,11 @@ type uuidReferenceEntity struct {
 	Size       int
 }
 
+type uuidInvalidEntity struct {
+	beeorm.ORM `orm:"uuid"`
+	ID         uint32
+}
+
 func TestUUIDdNoCache(t *testing.T) {
 	testUUID(t, false, false)
 }
@@ -112,4 +117,10 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	engine.GetRedis().FlushAll()
 	engine.GetLocalCache().Clear()
 	assert.False(t, engine.LoadByID(id, entity))
+
+	registry = &beeorm.Registry{}
+	registry.RegisterPlugin(Init(nil))
+	registry.RegisterEntity(&uuidInvalidEntity{})
+	_, err := registry.Validate()
+	assert.Errorf(t, err, "ID field in uuid.uuidInvalidEntity must be uint64")
 }
