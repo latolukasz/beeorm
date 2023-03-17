@@ -26,6 +26,7 @@ type foreignIndex struct {
 	Table          string
 	ParentDatabase string
 	OnDelete       string
+	FieldType      string
 }
 
 type foreignKeyDB struct {
@@ -80,8 +81,12 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		for _, reference := range references {
 			refOneSchema := engine.GetRegistry().GetEntitySchema(reference.EntityName)
 			pool := refOneSchema.GetMysql(engine)
+			fieldType := refOneSchema.GetType().Field(1).Type.String()
+			if fieldType == "uint" {
+				fieldType = "uint32"
+			}
 			foreignKey := &foreignIndex{Column: reference.ColumnName, Table: refOneSchema.GetTableName(),
-				ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT"}
+				ParentDatabase: pool.GetPoolConfig().GetDatabase(), OnDelete: "RESTRICT", FieldType: fieldType}
 			name := fmt.Sprintf("%s:%s:%s", pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetType().Name(), reference.ColumnName)
 			addForeignKeys[name] = foreignKey
 			hasIndex := false
@@ -200,9 +205,33 @@ func getForeignKeys(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefini
 	def()
 	var foreignKeysDB = make(map[string]*foreignIndex)
 	for _, value := range rows2 {
+
+		fieldType := ""
+		for _, dbColumn := range sqlSchema.DBTableColumns {
+			if dbColumn.ColumnName == value.ColumnName {
+				size := strings.Split(dbColumn.Definition, " ")[1]
+				size = strings.ToLower(strings.Split(size, "(")[0])
+				fieldType = convertColumnToFieldType(size)
+			}
+		}
 		foreignKey := &foreignIndex{ParentDatabase: value.ReferencedEntitySchema, Table: value.ReferencedTableName,
-			Column: value.ColumnName, OnDelete: value.OnDelete}
+			Column: value.ColumnName, OnDelete: value.OnDelete, FieldType: fieldType}
 		foreignKeysDB[value.ConstraintName] = foreignKey
 	}
 	return foreignKeysDB
+}
+
+func convertColumnToFieldType(dbType string) string {
+	switch dbType {
+	case "int":
+		return "uint32"
+	case "tinyint":
+		return "uint8"
+	case "smallint":
+		return "uint16"
+	case "bigint":
+		return "uint64"
+	default:
+		return "uint32"
+	}
 }

@@ -86,4 +86,24 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	alters[0].Exec(engine)
 	alters[1].Exec(engine)
 	assert.Len(t, engine.GetAlters(), 0)
+
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef`")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyReferenceEntity` CHANGE COLUMN `ID` `ID` int(10) unsigned NOT NULL AUTO_INCREMENT")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef` `MyRef` int(10) unsigned DEFAULT NULL")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef2` `MyRef2` int(10) unsigned DEFAULT NULL")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+
+	alters = engine.GetAlters()
+	assert.Len(t, alters, 4)
+	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`,\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef`;", alters[0].SQL)
+	if mySQLVersion == 5 {
+		assert.Equal(t, "ALTER TABLE `test`.`foreignKeyReferenceEntity`\n    CHANGE COLUMN `ID` `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT;/*CHANGED FROM `ID` int(10) unsigned NOT NULL AUTO_INCREMENT*/", alters[1].SQL)
+		assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\n    CHANGE COLUMN `MyRef` `MyRef` bigint(20) unsigned DEFAULT NULL AFTER `Name`,/*CHANGED FROM `MyRef` int(10) unsigned DEFAULT NULL*/\n    CHANGE COLUMN `MyRef2` `MyRef2` bigint(20) unsigned DEFAULT NULL AFTER `MyRef`;/*CHANGED FROM `MyRef2` int(10) unsigned DEFAULT NULL*/", alters[2].SQL)
+	} else {
+		assert.Equal(t, "ALTER TABLE `test`.`foreignKeyReferenceEntity`\n    CHANGE COLUMN `ID` `ID` bigint unsigned NOT NULL AUTO_INCREMENT;/*CHANGED FROM `ID` int unsigned NOT NULL AUTO_INCREMENT*/", alters[1].SQL)
+		assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\n    CHANGE COLUMN `MyRef` `MyRef` bigint unsigned DEFAULT NULL AFTER `Name`,/*CHANGED FROM `MyRef` int unsigned DEFAULT NULL*/\n    CHANGE COLUMN `MyRef2` `MyRef2` bigint unsigned DEFAULT NULL AFTER `MyRef`;/*CHANGED FROM `MyRef2` int unsigned DEFAULT NULL*/", alters[2].SQL)
+	}
+	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT,\nADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;", alters[3].SQL)
 }
