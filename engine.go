@@ -76,6 +76,8 @@ func (e *engineImplementation) Clone() Engine {
 		hasRedisLogger:         e.hasRedisLogger,
 		hasDBLogger:            e.hasDBLogger,
 		hasLocalCacheLogger:    e.hasLocalCacheLogger,
+		meta:                   e.meta,
+		options:                e.options,
 	}
 }
 

@@ -70,8 +70,8 @@ type mySQLLogHandler struct {
 	p                  *Plugin
 	m                  sync.Mutex
 	queries            mySQLQueriesStats
-	slowQueries        *mySqlSlowQueryTreeNode
-	slowQueriesCounter int
+	slowQueries        map[tagName]*mySqlSlowQueryTreeNode
+	slowQueriesCounter map[tagName]int
 	mySQLMetricsLimits int
 }
 
@@ -87,6 +87,8 @@ func Init(options *Options) *Plugin {
 		p:                  plugin,
 		queries:            mySQLQueriesStats{},
 		mySQLMetricsLimits: defaultMySQLMetricsLimits,
+		slowQueries:        make(map[tagName]*mySqlSlowQueryTreeNode),
+		slowQueriesCounter: make(map[tagName]int),
 	}
 	return plugin
 }
@@ -123,33 +125,40 @@ func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface
 			}
 		}
 	}
-
-	if tag != "lazy" {
-		if ml.slowQueriesCounter < ml.p.options.MySQLSlowQueriesLimit {
-			node := ml.slowQueries.insert(&MySQLSLowQuery{
+	counter := 0
+	counter, hasCounter := ml.slowQueriesCounter[tag]
+	if !hasCounter {
+		ml.slowQueriesCounter[tag] = 0
+	}
+	if counter < ml.p.options.MySQLSlowQueriesLimit {
+		var slowQueries *mySqlSlowQueryTreeNode
+		actualSlowQueries, hasSlowQueries := ml.slowQueries[tag]
+		if hasSlowQueries {
+			slowQueries = actualSlowQueries
+		}
+		node := slowQueries.insert(&MySQLSLowQuery{
+			Query:    query,
+			Pool:     string(pool),
+			Duration: time.Microsecond * time.Duration(t),
+		})
+		if !hasSlowQueries {
+			ml.slowQueries[tag] = node
+		}
+		ml.slowQueriesCounter[tag]++
+	} else if ml.slowQueries[tag] != nil {
+		min, parent := ml.slowQueries[tag].findMin(nil)
+		if min.value.Duration.Microseconds() <= t {
+			if parent == nil {
+				ml.slowQueries[tag] = ml.slowQueries[tag].right
+			} else {
+				parent.left = min.right
+			}
+			ml.slowQueries[tag].insert(&MySQLSLowQuery{
 				Query:    query,
 				Pool:     string(pool),
 				Duration: time.Microsecond * time.Duration(t),
 			})
-			if ml.slowQueries == nil {
-				ml.slowQueries = node
-			}
-			ml.slowQueriesCounter++
-		} else if ml.slowQueries != nil {
-			min, parent := ml.slowQueries.findMin(nil)
-			if min.value.Duration.Microseconds() <= t {
-				if parent == nil {
-					ml.slowQueries = ml.slowQueries.right
-				} else {
-					parent.left = min.right
-				}
-				ml.slowQueries.insert(&MySQLSLowQuery{
-					Query:    query,
-					Pool:     string(pool),
-					Duration: time.Microsecond * time.Duration(t),
-				})
-				slow = true
-			}
+			slow = true
 		}
 	}
 
@@ -278,8 +287,12 @@ func (p *Plugin) GetMySQLQueriesStats(tag string) []MySQLQuery {
 	return results
 }
 
-func (p *Plugin) GetMySQLSlowQueriesStats() []*MySQLSLowQuery {
-	return p.mySQLLogHandler.slowQueries.getChildren()
+func (p *Plugin) GetMySQLSlowQueriesStats(tag string) []*MySQLSLowQuery {
+	stats, has := p.mySQLLogHandler.slowQueries[tagName(tag)]
+	if !has {
+		return []*MySQLSLowQuery{}
+	}
+	return stats.getChildren()
 }
 
 func (p *Plugin) ClearMySQLStats() {
@@ -287,17 +300,17 @@ func (p *Plugin) ClearMySQLStats() {
 	defer p.mySQLLogHandler.m.Unlock()
 	p.mySQLLogHandler.queries = mySQLQueriesStats{}
 	p.mySQLLogHandler.mySQLMetricsLimits = defaultMySQLMetricsLimits
-	p.mySQLLogHandler.slowQueries = nil
-	p.mySQLLogHandler.slowQueriesCounter = 0
+	p.mySQLLogHandler.slowQueries = make(map[tagName]*mySqlSlowQueryTreeNode)
+	p.mySQLLogHandler.slowQueriesCounter = make(map[tagName]int)
 }
 
 func (p *Plugin) GetTags() []string {
-	tagsMap := make(map[tagName]tagName)
+	tagsMap := make(map[tagName]bool)
 	for _, l1 := range p.mySQLLogHandler.queries {
 		for _, l2 := range l1 {
 			for _, l3 := range l2 {
 				for tag := range l3 {
-					tagsMap[tag] = tag
+					tagsMap[tag] = true
 				}
 			}
 		}
@@ -306,6 +319,7 @@ func (p *Plugin) GetTags() []string {
 	i := 0
 	for tag := range tagsMap {
 		tags[i] = string(tag)
+		i++
 	}
 	sort.Strings(tags)
 	return tags

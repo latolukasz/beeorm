@@ -24,7 +24,7 @@ func TestMysqlMetrics(t *testing.T) {
 	plugin = engine.GetRegistry().GetPlugin(PluginCode).(*Plugin)
 	dbStats := plugin.GetMySQLQueriesStats("")
 	assert.NotEmpty(t, dbStats)
-	slowStats := plugin.GetMySQLSlowQueriesStats()
+	slowStats := plugin.GetMySQLSlowQueriesStats("")
 
 	assert.NotEmpty(t, slowStats)
 	assert.Len(t, slowStats, 5)
@@ -34,7 +34,7 @@ func TestMysqlMetrics(t *testing.T) {
 	plugin.ClearMySQLStats()
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 0)
-	slowStats = plugin.GetMySQLSlowQueriesStats()
+	slowStats = plugin.GetMySQLSlowQueriesStats("")
 	assert.Len(t, slowStats, 0)
 
 	entity = &simpleMetricsEntity{Name: "One"}
@@ -49,7 +49,7 @@ func TestMysqlMetrics(t *testing.T) {
 	assert.Equal(t, "simplemetricsentity", dbStats[0].Table)
 	assert.Equal(t, uint64(2), dbStats[0].Counter)
 	assert.Greater(t, dbStats[0].TotalTime, dbStats[1].TotalTime)
-	slowStats = plugin.GetMySQLSlowQueriesStats()
+	slowStats = plugin.GetMySQLSlowQueriesStats("")
 	assert.Len(t, slowStats, 3)
 	assert.Len(t, plugin.GetTags(), 1)
 	assert.Equal(t, "", plugin.GetTags()[0])
@@ -68,6 +68,8 @@ func TestMysqlMetrics(t *testing.T) {
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Len(t, plugin.GetTags(), 1)
 	assert.Equal(t, "lazy", plugin.GetTags()[0])
+	slowStats = plugin.GetMySQLSlowQueriesStats("lazy")
+	assert.Len(t, slowStats, 1)
 
 	entity = &simpleMetricsEntity{}
 	engine.LoadByID(1, entity)
