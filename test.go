@@ -41,6 +41,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 
 	registry.RegisterLocalCache(1000)
+	registry.RegisterLocalCache(1000, "second")
 
 	registry.RegisterEntity(entities...)
 	vRegistry, err := registry.Validate()
