@@ -129,9 +129,9 @@ type EntityLog struct {
 	LogID    uint64
 	EntityID uint64
 	Date     time.Time
-	MetaData beeorm.Bind
-	Before   beeorm.Bind
-	After    beeorm.Bind
+	MetaData map[string]interface{} // change to Bind after some time
+	Before   map[string]interface{}
+	After    map[string]interface{}
 }
 
 func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
