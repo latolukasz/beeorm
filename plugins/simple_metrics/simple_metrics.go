@@ -13,6 +13,7 @@ const PluginCode = "github.com/latolukasz/beeorm/plugins/simple_metrics"
 const defaultMySQLMetricsLimits = 50000
 const defaultMySQLSlowQueriesLimits = 500
 const disableMetricsMetaData = "_simple_metrics_disable"
+const tagNameMetricsMetaData = "_simple_metrics_tag"
 
 type Plugin struct {
 	options         *Options
@@ -59,8 +60,8 @@ const OTHER = MySQLQueryType("OTHER")
 
 type poolName string
 type tableName string
-type lazyQuery bool
-type mySQLTableLazyGroup map[lazyQuery]*mySQLQuery
+type tagName string
+type mySQLTableLazyGroup map[tagName]*mySQLQuery
 type mySQLTableGroup map[tableName]mySQLTableLazyGroup
 type mySQLFlushTypeGroup map[MySQLQueryType]mySQLTableGroup
 type mySQLQueriesStats map[poolName]mySQLFlushTypeGroup
@@ -90,6 +91,10 @@ func Init(options *Options) *Plugin {
 	return plugin
 }
 
+func SetTagName(engine beeorm.Engine, tag string) {
+	engine.SetMetaData(tagNameMetricsMetaData, tag)
+}
+
 func DisableMetrics(engine beeorm.Engine) {
 	engine.SetMetaData(disableMetricsMetaData, "1")
 }
@@ -105,16 +110,21 @@ func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface
 	t := log["microseconds"].(int64)
 	query := strings.ToLower(log["query"].(string))
 	pool := poolName(log["pool"].(string))
-	lazy := lazyQuery(false)
+	tag := tagName("")
 	meta, hasMeta := log["meta"]
 	slow := false
 	if hasMeta {
 		metaData, isMetaData := meta.(beeorm.Bind)
-		if isMetaData && metaData["lazy"] == "1" {
-			lazy = true
+		if isMetaData {
+			if metaData["lazy"] == "1" {
+				tag = "lazy"
+			} else {
+				tag = tagName(metaData[tagNameMetricsMetaData])
+			}
 		}
 	}
-	if !lazy {
+
+	if tag != "lazy" {
 		if ml.slowQueriesCounter < ml.p.options.MySQLSlowQueriesLimit {
 			node := ml.slowQueries.insert(&MySQLSLowQuery{
 				Query:    query,
@@ -216,10 +226,10 @@ func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface
 		l3 = mySQLTableLazyGroup{}
 		l2[table] = l3
 	}
-	l4 := l3[lazy]
+	l4 := l3[tag]
 	if l4 == nil {
 		l4 = &mySQLQuery{}
-		l3[lazy] = l4
+		l3[tag] = l4
 		ml.mySQLMetricsLimits--
 	}
 	l4.Counter++
@@ -242,12 +252,12 @@ func (ml *mySQLLogHandler) clearTableName(table string) tableName {
 	return tableName(strings.Trim(name, "`'"))
 }
 
-func (p *Plugin) GetMySQLQueriesStats(l bool) []MySQLQuery {
+func (p *Plugin) GetMySQLQueriesStats(tag string) []MySQLQuery {
 	results := make([]MySQLQuery, 0)
 	for pool, l1 := range p.mySQLLogHandler.queries {
 		for operation, l2 := range l1 {
 			for table, l3 := range l2 {
-				q, has := l3[lazyQuery(l)]
+				q, has := l3[tagName(tag)]
 				if has {
 					query := MySQLQuery{
 						Counter:     q.Counter,
@@ -279,6 +289,26 @@ func (p *Plugin) ClearMySQLStats() {
 	p.mySQLLogHandler.mySQLMetricsLimits = defaultMySQLMetricsLimits
 	p.mySQLLogHandler.slowQueries = nil
 	p.mySQLLogHandler.slowQueriesCounter = 0
+}
+
+func (p *Plugin) GetTags() []string {
+	tagsMap := make(map[tagName]tagName)
+	for _, l1 := range p.mySQLLogHandler.queries {
+		for _, l2 := range l1 {
+			for _, l3 := range l2 {
+				for tag := range l3 {
+					tagsMap[tag] = tag
+				}
+			}
+		}
+	}
+	tags := make([]string, len(tagsMap))
+	i := 0
+	for tag := range tagsMap {
+		tags[i] = string(tag)
+	}
+	sort.Strings(tags)
+	return tags
 }
 
 func (p *Plugin) PluginInterfaceEngineCreated(engine beeorm.Engine) {
