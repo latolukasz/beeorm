@@ -23,7 +23,7 @@ type cachedSearchEntity struct {
 }
 
 type cachedSearchRefEntity struct {
-	ORM       `orm:"localCache=second;"`
+	ORM
 	ID        uint64
 	Name      string       `orm:"unique=FirstIndex"`
 	IndexName *CachedQuery `queryOne:":Name = ?"`
