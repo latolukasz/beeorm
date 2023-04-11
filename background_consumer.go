@@ -207,7 +207,20 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 								}
 							}()
 							if len(groupEvents[dbCode][key]) == 1 {
-								r.engine.GetMysql(dbCode).Exec(updateSQL)
+								_, err := r.engine.GetMysql(dbCode).exec(updateSQL)
+								if err != nil {
+									valid := false
+									for _, resolver := range r.lazyFlushQueryErrorResolvers {
+										resolverError := resolver(r.engine, r.engine.GetMysql(dbCode), updateSQL, err.(*mysql.MySQLError))
+										if resolverError == nil {
+											valid = true
+											break
+										}
+									}
+									if !valid {
+										panic(err)
+									}
+								}
 							} else {
 								deadlock := false
 								func() {
@@ -226,9 +239,21 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 									defer db.Rollback()
 									_, err := db.exec(updateSQL)
 									if err != nil {
-										// TODO report
+										db.Rollback()
+										valid := false
+										for _, resolver := range r.lazyFlushQueryErrorResolvers {
+											resolverError := resolver(r.engine, db, updateSQL, err.(*mysql.MySQLError))
+											if resolverError == nil {
+												valid = true
+												break
+											}
+										}
+										if !valid {
+											panic(err)
+										}
+									} else {
+										db.Commit()
 									}
-									db.Commit()
 								}()
 								if deadlock {
 									time.Sleep(time.Millisecond * 30)
