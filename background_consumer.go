@@ -82,7 +82,7 @@ func (r *BackgroundConsumer) GetLazyFlushEventsSample(count int64) []string {
 		if !ok || len(queryDetails) < 2 {
 			continue
 		}
-		sample = append(sample, queryDetails[1].(string))
+		sample = append(sample, entry.ID+"|"+queryDetails[1].(string))
 	}
 	return sample
 }
