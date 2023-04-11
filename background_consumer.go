@@ -224,7 +224,10 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 									db := r.engine.Clone().GetMysql(dbCode)
 									db.Begin()
 									defer db.Rollback()
-									db.Exec(updateSQL)
+									_, err := db.exec(updateSQL)
+									if err != nil {
+										// TODO report
+									}
 									db.Commit()
 								}()
 								if deadlock {
@@ -234,7 +237,10 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 										db := r.engine.Clone().GetMysql(dbCode)
 										db.Begin()
 										defer db.Rollback()
-										db.Exec(updateSQL)
+										_, err := db.exec(updateSQL)
+										if err != nil {
+											// TODO report
+										}
 										db.Commit()
 									}()
 								}
