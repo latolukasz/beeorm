@@ -495,6 +495,31 @@ func (r *RedisCache) ZRemRangeByRank(key string, start, stop int64) int64 {
 	return val
 }
 
+
+func (r *RedisCache) ZRangeArgsWithScores(args redis.ZRangeArgs) []redis.Z {
+	key := r.addNamespacePrefix(args.Key)
+	startTime := getNow(r.engine.hasRedisLogger)
+	val, err := r.client.ZRangeArgsWithScores(context.Background(), args).Result()
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("ZRANGE %s %+v WITHSCORE", key, args)
+		r.fillLogFields("ZRANGE", message, startTime, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *RedisCache) ZRangeArgs(args redis.ZRangeArgs) []string {
+	key := r.addNamespacePrefix(args.Key)
+	startTime := getNow(r.engine.hasRedisLogger)
+	val, err := r.client.ZRangeArgs(context.Background(), args).Result()
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("ZRANGE %s %+v", key, args)
+		r.fillLogFields("ZRANGE", message, startTime, false, err)
+	}
+	checkError(err)
+	return val
+}
+
 func (r *RedisCache) ZCard(key string) int64 {
 	key = r.addNamespacePrefix(key)
 	start := getNow(r.engine.hasRedisLogger)
