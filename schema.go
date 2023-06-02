@@ -14,7 +14,7 @@ type Alter struct {
 	SQL    string
 	Safe   bool
 	Pool   string
-	engine *Engine
+	engine *engineImplementation
 }
 
 type indexDB struct {
@@ -49,7 +49,7 @@ func (a Alter) Exec() {
 	a.engine.GetMysql(a.Pool).Exec(a.SQL)
 }
 
-func getAlters(engine *Engine) (alters []Alter) {
+func getAlters(engine *engineImplementation) (alters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
@@ -158,7 +158,7 @@ func getAlters(engine *Engine) (alters []Alter) {
 	return final
 }
 
-func isTableEmptyInPool(engine *Engine, poolName string, tableName string) bool {
+func isTableEmptyInPool(engine *engineImplementation, poolName string, tableName string) bool {
 	return isTableEmpty(engine.GetMysql(poolName).client, tableName)
 }
 
@@ -181,7 +181,7 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alters []Alter) {
+func getSchemaChanges(engine *engineImplementation, tableSchema *tableSchema) (has bool, alters []Alter) {
 	indexes := make(map[string]*index)
 	foreignKeys := make(map[string]*foreignIndex)
 	columns, _ := checkStruct(tableSchema, engine, tableSchema.t, indexes, foreignKeys, nil, "")
@@ -190,7 +190,9 @@ func getSchemaChanges(engine *Engine, tableSchema *tableSchema) (has bool, alter
 	pool := engine.GetMysql(tableSchema.mysqlPoolName)
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
 	createTableForeignKeysSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName)
-	columns[0][1] += " AUTO_INCREMENT"
+	if !tableSchema.hasUUID {
+		columns[0][1] += " AUTO_INCREMENT"
+	}
 	for _, value := range columns {
 		createTableSQL += fmt.Sprintf("  %s,\n", value[1])
 	}
@@ -504,7 +506,7 @@ OUTER:
 	return has, alters
 }
 
-func getForeignKeys(engine *Engine, createTableDB string, tableName string, poolName string) map[string]*foreignIndex {
+func getForeignKeys(engine *engineImplementation, createTableDB string, tableName string, poolName string) map[string]*foreignIndex {
 	var rows2 []foreignKeyDB
 	query := "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_TABLE_SCHEMA " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
@@ -537,7 +539,7 @@ func getForeignKeys(engine *Engine, createTableDB string, tableName string, pool
 	return foreignKeysDB
 }
 
-func getDropForeignKeysAlter(engine *Engine, tableName string, poolName string) string {
+func getDropForeignKeysAlter(engine *engineImplementation, tableName string, poolName string) string {
 	var skip string
 	var createTableDB string
 	pool := engine.GetMysql(poolName)
@@ -572,7 +574,7 @@ func buildCreateForeignKeySQL(keyName string, definition *foreignIndex) string {
 		keyName, definition.Column, definition.ParentDatabase, definition.Table, definition.OnDelete)
 }
 
-func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField, indexes map[string]*index,
+func checkColumn(engine *engineImplementation, schema *tableSchema, field *reflect.StructField, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, prefix string) ([][2]string, error) {
 	var definition string
 	var addNotNullIfNotSet bool
@@ -596,7 +598,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 		unique := key == "unique"
 		if key == "index" && field.Type.Kind() == reflect.Ptr {
 			refOneSchema = getTableSchema(engine.registry, field.Type.Elem())
-			if refOneSchema != nil {
+			if refOneSchema != nil && !refOneSchema.hasUUID {
 				_, hasSkipFK := attributes["skip_FK"]
 				if !hasSkipFK {
 					pool := refOneSchema.GetMysql(engine)
@@ -631,7 +633,7 @@ func checkColumn(engine *Engine, schema *tableSchema, field *reflect.StructField
 		}
 	}
 
-	if refOneSchema != nil {
+	if refOneSchema != nil && !refOneSchema.hasUUID {
 		hasValidIndex := false
 		for _, i := range indexes {
 			if i.Columns[1] == columnName {
@@ -945,7 +947,7 @@ func convertIntToSchema(version int, typeAsString string, attributes map[string]
 	}
 }
 
-func checkStruct(tableSchema *tableSchema, engine *Engine, t reflect.Type, indexes map[string]*index,
+func checkStruct(tableSchema *tableSchema, engine *engineImplementation, t reflect.Type, indexes map[string]*index,
 	foreignKeys map[string]*foreignIndex, subField *reflect.StructField, subFieldPrefix string) ([][2]string, error) {
 	columns := make([][2]string, 0, t.NumField())
 	max := t.NumField() - 1

@@ -2,48 +2,54 @@ package beeorm
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRedis(t *testing.T) {
-	testRedis(t, "")
+func TestRedis6(t *testing.T) {
+	testRedis(t, "", 6)
 }
 
-func TestRedisNamespaces(t *testing.T) {
-	testRedis(t, "test")
+func TestRedis7(t *testing.T) {
+	testRedis(t, "", 7)
 }
 
-func testRedis(t *testing.T, namespace string) {
+func TestRedis6Namespaces(t *testing.T) {
+	testRedis(t, "test", 6)
+}
+
+func TestRedis7Namespaces(t *testing.T) {
+	testRedis(t, "test", 7)
+}
+
+func testRedis(t *testing.T, namespace string, version int) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", namespace, 15)
+	url := "localhost:6382"
+	if version == 7 {
+		url = "localhost:6381"
+	}
+	registry.RegisterRedis(url, namespace, 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-a", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-b", "default", []string{"test-group"})
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	engine := validatedRegistry.CreateEngine()
-	def()
 
 	r := engine.GetRedis()
 
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
 	engine.RegisterQueryLogger(testQueryLog, false, true, false)
 	r.FlushDB()
 	testLogger.clear()
-
-	assert.True(t, r.RateLimit("test", time.Second, 2))
-	assert.True(t, r.RateLimit("test", time.Second, 2))
-	assert.False(t, r.RateLimit("test", time.Second, 2))
-	assert.Len(t, testLogger.Logs, 3)
 
 	valid := false
 	val := r.GetSet("test_get_set", 10, func() interface{} {
@@ -137,7 +143,7 @@ func testRedis(t *testing.T, namespace string) {
 	time.Sleep(time.Millisecond * 1200)
 	assert.Equal(t, int64(0), r.Exists("test_map"))
 
-	added := r.ZAdd("test_z", &redis.Z{Member: "a", Score: 10}, &redis.Z{Member: "b", Score: 20})
+	added := r.ZAdd("test_z", redis.Z{Member: "a", Score: 10}, redis.Z{Member: "b", Score: 20})
 	assert.Equal(t, int64(2), added)
 	assert.Equal(t, []string{"b", "a"}, r.ZRevRange("test_z", 0, 3))
 	assert.Equal(t, float64(10), r.ZScore("test_z", "a"))
@@ -338,9 +344,8 @@ func testRedis(t *testing.T, namespace string) {
 
 	registry = &Registry{}
 	registry.RegisterRedis("localhost:6399", "", 15)
-	validatedRegistry, def, err = registry.Validate()
+	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
-	defer def()
 	engine = validatedRegistry.CreateEngine()
 	testLogger = &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
@@ -350,9 +355,8 @@ func testRedis(t *testing.T, namespace string) {
 
 	registry = &Registry{}
 	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
-	validatedRegistry, def, err = registry.Validate()
+	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
-	def()
 	engine = validatedRegistry.CreateEngine()
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
 		engine.GetRedis().Incr("test")

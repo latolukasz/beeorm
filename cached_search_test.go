@@ -18,11 +18,19 @@ type cachedSearchEntity struct {
 	Added          *time.Time
 	ReferenceOne   *cachedSearchRefEntity `orm:"index=IndexReference"`
 	Ignore         uint16                 `orm:"ignore"`
-	IndexAge       *CachedQuery           `query:":Age = ? ORDER BY :Age"`
+	IndexAge       *CachedQuery           `query:":Age = ? ORDER BY ID"`
 	IndexAll       *CachedQuery           `query:""`
 	IndexName      *CachedQuery           `queryOne:":Name = ?"`
 	IndexReference *CachedQuery           `query:":ReferenceOne = ?"`
 	FakeDelete     bool                   `orm:"unique=FirstIndex:2;index=IndexReference:2,SecondIndex:2"`
+}
+
+type cachedSearchEntityNoFakeDelete struct {
+	ORM
+	ID       uint
+	Name     string
+	Age      uint16       `orm:"index=SecondIndex"`
+	IndexAge *CachedQuery `query:":Age = ? ORDER BY ID"`
 }
 
 type cachedSearchRefEntity struct {
@@ -47,20 +55,27 @@ func TestCachedSearchLocalRedis(t *testing.T) {
 
 func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
+	var entityNoFakeDelete *cachedSearchEntityNoFakeDelete
 	var entityRef *cachedSearchRefEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entityRef, entity)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entityRef, entity, entityNoFakeDelete)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
+	schemaNoFakeDelete := engine.GetRegistry().GetTableSchemaForEntity(entityNoFakeDelete).(*tableSchema)
 	if localCache {
 		schema.localCacheName = "default"
 		schema.hasLocalCache = true
+		schemaNoFakeDelete.localCacheName = "default"
+		schemaNoFakeDelete.hasLocalCache = true
 	} else {
 		schema.localCacheName = ""
 		schema.hasLocalCache = false
+		schemaNoFakeDelete.localCacheName = ""
+		schemaNoFakeDelete.hasLocalCache = false
 	}
 	if redisCache {
 		schema.redisCacheName = "default"
 		schema.hasRedisCache = true
+		schemaNoFakeDelete.redisCacheName = "default"
+		schemaNoFakeDelete.hasRedisCache = true
 	}
 
 	flusher := engine.NewFlusher()
@@ -258,16 +273,44 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 
 		receiver := NewBackgroundConsumer(engine)
-		receiver.DisableLoop()
+		receiver.DisableBlockMode()
 		receiver.blockTime = time.Millisecond
 		receiver.Digest(context.Background())
 		assert.Equal(t, 6, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 	}
+
+	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
+	assert.Equal(t, 1, totalRows)
+	assert.NotNil(t, rows[0])
+	e := &cachedSearchEntity{ID: 4}
+	engine.Load(e)
+	engine.DeleteLazy(e)
+	receiver := NewBackgroundConsumer(engine)
+	receiver.DisableBlockMode()
+	receiver.blockTime = time.Millisecond
+	receiver.Digest(context.Background())
+	totalRows = engine.CachedSearch(&rows, "IndexReference", nil, 4)
+	assert.Equal(t, 0, totalRows)
+
+	if localCache {
+
+		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "A", Age: 10})
+		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "B", Age: 10})
+		engine.Flush(&cachedSearchEntityNoFakeDelete{Name: "C", Age: 10})
+		var rowsNoFakeDelete []*cachedSearchEntityNoFakeDelete
+
+		engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
+		engine.DeleteLazy(rowsNoFakeDelete[1])
+		totalRows = engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
+		assert.Equal(t, 2, totalRows)
+		assert.Len(t, rowsNoFakeDelete, 2)
+		assert.Equal(t, "A", rowsNoFakeDelete[0].Name)
+		assert.Equal(t, "C", rowsNoFakeDelete[1].Name)
+	}
 }
 
 func TestCachedSearchErrors(t *testing.T) {
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0")
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "")
 	var rows []*cachedSearchEntity
 	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_ = engine.CachedSearch(&rows, "IndexAge", nil, 10)
@@ -279,8 +322,7 @@ func TestCachedSearchErrors(t *testing.T) {
 
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
-	engine, def = prepareTables(t, &Registry{}, 5, "", "2.0", entity, entityRef)
-	defer def()
+	engine = prepareTables(t, &Registry{}, 5, 6, "", entity, entityRef)
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
 		_ = engine.CachedSearch(&rows, "InvalidIndex", nil, 10)
 	})
@@ -311,8 +353,7 @@ func BenchmarkCachedSearch(b *testing.B) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
-	engine, def := prepareTables(nil, registry, 5, "", "2.0", entity, ref)
-	defer def()
+	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
 	flusher := engine.NewFlusher()
 	for i := 0; i < 1000; i++ {
 		e := &schemaEntity{}

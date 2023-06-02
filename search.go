@@ -7,8 +7,8 @@ import (
 	"strconv"
 )
 
-func searchIDsWithCount(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
-	return searchIDs(skipFakeDelete, engine, where, pager, true, entityType)
+func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
+	return searchIDs(engine, where, pager, true, entityType)
 }
 
 func prepareScan(schema *tableSchema) (pointers []interface{}) {
@@ -125,11 +125,11 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema := orm.tableSchema
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 	}
 	/* #nosec */
@@ -152,7 +152,7 @@ func searchRow(serializer *serializer, skipFakeDelete bool, engine *Engine, wher
 	return true, schema, pointers
 }
 
-func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(serializer *serializer, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -163,14 +163,12 @@ func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *
 	}
 	schema := getTableSchema(engine.registry, entityType)
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
-	pageStart := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
-	pageEnd := strconv.Itoa(pager.PageSize)
-	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT " + pageStart + "," + pageEnd
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()
@@ -196,25 +194,23 @@ func search(serializer *serializer, skipFakeDelete bool, engine *Engine, where *
 	return totalRows
 }
 
-func searchOne(serializer *serializer, skipFakeDelete bool, engine *Engine, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
-	return searchRow(serializer, skipFakeDelete, engine, where, entity, references)
+func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *tableSchema, []interface{}) {
+	return searchRow(serializer, engine, where, entity, references)
 }
 
-func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
+func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
 	schema := getTableSchema(engine.registry, entityType)
 	whereQuery := where.String()
-	if skipFakeDelete && schema.hasFakeDelete {
+	if !where.showFakeDeleted && schema.hasFakeDelete {
 		/* #nosec */
 		whereQuery = "`FakeDelete` = 0 AND " + whereQuery
 		where = NewWhere(whereQuery, where.parameters)
 	}
 	/* #nosec */
-	startPage := strconv.Itoa((pager.CurrentPage - 1) * pager.PageSize)
-	endPage := strconv.Itoa(pager.PageSize)
-	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT " + startPage + "," + endPage
+	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql(engine)
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()
@@ -229,7 +225,7 @@ func searchIDs(skipFakeDelete bool, engine *Engine, where *Where, pager *Pager, 
 	return result, totalRows
 }
 
-func getTotalRows(engine *Engine, withCount bool, pager *Pager, where *Where, schema *tableSchema, foundRows int) int {
+func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, where *Where, schema *tableSchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows

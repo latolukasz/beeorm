@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 )
 
 type RedisPipeLine struct {
 	r        *RedisCache
 	pool     string
 	pipeLine redis.Pipeliner
-	ctx      context.Context
 	commands int
 	log      []string
 }
@@ -28,7 +27,7 @@ func (rp *RedisPipeLine) Del(key ...string) {
 		rp.log = append(rp.log, "DEL")
 		rp.log = append(rp.log, key...)
 	}
-	rp.pipeLine.Del(rp.ctx, key...)
+	rp.pipeLine.Del(context.Background(), key...)
 }
 
 func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
@@ -37,7 +36,7 @@ func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "GET", key)
 	}
-	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(rp.ctx, key)}
+	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(context.Background(), key)}
 }
 
 func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) {
@@ -46,7 +45,7 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "SET", key, expiration.String())
 	}
-	rp.pipeLine.Set(rp.ctx, key, value, expiration)
+	rp.pipeLine.Set(context.Background(), key, value, expiration)
 }
 
 func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
@@ -55,7 +54,7 @@ func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineB
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "EXPIRE", key, expiration.String())
 	}
-	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(rp.ctx, key, expiration)}
+	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(context.Background(), key, expiration)}
 }
 
 func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
@@ -64,7 +63,7 @@ func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 	if rp.r.engine.hasRedisLogger {
 		rp.log = append(rp.log, "HINCRBY", key, field, strconv.Itoa(int(incr)))
 	}
-	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(rp.ctx, key, field, incr)}
+	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(context.Background(), key, field, incr)}
 }
 
 func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
@@ -76,7 +75,7 @@ func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
 			rp.log = append(rp.log, fmt.Sprintf("%v", v))
 		}
 	}
-	rp.pipeLine.HSet(rp.ctx, key, values...)
+	rp.pipeLine.HSet(context.Background(), key, values...)
 }
 
 func (rp *RedisPipeLine) HDel(key string, values ...string) {
@@ -86,7 +85,7 @@ func (rp *RedisPipeLine) HDel(key string, values ...string) {
 		rp.log = append(rp.log, "HDEL", key)
 		rp.log = append(rp.log, values...)
 	}
-	rp.pipeLine.HDel(rp.ctx, key, values...)
+	rp.pipeLine.HDel(context.Background(), key, values...)
 }
 
 func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
@@ -96,12 +95,12 @@ func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
 		rp.log = append(rp.log, "XADD", stream)
 		rp.log = append(rp.log, values...)
 	}
-	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(rp.ctx, &redis.XAddArgs{Stream: stream, Values: values})}
+	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(context.Background(), &redis.XAddArgs{Stream: stream, Values: values})}
 }
 
 func (rp *RedisPipeLine) Exec() {
 	start := getNow(rp.r.engine.hasRedisLogger)
-	_, err := rp.pipeLine.Exec(rp.ctx)
+	_, err := rp.pipeLine.Exec(context.Background())
 	rp.pipeLine = rp.r.client.Pipeline()
 	if err != nil && err == redis.Nil {
 		err = nil

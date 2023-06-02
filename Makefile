@@ -39,7 +39,7 @@ check: format-check cyclo ## Linting and static analysis
 
 cyclo: ## Cyclomatic complexities analysis
 	@go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-	@gocyclo -over 85 .
+	@gocyclo -over 100 .
 
 help: ## Show help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
@@ -47,8 +47,7 @@ help: ## Show help
 cover: ## Run tests with coverage and creates cover.out profile
 	@mkdir -p ./resources/cover
 	@rm -f ./resources/cover/tmp-cover.log;
-	@go get github.com/ory/go-acc
-	@${GOPATH}/bin/go-acc ./... --output=resources/cover/cover.out --covermode=atomic
+	@go test -coverprofile resources/cover/cover.out
 
 git-tag-patch: ## Push new tag to repository with patch number incremented
 	$(eval NEW_VERSION=$(shell git describe --tags --abbrev=0 | awk -F'[a-z.]' '{$$4++;print "v" $$2 "." $$3 "." $$4}'))

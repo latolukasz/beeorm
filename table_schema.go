@@ -5,19 +5,14 @@ import (
 	"database/sql"
 	"fmt"
 	"hash/fnv"
-	"math"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
+	jsoniter "github.com/json-iterator/go"
 )
-
-const entityIndexerPage = 5000
-
-var redisSearchStopWords = []string{}
 
 type CachedQuery struct{}
 
@@ -77,24 +72,32 @@ func initEnum(ref interface{}, defaultValue ...string) *enum {
 	return enum
 }
 
+type EntityLog struct {
+	LogID    uint64
+	EntityID uint64
+	Date     time.Time
+	Meta     map[string]interface{}
+	Before   map[string]interface{}
+	Changes  map[string]interface{}
+}
+
 type TableSchema interface {
 	GetTableName() string
 	GetType() reflect.Type
 	NewEntity() Entity
-	DropTable(engine *Engine)
-	TruncateTable(engine *Engine)
-	UpdateSchema(engine *Engine)
-	ReindexRedisSearchIndex(engine *Engine)
-	UpdateSchemaAndTruncateTable(engine *Engine)
-	GetMysql(engine *Engine) *DB
-	GetLocalCache(engine *Engine) (cache *LocalCache, has bool)
-	GetRedisCache(engine *Engine) (cache *RedisCache, has bool)
-	GetRedisSearch(engine *Engine) (search *RedisSearch, has bool)
+	DropTable(engine Engine)
+	TruncateTable(engine Engine)
+	UpdateSchema(engine Engine)
+	UpdateSchemaAndTruncateTable(engine Engine)
+	GetMysql(engine Engine) *DB
+	GetLocalCache(engine Engine) (cache *LocalCache, has bool)
+	GetRedisCache(engine Engine) (cache *RedisCache, has bool)
 	GetReferences() []string
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
-	GetSchemaChanges(engine *Engine) (has bool, alters []Alter)
+	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
 	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
+	GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog
 }
 
 type tableSchema struct {
@@ -112,7 +115,6 @@ type tableSchema struct {
 	columnMapping           map[string]int
 	uniqueIndices           map[string][]string
 	uniqueIndicesGlobal     map[string][]string
-	dirtyFields             map[string][]string
 	refOne                  []string
 	refMany                 []string
 	idIndex                 int
@@ -121,7 +123,6 @@ type tableSchema struct {
 	redisCacheName          string
 	hasRedisCache           bool
 	searchCacheName         string
-	hasSearchCache          bool
 	cachePrefix             string
 	structureHash           uint64
 	hasFakeDelete           bool
@@ -130,16 +131,11 @@ type tableSchema struct {
 	logPoolName             string //name of redis
 	logTableName            string
 	skipLogs                []string
-	redisSearchPrefix       string
-	redisSearchPrefixLen    int
 	hasUUID                 bool
-	redisSearchIndex        *RedisSearchIndex
-	mapBindToRedisSearch    mapBindToRedisSearch
 	mapBindToScanPointer    mapBindToScanPointer
 	mapPointerToValue       mapPointerToValue
 }
 
-type mapBindToRedisSearch map[string]func(val interface{}) interface{}
 type mapBindToScanPointer map[string]func() interface{}
 type mapPointerToValue map[string]func(val interface{}) interface{}
 
@@ -192,24 +188,18 @@ func (tableSchema *tableSchema) GetType() reflect.Type {
 	return tableSchema.t
 }
 
-func (tableSchema *tableSchema) DropTable(engine *Engine) {
+func (tableSchema *tableSchema) DropTable(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) ReindexRedisSearchIndex(engine *Engine) {
-	if tableSchema.redisSearchIndex != nil {
-		engine.GetRedisSearch(tableSchema.searchCacheName).ForceReindex(tableSchema.redisSearchIndex.Name)
-	}
-}
-
-func (tableSchema *tableSchema) TruncateTable(engine *Engine) {
+func (tableSchema *tableSchema) TruncateTable(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
+func (tableSchema *tableSchema) UpdateSchema(engine Engine) {
 	pool := tableSchema.GetMysql(engine)
 	has, alters := tableSchema.GetSchemaChanges(engine)
 	if has {
@@ -219,36 +209,29 @@ func (tableSchema *tableSchema) UpdateSchema(engine *Engine) {
 	}
 }
 
-func (tableSchema *tableSchema) UpdateSchemaAndTruncateTable(engine *Engine) {
+func (tableSchema *tableSchema) UpdateSchemaAndTruncateTable(engine Engine) {
 	tableSchema.UpdateSchema(engine)
 	pool := tableSchema.GetMysql(engine)
 	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), tableSchema.tableName))
 }
 
-func (tableSchema *tableSchema) GetMysql(engine *Engine) *DB {
+func (tableSchema *tableSchema) GetMysql(engine Engine) *DB {
 	return engine.GetMysql(tableSchema.mysqlPoolName)
 }
 
-func (tableSchema *tableSchema) GetLocalCache(engine *Engine) (cache *LocalCache, has bool) {
+func (tableSchema *tableSchema) GetLocalCache(engine Engine) (cache *LocalCache, has bool) {
 	if !tableSchema.hasLocalCache {
 		return nil, false
 	}
 	return engine.GetLocalCache(tableSchema.localCacheName), true
 }
 
-func (tableSchema *tableSchema) GetRedisCache(engine *Engine) (cache *RedisCache, has bool) {
+func (tableSchema *tableSchema) GetRedisCache(engine Engine) (cache *RedisCache, has bool) {
 	if !tableSchema.hasRedisCache {
 		return nil, false
 	}
 	return engine.GetRedis(tableSchema.redisCacheName), true
-}
-
-func (tableSchema *tableSchema) GetRedisSearch(engine *Engine) (search *RedisSearch, has bool) {
-	if !tableSchema.hasSearchCache {
-		return nil, false
-	}
-	return engine.GetRedisSearch(tableSchema.searchCacheName), true
 }
 
 func (tableSchema *tableSchema) GetReferences() []string {
@@ -270,8 +253,8 @@ func (tableSchema *tableSchema) GetUniqueIndexes() map[string][]string {
 	return data
 }
 
-func (tableSchema *tableSchema) GetSchemaChanges(engine *Engine) (has bool, alters []Alter) {
-	return getSchemaChanges(engine, tableSchema)
+func (tableSchema *tableSchema) GetSchemaChanges(engine Engine) (has bool, alters []Alter) {
+	return getSchemaChanges(engine.(*engineImplementation), tableSchema)
 }
 
 func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {
@@ -282,6 +265,57 @@ func (tableSchema *tableSchema) GetUsage(registry ValidatedRegistry) map[reflect
 			schema := getTableSchema(vRegistry, t)
 			tableSchema.getUsage(schema.fields, schema.t, "", results)
 		}
+	}
+	return results
+}
+
+func (tableSchema *tableSchema) GetEntityLogs(engine Engine, entityID uint64, pager *Pager, where *Where) []EntityLog {
+	var results []EntityLog
+	if !tableSchema.hasLog {
+		return results
+	}
+	db := engine.GetMysql(tableSchema.logPoolName)
+	if pager == nil {
+		pager = NewPager(1, 1000)
+	}
+	if where == nil {
+		where = NewWhere("1")
+	}
+	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableSchema.logTableName + " WHERE "
+	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
+	fullQuery += "AND " + where.String() + " " + pager.String()
+	rows, closeF := db.Query(fullQuery, where.GetParameters()...)
+	defer closeF()
+	id := uint64(0)
+	addedAt := ""
+	meta := sql.NullString{}
+	before := sql.NullString{}
+	changes := sql.NullString{}
+	for rows.Next() {
+		rows.Scan(&id, &addedAt, &meta, &before, &changes)
+		log := EntityLog{}
+		log.LogID = id
+		log.EntityID = entityID
+		log.Date, _ = time.ParseInLocation(timeFormat, addedAt, time.Local)
+		if meta.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if before.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(before.String, &log.Before)
+			if err != nil {
+				panic(err)
+			}
+		}
+		if changes.Valid {
+			err := jsoniter.ConfigFastest.UnmarshalFromString(changes.String, &log.Changes)
+			if err != nil {
+				panic(err)
+			}
+		}
+		results = append(results, log)
 	}
 	return results
 }
@@ -338,7 +372,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
-	dirtyFields := make(map[string][]string)
 	fakeDeleteField, has := entityType.FieldByName("FakeDelete")
 	if has && fakeDeleteField.Type.String() == "bool" {
 		tableSchema.hasFakeDelete = true
@@ -358,7 +391,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		fieldsQuery := make([]string, 0)
 		fieldsOrder := make([]string, 0)
 		if has {
-			re := regexp.MustCompile(":([A-Za-z0-9])+")
+			re := regexp.MustCompile(":([A-Za-z\\d])+")
 			variables := re.FindAllString(query, -1)
 			for _, variable := range variables {
 				fieldName := variable[1:]
@@ -423,18 +456,15 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		if has {
 			manyRefs = append(manyRefs, key)
 		}
-		dirtyValues, has := values["dirty"]
-		if has {
-			for _, v := range strings.Split(dirtyValues, ",") {
-				dirtyFields[v] = append(dirtyFields[v], key)
-			}
-		}
 	}
 	logPoolName := tableSchema.getTag("log", tableSchema.mysqlPoolName, "")
-	if logPoolName == "" && registry.forcedEntityLog != "" {
-		logPoolName = registry.forcedEntityLog
-	}
 	hasUUID := tableSchema.getTag("uuid", "true", "false") == "true"
+	if hasUUID {
+		idField, is := entityType.FieldByName("ID")
+		if is && idField.Type.String() != "uint64" {
+			return fmt.Errorf("entity %s with uuid enabled must be unit64", entityType.String())
+		}
+	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
@@ -516,9 +546,6 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 		}
 	}
 	tableSchema.fields = tableSchema.buildTableFields(entityType, registry, 1, "", tableSchema.tags)
-	if err := tableSchema.buildRedisSearchIndex(registry); err != nil {
-		return err
-	}
 	tableSchema.columnNames, tableSchema.fieldsQuery = tableSchema.fields.buildColumnNames("")
 	columnMapping := make(map[string]int)
 	for i, name := range tableSchema.columnNames {
@@ -535,12 +562,10 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	tableSchema.cachedIndexes = cachedQueries
 	tableSchema.cachedIndexesOne = cachedQueriesOne
 	tableSchema.cachedIndexesAll = cachedQueriesAll
-	tableSchema.dirtyFields = dirtyFields
 	tableSchema.localCacheName = localCache
 	tableSchema.hasLocalCache = localCache != ""
 	tableSchema.redisCacheName = redisCache
 	tableSchema.hasRedisCache = redisCache != ""
-	tableSchema.hasSearchCache = tableSchema.redisSearchIndex != nil
 	tableSchema.refOne = oneRefs
 	tableSchema.refMany = manyRefs
 	tableSchema.cachePrefix = cachePrefix
@@ -662,10 +687,6 @@ func (tableSchema *tableSchema) getTag(key, trueValue, defaultValue string) stri
 
 func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Registry,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
-	if start == 1 {
-		tableSchema.redisSearchIndex = &RedisSearchIndex{}
-		tableSchema.mapBindToRedisSearch = mapBindToRedisSearch{}
-	}
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
@@ -683,8 +704,6 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 			TypeName: f.Type.String(),
 		}
 		fields.fields[i] = f
-		_, attributes.HasSearchable = tags["searchable"]
-		_, attributes.HasSortable = tags["sortable"]
 		switch attributes.TypeName {
 		case "uint",
 			"uint8",
@@ -747,40 +766,21 @@ func (tableSchema *tableSchema) buildTableFields(t reflect.Type, registry *Regis
 }
 
 type schemaFieldAttributes struct {
-	Field         reflect.StructField
-	TypeName      string
-	Tags          map[string]string
-	Fields        *tableFields
-	Index         int
-	HasSearchable bool
-	HasSortable   bool
-	Prefix        string
+	Field    reflect.StructField
+	TypeName string
+	Tags     map[string]string
+	Fields   *tableFields
+	Index    int
+	Prefix   string
 }
 
 func (attributes schemaFieldAttributes) GetColumnName() string {
 	return attributes.Prefix + attributes.Field.Name
 }
 
-func (attributes schemaFieldAttributes) IsInByRedisSearch() bool {
-	return attributes.HasSearchable || attributes.HasSortable
-}
-
 func (tableSchema *tableSchema) buildUintField(attributes schemaFieldAttributes) {
 	attributes.Fields.uintegers = append(attributes.Fields.uintegers, attributes.Index)
 	columnName := attributes.GetColumnName()
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		if attributes.HasSortable && attributes.TypeName == "uint64" {
-			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-				if val.(uint64) > math.MaxInt32 {
-					panic(errors.New("integer too high for redis search sort field"))
-				}
-				return val
-			}
-		} else {
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
-		}
-	}
 	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := uint64(0)
 		return &v
@@ -805,21 +805,6 @@ func (tableSchema *tableSchema) buildUintPointerField(attributes schemaFieldAttr
 	case "*uint64":
 		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 64)
 	}
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		if attributes.HasSortable && attributes.TypeName == "*uint64" {
-			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-				if val == nil {
-					return RedisSearchNullNumber
-				} else if val.(uint64) > math.MaxInt32 {
-					panic(errors.New("integer too high for redis search sort field"))
-				}
-				return val
-			}
-		} else {
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
-		}
-	}
 	tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	tableSchema.mapPointerToValue[columnName] = pointerUintNullableScan
 }
@@ -827,19 +812,6 @@ func (tableSchema *tableSchema) buildUintPointerField(attributes schemaFieldAttr
 func (tableSchema *tableSchema) buildIntField(attributes schemaFieldAttributes) {
 	attributes.Fields.integers = append(attributes.Fields.integers, attributes.Index)
 	columnName := attributes.GetColumnName()
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		if attributes.HasSortable && attributes.TypeName == "int64" {
-			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-				if val.(int64) > math.MaxInt32 {
-					panic(errors.New("integer too high for redis search sort field"))
-				}
-				return val
-			}
-		} else {
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
-		}
-	}
 	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := int64(0)
 		return &v
@@ -864,21 +836,6 @@ func (tableSchema *tableSchema) buildIntPointerField(attributes schemaFieldAttri
 	case "*int64":
 		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 64)
 	}
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		if attributes.HasSortable && attributes.TypeName == "*int64" {
-			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-				if val == nil {
-					return RedisSearchNullNumber
-				} else if val.(int64) > math.MaxInt32 {
-					panic(errors.New("integer too high for redis search sort field"))
-				}
-				return val
-			}
-		} else {
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
-		}
-	}
 	tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	tableSchema.mapPointerToValue[columnName] = pointerIntNullableScan
 }
@@ -891,16 +848,6 @@ func (tableSchema *tableSchema) buildStringField(attributes schemaFieldAttribute
 		attributes.Fields.enums = append(attributes.Fields.enums, registry.enums[enumCode])
 	} else {
 		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
-	}
-	if attributes.IsInByRedisSearch() {
-		if hasEnum {
-			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
-		} else {
-			stem, hasStem := attributes.Tags["stem"]
-			tableSchema.redisSearchIndex.AddTextField(columnName, 1.0, attributes.HasSortable, !attributes.HasSearchable, !hasStem || stem != "true")
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
-		}
 	}
 	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
@@ -920,10 +867,6 @@ func (tableSchema *tableSchema) buildStringSliceField(attributes schemaFieldAttr
 	if hasSet {
 		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
 		attributes.Fields.sets = append(attributes.Fields.sets, registry.enums[setCode])
-		if attributes.IsInByRedisSearch() {
-			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableString
-		}
 	} else {
 		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 	}
@@ -935,41 +878,16 @@ func (tableSchema *tableSchema) buildBoolField(attributes schemaFieldAttributes)
 	columnName := attributes.GetColumnName()
 	if attributes.GetColumnName() == "FakeDelete" {
 		attributes.Fields.fakeDelete = attributes.Index
-		if attributes.IsInByRedisSearch() {
-			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
-			tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-				if val.(uint64) > 0 {
-					return "true"
-				}
-				return "false"
-			}
-			tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
-				v := uint64(0)
-				return &v
-			}
-			tableSchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
-				v := *val.(*uint64)
-				return v
-			}
-		}
 	} else {
 		attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
 		tableSchema.mapBindToScanPointer[columnName] = scanBoolPointer
 		tableSchema.mapPointerToValue[columnName] = pointerBoolScan
-		if attributes.IsInByRedisSearch() {
-			tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
-		}
 	}
 }
 
 func (tableSchema *tableSchema) buildBoolPointerField(attributes schemaFieldAttributes) {
 	attributes.Fields.booleansNullable = append(attributes.Fields.booleansNullable, attributes.Index)
 	columnName := attributes.GetColumnName()
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddTagField(columnName, attributes.HasSortable, !attributes.HasSearchable, ",")
-		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableBool
-	}
 	tableSchema.mapBindToScanPointer[columnName] = scanBoolNullablePointer
 	tableSchema.mapPointerToValue[columnName] = pointerBoolNullableScan
 }
@@ -993,10 +911,6 @@ func (tableSchema *tableSchema) buildFloatField(attributes schemaFieldAttributes
 	}
 	attributes.Fields.floats = append(attributes.Fields.floats, attributes.Index)
 	attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapper
-	}
 	tableSchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := float64(0)
 		return &v
@@ -1027,10 +941,6 @@ func (tableSchema *tableSchema) buildFloatPointerField(attributes schemaFieldAtt
 	}
 	attributes.Fields.floatsNullable = append(attributes.Fields.floatsNullable, attributes.Index)
 	attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
-	}
 	tableSchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
 	tableSchema.mapPointerToValue[columnName] = pointerFloatNullableScan
 }
@@ -1043,10 +953,6 @@ func (tableSchema *tableSchema) buildTimePointerField(attributes schemaFieldAttr
 	} else {
 		attributes.Fields.datesNullable = append(attributes.Fields.datesNullable, attributes.Index)
 	}
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
-	}
 	tableSchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	tableSchema.mapPointerToValue[columnName] = pointerStringNullableScan
 }
@@ -1058,10 +964,6 @@ func (tableSchema *tableSchema) buildTimeField(attributes schemaFieldAttributes)
 		attributes.Fields.times = append(attributes.Fields.times, attributes.Index)
 	} else {
 		attributes.Fields.dates = append(attributes.Fields.dates, attributes.Index)
-	}
-	if attributes.IsInByRedisSearch() {
-		tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-		tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableTime
 	}
 	tableSchema.mapBindToScanPointer[columnName] = scanStringPointer
 	tableSchema.mapPointerToValue[columnName] = pointerStringScan
@@ -1084,10 +986,6 @@ func (tableSchema *tableSchema) buildPointerField(attributes schemaFieldAttribut
 	if attributes.Field.Type.Implements(modelType) {
 		attributes.Fields.refs = append(attributes.Fields.refs, attributes.Index)
 		attributes.Fields.refsTypes = append(attributes.Fields.refsTypes, attributes.Field.Type.Elem())
-		if attributes.IsInByRedisSearch() {
-			tableSchema.redisSearchIndex.AddNumericField(columnName, attributes.HasSortable, !attributes.HasSearchable)
-			tableSchema.mapBindToRedisSearch[columnName] = defaultRedisSearchMapperNullableNumeric
-		}
 		tableSchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 		tableSchema.mapPointerToValue[columnName] = pointerUintNullableScan
 	} else {
@@ -1102,98 +1000,10 @@ func (tableSchema *tableSchema) buildPointersSliceField(attributes schemaFieldAt
 		if t.Implements(modelType) {
 			attributes.Fields.refsMany = append(attributes.Fields.refsMany, attributes.Index)
 			attributes.Fields.refsManyTypes = append(attributes.Fields.refsManyTypes, t.Elem())
-			if attributes.HasSearchable {
-				columnName := attributes.GetColumnName()
-				tableSchema.redisSearchIndex.AddTextField(columnName, 0, false, false, true)
-				tableSchema.mapBindToRedisSearch[columnName] = func(val interface{}) interface{} {
-					if val == nil {
-						return ""
-					}
-					asString := val.(string)[1:]
-					asString = asString[0 : len(asString)-1]
-					asString = strings.ReplaceAll(asString, ", ", " e")
-					asString = strings.ReplaceAll(asString, ",", " e")
-					asString = "e" + asString
-					return asString
-				}
-				tableSchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
-				tableSchema.mapPointerToValue[columnName] = pointerStringNullableScan
-			}
 			return
 		}
 	}
 	attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
-}
-
-func (tableSchema *tableSchema) buildRedisSearchIndex(registry *Registry) error {
-	if len(tableSchema.redisSearchIndex.Fields) > 0 {
-		tableSchema.searchCacheName = tableSchema.getTag("redisSearch", "default", "")
-		if tableSchema.searchCacheName != "" {
-			_, has := registry.redisPools[tableSchema.searchCacheName]
-			if !has {
-				return fmt.Errorf("redis pool '%s' not found", tableSchema.searchCacheName)
-			}
-		} else {
-			return fmt.Errorf("missing redis search pool tag in %s", tableSchema.t.String())
-		}
-		hasSearchable := false
-		for _, field := range tableSchema.redisSearchIndex.Fields {
-			if !field.NoIndex {
-				hasSearchable = true
-				break
-			}
-		}
-		if !hasSearchable {
-			tableSchema.redisSearchIndex.Fields[0].NoIndex = false
-		}
-		tableSchema.redisSearchIndex.StopWords = redisSearchStopWords
-		tableSchema.redisSearchIndex.Name = tableSchema.t.String()
-		tableSchema.redisSearchIndex.RedisPool = tableSchema.searchCacheName
-		tableSchema.redisSearchPrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(tableSchema.t.String())))
-		tableSchema.redisSearchPrefix = tableSchema.redisSearchPrefix[0:5] + ":"
-		tableSchema.redisSearchIndex.Prefixes = []string{tableSchema.redisSearchPrefix}
-		tableSchema.redisSearchIndex.NoOffsets = true
-		tableSchema.redisSearchIndex.NoFreqs = true
-		tableSchema.redisSearchIndex.NoNHL = true
-		tableSchema.redisSearchIndex.SkipInitialScan = true
-		indexQuery := "SELECT `ID`"
-		indexColumns := make([]string, 0)
-		for column := range tableSchema.mapBindToRedisSearch {
-			indexQuery += ",`" + column + "`"
-			indexColumns = append(indexColumns, column)
-		}
-		indexQuery += " FROM `" + tableSchema.tableName + "` WHERE `ID` > ?"
-		if tableSchema.hasFakeDelete && !tableSchema.hasSearchableFakeDelete {
-			indexQuery += " AND FakeDelete = 0"
-		}
-		indexQuery += " ORDER BY `ID` LIMIT " + strconv.Itoa(entityIndexerPage)
-		tableSchema.redisSearchIndex.Indexer = func(engine *Engine, lastID uint64, pusher RedisSearchIndexPusher) (newID uint64, hasMore bool) {
-			results, def := engine.GetMysql(tableSchema.mysqlPoolName).Query(indexQuery, lastID)
-			defer def()
-			total := 0
-			pointers := make([]interface{}, len(indexColumns)+1)
-			v := uint64(0)
-			pointers[0] = &v
-			for i, column := range indexColumns {
-				pointers[i+1] = tableSchema.mapBindToScanPointer[column]()
-			}
-			for results.Next() {
-				results.Scan(pointers...)
-				lastID = *pointers[0].(*uint64)
-				pusher.NewDocument(tableSchema.redisSearchIndex.Prefixes[0] + strconv.FormatUint(lastID, 10))
-				for i, column := range indexColumns {
-					val := tableSchema.mapPointerToValue[column](pointers[i+1])
-					pusher.setField(column, tableSchema.mapBindToRedisSearch[column](val))
-				}
-				pusher.PushDocument()
-				total++
-			}
-			return lastID, total == entityIndexerPage
-		}
-	} else {
-		tableSchema.redisSearchIndex = nil
-	}
-	return nil
 }
 
 func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {
@@ -1332,7 +1142,7 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		name := subFieldPrefix + fields.fields[i].Name
 		columns = append(columns, name)
 		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
-			fieldsQuery += ",UNIX_TIMESTAMP(`" + name + "`)"
+			fieldsQuery += ",TO_SECONDS(`" + name + "`)"
 		} else {
 			fieldsQuery += ",`" + name + "`"
 		}
@@ -1348,50 +1158,6 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		fieldsQuery += "," + subQuery
 	}
 	return columns, fieldsQuery[1:]
-}
-
-var defaultRedisSearchMapper = func(val interface{}) interface{} {
-	return val
-}
-
-var defaultRedisSearchMapperNullableString = func(val interface{}) interface{} {
-	if val == nil {
-		return "NULL"
-	}
-	return EscapeRedisSearchString(val.(string))
-}
-
-var defaultRedisSearchMapperNullableNumeric = func(val interface{}) interface{} {
-	if val == nil {
-		return RedisSearchNullNumber
-	}
-	return val
-}
-
-var defaultRedisSearchMapperNullableBool = func(val interface{}) interface{} {
-	if val == nil {
-		return "NULL"
-	}
-	if val.(bool) {
-		return "true"
-	}
-	return "false"
-}
-
-var defaultRedisSearchMapperNullableTime = func(val interface{}) interface{} {
-	if val == nil {
-		return RedisSearchNullNumber
-	}
-	v := val.(string)
-	if v[0:10] == "0001-01-01" {
-		return 0
-	}
-	if len(v) == 19 {
-		t, _ := time.ParseInLocation(timeFormat, v, time.Local)
-		return t.Unix()
-	}
-	t, _ := time.ParseInLocation(dateformat, v, time.Local)
-	return t.Unix()
 }
 
 var scanIntNullablePointer = func() interface{} {

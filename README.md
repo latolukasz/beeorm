@@ -1,5 +1,6 @@
 # BeeORM
 
+Golang ORM designed for optimal performance with MySQL and Redis
 
 ![Check & test](https://github.com/latolukasz/beeorm/workflows/Check%20&%20test/badge.svg)
 [![codecov](https://codecov.io/gh/latolukasz/beeorm/branch/master/graph/badge.svg?token=vUIiVutNWz)](https://codecov.io/gh/latolukasz/beeorm)

@@ -267,7 +267,7 @@ type SQLRow interface {
 }
 
 type DB struct {
-	engine        *Engine
+	engine        *engineImplementation
 	client        sqlClient
 	config        MySQLPoolConfig
 	inTransaction bool
@@ -328,6 +328,14 @@ func (db *DB) Rollback() {
 }
 
 func (db *DB) Exec(query string, args ...interface{}) ExecResult {
+	results, err := db.exec(query, args...)
+	if err != nil {
+		panic(db.convertToError(err))
+	}
+	return results
+}
+
+func (db *DB) exec(query string, args ...interface{}) (ExecResult, error) {
 	start := getNow(db.engine.hasDBLogger)
 	if db.engine.queryTimeLimit > 0 {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(db.engine.queryTimeLimit)*time.Second)
@@ -343,11 +351,11 @@ func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 		if err != nil {
 			_, isTimeout := ctx.Deadline()
 			if isTimeout {
-				panic(errors.Errorf("query exceeded limit of %d seconds", db.engine.queryTimeLimit))
+				return nil, &mysql.MySQLError{Number: 1969, Message: fmt.Sprintf("query exceeded limit of %d seconds", db.engine.queryTimeLimit)}
 			}
-			panic(db.convertToError(err))
+			return nil, err
 		}
-		return &execResult{r: rows}
+		return &execResult{r: rows}, nil
 	}
 	rows, err := db.client.Exec(query, args...)
 	if db.engine.hasDBLogger {
@@ -357,10 +365,7 @@ func (db *DB) Exec(query string, args ...interface{}) ExecResult {
 		}
 		db.fillLogFields("EXEC", message, start, err)
 	}
-	if err != nil {
-		panic(db.convertToError(err))
-	}
-	return &execResult{r: rows}
+	return &execResult{r: rows}, err
 }
 
 func (db *DB) QueryRow(query *Where, toFill ...interface{}) (found bool) {
@@ -498,6 +503,29 @@ func (db *DB) convertToError(err error) error {
 	return err
 }
 
+func escapeSQLValue(val interface{}) string {
+	if val == nil {
+		return "NULL"
+	}
+	asString, isString := val.(string)
+	if isString {
+		return escapeSQLString(asString)
+	}
+	asTime, isTime := val.(time.Time)
+	if isTime {
+		return "'" + asTime.Format(timeFormat) + "'"
+	}
+	asTimePointer, isTimePointer := val.(*time.Time)
+	if isTimePointer {
+		return "'" + asTimePointer.Format(timeFormat) + "'"
+	}
+	asString = fmt.Sprintf("%v", val)
+	if asString == "<nil>" {
+		return "NULL"
+	}
+	return asString
+}
+
 func escapeSQLString(val string) string {
 	dest := make([]byte, 0, 2*len(val))
 	var escape byte
@@ -527,27 +555,4 @@ func escapeSQLString(val string) string {
 		}
 	}
 	return "'" + string(dest) + "'"
-}
-
-func escapeSQLValue(val interface{}) string {
-	if val == nil {
-		return "NULL"
-	}
-	asString, isString := val.(string)
-	if isString {
-		return escapeSQLString(asString)
-	}
-	asTime, isTime := val.(time.Time)
-	if isTime {
-		return "'" + asTime.Format(timeFormat) + "'"
-	}
-	asTimePointer, isTimePointer := val.(*time.Time)
-	if isTimePointer {
-		return "'" + asTimePointer.Format(timeFormat) + "'"
-	}
-	asString = fmt.Sprintf("%v", val)
-	if asString == "<nil>" {
-		return "NULL"
-	}
-	return asString
 }

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -12,9 +12,8 @@ func TestRedisPipeline(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	defer def()
 	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()

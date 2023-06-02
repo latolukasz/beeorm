@@ -5,21 +5,23 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-redsync/redsync/v4"
+	"github.com/go-redsync/redsync/v4/redis/goredis/v9"
 	"github.com/pkg/errors"
-
-	"github.com/bsm/redislock"
 )
 
 type lockerClient interface {
-	Obtain(ctx context.Context, key string, ttl time.Duration, opt *redislock.Options) (*redislock.Lock, error)
+	Obtain(ctx context.Context, key string, options ...redsync.Option) (*redsync.Mutex, error)
 }
 
 type standardLockerClient struct {
-	client *redislock.Client
+	client *redsync.Redsync
 }
 
-func (l *standardLockerClient) Obtain(ctx context.Context, key string, ttl time.Duration, opt *redislock.Options) (*redislock.Lock, error) {
-	return l.client.Obtain(ctx, key, ttl, opt)
+func (l *standardLockerClient) Obtain(ctx context.Context, key string, options ...redsync.Option) (*redsync.Mutex, error) {
+	mutex := l.client.NewMutex(key, options...)
+	return mutex, mutex.LockContext(ctx)
+
 }
 
 type Locker struct {
@@ -31,30 +33,44 @@ func (r *RedisCache) GetLocker() *Locker {
 	if r.locker != nil {
 		return r.locker
 	}
-	lockerClient := &standardLockerClient{client: redislock.New(r.client)}
+	client := r.client
+	pool := goredis.NewPool(client)
+	rs := redsync.New(pool)
+	lockerClient := &standardLockerClient{client: rs}
 	r.locker = &Locker{locker: lockerClient, r: r}
 	return r.locker
 }
 
-func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
+func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
 	key = l.r.addNamespacePrefix(key)
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
 	}
-	var options *redislock.Options
-	if waitTimeout > 0 {
-		minInterval := 16 * time.Millisecond
-		maxInterval := 256 * time.Millisecond
-		max := int(waitTimeout / maxInterval)
-		if max == 0 {
-			max = 1
-		}
-		options = &redislock.Options{RetryStrategy: redislock.LimitRetry(redislock.ExponentialBackoff(minInterval, maxInterval), max)}
-	}
 	start := getNow(l.r.engine.hasRedisLogger)
-	redisLock, err := l.locker.Obtain(context.Background(), key, ttl, options)
+	var mutex *redsync.Mutex
+	var err error
+	if waitTimeout == 0 {
+		mutex, err = l.locker.Obtain(ctx, key, redsync.WithExpiry(ttl), redsync.WithTries(1))
+	} else {
+		minDelay := 50 * time.Millisecond
+		tries := 10
+		delay := time.Duration(waitTimeout.Nanoseconds() / int64(tries))
+		if delay < minDelay {
+			delay = minDelay
+			tries = int(waitTimeout.Nanoseconds()/minDelay.Nanoseconds()) + 1
+		}
+		mutex, err = l.locker.Obtain(ctx, key, redsync.WithExpiry(ttl), redsync.WithTries(tries), redsync.WithRetryDelay(delay))
+	}
 	if err != nil {
-		if err == redislock.ErrNotObtained {
+		if err == redsync.ErrFailed {
+			if l.r.engine.hasRedisLogger {
+				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
+				l.fillLogFields("LOCK OBTAIN", message, start, true, nil)
+			}
+			return nil, false
+		}
+		_, is := err.(redsync.ErrTaken)
+		if is {
 			if l.r.engine.hasRedisLogger {
 				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
 				l.fillLogFields("LOCK OBTAIN", message, start, true, nil)
@@ -67,16 +83,17 @@ func (l *Locker) Obtain(key string, ttl time.Duration, waitTimeout time.Duration
 		l.fillLogFields("LOCK OBTAIN", message, start, false, nil)
 	}
 	checkError(err)
-	lock = &Lock{lock: redisLock, locker: l, key: key, has: true, engine: l.r.engine}
+	lock = &Lock{lock: mutex, locker: l, ttl: ttl, key: key, has: true, engine: l.r.engine}
 	return lock, true
 }
 
 type Lock struct {
-	lock   *redislock.Lock
+	lock   *redsync.Mutex
 	key    string
+	ttl    time.Duration
 	locker *Locker
 	has    bool
-	engine *Engine
+	engine *engineImplementation
 }
 
 func (l *Lock) Release() {
@@ -85,44 +102,52 @@ func (l *Lock) Release() {
 	}
 	l.has = false
 	start := getNow(l.engine.hasRedisLogger)
-	err := l.lock.Release(context.Background())
-	if err == redislock.ErrLockNotHeld {
+	ok, err := l.lock.UnlockContext(context.Background())
+	_, is := err.(redsync.ErrTaken)
+	if is {
 		err = nil
 	}
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, false, err)
+		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, !ok, err)
 	}
 	checkError(err)
 }
 
 func (l *Lock) TTL() time.Duration {
 	start := getNow(l.engine.hasRedisLogger)
-	d, err := l.lock.TTL(context.Background())
+	t := l.lock.Until()
 	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, false, err)
+		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, false, nil)
 	}
-	checkError(err)
-	return d
+	return t.Sub(time.Now())
 }
 
-func (l *Lock) Refresh(ttl time.Duration) bool {
+func (l *Lock) Refresh(ctx context.Context) bool {
 	if !l.has {
 		return false
 	}
 	start := getNow(l.engine.hasRedisLogger)
-	err := l.lock.Refresh(context.Background(), ttl, nil)
-	has := true
-	if err == redislock.ErrNotObtained {
-		has = false
-		err = nil
-		l.has = false
+	ok, err := l.lock.ExtendContext(ctx)
+	if err != nil {
+		if err == redsync.ErrExtendFailed {
+			ok = false
+			err = nil
+			l.has = false
+		} else {
+			_, is := err.(redsync.ErrTaken)
+			if is {
+				ok = false
+				err = nil
+				l.has = false
+			}
+		}
 	}
 	if l.engine.hasRedisLogger {
-		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, ttl.String())
-		l.locker.fillLogFields("LOCK REFRESH", message, start, false, err)
+		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, l.ttl)
+		l.locker.fillLogFields("LOCK REFRESH", message, start, !ok, err)
 	}
 	checkError(err)
-	return has
+	return ok
 }
 
 func (l *Locker) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {

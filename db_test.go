@@ -2,7 +2,7 @@ package beeorm
 
 import (
 	"database/sql"
-	"io/ioutil"
+	"io"
 	"log"
 	"testing"
 
@@ -30,11 +30,10 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entity)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
-	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(ioutil.Discard, "", 0)}
+	testQueryLog := &defaultLogLogger{maxPoolLen: 0, logger: log.New(io.Discard, "", 0)}
 	engine.RegisterQueryLogger(testQueryLog, true, false, false)
 
 	db := engine.GetMysql()
@@ -43,7 +42,7 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, uint64(1), row.RowsAffected())
 
 	engine.SetQueryTimeLimit(1)
-	assert.PanicsWithError(t, "query exceeded limit of 1 seconds", func() {
+	assert.PanicsWithError(t, "Error 1969: query exceeded limit of 1 seconds", func() {
 		db.Exec("SELECT SLEEP(5)")
 	})
 	engine.SetQueryTimeLimit(0)
@@ -111,8 +110,7 @@ func TestDB(t *testing.T) {
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entity)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entity)
 	db := engine.GetMysql()
 	logger := &testLogHandler{}
 	engine.RegisterQueryLogger(logger, true, false, false)
@@ -176,7 +174,7 @@ func TestDBErrors(t *testing.T) {
 		db.Query("")
 	})
 
-	assert.PanicsWithError(t, "Error 1064: You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'INVALID QUERY' at line 1", func() {
+	assert.PanicsWithError(t, "Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'INVALID QUERY' at line 1", func() {
 		db.QueryRow(NewWhere("INVALID QUERY"))
 	})
 

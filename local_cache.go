@@ -38,7 +38,7 @@ func (p *localCachePoolConfig) GetLimit() int {
 }
 
 type LocalCache struct {
-	engine *Engine
+	engine *engineImplementation
 	config *localCachePoolConfig
 }
 

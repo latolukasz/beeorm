@@ -9,7 +9,7 @@ import (
 
 	"github.com/shamaton/msgpack"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 )
 
 type Event interface {
@@ -71,6 +71,9 @@ type EventBroker interface {
 	Publish(stream string, body interface{}, meta ...string) (id string)
 	Consumer(group string) EventsConsumer
 	NewFlusher() EventFlusher
+	GetStreamsStatistics(stream ...string) []*RedisStreamStatistics
+	GetStreamStatistics(stream string) *RedisStreamStatistics
+	GetStreamGroupStatistics(stream, group string) *RedisStreamGroupStatistics
 }
 
 type EventFlusher interface {
@@ -84,7 +87,7 @@ type eventFlusher struct {
 }
 
 type eventBroker struct {
-	engine *Engine
+	engine *engineImplementation
 }
 
 func createEventSlice(body interface{}, meta []string) []string {
@@ -127,7 +130,7 @@ func (ef *eventFlusher) Flush() {
 	ef.events = make(map[string][][]string)
 }
 
-func (e *Engine) GetEventBroker() EventBroker {
+func (e *engineImplementation) GetEventBroker() EventBroker {
 	e.Mutex.Lock()
 	defer e.Mutex.Unlock()
 	if e.eventBroker == nil {
@@ -144,7 +147,7 @@ func (eb *eventBroker) Publish(stream string, body interface{}, meta ...string) 
 	return getRedisForStream(eb.engine, stream).xAdd(stream, createEventSlice(body, meta))
 }
 
-func getRedisForStream(engine *Engine, stream string) *RedisCache {
+func getRedisForStream(engine *engineImplementation, stream string) *RedisCache {
 	pool, has := engine.registry.redisStreamPools[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
@@ -158,7 +161,8 @@ type EventsConsumer interface {
 	Consume(ctx context.Context, count int, handler EventConsumerHandler) bool
 	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
 	Claim(from, to int)
-	DisableLoop()
+	DisableBlockMode()
+	SetBlockTime(ttl time.Duration)
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
@@ -168,7 +172,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	}
 	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
 	return &eventsConsumer{
-		eventConsumerBase: eventConsumerBase{engine: eb.engine, loop: true, blockTime: time.Second * 30},
+		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 5},
 		redis:             eb.engine.GetRedis(redisPool),
 		streams:           streams,
 		group:             group,
@@ -177,8 +181,8 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	engine    *Engine
-	loop      bool
+	engine    *engineImplementation
+	block     bool
 	blockTime time.Duration
 }
 
@@ -192,8 +196,12 @@ type eventsConsumer struct {
 	garbageLastTick int64
 }
 
-func (b *eventConsumerBase) DisableLoop() {
-	b.loop = false
+func (b *eventConsumerBase) DisableBlockMode() {
+	b.block = false
+}
+
+func (b *eventConsumerBase) SetBlockTime(ttl time.Duration) {
+	b.blockTime = ttl
 }
 
 func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {
@@ -205,9 +213,9 @@ func (r *eventsConsumer) ConsumeMany(ctx context.Context, nr, count int, handler
 }
 
 func (r *eventsConsumer) consume(ctx context.Context, name string, count int, handler EventConsumerHandler) (finished bool) {
-	lockKey := r.group + "_" + name
+	lockKey := r.redis.config.GetNamespace() + r.group + "_" + name
 	locker := r.redis.GetLocker()
-	lock, has := locker.Obtain(lockKey, r.lockTTL, 0)
+	lock, has := locker.Obtain(ctx, lockKey, r.lockTTL, 0)
 	if !has {
 		return false
 	}
@@ -239,7 +247,7 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 		case <-ctx.Done():
 			return true
 		case <-timer.C:
-			if !lock.Refresh(r.lockTTL) {
+			if !lock.Refresh(ctx) {
 				return false
 			}
 			timer.Reset(r.lockTick)
@@ -264,7 +272,7 @@ type consumeAttributes struct {
 
 func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes) (stop bool) {
 	finished := r.digestKeys(ctx, attributes)
-	if !r.loop && finished {
+	if !r.block && finished {
 		return true
 	}
 	return false
@@ -300,7 +308,7 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 	if totalMessages == 0 {
 		if attributes.Pending {
 			attributes.Pending = false
-			if r.loop {
+			if r.block {
 				attributes.BlockTime = r.blockTime
 			}
 			return false

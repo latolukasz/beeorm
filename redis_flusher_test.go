@@ -12,9 +12,8 @@ func TestRedisFlusher(t *testing.T) {
 	registry.RegisterRedis("localhost:6382", "", 15, "second")
 	registry.RegisterRedisStream("test-stream", "default", []string{"test-group"})
 	registry.RegisterRedisStream("test-stream-2", "default", []string{"test-group-2"})
-	validatedRegistry, def, err := registry.Validate()
+	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
-	defer def()
 	engine := validatedRegistry.CreateEngine()
 	r := engine.GetRedis()
 	r.FlushDB()
@@ -22,7 +21,7 @@ func TestRedisFlusher(t *testing.T) {
 	testLogger := &testLogHandler{}
 	engine.RegisterQueryLogger(testLogger, false, true, false)
 
-	flusher := &redisFlusher{engine: engine}
+	flusher := &redisFlusher{engine: engine.(*engineImplementation)}
 
 	flusher.Del("default")
 	flusher.Del("default", "del_key")

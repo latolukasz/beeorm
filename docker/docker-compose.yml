@@ -16,14 +16,14 @@ services:
       - ${LOCAL_IP}:${MYSQL8_PORT}:3306
     environment:
       MYSQL_ROOT_PASSWORD: root
-  redis_orm:
-    image: redislabs/redisearch:2.0.15
+  redis:
+    image: redis:6.2.8
     ports:
       - ${LOCAL_IP}:${REDIS_PORT}:6379
-  redis_orm_22:
-    image: redislabs/redisearch:2.2.10
+  redis7:
+    image: redis:7.0.7
     ports:
-      - ${LOCAL_IP}:${REDIS_PORT_22}:6379
+      - ${LOCAL_IP}:${REDIS7_PORT}:6379
 volumes:
   orm_data_mysql: {}
   orm_data_mysql8: {}

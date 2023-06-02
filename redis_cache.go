@@ -9,34 +9,14 @@ import (
 
 	"github.com/shamaton/msgpack"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/go-redis/redis_rate/v9"
+	"github.com/go-redis/redis/v9"
 )
 
 type RedisCache struct {
-	engine  *Engine
-	client  *redis.Client
-	limiter *redis_rate.Limiter
-	locker  *Locker
-	config  RedisPoolConfig
-}
-
-func (r *RedisCache) RateLimit(key string, period time.Duration, limit int) bool {
-	if r.limiter == nil {
-		r.limiter = redis_rate.NewLimiter(r.client)
-	}
-	key = r.addNamespacePrefix(key)
-	start := getNow(r.engine.hasRedisLogger)
-	res, err := r.limiter.Allow(r.client.Context(), key, redis_rate.Limit{
-		Rate:   limit,
-		Period: period,
-		Burst:  limit,
-	})
-	if r.engine.hasRedisLogger {
-		r.fillLogFields("RATE", "RATE "+key+" "+period.String(), start, false, err)
-	}
-	checkError(err)
-	return res.Allowed > 0
+	engine *engineImplementation
+	client *redis.Client
+	locker *Locker
+	config RedisPoolConfig
 }
 
 func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interface{}) interface{} {
@@ -53,7 +33,7 @@ func (r *RedisCache) GetSet(key string, ttlSeconds int, provider func() interfac
 }
 
 func (r *RedisCache) PipeLine() *RedisPipeLine {
-	return &RedisPipeLine{ctx: r.client.Context(), pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
+	return &RedisPipeLine{pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
 }
 
 func (r *RedisCache) Info(section ...string) string {
@@ -452,7 +432,7 @@ func (r *RedisCache) Expire(key string, expiration time.Duration) bool {
 	return val
 }
 
-func (r *RedisCache) ZAdd(key string, members ...*redis.Z) int64 {
+func (r *RedisCache) ZAdd(key string, members ...redis.Z) int64 {
 	key = r.addNamespacePrefix(key)
 	start := getNow(r.engine.hasRedisLogger)
 	val, err := r.client.ZAdd(context.Background(), key, members...).Result()
@@ -514,6 +494,7 @@ func (r *RedisCache) ZRemRangeByRank(key string, start, stop int64) int64 {
 	checkError(err)
 	return val
 }
+
 
 func (r *RedisCache) ZRangeArgsWithScores(args redis.ZRangeArgs) []redis.Z {
 	key := r.addNamespacePrefix(args.Key)
@@ -735,6 +716,9 @@ func (r *RedisCache) XInfoGroups(stream string) []redis.XInfoGroup {
 	stream = r.addNamespacePrefix(stream)
 	start := getNow(r.engine.hasRedisLogger)
 	info, err := r.client.XInfoGroups(context.Background(), stream).Result()
+	if err == redis.Nil {
+		err = nil
+	}
 	if err != nil && err.Error() == "ERR no such key" {
 		if r.engine.hasRedisLogger {
 			r.fillLogFields("XINFOGROUPS", "XINFOGROUPS "+stream, start, false, err)
@@ -1003,10 +987,6 @@ func (r *RedisCache) FlushDB() {
 			r.fillLogFields("FLUSHDB EVAL", "EVAL REMOVE KEYS WITH PREFIX "+r.config.GetNamespace(), start, false, err)
 		}
 		checkError(err)
-		s := r.engine.GetRedisSearch(r.config.GetCode())
-		for _, indexName := range s.ListIndices() {
-			s.dropIndex(indexName, false)
-		}
 		return
 	}
 	_, err := r.client.FlushDB(context.Background()).Result()

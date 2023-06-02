@@ -13,29 +13,27 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/go-redis/redis/v8"
+	"github.com/go-redis/redis/v9"
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
 )
 
 type Registry struct {
-	mysqlPools         map[string]MySQLPoolConfig
-	localCachePools    map[string]LocalCachePoolConfig
-	redisPools         map[string]RedisPoolConfig
-	entities           map[string]reflect.Type
-	redisSearchIndices map[string]map[string]*RedisSearchIndex
-	enums              map[string]Enum
-	defaultEncoding    string
-	defaultCollate     string
-	redisStreamGroups  map[string]map[string]map[string]bool
-	redisStreamPools   map[string]string
-	forcedEntityLog    string
+	mysqlPools        map[string]MySQLPoolConfig
+	localCachePools   map[string]LocalCachePoolConfig
+	redisPools        map[string]RedisPoolConfig
+	entities          map[string]reflect.Type
+	enums             map[string]Enum
+	defaultEncoding   string
+	defaultCollate    string
+	redisStreamGroups map[string]map[string]map[string]bool
+	redisStreamPools  map[string]string
 }
 
 func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), err error) {
+func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -76,24 +74,19 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
 		checkError(err)
-		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.9), 1))
+		maxConnections = int(math.Max(math.Floor(float64(maxConnections)*0.5), 1))
 		maxLimit := v.getMaxConnections()
 		if maxLimit == 0 {
-			maxLimit = 100
+			maxLimit = maxConnections
 		}
 		maxLimit = int(math.Min(float64(maxConnections), float64(maxLimit)))
 		waitTimeout = int(math.Max(float64(waitTimeout), 180))
 		waitTimeout = int(math.Min(float64(waitTimeout), 180))
 		db.SetMaxOpenConns(maxLimit)
-		db.SetMaxIdleConns(maxLimit)
+		db.SetMaxIdleConns(int(float64(maxLimit) * 0.33))
 		db.SetConnMaxLifetime(time.Duration(waitTimeout) * time.Second)
 		v.(*mySQLPoolConfig).client = db
 		registry.mySQLServers[k] = v
-	}
-	deferFunc = func() {
-		for _, v := range registry.mySQLServers {
-			_ = v.(*mySQLPoolConfig).client.Close()
-		}
 	}
 	if registry.localCacheServers == nil {
 		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
@@ -119,54 +112,33 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	for k, v := range r.enums {
 		registry.enums[k] = v
 	}
-	registry.redisSearchIndexes = make(map[string]map[string]*RedisSearchIndex)
-	for k, v := range r.redisSearchIndices {
-		registry.redisSearchIndexes[k] = make(map[string]*RedisSearchIndex)
-		for k2, v2 := range v {
-			registry.redisSearchIndexes[k][k2] = v2
-		}
-	}
-	hasLog := r.forcedEntityLog != ""
+	hasLog := false
 	for name, entityType := range r.entities {
 		tableSchema := &tableSchema{}
 		err := tableSchema.init(r, entityType)
 		if err != nil {
-			deferFunc()
-			return nil, nil, err
+			return nil, err
 		}
 		registry.tableSchemas[entityType] = tableSchema
 		registry.entities[name] = entityType
-		if tableSchema.redisSearchIndex != nil {
-			index := tableSchema.redisSearchIndex
-			if registry.redisSearchIndexes[index.RedisPool] == nil {
-				registry.redisSearchIndexes[index.RedisPool] = make(map[string]*RedisSearchIndex)
-			}
-			registry.redisSearchIndexes[index.RedisPool][index.Name] = index
-		}
 		if tableSchema.hasLog {
 			hasLog = true
 		}
 	}
 	_, has := r.redisStreamPools[LazyChannelName]
 	if !has {
-		r.RegisterRedisStream(LazyChannelName, "default", []string{AsyncConsumerGroupName})
+		r.RegisterRedisStream(LazyChannelName, "default", []string{BackgroundConsumerGroupName})
 	}
 	if hasLog {
 		_, has = r.redisStreamPools[LogChannelName]
 		if !has {
-			r.RegisterRedisStream(LogChannelName, "default", []string{AsyncConsumerGroupName})
-		}
-	}
-	if len(registry.redisSearchIndexes) > 0 {
-		_, has = r.redisStreamPools[RedisSearchIndexerChannelName]
-		if !has {
-			r.RegisterRedisStream(RedisSearchIndexerChannelName, "default", []string{AsyncConsumerGroupName})
+			r.RegisterRedisStream(LogChannelName, "default", []string{BackgroundConsumerGroupName})
 		}
 	}
 	if len(r.redisStreamGroups) > 0 {
 		_, has = r.redisStreamPools[RedisStreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{AsyncConsumerGroupName})
+			r.RegisterRedisStream(RedisStreamGarbageCollectorChannelName, "default", []string{BackgroundConsumerGroupName})
 		}
 	}
 	registry.redisStreamGroups = r.redisStreamGroups
@@ -174,22 +146,13 @@ func (r *Registry) Validate() (validated ValidatedRegistry, deferFunc func(), er
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	engine := registry.CreateEngine()
 	for _, schema := range registry.tableSchemas {
-		_, err := checkStruct(schema, engine, schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
+		_, err := checkStruct(schema, engine.(*engineImplementation), schema.t, make(map[string]*index), make(map[string]*foreignIndex), nil, "")
 		if err != nil {
-			deferFunc()
-			return nil, nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
+			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
 		schema.registry = registry
-		if schema.hasSearchCache {
-			prefix := registry.redisServers[schema.searchCacheName].GetNamespace()
-			if prefix != "" {
-				prefix += ":"
-			}
-			prefix += schema.redisSearchPrefix
-			schema.redisSearchPrefixLen = len(prefix)
-		}
 	}
-	return registry, deferFunc, nil
+	return registry, nil
 }
 
 func (r *Registry) SetDefaultEncoding(encoding string) {
@@ -210,18 +173,6 @@ func (r *Registry) RegisterEntity(entity ...Entity) {
 			t = t.Elem()
 		}
 		r.entities[t.String()] = t
-	}
-}
-
-func (r *Registry) RegisterRedisSearchIndex(index ...*RedisSearchIndex) {
-	if r.redisSearchIndices == nil {
-		r.redisSearchIndices = make(map[string]map[string]*RedisSearchIndex)
-	}
-	for _, i := range index {
-		if r.redisSearchIndices[i.RedisPool] == nil {
-			r.redisSearchIndices[i.RedisPool] = make(map[string]*RedisSearchIndex)
-		}
-		r.redisSearchIndices[i.RedisPool][i.Name] = i
 	}
 }
 
@@ -271,16 +222,14 @@ func (r *Registry) RegisterRedis(address, namespace string, db int, code ...stri
 
 func (r *Registry) RegisterRedisWithCredentials(address, namespace, user, password string, db int, code ...string) {
 	options := &redis.Options{
-		Addr:       address,
-		DB:         db,
-		MaxConnAge: time.Minute * 2,
+		Addr:            address,
+		DB:              db,
+		ConnMaxIdleTime: time.Minute * 2,
+		Username:        user,
+		Password:        password,
 	}
 	if strings.HasSuffix(address, ".sock") {
 		options.Network = "unix"
-	}
-	if user != "" {
-		options.Username = user
-		options.Password = password
 	}
 	client := redis.NewClient(options)
 	r.registerRedis(client, code, address, namespace, db)
@@ -292,16 +241,24 @@ func (r *Registry) RegisterRedisSentinel(masterName, namespace string, db int, s
 
 func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, user, password string, db int, sentinels []string, code ...string) {
 	options := &redis.FailoverOptions{
-		MasterName:    masterName,
-		SentinelAddrs: sentinels,
-		DB:            db,
-		MaxConnAge:    time.Minute * 2,
-	}
-	if user != "" {
-		options.Username = user
-		options.Password = password
+		MasterName:      masterName,
+		SentinelAddrs:   sentinels,
+		DB:              db,
+		ConnMaxIdleTime: time.Minute * 2,
+		Username:        user,
+		Password:        password,
 	}
 	client := redis.NewFailoverClient(options)
+	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
+}
+
+func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
+	opts.DB = db
+	opts.SentinelAddrs = sentinels
+	if opts.ConnMaxIdleTime == 0 {
+		opts.ConnMaxIdleTime = time.Minute * 2
+	}
+	client := redis.NewFailoverClient(&opts)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
 }
 
@@ -323,10 +280,6 @@ func (r *Registry) RegisterRedisStream(name string, redisPool string, groups []s
 		groupsMap[group] = true
 	}
 	r.redisStreamGroups[redisPool][name] = groupsMap
-}
-
-func (r *Registry) ForceEntityLogInAllEntities(dbPool string) {
-	r.forcedEntityLog = dbPool
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, code ...string) {

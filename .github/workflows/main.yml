@@ -13,7 +13,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.17
+          go-version: 1.19
 
       - name: Check out code
         uses: actions/checkout@v2
@@ -30,20 +30,20 @@ jobs:
           go clean -modcache
           go mod tidy
           go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-          gocyclo -over 85 .
+          gocyclo -over 100 .
 
   test:
     name: Test & coverage
     runs-on: ubuntu-latest
     services:
-      redis_search:
-        image: redislabs/redisearch:2.0.15
+      redis:
+        image: redis:6.2.7
         ports:
           - 6382:6379
-      redis_search_22:
-        image: redislabs/redisearch:2.2.7
+      redis7:
+        image: redis:7.0.7
         ports:
-          - 6383:6379
+          - 6381:6379
       mysql:
         image: mysql:5.7
         env:
@@ -51,7 +51,6 @@ jobs:
         ports:
           - 3311:3306
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
-
       mysql8:
         image: mysql:8
         env:
@@ -72,7 +71,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.17
+          go-version: 1.19
 
       - name: Check out code
         uses: actions/checkout@v2

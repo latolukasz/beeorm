@@ -7,7 +7,7 @@ import (
 
 const cacheNilValue = ""
 
-func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *tableSchema) {
+func loadByID(serializer *serializer, engine *engineImplementation, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *tableSchema) {
 	orm := initIfNeeded(engine.registry, entity)
 	schema = orm.tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
@@ -55,8 +55,9 @@ func loadByID(serializer *serializer, engine *Engine, id uint64, entity Entity, 
 			}
 		}
 	}
-
-	found, _, data := searchRow(serializer, false, engine, NewWhere("`ID` = ?", id), entity, nil)
+	where := NewWhere("`ID` = ?", id)
+	where.ShowFakeDeleted()
+	found, _, data := searchRow(serializer, engine, where, entity, nil)
 	if !found {
 		if localCache != nil {
 			localCache.Set(cacheKey, cacheNilValue)

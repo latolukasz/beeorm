@@ -47,8 +47,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var entity *loadByIdsEntity
 	var reference *loadByIdsReference
 	var subReference *loadByIdsSubReference
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0", entity, reference, subReference)
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, reference, subReference)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference).(*tableSchema)
 	schema3 := engine.GetRegistry().GetTableSchemaForEntity(subReference).(*tableSchema)
@@ -83,7 +82,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		schema3.hasRedisCache = false
 	}
 
-	engine.FlushMany(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}},
+	engine.Flush(&loadByIdsEntity{Name: "a", ReferenceOne: &loadByIdsReference{Name: "r1", ReferenceTwo: &loadByIdsSubReference{Name: "s1"}}},
 		&loadByIdsEntity{Name: "b", ReferenceOne: &loadByIdsReference{Name: "r2", ReferenceTwo: &loadByIdsSubReference{Name: "s2"}}},
 		&loadByIdsEntity{Name: "c"})
 
@@ -273,14 +272,13 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Equal(t, uint(3), rows[2].ID)
 	}
 
-	engine, def = prepareTables(t, &Registry{}, 5, "", "2.0")
-	defer def()
+	engine = prepareTables(t, &Registry{}, 5, 6, "")
 	assert.PanicsWithError(t, "entity 'beeorm.loadByIdsEntity' is not registered", func() {
 		engine.LoadByIDs([]uint64{1}, &rows)
 	})
 }
 
-// BenchmarkLoadByIDsdLocalCache-12    	  505929	      2110 ns/op	     952 B/op	      10 allocs/op
+// BenchmarkLoadByIDsdLocalCache-10    	  906974	      1326 ns/op	    1104 B/op	      12 allocs/op
 func BenchmarkLoadByIDsdLocalCache(b *testing.B) {
 	benchmarkLoadByIDsLocalCache(b)
 }
@@ -291,8 +289,7 @@ func benchmarkLoadByIDsLocalCache(b *testing.B) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
 	registry.RegisterLocalCache(10000)
-	engine, def := prepareTables(nil, registry, 5, "", "2.0", entity, ref)
-	defer def()
+	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
 
 	ids := make([]uint64, 0)
 	for i := 1; i <= 1; i++ {

@@ -117,11 +117,9 @@ func testSchema(t *testing.T, version int) {
 	ref := &schemaEntityRef{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum, "b")
-	engine, def := prepareTables(t, registry, version, "", "2.0", entity, ref)
-	defer def()
+	engine := prepareTables(t, registry, version, 6, "", entity, ref)
 
-	engineDrop, def2 := prepareTables(t, &Registry{}, version, "", "2.0")
-	defer def2()
+	engineDrop := prepareTables(t, &Registry{}, version, 6, "")
 	for _, alter := range engineDrop.GetAlters() {
 		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
 	}
@@ -271,23 +269,23 @@ func testSchema(t *testing.T, version int) {
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidIndexEntity{})
-	_, _, err := registry.Validate()
+	_, err := registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidIndexEntity': invalid index position 'invalid' in index 'TestIndex'")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterEntity(&schemaInvalidMaxStringEntity{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaInvalidMaxStringEntity': invalid max string: invalid")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool)
 	registry.RegisterLocalCache(1000)
 	registry.RegisterEntity(&schemaEntity{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaEntity': unregistered enum beeorm.TestEnum")
 
-	engine, _ = prepareTables(t, &Registry{}, 5, "", "2.0", &schemaToDropEntity{})
+	engine = prepareTables(t, &Registry{}, 5, 6, "", &schemaToDropEntity{})
 	schema = engine.GetRegistry().GetTableSchemaForEntity(&schemaToDropEntity{})
 	schema.DropTable(engine)
 	has, alters := schema.GetSchemaChanges(engine)
@@ -302,7 +300,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "mysql pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -312,7 +310,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema2{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "local cache pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -322,7 +320,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema3{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "redis pool 'invalid' not found")
 
 	registry = &Registry{}
@@ -332,7 +330,7 @@ func testSchema(t *testing.T, version int) {
 		ID  uint
 	}
 	registry.RegisterEntity(&invalidSchema4{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.NoError(t, err)
 
 	registry = &Registry{}
@@ -343,7 +341,7 @@ func testSchema(t *testing.T, version int) {
 		Name string `orm:"index=test,test2"`
 	}
 	registry.RegisterEntity(&invalidSchema5{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.NotNil(t, err)
 
 	registry = &Registry{}
@@ -355,7 +353,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema6{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema6")
 
 	registry = &Registry{}
@@ -367,7 +365,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `query:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema7{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "missing index for cached query 'IndexName' in beeorm.invalidSchema7")
 
 	registry = &Registry{}
@@ -380,7 +378,7 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `queryOne:":Name = ?"`
 	}
 	registry.RegisterEntity(&invalidSchema8{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "missing unique index for cached query 'IndexName' in beeorm.invalidSchema8")
 
 	registry = &Registry{}
@@ -393,6 +391,6 @@ func testSchema(t *testing.T, version int) {
 		IndexName *CachedQuery `query:":Name = ? ORDER BY :Age DESC"`
 	}
 	registry.RegisterEntity(&invalidSchema9{})
-	_, _, err = registry.Validate()
+	_, err = registry.Validate()
 	assert.EqualError(t, err, "missing index for cached query 'IndexName' in beeorm.invalidSchema9")
 }

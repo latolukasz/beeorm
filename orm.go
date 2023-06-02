@@ -16,6 +16,8 @@ import (
 
 const timeFormat = "2006-01-02 15:04:05"
 const dateformat = "2006-01-02"
+const zeroDateSeconds = 31622400
+const timeStampSeconds = 62167219200
 
 var timeSupportedLayouts = []string{timeFormat, dateformat, time.RFC3339}
 
@@ -28,10 +30,12 @@ type Entity interface {
 	forceMarkToDelete()
 	IsLoaded() bool
 	IsDirty() bool
+	IsToDelete() bool
 	GetDirtyBind() (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
+	Clone() Entity
 }
 
 type ORM struct {
@@ -62,6 +66,23 @@ func (orm *ORM) GetID() uint64 {
 		return 0
 	}
 	return orm.idElem.Uint()
+}
+
+func (orm *ORM) Clone() Entity {
+	newEntity := orm.tableSchema.NewEntity()
+	for i, field := range orm.tableSchema.fields.fields {
+		if i == 1 {
+			continue
+		}
+		if field.IsExported() {
+			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
+		} else {
+			for k := 0; k < orm.getORM().elem.Field(i).Type().NumField(); k++ {
+				newEntity.getORM().elem.Field(i).Field(k).Set(orm.getORM().elem.Field(i).Field(k))
+			}
+		}
+	}
+	return newEntity
 }
 
 func (orm *ORM) copyBinary() []byte {
@@ -99,6 +120,10 @@ func (orm *ORM) IsDirty() bool {
 	}
 	_, is := orm.GetDirtyBind()
 	return is
+}
+
+func (orm *ORM) IsToDelete() bool {
+	return orm.fakeDelete || orm.delete
 }
 
 func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
@@ -159,7 +184,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
-		if unix > orm.tableSchema.registry.timeOffset {
+		if unix-timeStampSeconds > orm.tableSchema.registry.timeOffset {
 			unix -= orm.tableSchema.registry.timeOffset
 		}
 		serializer.SerializeInteger(unix)
@@ -167,7 +192,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
-		if unix > orm.tableSchema.registry.timeOffset {
+		if unix-timeStampSeconds > orm.tableSchema.registry.timeOffset {
 			unix -= orm.tableSchema.registry.timeOffset
 		}
 		serializer.SerializeInteger(unix)
@@ -326,17 +351,29 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 	for _, i := range fields.times {
 		t := elem.Field(i).Interface().(time.Time)
 		if t.IsZero() {
-			serialized.SerializeInteger(0)
+			serialized.SerializeInteger(zeroDateSeconds)
 		} else {
-			serialized.SerializeInteger(t.Unix())
+			unix := t.Unix()
+			if unix > 0 {
+				unix += timeStampSeconds
+			} else {
+				unix = zeroDateSeconds
+			}
+			serialized.SerializeInteger(unix)
 		}
 	}
 	for _, i := range fields.dates {
 		t := elem.Field(i).Interface().(time.Time)
 		if t.IsZero() {
-			serialized.SerializeInteger(0)
+			serialized.SerializeInteger(zeroDateSeconds)
 		} else {
-			serialized.SerializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
+			if unix > 0 {
+				unix += timeStampSeconds
+			} else {
+				unix = zeroDateSeconds
+			}
+			serialized.SerializeInteger(unix)
 		}
 	}
 	if fields.fakeDelete > 0 {
@@ -416,7 +453,13 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 			serialized.SerializeBool(false)
 		} else {
 			serialized.SerializeBool(true)
-			serialized.SerializeInteger(f.Interface().(*time.Time).Unix())
+			unix := f.Interface().(*time.Time).Unix()
+			if unix > 0 {
+				unix += timeStampSeconds
+			} else {
+				unix = zeroDateSeconds
+			}
+			serialized.SerializeInteger(unix)
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -426,7 +469,13 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		} else {
 			serialized.SerializeBool(true)
 			t := f.Interface().(*time.Time)
-			serialized.SerializeInteger(time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix())
+			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
+			if unix > 0 {
+				unix += timeStampSeconds
+			} else {
+				unix = zeroDateSeconds
+			}
+			serialized.SerializeInteger(unix)
 		}
 	}
 	for _, i := range fields.jsons {
@@ -497,19 +546,19 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	for _, i := range fields.times {
 		f := elem.Field(i)
 		unix := serializer.DeserializeInteger()
-		if unix == 0 {
+		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
 		}
 	}
 	for _, i := range fields.dates {
 		f := elem.Field(i)
 		unix := serializer.DeserializeInteger()
-		if unix == 0 {
+		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
 		}
 	}
 	if fields.fakeDelete > 0 {
@@ -628,7 +677,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	}
 	for _, i := range fields.timesNullable {
 		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger(), 0)
+			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -639,7 +688,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	}
 	for _, i := range fields.datesNullable {
 		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger(), 0)
+			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -729,7 +778,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 					valid = false
 				}
 			}
-			if !valid {
+			if !valid && value != "" {
 				parsed, err := strconv.ParseUint(fmt.Sprintf("%v", value), 10, 64)
 				if err != nil {
 					return fmt.Errorf("%s value %v not valid", field, value)
@@ -796,7 +845,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 					valid = false
 				}
 			}
-			if !valid {
+			if !valid && value != "" {
 				parsed, err := strconv.ParseInt(fmt.Sprintf("%v", value), 10, 64)
 				if err != nil {
 					return fmt.Errorf("%s value %v not valid", field, value)
@@ -879,12 +928,14 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		val := float64(0)
 		if value != nil {
 			valueString := fmt.Sprintf("%v", value)
-			valueString = strings.ReplaceAll(valueString, ",", ".")
-			parsed, err := strconv.ParseFloat(valueString, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v is not valid", field, value)
+			if valueString != "" {
+				valueString = strings.ReplaceAll(valueString, ",", ".")
+				parsed, err := strconv.ParseFloat(valueString, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v is not valid", field, value)
+				}
+				val = parsed
 			}
-			val = parsed
 		}
 		f.SetFloat(val)
 	case "*float32",
@@ -895,12 +946,14 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		} else {
 			val := float64(0)
 			valueString := fmt.Sprintf("%v", reflect.Indirect(valueOf).Interface())
-			valueString = strings.ReplaceAll(valueString, ",", ".")
-			parsed, err := strconv.ParseFloat(valueString, 64)
-			if err != nil {
-				return fmt.Errorf("%s value %v is not valid", field, value)
+			if valueString != "" {
+				valueString = strings.ReplaceAll(valueString, ",", ".")
+				parsed, err := strconv.ParseFloat(valueString, 64)
+				if err != nil {
+					return fmt.Errorf("%s value %v is not valid", field, value)
+				}
+				val = parsed
 			}
-			val = parsed
 			f.Set(reflect.ValueOf(&val))
 		}
 	case "*time.Time":

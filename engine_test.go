@@ -7,8 +7,7 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	engine, def := prepareTables(t, &Registry{}, 5, "", "2.0")
-	defer def()
+	engine := prepareTables(t, &Registry{}, 5, 6, "")
 	source := engine.GetRegistry().GetSourceRegistry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
@@ -30,7 +29,7 @@ func TestEngine(t *testing.T) {
 	assert.Len(t, engine.queryLoggersDB, 1)
 	assert.Len(t, engine.queryLoggersLocalCache, 1)
 
-	engine2 := engine.Clone()
+	engine2 := engine.Clone().(*engineImplementation)
 	assert.NotNil(t, engine2)
 	assert.Len(t, engine2.queryLoggersRedis, 1)
 	assert.Len(t, engine2.queryLoggersDB, 1)
@@ -39,8 +38,7 @@ func TestEngine(t *testing.T) {
 
 func BenchmarkEngine(b *testing.B) {
 	registry := &Registry{}
-	validatedRegistry, def, _ := registry.Validate()
-	defer def()
+	validatedRegistry, _ := registry.Validate()
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
