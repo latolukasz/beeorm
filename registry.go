@@ -334,6 +334,11 @@ func (r *Registry) RegisterRedisStreamConsumerGroups(stream string, groups ...st
 	}
 }
 
+func (r *Registry) HasRegisteredRedisPool(pool string) bool {
+	_, has := r.redisPools[pool]
+	return has
+}
+
 func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
 	dbCode := "default"
 	if len(code) > 0 {
