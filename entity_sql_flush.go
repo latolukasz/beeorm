@@ -15,7 +15,7 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const NullBindValue = "NULL"
+const nullBindValue = "NULL"
 
 type entitySQLFlush struct {
 	Action            FlushType
@@ -276,7 +276,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			}
 			if forceOld || !same {
 				if oldIsNil {
-					b.Old[name] = NullBindValue
+					b.Old[name] = nullBindValue
 				} else {
 					b.Old[name] = provider.bindSetter(oldVal, true, f)
 				}
@@ -290,7 +290,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 				b.Update = Bind{}
 			}
 			if isNil {
-				b.Update[name] = NullBindValue
+				b.Update[name] = nullBindValue
 			} else {
 				b.Update[name] = provider.bindSetter(val, false, f)
 			}
@@ -319,7 +319,7 @@ func (b *entityFlushBuilder) buildRefs(s *serializer, fields *tableFields, value
 			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				id := val.(uint64)
 				if id == 0 {
-					return NullBindValue
+					return nullBindValue
 				}
 				return strconv.FormatUint(id, 10)
 			},
@@ -466,7 +466,7 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 				str := val.(string)
 				name := b.orm.entitySchema.columnNames[b.index]
 				if str == "" && !b.orm.entitySchema.GetTagBool(name, "required") {
-					return NullBindValue
+					return nullBindValue
 				}
 				return str
 			},
@@ -498,7 +498,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				if deserialized {
 					i := val.(uint64)
 					if i == 0 {
-						return NullBindValue
+						return nullBindValue
 					}
 					return fields.enums[k].GetFields()[i-1]
 				}
@@ -512,7 +512,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 						field.SetString(fields.enums[k].GetDefault())
 						return fields.enums[k].GetDefault()
 					}
-					return NullBindValue
+					return nullBindValue
 				}
 				if !fields.enums[k].Has(str) {
 					panic(errors.New("unknown enum value for " + b.orm.entitySchema.columnNames[b.index] + " - " + str))
@@ -544,7 +544,7 @@ func (b *entityFlushBuilder) buildBytes(s *serializer, fields *tableFields, valu
 			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				str := val.(string)
 				if str == "" {
-					return NullBindValue
+					return nullBindValue
 				}
 				return str
 			},
@@ -586,7 +586,7 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 					if b.orm.entitySchema.GetTagBool(b.orm.entitySchema.columnNames[b.index], "required") {
 						return ""
 					}
-					return NullBindValue
+					return nullBindValue
 				}
 				if deserialized {
 					ids := val.([]int)
@@ -646,7 +646,7 @@ func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized boo
 		if b.orm.entitySchema.GetTagBool(b.orm.entitySchema.columnNames[b.index], "required") {
 			return ""
 		}
-		return NullBindValue
+		return nullBindValue
 	}
 	if deserialized {
 		return string(val.([]byte))
@@ -680,7 +680,7 @@ func (b *entityFlushBuilder) buildJSONs(s *serializer, fields *tableFields, valu
 				if oldIsNil != newIsNil {
 					return false, b.bindSetterForJSON(old, true, field), b.bindSetterForJSON(new, false, field)
 				} else if oldIsNil {
-					return true, NullBindValue, NullBindValue
+					return true, nullBindValue, nullBindValue
 				}
 				oldInstance := reflect.New(field.Type()).Elem().Interface()
 				err := jsoniter.ConfigFastest.Unmarshal(old.([]byte), &oldInstance)

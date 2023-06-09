@@ -125,7 +125,7 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "Tommy3", e3.Name)
 
 	e = &lazyReceiverEntity{Name: "Tommy2"}
-	e.SetOnDuplicateKeyUpdate(Bind{"Age": "38"})
+	e.SetOnDuplicateKeyUpdate(Bind{"Age": 38})
 	engine.FlushLazy(e)
 	RunLazyFlushConsumer(engine, false)
 	engine.LoadByID(2, e)

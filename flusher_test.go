@@ -356,8 +356,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	entity2.ReferenceOne = nil
 	entity2.Name = "Tom"
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "40", "Year": "2020", "City": "Moscow", "UintNullable": "NULL",
-		"BoolNullable": "NULL", "TimeWithTime": date.Format(TimeFormat), "Time": date.Format(DateFormat)})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 40, "Year": 2020, "City": "Moscow", "UintNullable": nil,
+		"BoolNullable": nil, "TimeWithTime": date, "Time": date})
 	engine.Flush(entity2)
 
 	assert.Equal(t, uint64(1), entity2.GetID())
@@ -551,7 +551,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	flusher.Clear()
 	entity2 = &flushEntity{ID: 100, Name: "Eva", Age: 1, EnumNotNull: "a"}
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 2})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(12), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
@@ -559,7 +559,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	found = engine.LoadByID(100, entity2)
 	assert.False(t, found)
 	entity2 = &flushEntity{ID: 100, Name: "Frank", Age: 1, EnumNotNull: "a"}
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 2})
 	engine.Flush(entity2)
 	entity2 = &flushEntity{}
 	found = engine.LoadByID(100, entity2)
@@ -567,7 +567,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 1, entity2.Age)
 
 	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
-	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": "2"})
+	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 2})
 	engine.Flush(entity2)
 	assert.Equal(t, uint64(100), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)

@@ -246,7 +246,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush)
 	for _, e := range events {
 		for _, column := range columns {
 			val := e.Update[column]
-			if val == NullBindValue || (column == "ID" && val == "0") {
+			if val == nullBindValue || (column == "ID" && val == "0") {
 				args = append(args, nil)
 			} else {
 				args = append(args, val)
@@ -299,7 +299,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush)
 				f.stringBuilder.WriteString(",")
 			}
 			f.stringBuilder.WriteString("`" + key + "`=?")
-			if value == NullBindValue {
+			if value == nullBindValue {
 				args[k] = nil
 			} else {
 				args[k] = value
@@ -334,7 +334,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 				f.stringBuilder.WriteString(",")
 			}
 			f.stringBuilder.WriteString("`" + column + "`")
-			if value == NullBindValue || (column == "ID" && value == "0") {
+			if value == nullBindValue || (column == "ID" && value == "0") {
 				args[k] = nil
 			} else {
 				args[k] = value
@@ -353,7 +353,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					f.stringBuilder.WriteString(",")
 				}
 				f.stringBuilder.WriteString("`" + column + "`=?")
-				if value == NullBindValue {
+				if value == nullBindValue {
 					args[k] = nil
 				} else {
 					args[k] = value
@@ -384,7 +384,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 					binds := make([]interface{}, 0)
 					for _, column := range uniqueIndex {
 						currentValue, hasCurrent := e.Update[column]
-						if !hasCurrent || currentValue == NullBindValue {
+						if !hasCurrent || currentValue == nullBindValue {
 							continue OUTER
 						}
 						fields = append(fields, "`"+column+"` = ?")
