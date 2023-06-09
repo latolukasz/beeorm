@@ -32,14 +32,14 @@ type Entity interface {
 	SetField(field string, value interface{}) error
 	Clone() Entity
 	SetMetaData(key, value string)
-	GetMetaData() Bind
+	GetMetaData() Meta
 }
 
 type ORM struct {
 	binary               []byte
 	entitySchema         *entitySchema
 	onDuplicateKeyUpdate Bind
-	meta                 Bind
+	meta                 Meta
 	initialised          bool
 	loaded               bool
 	inDB                 bool
@@ -61,7 +61,7 @@ func (orm *ORM) getORM() *ORM {
 func (orm *ORM) SetMetaData(key, value string) {
 	if orm.meta == nil {
 		if value != "" {
-			orm.meta = Bind{key: value}
+			orm.meta = Meta{key: value}
 		}
 	} else if value == "" {
 		delete(orm.meta, key)
@@ -80,7 +80,7 @@ func (orm *ORM) GetID() uint64 {
 	return orm.idElem.Uint()
 }
 
-func (orm *ORM) GetMetaData() Bind {
+func (orm *ORM) GetMetaData() Meta {
 	return orm.meta
 }
 

@@ -347,8 +347,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	flusher.PublishToStream("test-stream", "test", Bind{"tag": "val1", "tag2": "val2"})
-	flusher.PublishToStream("test-stream", nil, Bind{"tag3": "val3"})
+	flusher.PublishToStream("test-stream", "test", Meta{"tag": "val1", "tag2": "val2"})
+	flusher.PublishToStream("test-stream", nil, Meta{"tag3": "val3"})
 	flusher.Flush()
 	valid = false
 	consumer.Consume(context.Background(), 10, func(events []Event) {

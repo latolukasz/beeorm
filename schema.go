@@ -702,7 +702,7 @@ func handleReferenceOne(version int, schema *entitySchema, attributes map[string
 	return convertIntToSchema(version, schema.t.Field(1).Type.String(), attributes)
 }
 
-func convertIntToSchema(version int, typeAsString string, attributes Bind) string {
+func convertIntToSchema(version int, typeAsString string, attributes Meta) string {
 	switch typeAsString {
 	case "uint":
 		if version == 8 {

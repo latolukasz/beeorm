@@ -45,7 +45,7 @@ type Engine interface {
 	SetPluginOption(plugin, key string, value interface{})
 	GetPluginOption(plugin, key string) interface{}
 	SetMetaData(key, value string)
-	GetMetaData() Bind
+	GetMetaData() Meta
 	HasRedisLogger() (bool, []LogHandler)
 }
 
@@ -63,7 +63,7 @@ type engineImplementation struct {
 	hasLocalCacheLogger    bool
 	eventBroker            *eventBroker
 	options                map[string]map[string]interface{}
-	meta                   Bind
+	meta                   Meta
 	sync.Mutex
 }
 
@@ -108,13 +108,13 @@ func (e *engineImplementation) GetPluginOption(plugin, key string) interface{} {
 
 func (e *engineImplementation) SetMetaData(key, value string) {
 	if e.meta == nil {
-		e.meta = Bind{key: value}
+		e.meta = Meta{key: value}
 		return
 	}
 	e.meta[key] = value
 }
 
-func (e *engineImplementation) GetMetaData() Bind {
+func (e *engineImplementation) GetMetaData() Meta {
 	return e.meta
 }
 

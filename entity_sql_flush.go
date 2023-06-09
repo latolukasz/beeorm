@@ -24,7 +24,7 @@ type entitySQLFlush struct {
 	Old               Bind
 	Update            Bind
 	UpdateOnDuplicate Bind
-	Meta              Bind
+	Meta              Meta
 	TempID            uint64
 	References        map[string]uint64
 	flushed           bool
@@ -39,7 +39,7 @@ type EventEntityFlushed interface {
 	EntityID() uint64
 	Before() Bind
 	After() Bind
-	MetaData() Bind
+	MetaData() Meta
 }
 
 type EventEntityFlushing interface {
@@ -72,13 +72,13 @@ func (e *entitySQLFlush) After() Bind {
 	return e.Update
 }
 
-func (e *entitySQLFlush) MetaData() Bind {
+func (e *entitySQLFlush) MetaData() Meta {
 	return e.Meta
 }
 
 func (e *entitySQLFlush) SetMetaData(key, value string) {
 	if e.Meta == nil {
-		e.Meta = Bind{}
+		e.Meta = Meta{}
 	}
 	e.Meta[key] = value
 }
@@ -187,7 +187,7 @@ func (b *entityFlushBuilder) fill(serializer *serializer, fields *tableFields, v
 		b.fill(serializer, fields.structsFields[k], value.Field(i), false)
 	}
 	if root && b.orm.onDuplicateKeyUpdate != nil {
-		b.UpdateOnDuplicate = map[string]string{}
+		b.UpdateOnDuplicate = Bind{}
 		for k, v := range b.orm.onDuplicateKeyUpdate {
 			b.UpdateOnDuplicate[k] = v
 		}

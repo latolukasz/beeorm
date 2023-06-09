@@ -107,6 +107,6 @@ type CrudEvent struct {
 	Action     beeorm.FlushType
 	Before     beeorm.Bind
 	Changes    beeorm.Bind
-	MetaData   beeorm.Bind
+	MetaData   beeorm.Meta
 	Updated    time.Time
 }

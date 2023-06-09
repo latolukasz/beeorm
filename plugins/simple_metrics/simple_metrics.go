@@ -116,7 +116,7 @@ func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface
 	meta, hasMeta := log["meta"]
 	slow := false
 	if hasMeta {
-		metaData, isMetaData := meta.(beeorm.Bind)
+		metaData, isMetaData := meta.(beeorm.Meta)
 		if isMetaData {
 			if metaData["lazy"] == "1" {
 				tag = "lazy"

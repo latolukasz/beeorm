@@ -6,9 +6,14 @@ import (
 	"strings"
 )
 
-type Bind map[string]string
+type Bind map[string]interface{}
+type Meta map[string]string
 
-func (m Bind) Get(key string) string {
+func (b Bind) Get(key string) interface{} {
+	return b[key]
+}
+
+func (m Meta) Get(key string) string {
 	return m[key]
 }
 
@@ -51,7 +56,7 @@ func (ft FlushType) Is(target FlushType) bool {
 type FlusherCacheSetter interface {
 	GetLocalCacheSetter(code ...string) LocalCacheSetter
 	GetRedisCacheSetter(code ...string) RedisCacheSetter
-	PublishToStream(stream string, body interface{}, meta Bind)
+	PublishToStream(stream string, body interface{}, meta Meta)
 }
 
 type Flusher interface {
@@ -500,7 +505,7 @@ func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
 	return cache
 }
 
-func (f *flusher) PublishToStream(stream string, body interface{}, meta Bind) {
+func (f *flusher) PublishToStream(stream string, body interface{}, meta Meta) {
 	f.GetRedisCacheSetter(getRedisCodeForStream(f.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
 }
 
