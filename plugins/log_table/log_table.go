@@ -163,7 +163,7 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 		log := EntityLog{}
 		log.LogID = id
 		log.EntityID = entityID
-		log.Date, _ = time.ParseInLocation(beeorm.TimeFormat, addedAt, time.Local)
+		log.Date, _ = time.Parse(beeorm.TimeFormat, addedAt)
 		if meta.Valid {
 			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.MetaData)
 			if err != nil {

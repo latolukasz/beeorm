@@ -166,7 +166,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	schema.DisableCache(!local, !redis)
 	schema2.DisableCache(!local, !redis)
 
-	date := time.Date(2049, 1, 12, 18, 34, 40, 0, time.Local)
+	date := time.Date(2049, 1, 12, 18, 34, 40, 0, time.UTC)
 	entity = &flushEntity{Name: "Tom", Age: 12, Uint: 7, Year: 1982}
 	entity.NameTranslated = map[string]string{"pl": "kot", "en": "cat"}
 	entity.ReferenceOne = &flushEntityReference{Name: "John", Age: 30}
@@ -225,9 +225,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"c", "d"}, entity.StringSliceNotNull)
 	assert.Equal(t, "", entity.EnumNullable)
 	assert.Equal(t, "a", entity.EnumNotNull)
-	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.Format(TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.UTC().Format(TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTime.Unix())
-	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTimeNullable.Format(TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTimeNullable.UTC().Format(TimeFormat))
 	assert.Equal(t, date.Unix(), entity.TimeWithTimeNullable.Unix())
 	assert.Nil(t, entity.SetNullable)
 	assert.Equal(t, "", entity.City)
@@ -236,7 +236,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 12, entity.FlushStructPtr.Age)
 	assert.Equal(t, "G", entity.FlushStructPtr.Sub.Name3)
 	assert.Equal(t, 11, entity.FlushStructPtr.Sub.Age3)
-	assert.Equal(t, date.Format(TimeFormat), entity.FlushStruct.TestTime.Format(TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.FlushStruct.TestTime.UTC().Format(TimeFormat))
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
 	assert.Nil(t, entity.YearNullable)
@@ -402,7 +402,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = &flushEntity{}
 	engine.LoadByID(1, entity)
 	assert.Equal(t, false, entity.Bool)
-	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.Format(TimeFormat))
+	assert.Equal(t, date.Format(TimeFormat), entity.TimeWithTime.UTC().Format(TimeFormat))
 	assert.Equal(t, "", entity.Name)
 	assert.Equal(t, "b", entity.EnumNullable)
 	assert.Nil(t, entity.IntNullable)

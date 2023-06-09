@@ -32,7 +32,6 @@ type validatedRegistry struct {
 	redisStreamPools   map[string]string
 	enums              map[string]Enum
 	plugins            []Plugin
-	timeOffset         int64
 	defaultQueryLogger *defaultLogLogger
 }
 

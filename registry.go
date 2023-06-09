@@ -46,8 +46,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	maxPoolLen := 0
 	registry := &validatedRegistry{}
 	registry.registry = r
-	_, offset := time.Now().Zone()
-	registry.timeOffset = int64(offset)
 	l := len(r.entities)
 	registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	registry.entities = make(map[string]reflect.Type)

@@ -162,17 +162,11 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
-		if unix-timeStampSeconds > orm.entitySchema.registry.timeOffset {
-			unix -= orm.entitySchema.registry.timeOffset
-		}
 		serializer.SerializeInteger(unix)
 		index++
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
-		if unix-timeStampSeconds > orm.entitySchema.registry.timeOffset {
-			unix -= orm.entitySchema.registry.timeOffset
-		}
 		serializer.SerializeInteger(unix)
 		index++
 	}
@@ -248,9 +242,6 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
 			unix := v.Int64
-			if unix > orm.entitySchema.registry.timeOffset {
-				unix -= orm.entitySchema.registry.timeOffset
-			}
 			serializer.SerializeInteger(unix)
 		}
 		index++
@@ -260,9 +251,6 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
 			unix := v.Int64
-			if unix > orm.entitySchema.registry.timeOffset {
-				unix -= orm.entitySchema.registry.timeOffset
-			}
 			serializer.SerializeInteger(unix)
 		}
 		index++
@@ -887,7 +875,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		} else {
 			if isString {
 				for _, layout := range timeSupportedLayouts {
-					asTime, err := time.ParseInLocation(layout, asString, time.Local)
+					asTime, err := time.Parse(layout, asString)
 					if err == nil {
 						f.Set(reflect.ValueOf(&asTime))
 						return nil
@@ -904,7 +892,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 	case "time.Time":
 		if isString {
 			for _, layout := range timeSupportedLayouts {
-				asTime, err := time.ParseInLocation(layout, asString, time.Local)
+				asTime, err := time.Parse(layout, asString)
 				if err == nil {
 					f.Set(reflect.ValueOf(asTime))
 					return nil

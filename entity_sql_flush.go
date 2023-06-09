@@ -404,9 +404,9 @@ func dateTimeBindSetter(format string) func(val interface{}, deserialized bool, 
 			} else {
 				t -= timeStampSeconds
 			}
-			return time.Unix(t, 0).Format(format)
+			return time.Unix(t, 0).UTC().Format(format)
 		}
-		return val.(time.Time).Format(format)
+		return val.(time.Time).UTC().Format(format)
 	}
 }
 
