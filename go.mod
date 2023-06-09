@@ -3,13 +3,13 @@ module github.com/latolukasz/beeorm/v2
 go 1.19
 
 require (
-	github.com/bsm/redislock v0.9.1
+	github.com/bsm/redislock v0.9.3
 	github.com/go-sql-driver/mysql v1.7.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/google/go-cmp v0.5.9
 	github.com/json-iterator/go v1.1.12
 	github.com/pkg/errors v0.9.1
-	github.com/redis/go-redis/v9 v9.0.2
+	github.com/redis/go-redis/v9 v9.0.5
 	github.com/segmentio/fasthash v1.0.3
 	github.com/shamaton/msgpack v1.2.1
 	github.com/stretchr/testify v1.8.2

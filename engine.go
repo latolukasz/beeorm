@@ -46,6 +46,7 @@ type Engine interface {
 	GetPluginOption(plugin, key string) interface{}
 	SetMetaData(key, value string)
 	GetMetaData() Bind
+	HasRedisLogger() (bool, []LogHandler)
 }
 
 type engineImplementation struct {
@@ -326,6 +327,13 @@ func (e *engineImplementation) GetAlters() (alters []Alter) {
 	final = append(final, alters...)
 	final = append(final, post...)
 	return final
+}
+
+func (e *engineImplementation) HasRedisLogger() (bool, []LogHandler) {
+	if e.hasRedisLogger {
+		return true, e.queryLoggersRedis
+	}
+	return false, nil
 }
 
 func (e *engineImplementation) load(serializer *serializer, entity Entity, references ...string) bool {

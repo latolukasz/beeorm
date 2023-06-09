@@ -17,6 +17,7 @@ type RedisCacheSetter interface {
 	MSet(pairs ...interface{})
 	Del(keys ...string)
 	xAdd(stream string, values []string) (id string)
+	HSet(key string, values ...interface{})
 }
 
 type RedisCache interface {
@@ -41,7 +42,6 @@ type RedisCache interface {
 	RPop(key string) (value string, found bool)
 	LRem(key string, count int64, value interface{})
 	Ltrim(key string, start, stop int64)
-	HSet(key string, values ...interface{})
 	HSetNx(key, field string, value interface{}) bool
 	HDel(key string, fields ...string)
 	HMGet(key string, fields ...string) map[string]interface{}
@@ -86,6 +86,12 @@ type RedisCache interface {
 	FlushAll()
 	FlushDB()
 	GetLocker() *Locker
+	Process(ctx context.Context, cmd redis.Cmder) error
+	HasNamespace() bool
+	GetNamespace() string
+	GetCode() string
+	RemoveNamespacePrefix(key string) string
+	AddNamespacePrefix(key string) string
 }
 
 type redisCache struct {
@@ -103,6 +109,7 @@ type redisCacheSetter struct {
 	setExpireValues []interface{}
 	setExpireTTLs   []time.Duration
 	deletes         []string
+	HSets           map[string][]interface{}
 	xAdds           map[string][][]string
 }
 
@@ -1002,6 +1009,14 @@ func (r *redisCacheSetter) xAdd(stream string, values []string) (id string) {
 	return ""
 }
 
+func (r *redisCacheSetter) HSet(key string, values ...interface{}) {
+	if r.HSets == nil {
+		r.HSets = map[string][]interface{}{key: values}
+	} else {
+		r.HSets[key] = values
+	}
+}
+
 func (r *redisCacheSetter) flush() {
 	commands := 0
 	if r.sets != nil {
@@ -1016,6 +1031,9 @@ func (r *redisCacheSetter) flush() {
 	if r.xAdds != nil {
 		commands++
 	}
+	if r.HSets != nil {
+		commands++
+	}
 	if commands == 0 {
 		return
 	}
@@ -1028,6 +1046,9 @@ func (r *redisCacheSetter) flush() {
 		for _, events := range r.xAdds {
 			usePipeLine = len(events) > 1
 		}
+	}
+	if !usePipeLine {
+		usePipeLine = len(r.HSets) > 1
 	}
 	if usePipeLine {
 		pipeLine := cache.PipeLine()
@@ -1046,6 +1067,12 @@ func (r *redisCacheSetter) flush() {
 		if r.deletes != nil {
 			pipeLine.Del(r.deletes...)
 			r.deletes = nil
+		}
+		if r.HSets != nil {
+			for key, values := range r.HSets {
+				pipeLine.HSet(key, values...)
+			}
+			r.HSets = nil
 		}
 		if r.xAdds != nil {
 			for stream, events := range r.xAdds {
@@ -1079,6 +1106,12 @@ func (r *redisCacheSetter) flush() {
 			}
 		}
 		r.xAdds = nil
+	}
+	if r.HSets != nil {
+		for key, values := range r.HSets {
+			cache.HSet(key, values...)
+		}
+		r.HSets = nil
 	}
 }
 
@@ -1164,6 +1197,30 @@ func (r *redisCache) FlushDB() {
 		r.fillLogFields("FLUSHDB", "FLUSHDB", start, false, err)
 	}
 	checkError(err)
+}
+
+func (r *redisCache) Process(ctx context.Context, cmd redis.Cmder) error {
+	return r.client.Process(ctx, cmd)
+}
+
+func (r *redisCache) HasNamespace() bool {
+	return r.config.HasNamespace()
+}
+
+func (r *redisCache) GetNamespace() string {
+	return r.config.GetNamespace()
+}
+
+func (r *redisCache) GetCode() string {
+	return r.config.GetCode()
+}
+
+func (r *redisCache) RemoveNamespacePrefix(key string) string {
+	return r.removeNamespacePrefix(key)
+}
+
+func (r *redisCache) AddNamespacePrefix(key string) string {
+	return r.addNamespacePrefix(key)
 }
 
 func (r *redisCache) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {

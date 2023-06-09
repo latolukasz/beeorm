@@ -116,6 +116,9 @@ func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
 }
 
 func (rp *RedisPipeLine) Exec() {
+	if rp.commands == 0 {
+		return
+	}
 	start := getNow(rp.r.engine.hasRedisLogger)
 	_, err := rp.pipeLine.Exec(context.Background())
 	rp.pipeLine = rp.r.client.Pipeline()
