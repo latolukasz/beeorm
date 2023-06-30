@@ -1439,12 +1439,15 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 		info := r.Info("Modules")
 		lines := strings.Split(info, "\r\n")
 		hasModule := false
-		version := ""
+		var version *uint64
 		for _, line := range lines {
 			if strings.HasPrefix(line, "module:name=search") {
 				for _, part := range strings.Split(line, ",") {
 					if strings.HasPrefix(part, "ver=") {
-						version = part[4:7]
+						ver, err := strconv.ParseUint(part[4:7], 10, 64)
+						checkError(err)
+
+						version = &ver
 						break
 					}
 				}
@@ -1490,14 +1493,14 @@ func getRedisSearchAlters(engine *Engine) (alters []RedisSearchIndexAlter) {
 				changes = append(changes, "different prefixes")
 			}
 			languageField := def.LanguageField
-			if languageField == "" && version != "202" {
+			if languageField == "" && (version != nil && *version < 202) {
 				languageField = "__language"
 			}
 			if info.Definition.LanguageField != languageField {
 				changes = append(changes, "different language field")
 			}
 			scoreField := def.ScoreField
-			if scoreField == "" && version != "202" {
+			if scoreField == "" && (version != nil && *version < 202) {
 				scoreField = "__score"
 			}
 			if info.Definition.ScoreField != scoreField {
