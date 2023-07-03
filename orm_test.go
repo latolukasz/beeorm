@@ -215,7 +215,7 @@ func TestORM(t *testing.T) {
 	err = entity.SetField("FloatNullable", "hello")
 	assert.EqualError(t, err, "FloatNullable value hello is not valid")
 
-	timeNullable := time.Now()
+	timeNullable := time.Now().UTC()
 	err = entity.SetField("TimeNullable", &timeNullable)
 	assert.NoError(t, err)
 	assert.Equal(t, &timeNullable, entity.TimeNullable)
@@ -230,7 +230,7 @@ func TestORM(t *testing.T) {
 	err = entity.SetField("TimeNullable", "hello")
 	assert.EqualError(t, err, "TimeNullable value hello is not valid")
 
-	timeNotNull := time.Now()
+	timeNotNull := time.Now().UTC()
 	err = entity.SetField("Time", timeNotNull)
 	assert.NoError(t, err)
 	assert.Equal(t, timeNotNull, entity.Time)

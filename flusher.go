@@ -51,7 +51,6 @@ type flusher struct {
 	localCacheDeletes      map[string][]string
 	localCacheSets         map[string][]interface{}
 	stringBuilder          strings.Builder
-	serializer             *serializer
 }
 
 func (f *flusher) Track(entity ...Entity) Flusher {
@@ -214,10 +213,7 @@ func (f *flusher) flushWithCheck(transaction bool) error {
 }
 
 func (f *flusher) getSerializer() *serializer {
-	if f.serializer == nil {
-		f.serializer = newSerializer(nil)
-	}
-	return f.serializer
+	return f.engine.getSerializer(nil)
 }
 
 type flushPackage struct {
@@ -410,7 +406,7 @@ func (f *flusher) executeDeletes(lazy bool) {
 				f.fillLazyQuery(db.GetPoolConfig().GetCode(), deleteSQLPrefix+strconv.FormatUint(id, 10)+")", false, id, logEvents)
 			}
 			if hasLocalCache || hasRedis {
-				cacheKey := schema.getCacheKey(id)
+				cacheKey := f.engine.getCacheKey(schema, id)
 				keys := f.getCacheQueriesKeys(schema, bindBuilder.bind, bindBuilder.current, true, true)
 				if hasLocalCache {
 					f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cacheNilValue)
@@ -679,7 +675,7 @@ func (f *flusher) flushOnDuplicateKey(lazy bool, bindBuilder *bindBuilder, schem
 				checkError(err)
 			}
 			bindBuilderNew, _ := orm.buildDirtyBind(f.getSerializer())
-			_, _ = loadByID(f.getSerializer(), f.engine, lastID, entity, false)
+			_, _, _ = loadByID(f.getSerializer(), f.engine, lastID, entity, nil, false)
 			f.updateCacheAfterUpdate(entity, bindBuilderNew.bind, bindBuilderNew.current, schema, lastID, false)
 		}
 	} else {
@@ -741,13 +737,13 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 	}
 	redisCache, hasRedis := schema.GetRedisCache(f.engine)
 	if hasLocalCache || hasRedis {
-		cacheKey := schema.getCacheKey(id)
+		cacheKey := f.engine.getCacheKey(schema, id)
 		keys := f.getCacheQueriesKeys(schema, bind, nil, false, true)
 		if hasLocalCache {
 			if !lazy || schema.hasUUID {
-				f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
+				f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().value)
 			} else {
-				f.addLocalCacheDeletes(localCache.config.GetCode(), schema.getCacheKey(id))
+				f.addLocalCacheDeletes(localCache.config.GetCode(), f.engine.getCacheKey(schema, id))
 			}
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keys...)
 		}
@@ -788,11 +784,11 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 		localCache = f.engine.GetLocalCache(requestCacheKey)
 	}
 	if hasLocalCache || hasRedis {
-		cacheKey := schema.getCacheKey(currentID)
+		cacheKey := f.engine.getCacheKey(schema, currentID)
 		keysOld := f.getCacheQueriesKeys(schema, bind, current, true, false)
 		keysNew := f.getCacheQueriesKeys(schema, bind, current, false, false)
 		if hasLocalCache {
-			f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().copyBinary())
+			f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().value)
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keysOld...)
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keysNew...)
 		}
@@ -848,7 +844,7 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, o
 			_, addedDeleted = bind["FakeDelete"]
 		}
 		if addedDeleted && len(definition.TrackedFields) == 0 {
-			keys = append(keys, getCacheKeySearch(schema, indexName))
+			keys = append(keys, getCacheKeySearch(f.engine, schema, indexName))
 		}
 		for _, trackedField := range definition.TrackedFields {
 			_, has := bind[trackedField]
@@ -863,7 +859,7 @@ func (f *flusher) getCacheQueriesKeys(schema *tableSchema, bind, current Bind, o
 						attributes = append(attributes, val)
 					}
 				}
-				keys = append(keys, getCacheKeySearch(schema, indexName, attributes...))
+				keys = append(keys, getCacheKeySearch(f.engine, schema, indexName, attributes...))
 				break
 			}
 		}

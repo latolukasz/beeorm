@@ -7,9 +7,13 @@ import (
 
 const cacheNilValue = ""
 
-func loadByID(serializer *serializer, engine *engineImplementation, id uint64, entity Entity, useCache bool, references ...string) (found bool, schema *tableSchema) {
-	orm := initIfNeeded(engine.registry, entity)
-	schema = orm.tableSchema
+func loadByID(serializer *serializer, engine *engineImplementation, id uint64, entity Entity, entitySchema *tableSchema, useCache bool, references ...string) (found bool, foundEntity Entity, schema *tableSchema) {
+	if entity != nil {
+		orm := initIfNeeded(engine.registry, entity)
+		schema = orm.tableSchema
+	} else {
+		schema = entitySchema
+	}
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
 	redisCache, hasRedis := schema.GetRedisCache(engine)
 	var cacheKey string
@@ -20,38 +24,41 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 		}
 
 		if hasLocalCache {
-			cacheKey = schema.getCacheKey(id)
+			cacheKey = engine.getCacheKey(schema, id)
 			e, has := localCache.Get(cacheKey)
 			if has {
 				if e == cacheNilValue {
-					return false, schema
+					return false, nil, schema
 				}
-				data := e.([]byte)
-				fillFromBinary(serializer, engine.registry, data, entity)
-				if len(references) > 0 {
-					warmUpReferences(serializer, engine, schema, orm.value, references, false)
+				if entity != nil {
+					fillFromBinary(serializer, engine.registry, e.(reflect.Value).Interface().(Entity).getORM().binary, entity)
+					if len(references) > 0 {
+						warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
+					}
+					return true, entity, schema
 				}
-				return true, schema
+				entity = e.(reflect.Value).Interface().(Entity)
+				return true, entity, schema
 			}
 		}
 		if hasRedis {
-			cacheKey = schema.getCacheKey(id)
+			cacheKey = engine.getCacheKey(schema, id)
 			row, has := redisCache.Get(cacheKey)
 			if has {
 				if row == cacheNilValue {
 					if localCache != nil {
 						localCache.Set(cacheKey, cacheNilValue)
 					}
-					return false, schema
+					return false, nil, schema
 				}
 				fillFromBinary(serializer, engine.registry, []byte(row), entity)
 				if len(references) > 0 {
-					warmUpReferences(serializer, engine, schema, orm.value, references, false)
+					warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 				}
 				if localCache != nil {
-					localCache.Set(cacheKey, orm.copyBinary())
+					localCache.Set(cacheKey, entity.getORM().value)
 				}
-				return true, schema
+				return true, entity, schema
 			}
 		}
 	}
@@ -65,23 +72,23 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 		if redisCache != nil {
 			redisCache.Set(cacheKey, cacheNilValue, 60)
 		}
-		return false, schema
+		return false, nil, schema
 	}
 	if useCache {
 		if localCache != nil {
-			localCache.Set(cacheKey, orm.copyBinary())
+			localCache.Set(cacheKey, entity.getORM().value)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, orm.binary, 0)
+			redisCache.Set(cacheKey, entity.getORM().binary, 0)
 		}
 	}
 
 	if len(references) > 0 {
-		warmUpReferences(serializer, engine, schema, orm.elem, references, false)
+		warmUpReferences(serializer, engine, schema, entity.getORM().elem, references, false)
 	} else {
 		data[0] = id
 	}
-	return true, schema
+	return true, entity, schema
 }
 
 func initIfNeeded(registry *validatedRegistry, entity Entity) *ORM {

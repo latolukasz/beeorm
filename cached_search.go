@@ -13,7 +13,7 @@ import (
 const idsOnCachePage = 1000
 
 func cachedSearch(serializer *serializer, engine *engineImplementation, entities interface{}, indexName string, pager *Pager,
-	arguments []interface{}, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {
+	arguments []interface{}, checkIsSlice bool) (totalRows int) {
 	value := reflect.ValueOf(entities)
 	entityType, has, name := getEntityTypeForSlice(engine.registry, value.Type(), checkIsSlice)
 	if !has {
@@ -40,62 +40,65 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))
 	}
+	cacheKey := getCacheKeySearch(engine, schema, indexName, arguments...)
 	where := NewWhere(definition.Query, arguments...)
-	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
 
 	pageSize := idsOnCachePage
-	if hasLocalCache {
-		pageSize = definition.Max
-	}
 	minCachePage := float64((pager.GetCurrentPage() - 1) * pager.GetPageSize() / pageSize)
 	minCachePageCeil := minCachePage
 	maxCachePage := float64((pager.GetCurrentPage()-1)*pager.GetPageSize()+pager.GetPageSize()) / float64(pageSize)
 	maxCachePageCeil := math.Ceil(maxCachePage)
-	pages := make([]string, int(maxCachePageCeil-minCachePageCeil))
+	size := int(maxCachePageCeil - minCachePageCeil)
+	pages := engine.getCacheStrings(size, size)
 	j := 0
 	for i := minCachePageCeil; i < maxCachePageCeil; i++ {
 		pages[j] = strconv.Itoa(int(i) + 1)
 		j++
 	}
-	filledPages := make(map[string][]uint64)
-	fromRedis := false
-	var fromCache map[string]interface{}
+	filledPages := make(map[string][]string)
+	var fromCache map[string][]string
 	var nilsKeys []string
 	if hasLocalCache {
 		nilsKeys = make([]string, 0)
 		fromCacheLocal, hasInLocalCache := localCache.Get(cacheKey)
 		if hasInLocalCache {
-			fromCache = map[string]interface{}{"1": fromCacheLocal}
+			fromCache = map[string][]string{"1": fromCacheLocal.([]string)}
 		} else {
-			fromCache = map[string]interface{}{"1": nil}
+			fromCache = map[string][]string{"1": nil}
 			nilsKeys = append(nilsKeys, "1")
 		}
 		if hasRedis && len(nilsKeys) > 0 {
-			fromRedis := redisCache.HMGet(cacheKey, nilsKeys...)
-			for key, idsFromRedis := range fromRedis {
+			dataFromRedis := redisCache.HMGet(cacheKey, nilsKeys...)
+			if fromCache == nil {
+				fromCache = map[string][]string{}
+			}
+			for key, idsFromRedis := range dataFromRedis {
 				if idsFromRedis != nil {
-					ids := strings.Split(idsFromRedis.(string), " ")
-					length := len(ids)
-					idsAsUint := make([]uint64, length)
-					for i := 0; i < length; i++ {
-						idsAsUint[i], _ = strconv.ParseUint(ids[i], 10, 64)
-					}
-					fromCache[key] = idsAsUint
+					fromCache[key] = strings.Split(idsFromRedis.(string), " ")
 				} else {
-					fromCache[key] = idsFromRedis
+					fromCache[key] = nil
 				}
 			}
 		}
 	} else if hasRedis {
-		fromRedis = true
-		fromCache = redisCache.HMGet(cacheKey, pages...)
+		dataFromRedis := redisCache.HMGet(cacheKey, pages...)
+		for key, idsFromRedis := range dataFromRedis {
+			if fromCache == nil {
+				fromCache = map[string][]string{}
+			}
+			if idsFromRedis != nil {
+				fromCache[key] = strings.Split(idsFromRedis.(string), " ")
+			} else {
+				fromCache[key] = nil
+			}
+		}
 	}
 	hasNil := false
 	totalRows = 0
 	minPage := 9999
 	maxPage := 0
-	for key, idsSlice := range fromCache {
-		if idsSlice == nil {
+	for key, keys := range fromCache {
+		if keys == nil {
 			hasNil = true
 			p, _ := strconv.Atoi(key)
 			if p < minPage {
@@ -105,20 +108,8 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 				maxPage = p
 			}
 		} else {
-			if fromRedis {
-				ids := strings.Split(idsSlice.(string), " ")
-				totalRows, _ = strconv.Atoi(ids[0])
-				length := len(ids)
-				idsAsUint := make([]uint64, length-1)
-				for i := 1; i < length; i++ {
-					idsAsUint[i-1], _ = strconv.ParseUint(ids[i], 10, 64)
-				}
-				filledPages[key] = idsAsUint
-			} else {
-				ids := idsSlice.([]uint64)
-				totalRows = int(ids[0])
-				filledPages[key] = ids[1:]
-			}
+			totalRows, _ = strconv.Atoi(keys[0])
+			filledPages[key] = keys[1:]
 		}
 	}
 	if hasNil {
@@ -145,13 +136,21 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 					continue
 				}
 				sliceEnd = int(math.Min(float64(sliceEnd), float64(l)))
-				values := []uint64{uint64(total)}
 				foundIDs := results[sliceStart:sliceEnd]
-				filledPages[key] = foundIDs
-				values = append(values, foundIDs...)
-				cacheValue := fmt.Sprintf("%v", values)
-				cacheValue = strings.Trim(cacheValue, "[]")
-				cacheFields = append(cacheFields, page, cacheValue)
+				filledPages[key] = make([]string, len(foundIDs))
+				cacheValues := engine.getStringBuilder()
+				if hasRedis {
+					cacheValues.WriteString(strconv.Itoa(total))
+				}
+				for i, id := range foundIDs {
+					cacheKeyValue := engine.getCacheKey(schema, id)
+					filledPages[key][i] = cacheKeyValue
+					if hasRedis {
+						cacheValues.WriteString(" ")
+						cacheValues.WriteString(cacheKeyValue)
+					}
+				}
+				cacheFields = append(cacheFields, page, cacheValues.String())
 			}
 		}
 		if hasRedis {
@@ -162,33 +161,34 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	if hasLocalCache && nilKeysLen > 0 {
 		fields := make(map[string]interface{}, nilKeysLen)
 		for _, v := range nilsKeys {
-			values := []uint64{uint64(totalRows)}
+			values := []string{strconv.Itoa(totalRows)}
 			values = append(values, filledPages[v]...)
 			fields[v] = values
 		}
 		localCache.Set(cacheKey, fields["1"])
 	}
 
-	resultsIDs := make([]uint64, 0)
+	capacity := int(maxCachePageCeil-minCachePageCeil) * pageSize
+	resultsKeys := engine.getCacheStrings(0, capacity)
 	for i := minCachePageCeil; i < maxCachePageCeil; i++ {
-		resultsIDs = append(resultsIDs, filledPages[strconv.Itoa(int(i)+1)]...)
+		resultsKeys = append(resultsKeys, filledPages[strconv.Itoa(int(i)+1)]...)
 	}
 	sliceStart := (pager.GetCurrentPage() - 1) * pager.GetPageSize()
 	diff := int(minCachePageCeil) * pageSize
 	sliceStart -= diff
 	if sliceStart > totalRows {
-		return totalRows, []uint64{}
+		return totalRows
 	}
 	sliceEnd := sliceStart + pager.GetPageSize()
-	length := len(resultsIDs)
+	length := len(resultsKeys)
 	if sliceEnd > length {
 		sliceEnd = length
 	}
-	idsToReturn := resultsIDs[sliceStart:sliceEnd]
+	keysToReturn := resultsKeys[sliceStart:sliceEnd]
 	_, is := entities.(Entity)
-	if !is && len(idsToReturn) > 0 {
+	if !is && len(keysToReturn) > 0 {
 		elem := value.Elem()
-		_, missing := tryByIDs(serializer, engine, idsToReturn, elem, references)
+		_, missing := readByCacheKeys(serializer, engine, keysToReturn, value)
 		if missing {
 			l := elem.Len()
 			missingCounter := 0
@@ -213,7 +213,7 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 			}
 		}
 	}
-	return totalRows, idsToReturn
+	return totalRows
 }
 
 func cachedSearchOne(serializer *serializer, engine *engineImplementation, entity Entity, indexName string, fillStruct bool, arguments []interface{}, references []string) (has bool) {
@@ -237,7 +237,7 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))
 	}
-	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
+	cacheKey := getCacheKeySearch(engine, schema, indexName, where.GetParameters()...)
 	var fromCache map[string]interface{}
 	if hasLocalCache {
 		fromLocalCache, hasInLocalCache := localCache.Get(cacheKey)
@@ -274,13 +274,19 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	if id > 0 {
 		has = true
 		if fillStruct {
-			has, _ = loadByID(serializer, engine, id, entity, true, references...)
+			has, _, _ = loadByID(serializer, engine, id, entity, nil, true, references...)
 		}
 		return has
 	}
 	return false
 }
 
-func getCacheKeySearch(tableSchema *tableSchema, indexName string, parameters ...interface{}) string {
-	return tableSchema.cachePrefix + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
+func getCacheKeySearch(engine *engineImplementation, tableSchema *tableSchema, indexName string, parameters ...interface{}) string {
+	builder := engine.getStringBuilder()
+	builder.WriteString(tableSchema.cachePrefix)
+	builder.WriteString("_")
+	builder.WriteString(indexName)
+	values := fmt.Sprintf("%v", parameters)
+	builder.WriteString(strconv.Itoa(int(fnv1a.HashString32(values))))
+	return builder.String()
 }

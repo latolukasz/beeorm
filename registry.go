@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"crypto/md5"
 	"database/sql"
 	"fmt"
 	"log"
@@ -41,10 +42,8 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		r.defaultCollate = "0900_ai_ci"
 	}
 	maxPoolLen := 0
-	registry := &validatedRegistry{}
+	registry := &validatedRegistry{md5: md5.New()}
 	registry.registry = r
-	_, offset := time.Now().Zone()
-	registry.timeOffset = int64(offset)
 	l := len(r.entities)
 	registry.tableSchemas = make(map[reflect.Type]*tableSchema, l)
 	registry.entities = make(map[string]reflect.Type)

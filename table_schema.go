@@ -296,7 +296,7 @@ func (tableSchema *tableSchema) GetEntityLogs(engine Engine, entityID uint64, pa
 		log := EntityLog{}
 		log.LogID = id
 		log.EntityID = entityID
-		log.Date, _ = time.ParseInLocation(timeFormat, addedAt, time.Local)
+		log.Date, _ = time.ParseInLocation(timeFormat, addedAt, time.UTC)
 		if meta.Valid {
 			err := jsoniter.ConfigFastest.UnmarshalFromString(meta.String, &log.Meta)
 			if err != nil {
@@ -1091,10 +1091,6 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 		}
 	}
 	return make(map[string]map[string]string)
-}
-
-func (tableSchema *tableSchema) getCacheKey(id uint64) string {
-	return tableSchema.cachePrefix + ":" + strconv.FormatUint(id, 10)
 }
 
 func (tableSchema *tableSchema) NewEntity() Entity {

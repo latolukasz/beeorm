@@ -29,9 +29,9 @@ type Entity interface {
 	markToDelete()
 	forceMarkToDelete()
 	IsLoaded() bool
-	IsDirty() bool
+	IsDirty(engine Engine) bool
 	IsToDelete() bool
-	GetDirtyBind() (bind Bind, has bool)
+	GetDirtyBind(engine Engine) (bind Bind, has bool)
 	SetOnDuplicateKeyUpdate(bind Bind)
 	SetEntityLogMeta(key string, value interface{})
 	SetField(field string, value interface{}) error
@@ -114,11 +114,11 @@ func (orm *ORM) SetEntityLogMeta(key string, value interface{}) {
 	orm.logMeta[key] = value
 }
 
-func (orm *ORM) IsDirty() bool {
+func (orm *ORM) IsDirty(engine Engine) bool {
 	if !orm.inDB {
 		return true
 	}
-	_, is := orm.GetDirtyBind()
+	_, is := orm.GetDirtyBind(engine)
 	return is
 }
 
@@ -126,8 +126,8 @@ func (orm *ORM) IsToDelete() bool {
 	return orm.fakeDelete || orm.delete
 }
 
-func (orm *ORM) GetDirtyBind() (bind Bind, has bool) {
-	bindBuilder, has := orm.buildDirtyBind(newSerializer(nil))
+func (orm *ORM) GetDirtyBind(engine Engine) (bind Bind, has bool) {
+	bindBuilder, has := orm.buildDirtyBind(engine.(*engineImplementation).getSerializer(nil))
 	return bindBuilder.bind, has
 }
 
@@ -184,17 +184,11 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
-		if unix-timeStampSeconds > orm.tableSchema.registry.timeOffset {
-			unix -= orm.tableSchema.registry.timeOffset
-		}
 		serializer.SerializeInteger(unix)
 		index++
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
-		if unix-timeStampSeconds > orm.tableSchema.registry.timeOffset {
-			unix -= orm.tableSchema.registry.timeOffset
-		}
 		serializer.SerializeInteger(unix)
 		index++
 	}
@@ -273,11 +267,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			unix := v.Int64
-			if unix > orm.tableSchema.registry.timeOffset {
-				unix -= orm.tableSchema.registry.timeOffset
-			}
-			serializer.SerializeInteger(unix)
+			serializer.SerializeInteger(v.Int64)
 		}
 		index++
 	}
@@ -285,11 +275,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		v := pointers[index].(*sql.NullInt64)
 		serializer.SerializeBool(v.Valid)
 		if v.Valid {
-			unix := v.Int64
-			if unix > orm.tableSchema.registry.timeOffset {
-				unix -= orm.tableSchema.registry.timeOffset
-			}
-			serializer.SerializeInteger(unix)
+			serializer.SerializeInteger(v.Int64)
 		}
 		index++
 	}
@@ -367,7 +353,7 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		if t.IsZero() {
 			serialized.SerializeInteger(zeroDateSeconds)
 		} else {
-			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
+			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).Unix()
 			if unix > 0 {
 				unix += timeStampSeconds
 			} else {
@@ -469,7 +455,7 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 		} else {
 			serialized.SerializeBool(true)
 			t := f.Interface().(*time.Time)
-			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
+			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC).Unix()
 			if unix > 0 {
 				unix += timeStampSeconds
 			} else {
@@ -549,7 +535,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
 		}
 	}
 	for _, i := range fields.dates {
@@ -558,7 +544,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
 		}
 	}
 	if fields.fakeDelete > 0 {
@@ -677,7 +663,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	}
 	for _, i := range fields.timesNullable {
 		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
+			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -688,7 +674,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 	}
 	for _, i := range fields.datesNullable {
 		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
+			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -963,7 +949,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 		} else {
 			if isString {
 				for _, layout := range timeSupportedLayouts {
-					asTime, err := time.ParseInLocation(layout, asString, time.Local)
+					asTime, err := time.ParseInLocation(layout, asString, time.UTC)
 					if err == nil {
 						f.Set(reflect.ValueOf(&asTime))
 						return nil
@@ -971,16 +957,19 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 				}
 				return fmt.Errorf("%s value %v is not valid", field, asString)
 			}
-			_, ok := value.(*time.Time)
+			asTime, ok := value.(*time.Time)
 			if !ok {
 				return fmt.Errorf("%s value %v is not valid", field, value)
+			}
+			if asTime.Location() != time.UTC {
+				panic(errors.New("provided time must be UTC"))
 			}
 			f.Set(reflect.ValueOf(value))
 		}
 	case "time.Time":
 		if isString {
 			for _, layout := range timeSupportedLayouts {
-				asTime, err := time.ParseInLocation(layout, asString, time.Local)
+				asTime, err := time.ParseInLocation(layout, asString, time.UTC)
 				if err == nil {
 					f.Set(reflect.ValueOf(asTime))
 					return nil
@@ -988,9 +977,12 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 			}
 			return fmt.Errorf("%s value %v is not valid", field, asString)
 		}
-		_, ok := value.(time.Time)
+		asTime, ok := value.(time.Time)
 		if !ok {
 			return fmt.Errorf("%s value %v is not valid", field, value)
+		}
+		if asTime.Location() != time.UTC {
+			panic(errors.New("provided time must be UTC"))
 		}
 		f.Set(reflect.ValueOf(value))
 	default:

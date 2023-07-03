@@ -264,7 +264,7 @@ func (r *BackgroundConsumer) Digest(ctx context.Context) bool {
 										defer db.Rollback()
 										_, err := db.exec(updateSQL)
 										if err != nil {
-											// TODO report
+											log.Print(err)
 										}
 										db.Commit()
 									}()

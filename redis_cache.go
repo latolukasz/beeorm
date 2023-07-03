@@ -495,7 +495,6 @@ func (r *RedisCache) ZRemRangeByRank(key string, start, stop int64) int64 {
 	return val
 }
 
-
 func (r *RedisCache) ZRangeArgsWithScores(args redis.ZRangeArgs) []redis.Z {
 	key := r.addNamespacePrefix(args.Key)
 	startTime := getNow(r.engine.hasRedisLogger)

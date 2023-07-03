@@ -278,7 +278,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	})
 }
 
-// BenchmarkLoadByIDsdLocalCache-10    	  906974	      1326 ns/op	    1104 B/op	      12 allocs/op
+// BenchmarkLoadByIDsdLocalCache-10    	  112261	     10702 ns/op	    9724 B/op	      55 allocs/op
 func BenchmarkLoadByIDsdLocalCache(b *testing.B) {
 	benchmarkLoadByIDsLocalCache(b)
 }
@@ -292,7 +292,7 @@ func benchmarkLoadByIDsLocalCache(b *testing.B) {
 	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
 
 	ids := make([]uint64, 0)
-	for i := 1; i <= 1; i++ {
+	for i := 1; i <= 10; i++ {
 		e := &schemaEntity{}
 		e.GetID()
 		e.Name = fmt.Sprintf("Name %d", i)
@@ -310,5 +310,39 @@ func benchmarkLoadByIDsLocalCache(b *testing.B) {
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
 		engine.LoadByIDs(ids, &rows)
+	}
+}
+
+// BenchmarkReadByIDsdLocalCache-10    	  112815	     10589 ns/op	    9724 B/op	      55 allocs/op
+// BenchmarkReadByIDsdLocalCache-10    	  651699	      1776 ns/op	     923 B/op	      15 allocs/op
+// BenchmarkReadByIDsdLocalCache-10    	  686292	      1707 ns/op	     819 B/op	      13 allocs/op
+// BenchmarkReadByIDsdLocalCache-10    	  745702	      1545 ns/op	     499 B/op	      11 allocs/op
+func BenchmarkReadByIDsdLocalCache(b *testing.B) {
+	entity := &schemaEntity{}
+	ref := &schemaEntityRef{}
+	registry := &Registry{}
+	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
+	registry.RegisterLocalCache(10000)
+	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
+
+	ids := make([]uint64, 0)
+	for i := 1; i <= 10; i++ {
+		e := &schemaEntity{}
+		e.GetID()
+		e.Name = fmt.Sprintf("Name %d", i)
+		e.Uint32 = uint32(i)
+		e.Int32 = int32(i)
+		e.Int8 = 1
+		e.Enum = TestEnum.A
+		e.RefOne = &schemaEntityRef{}
+		engine.Flush(e)
+		_ = engine.LoadByID(uint64(i), e)
+		ids = append(ids, uint64(i))
+	}
+	var rows = make([]*schemaEntity, 0)
+	b.ResetTimer()
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		engine.ReadByIDs(ids, &rows)
 	}
 }

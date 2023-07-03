@@ -212,6 +212,9 @@ func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, va
 		f := value.Field(i)
 		t := f.Interface().(time.Time)
 		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
+		if !isZero && t.Location() != time.UTC {
+			panic(errors.New("provided time must be UTC"))
+		}
 		if b.orm.inDB {
 			old := serializer.DeserializeInteger()
 			if old == zeroDateSeconds {
@@ -220,7 +223,7 @@ func (b *bindBuilder) buildTimes(serializer *serializer, fields *tableFields, va
 				old -= timeStampSeconds
 			}
 			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(timeFormat)
+				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).UTC().Format(timeFormat)
 			}
 			if (old == 0 && isZero) || (old == t.Unix()) {
 				continue
@@ -240,7 +243,10 @@ func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, va
 		b.index++
 		t := value.Field(i).Interface().(time.Time)
 		isZero := t.IsZero() || t.UTC().Unix() == -30610224000
-		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+		if !isZero && t.Location() != time.UTC {
+			panic(errors.New("provided time must be UTC"))
+		}
+		t = time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, time.UTC)
 		if b.orm.inDB {
 			old := serializer.DeserializeInteger()
 			if old == zeroDateSeconds {
@@ -249,7 +255,7 @@ func (b *bindBuilder) buildDates(serializer *serializer, fields *tableFields, va
 				old -= timeStampSeconds
 			}
 			if b.hasCurrent {
-				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).Format(dateformat)
+				b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(old, 0).UTC().Format(dateformat)
 			}
 			if old == 0 && isZero || old == t.Unix() {
 				continue
@@ -695,7 +701,7 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 			if old {
 				oldVal := serializer.DeserializeInteger() - timeStampSeconds
 				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(timeFormat)
+					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).UTC().Format(timeFormat)
 				}
 				if !isNil && val != nil && oldVal == val.Unix() {
 					continue
@@ -711,6 +717,9 @@ func (b *bindBuilder) buildTimesNullable(serializer *serializer, fields *tableFi
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
+			if val.Location() != time.UTC {
+				panic(errors.New("provided time must be UTC"))
+			}
 			asString := val.Format(timeFormat)
 			b.bind[name] = asString
 			if b.buildSQL {
@@ -728,7 +737,7 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 		var val time.Time
 		if !isNil {
 			val = *f.Interface().(*time.Time)
-			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, val.Location())
+			val = time.Date(val.Year(), val.Month(), val.Day(), 0, 0, 0, 0, time.UTC)
 		}
 		if b.orm.inDB {
 			old := serializer.DeserializeBool()
@@ -738,7 +747,7 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 			if old {
 				oldVal := serializer.DeserializeInteger() - timeStampSeconds
 				if b.hasCurrent {
-					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).Format(dateformat)
+					b.current[b.orm.tableSchema.columnNames[b.index]] = time.Unix(oldVal, 0).UTC().Format(dateformat)
 				}
 				if oldVal == val.Unix() && !isNil {
 					continue
@@ -754,6 +763,9 @@ func (b *bindBuilder) buildDatesNullable(serializer *serializer, fields *tableFi
 				b.sqlBind[name] = "NULL"
 			}
 		} else {
+			if val.Location() != time.UTC {
+				panic(errors.New("provided time must be UTC"))
+			}
 			asString := val.Format(dateformat)
 			b.bind[name] = asString
 			if b.buildSQL {

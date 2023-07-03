@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"hash"
 	"reflect"
 )
 
@@ -29,8 +30,8 @@ type validatedRegistry struct {
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
 	enums              map[string]Enum
-	timeOffset         int64
 	defaultQueryLogger *defaultLogLogger
+	md5                hash.Hash
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {

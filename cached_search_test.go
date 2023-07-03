@@ -223,27 +223,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	totalRows = engine.CachedSearch(&rows, "IndexAge", nil, 10)
 	assert.Equal(t, 3, totalRows)
 
-	totalRows, ids := engine.CachedSearchIDs(entity, "IndexAge", nil, 10)
-	assert.Equal(t, 3, totalRows)
-	assert.Len(t, ids, 3)
-	assert.Equal(t, []uint64{3, 4, 5}, ids)
-
-	totalRows = engine.CachedSearchWithReferences(&rows, "IndexAge", nil, []interface{}{10}, []string{"ReferenceOne"})
-	assert.Equal(t, 3, totalRows)
-	assert.Equal(t, "Name 3", rows[0].ReferenceOne.Name)
-	assert.Equal(t, "Name 4", rows[1].ReferenceOne.Name)
-	assert.Equal(t, "Name 5", rows[2].ReferenceOne.Name)
-
 	engine.GetLocalCache().Clear()
 	totalRows = engine.CachedSearchCount(entity, "IndexAge", 10)
 	assert.EqualValues(t, 3, totalRows)
-
-	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {
-		engine.CachedSearchWithReferences(&rows, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
-	})
-	assert.PanicsWithError(t, "interface *beeorm.cachedSearchEntity is no slice of beeorm.Entity", func() {
-		engine.CachedSearchWithReferences(entity, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
-	})
 
 	flusher.Flush()
 	for i := 1; i <= 200; i++ {
@@ -347,6 +329,7 @@ func TestCachedSearchErrors(t *testing.T) {
 	})
 }
 
+// BenchmarkCachedSearch-10    	     886	   1335514 ns/op	 1017209 B/op	    5039 allocs/op
 func BenchmarkCachedSearch(b *testing.B) {
 	entity := &schemaEntity{}
 	ref := &schemaEntityRef{}
@@ -366,12 +349,40 @@ func BenchmarkCachedSearch(b *testing.B) {
 		flusher.Track(e)
 	}
 	flusher.Flush()
-	_ = engine.CachedSearchCount(entity, "IndexAll")
+	var entities []*schemaEntity
+	_ = engine.CachedSearch(&entities, "IndexAll", NewPager(1, 1000))
 	b.ResetTimer()
 	b.ReportAllocs()
-	// BenchmarkCachedSearch-12    	     126	   8125482 ns/op	 2139500 B/op	   15997 allocs/op
-	engine.EnableQueryDebugCustom(true, true, false)
 	for n := 0; n < b.N; n++ {
-		_ = engine.CachedSearchCount(entity, "IndexAll")
+		_ = engine.CachedSearch(&entities, "IndexAll", NewPager(1, 1000))
+	}
+}
+
+// BenchmarkCachedSearchRead-10    	   17037	     68963 ns/op	     129 B/op	       6 allocs/op
+func BenchmarkCachedSearchRead(b *testing.B) {
+	entity := &schemaEntity{}
+	ref := &schemaEntityRef{}
+	registry := &Registry{}
+	registry.RegisterEnumStruct("beeorm.TestEnum", TestEnum)
+	registry.RegisterLocalCache(10000)
+	engine := prepareTables(nil, registry, 5, 6, "", entity, ref)
+	flusher := engine.NewFlusher()
+	for i := 0; i < 1000; i++ {
+		e := &schemaEntity{}
+		e.Name = fmt.Sprintf("Name %d", i)
+		e.Uint32 = uint32(i)
+		e.Int32 = int32(i)
+		e.Int8 = int8(i)
+		e.Enum = TestEnum.A
+		e.RefOne = &schemaEntityRef{}
+		flusher.Track(e)
+	}
+	flusher.Flush()
+	var entities []*schemaEntity
+	_ = engine.CachedSearch(&entities, "IndexAll", NewPager(1, 1000))
+	b.ResetTimer()
+	b.ReportAllocs()
+	for n := 0; n < b.N; n++ {
+		_ = engine.CachedSearch(&entities, "IndexAll", NewPager(1, 1000))
 	}
 }

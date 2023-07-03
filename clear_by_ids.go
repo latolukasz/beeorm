@@ -4,7 +4,7 @@ func clearByIDs(engine *engineImplementation, entity Entity, ids ...uint64) {
 	schema := initIfNeeded(engine.registry, entity).tableSchema
 	cacheKeys := make([]string, len(ids))
 	for i, id := range ids {
-		cacheKeys[i] = schema.getCacheKey(id)
+		cacheKeys[i] = engine.getCacheKey(schema, id)
 	}
 	localCache, has := schema.GetLocalCache(engine)
 	if !has && engine.hasRequestCache {

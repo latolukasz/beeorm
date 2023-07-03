@@ -13,10 +13,6 @@ type serializer struct {
 	buffer  *bytes.Buffer
 }
 
-func newSerializer(buf []uint8) *serializer {
-	return &serializer{buffer: bytes.NewBuffer(buf)}
-}
-
 func (s *serializer) Read() []byte {
 	b := make([]byte, s.buffer.Len())
 	copy(b, s.buffer.Bytes())
