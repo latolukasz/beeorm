@@ -235,6 +235,9 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 
 	for _, entity := range entities {
 		initIfNeeded(f.engine.registry, entity)
+		if entity.getORM().readOnly {
+			panic(fmt.Errorf("flushing read only entity not allowed. You myst use engine.DisableReadOnly() for entity %T with ID %d", entity, entity.GetID()))
+		}
 		schema := entity.getORM().tableSchema
 		if !transaction && schema.GetMysql(f.engine).inTransaction {
 			transaction = true
@@ -728,6 +731,13 @@ func (f *flusher) checkReferences(schema *tableSchema, entity Entity, flushPacka
 	return has
 }
 
+func cloneEntityToLocalCache(engine *engineImplementation, entity Entity) reflect.Value {
+	toSave := entity.getORM().tableSchema.NewEntity()
+	toSave.getORM().readOnly = true
+	fillFromBinary(engine.getSerializer(nil), engine.registry, entity.getORM().binary, toSave)
+	return toSave.getORM().value
+}
+
 func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bind Bind) *LogQueueValue {
 	schema := entity.getORM().tableSchema
 	localCache, hasLocalCache := schema.GetLocalCache(f.engine)
@@ -741,7 +751,7 @@ func (f *flusher) updateCacheForInserted(entity Entity, lazy bool, id uint64, bi
 		keys := f.getCacheQueriesKeys(schema, bind, nil, false, true)
 		if hasLocalCache {
 			if !lazy || schema.hasUUID {
-				f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().value)
+				f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cloneEntityToLocalCache(f.engine, entity))
 			} else {
 				f.addLocalCacheDeletes(localCache.config.GetCode(), f.engine.getCacheKey(schema, id))
 			}
@@ -788,7 +798,7 @@ func (f *flusher) updateCacheAfterUpdate(entity Entity, bind, current Bind, sche
 		keysOld := f.getCacheQueriesKeys(schema, bind, current, true, false)
 		keysNew := f.getCacheQueriesKeys(schema, bind, current, false, false)
 		if hasLocalCache {
-			f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, entity.getORM().value)
+			f.addLocalCacheSet(localCache.config.GetCode(), cacheKey, cloneEntityToLocalCache(f.engine, entity))
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keysOld...)
 			f.addLocalCacheDeletes(localCache.config.GetCode(), keysNew...)
 		}

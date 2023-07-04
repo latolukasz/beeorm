@@ -56,7 +56,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 					warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 				}
 				if localCache != nil {
-					localCache.Set(cacheKey, entity.getORM().value)
+					localCache.Set(cacheKey, cloneEntityToLocalCache(engine, entity))
 				}
 				return true, entity, schema
 			}
@@ -76,7 +76,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 	}
 	if useCache {
 		if localCache != nil {
-			localCache.Set(cacheKey, entity.getORM().value)
+			localCache.Set(cacheKey, cloneEntityToLocalCache(engine, entity))
 		}
 		if redisCache != nil {
 			redisCache.Set(cacheKey, entity.getORM().binary, 0)

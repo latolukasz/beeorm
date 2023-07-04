@@ -148,8 +148,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint(1), rows[0].ID)
 	assert.Len(t, dbLogger.Logs, 0)
 
-	rows[0].Age = 18
-	engine.Flush(rows[0])
+	entity = engine.DisableReadOnly(rows[0]).(*cachedSearchEntity)
+	entity.Age = 18
+	engine.Flush(entity)
 
 	pager = NewPager(1, 10)
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
@@ -167,7 +168,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, 10, totalRows)
 	assert.Len(t, rows, 10)
 
-	engine.Delete(rows[1])
+	engine.Delete(engine.DisableReadOnly(rows[1]))
 
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 10)
 	assert.Equal(t, 3, totalRows)
@@ -250,8 +251,9 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		pager = NewPager(1, 100)
 		totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 		assert.Equal(t, 7, totalRows)
-		rows[0].Age = 17
-		engine.FlushLazy(rows[0])
+		entity = engine.DisableReadOnly(rows[0]).(*cachedSearchEntity)
+		entity.Age = 17
+		engine.FlushLazy(entity)
 		assert.Equal(t, 7, engine.CachedSearch(&rows, "IndexAge", pager, 18))
 
 		receiver := NewBackgroundConsumer(engine)
@@ -282,7 +284,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		var rowsNoFakeDelete []*cachedSearchEntityNoFakeDelete
 
 		engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
-		engine.DeleteLazy(rowsNoFakeDelete[1])
+		engine.DeleteLazy(engine.DisableReadOnly(rowsNoFakeDelete[1]))
 		totalRows = engine.CachedSearch(&rowsNoFakeDelete, "IndexAge", nil, 10)
 		assert.Equal(t, 2, totalRows)
 		assert.Len(t, rowsNoFakeDelete, 2)

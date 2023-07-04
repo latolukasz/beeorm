@@ -46,6 +46,7 @@ type Engine interface {
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
+	DisableReadOnly(entity Entity) Entity
 }
 
 type engineImplementation struct {
@@ -84,6 +85,16 @@ func (e *engineImplementation) Clone() Engine {
 		hasDBLogger:            e.hasDBLogger,
 		hasLocalCacheLogger:    e.hasLocalCacheLogger,
 	}
+}
+
+func (e *engineImplementation) DisableReadOnly(entity Entity) Entity {
+	orm := initIfNeeded(e.registry, entity)
+	if !entity.getORM().readOnly {
+		return entity
+	}
+	newEntity := orm.tableSchema.NewEntity()
+	fillFromBinary(e.getSerializer(nil), e.registry, entity.getORM().binary, newEntity)
+	return newEntity
 }
 
 func (e *engineImplementation) getCacheKey(schema *tableSchema, id uint64) string {

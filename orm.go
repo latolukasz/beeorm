@@ -44,6 +44,7 @@ type ORM struct {
 	onDuplicateKeyUpdate map[string]interface{}
 	initialised          bool
 	loaded               bool
+	readOnly             bool
 	inDB                 bool
 	delete               bool
 	fakeDelete           bool
@@ -82,6 +83,7 @@ func (orm *ORM) Clone() Entity {
 			}
 		}
 	}
+	newEntity.getORM().readOnly = false
 	return newEntity
 }
 

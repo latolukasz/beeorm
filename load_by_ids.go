@@ -106,7 +106,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 					newSlice.Index(k).Set(e.getORM().value)
 					fillFromBinary(serializer, engine.registry, []byte(val.(string)), e)
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().value)
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], cloneEntityToLocalCache(engine, e))
 					}
 					hasValid = true
 				} else {
@@ -142,7 +142,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 			newSlice.Index(k).Set(e.getORM().value)
 			fillFromDBRow(serializer, id, engine.registry, pointers, e)
 			if hasLocalCache {
-				localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().value)
+				localCacheToSet = append(localCacheToSet, cacheKey, cloneEntityToLocalCache(engine, e))
 			}
 			if hasRedis {
 				redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)
@@ -248,7 +248,7 @@ func readByCacheKeys(serializer *serializer, engine *engineImplementation, keys 
 					k := missingMap[id]
 					newSlice.Index(k).Set(e.getORM().value)
 					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().value)
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], cloneEntityToLocalCache(engine, e))
 					}
 					delete(missingMap, id)
 				} else {
@@ -283,7 +283,7 @@ func readByCacheKeys(serializer *serializer, engine *engineImplementation, keys 
 			fillFromDBRow(serializer, id, engine.registry, pointers, e)
 			cacheKey := keys[k]
 			if hasLocalCache {
-				localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().value)
+				localCacheToSet = append(localCacheToSet, cacheKey, cloneEntityToLocalCache(engine, e))
 			}
 			if hasRedis {
 				redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)

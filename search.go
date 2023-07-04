@@ -258,6 +258,7 @@ func fillFromBinary(serializer *serializer, registry *validatedRegistry, binary 
 	orm.loaded = true
 	orm.binary = binary
 	orm.deserialize(serializer)
+	orm.readOnly = false
 }
 
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {
