@@ -47,7 +47,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var entity *loadByIdsEntity
 	var reference *loadByIdsReference
 	var subReference *loadByIdsSubReference
-	engine := prepareTables(t, &Registry{}, 5, 6, "", entity, reference, subReference)
+	engine := prepareTables(t, &Registry{}, 5, 6, "test", entity, reference, subReference)
 	schema := engine.GetRegistry().GetTableSchemaForEntity(entity).(*tableSchema)
 	schema2 := engine.GetRegistry().GetTableSchemaForEntity(reference).(*tableSchema)
 	schema3 := engine.GetRegistry().GetTableSchemaForEntity(subReference).(*tableSchema)
