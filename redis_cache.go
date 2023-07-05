@@ -594,9 +594,11 @@ func (r *RedisCache) MSet(pairs ...interface{}) {
 
 func (r *RedisCache) MGet(keys ...string) []interface{} {
 	if r.config.HasNamespace() {
+		newKeys := make([]string, len(keys))
 		for i, key := range keys {
-			keys[i] = r.addNamespacePrefix(key)
+			newKeys[i] = r.addNamespacePrefix(key)
 		}
+		keys = newKeys
 	}
 	start := getNow(r.engine.hasRedisLogger)
 	val, err := r.client.MGet(context.Background(), keys...).Result()
