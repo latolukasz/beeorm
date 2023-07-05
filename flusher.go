@@ -74,7 +74,6 @@ type flusher struct {
 	engine                 *engineImplementation
 	trackedEntities        map[uintptr]Entity
 	trackedEntitiesCounter int
-	serializer             *serializer
 	events                 []*entitySQLFlush
 	stringBuilder          strings.Builder
 	localCacheSetters      map[string]*localCacheSetter
@@ -263,7 +262,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush)
 			if e.ID == 0 {
 				orm.idElem.SetUint(newID)
 			}
-			orm.serialize(f.getSerializer())
+			orm.serialize(f.engine.getSerializer(nil))
 		}
 		if e.ID == 0 {
 			e.ID = newID
@@ -316,7 +315,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush)
 			orm := e.entity.getORM()
 			orm.inDB = true
 			orm.loaded = true
-			orm.serialize(f.getSerializer())
+			orm.serialize(f.engine.getSerializer(nil))
 		}
 		f.executePluginInterfaceEntityFlushed(e)
 	}
@@ -411,7 +410,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			if rowsAffected > 0 {
 				orm.idElem.SetUint(result.LastInsertId())
 			}
-			orm.serialize(f.getSerializer())
+			orm.serialize(f.engine.getSerializer(nil))
 		}
 		if rowsAffected > 0 {
 			e.ID = result.LastInsertId()
@@ -573,13 +572,6 @@ func (f *flusher) flushWithCheck() error {
 	return err
 }
 
-func (f *flusher) getSerializer() *serializer {
-	if f.serializer == nil {
-		f.serializer = newSerializer(nil)
-	}
-	return f.serializer
-}
-
 func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	references := make(map[uintptr]Entity)
 	for _, entity := range source {
@@ -591,7 +583,7 @@ func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 			}
 		}
 		orm := entity.getORM()
-		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.getSerializer(), false)
+		entitySQLFlushData, isDirty := orm.buildDirtyBind(f.engine.getSerializer(nil), false)
 		entitySQLFlushData.entity = entity
 		if !isDirty {
 			continue
@@ -624,7 +616,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		switch e.Action {
 		case Insert:
 			if lazy {
-				e.entity.getORM().serialize(f.getSerializer())
+				e.entity.getORM().serialize(f.engine.getSerializer(nil))
 				if hasLocalCache {
 					f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, e.entity.getORM().copyBinary())
 				}
@@ -637,7 +629,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(localCacheCode)
 				if e.entity != nil {
-					e.entity.getORM().serialize(f.getSerializer())
+					e.entity.getORM().serialize(f.engine.getSerializer(nil))
 					setter.Set(cacheKey, e.entity.getORM().copyBinary())
 				} else {
 					setter.Remove(cacheKey)
@@ -654,7 +646,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			if lazy {
 				if hasLocalCache {
 					setter := f.GetLocalCacheSetter(localCacheCode)
-					e.entity.getORM().serialize(f.getSerializer())
+					e.entity.getORM().serialize(f.engine.getSerializer(nil))
 					setter.Set(cacheKey, e.entity.getORM().copyBinary())
 				}
 				break
