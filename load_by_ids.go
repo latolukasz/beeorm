@@ -8,151 +8,55 @@ import (
 )
 
 func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
-	lenIDs := len(ids)
-	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
-	if lenIDs == 0 {
-		entities.Set(newSlice)
-		return
-	}
+
 	t, has, name := getEntityTypeForSlice(engine.registry, entities.Type(), true)
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
+	resultsSlice := entities.Elem()
+	resultsSlice.Grow(len(ids))
+	resultsSlice.SetLen(len(ids))
+	if len(ids) == 0 {
+		return
+	}
+	for i := range ids {
+		resultsSlice.Index(i).SetZero()
+	}
 
 	schema = getEntitySchema(engine.registry, t)
-	hasLocalCache := schema.hasLocalCache
-	hasRedis := schema.hasRedisCache
+	cacheLocal, hasLocalCache := schema.GetLocalCache(engine)
+	casheRedis, hasRedisCache := schema.GetRedisCache(engine)
 
-	var localCache LocalCache
-	var redisCache RedisCache
-	hasValid := false
-
-	cacheKeysMap := make(map[uint64]int)
-	duplicates := make(map[uint64][]int)
-	for i, id := range ids {
-		oldValue, hasDuplicate := cacheKeysMap[id]
-		if hasDuplicate {
-			if len(duplicates[id]) == 0 {
-				duplicates[id] = append(duplicates[id], oldValue)
-			}
-			duplicates[id] = append(duplicates[id], i)
-		} else {
-			cacheKeysMap[id] = i
-		}
-	}
-	cacheKeys := make([]uint64, len(cacheKeysMap))
-	j := 0
-	for key := range cacheKeysMap {
-		cacheKeys[j] = key
-		j++
-	}
-
-	var localCacheToSet []interface{}
-	var redisCacheToSet []interface{}
+	allFound := false
+	hasCacheNils := false
 	if hasLocalCache {
-		localCache, _ = schema.GetLocalCache(engine)
-		for i, key := range cacheKeys {
-			val, hasInCache := localCache.Get(key)
-			if hasInCache {
-				if val != cacheNilValue {
-					e := schema.NewEntity()
-					k := cacheKeysMap[cacheKeys[i]]
-					newSlice.Index(k).Set(e.getORM().value)
-					fillFromBinary(serializer, engine.registry, val.([]byte), e)
-					hasValid = true
+		allFound = true
+		for i, id := range ids {
+			fromLocalCache, hasInLocalCache := cacheLocal.Get(id)
+			if hasInLocalCache {
+				entity := schema.NewEntity()
+				resultsSlice.Index(i).Set(entity.getORM().value)
+				if fromLocalCache != cacheNilValue {
+					fillFromBinary(serializer, engine.registry, fromLocalCache.([]byte), entity)
 				} else {
 					hasMissing = true
+					hasCacheNils = true
 				}
-				cacheKeysMap[cacheKeys[i]] = -1
-			}
-		}
-	}
-	j = 0
-	for k, v := range cacheKeysMap {
-		if v >= 0 {
-			cacheKeys[j] = k
-			j++
-		}
-	}
-	if hasRedis && j > 0 {
-		redisCache, _ = schema.GetRedisCache(engine)
-		for i, key := range cacheKeys[0:j] {
-			val, hasInCache := redisCache.HGet(schema.cachePrefix, strconv.FormatUint(key, 10))
-			if hasInCache {
-				if val != cacheNilValue {
-					e := schema.NewEntity()
-					k := cacheKeysMap[cacheKeys[i]]
-					newSlice.Index(k).Set(e.getORM().value)
-					fillFromBinary(serializer, engine.registry, []byte(val), e)
-					if hasLocalCache {
-						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
-					}
-					hasValid = true
-				} else {
-					hasMissing = true
-				}
-				cacheKeysMap[cacheKeys[i]] = -1
-			}
-		}
-	}
-	var idsDB []uint64
-	for _, v := range cacheKeysMap {
-		if v >= 0 {
-			idsDB = append(idsDB, ids[v])
-		}
-	}
-	if len(idsDB) > 0 {
-		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
-		for _, id := range idsDB[1:] {
-			query += "," + strconv.FormatUint(id, 10)
-		}
-		query += ")"
-		pool := schema.GetMysql(engine)
-		results, def := pool.Query(query)
-		defer def()
-		found := 0
-		for results.Next() {
-			pointers := prepareScan(schema)
-			results.Scan(pointers...)
-			id := *pointers[0].(*uint64)
-			e := schema.NewEntity()
-			k := cacheKeysMap[id]
-			newSlice.Index(k).Set(e.getORM().value)
-			fillFromDBRow(serializer, engine.registry, pointers, e)
-			if hasLocalCache {
-				localCacheToSet = append(localCacheToSet, id, e.getORM().copyBinary())
-			}
-			if hasRedis {
-				redisCacheToSet = append(redisCacheToSet, strconv.FormatUint(id, 10), e.getORM().binary)
-			}
-			hasValid = true
-			found++
-		}
-		def()
-		if !hasMissing && found < len(idsDB) {
-			hasMissing = true
-		}
-	}
-	if len(localCacheToSet) > 0 && localCache != nil {
-		localCache.MSet(localCacheToSet...)
-	}
-	if len(redisCacheToSet) > 0 && redisCache != nil {
-		redisCache.HSet(schema.cachePrefix, redisCacheToSet...)
-	}
-	for _, list := range duplicates {
-		for _, k := range list[1:] {
-			val := newSlice.Index(list[0])
-			if val.IsNil() {
-				newVal := newSlice.Index(k)
-				newVal.Set(reflect.Zero(reflect.PtrTo(schema.t)))
 			} else {
-				newSlice.Index(k).Set(val.Interface().(Entity).getORM().value)
+				allFound = false
 			}
 		}
 	}
-	entities.Set(newSlice)
-	if len(references) > 0 && hasValid {
-		warmUpReferences(serializer, engine, schema, entities, references, true)
+	if !allFound && hasRedisCache {
+
+	}
+	if hasCacheNils {
+		for i := range ids {
+			inSlice := resultsSlice.Index(i)
+			if inSlice.Interface().(Entity).GetID() == 0 {
+				inSlice.SetZero()
+			}
+		}
 	}
 	return
 }
