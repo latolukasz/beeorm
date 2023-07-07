@@ -27,26 +27,20 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	var redisCache RedisCache
 	hasValid := false
 
-	if !hasLocalCache && engine.hasRequestCache {
-		hasLocalCache = true
-		localCache = engine.GetLocalCache(requestCacheKey)
-	}
-
-	cacheKeysMap := make(map[string]int)
-	duplicates := make(map[string][]int)
+	cacheKeysMap := make(map[uint64]int)
+	duplicates := make(map[uint64][]int)
 	for i, id := range ids {
-		key := schema.getCacheKey(id)
-		oldValue, hasDuplicate := cacheKeysMap[key]
+		oldValue, hasDuplicate := cacheKeysMap[id]
 		if hasDuplicate {
-			if len(duplicates[key]) == 0 {
-				duplicates[key] = append(duplicates[key], oldValue)
+			if len(duplicates[id]) == 0 {
+				duplicates[id] = append(duplicates[id], oldValue)
 			}
-			duplicates[key] = append(duplicates[key], i)
+			duplicates[id] = append(duplicates[id], i)
 		} else {
-			cacheKeysMap[key] = i
+			cacheKeysMap[id] = i
 		}
 	}
-	cacheKeys := make([]string, len(cacheKeysMap))
+	cacheKeys := make([]uint64, len(cacheKeysMap))
 	j := 0
 	for key := range cacheKeysMap {
 		cacheKeys[j] = key
@@ -56,12 +50,10 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	var localCacheToSet []interface{}
 	var redisCacheToSet []interface{}
 	if hasLocalCache {
-		if localCache == nil {
-			localCache, _ = schema.GetLocalCache(engine)
-		}
-		inCache := localCache.MGet(cacheKeys...)
-		for i, val := range inCache {
-			if val != nil {
+		localCache, _ = schema.GetLocalCache(engine)
+		for i, key := range cacheKeys {
+			val, hasInCache := localCache.Get(key)
+			if hasInCache {
 				if val != cacheNilValue {
 					e := schema.NewEntity()
 					k := cacheKeysMap[cacheKeys[i]]
@@ -84,14 +76,14 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	}
 	if hasRedis && j > 0 {
 		redisCache, _ = schema.GetRedisCache(engine)
-		inCache := redisCache.MGet(cacheKeys[0:j]...)
-		for i, val := range inCache {
-			if val != nil {
+		for i, key := range cacheKeys[0:j] {
+			val, hasInCache := redisCache.HGet(schema.cachePrefix, strconv.FormatUint(key, 10))
+			if hasInCache {
 				if val != cacheNilValue {
 					e := schema.NewEntity()
 					k := cacheKeysMap[cacheKeys[i]]
 					newSlice.Index(k).Set(e.getORM().value)
-					fillFromBinary(serializer, engine.registry, []byte(val.(string)), e)
+					fillFromBinary(serializer, engine.registry, []byte(val), e)
 					if hasLocalCache {
 						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
 					}
@@ -123,16 +115,15 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
 			id := *pointers[0].(*uint64)
-			cacheKey := schema.getCacheKey(id)
 			e := schema.NewEntity()
-			k := cacheKeysMap[cacheKey]
+			k := cacheKeysMap[id]
 			newSlice.Index(k).Set(e.getORM().value)
 			fillFromDBRow(serializer, engine.registry, pointers, e)
 			if hasLocalCache {
-				localCacheToSet = append(localCacheToSet, cacheKey, e.getORM().copyBinary())
+				localCacheToSet = append(localCacheToSet, id, e.getORM().copyBinary())
 			}
 			if hasRedis {
-				redisCacheToSet = append(redisCacheToSet, cacheKey, e.getORM().binary)
+				redisCacheToSet = append(redisCacheToSet, strconv.FormatUint(id, 10), e.getORM().binary)
 			}
 			hasValid = true
 			found++
@@ -146,7 +137,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		localCache.MSet(localCacheToSet...)
 	}
 	if len(redisCacheToSet) > 0 && redisCache != nil {
-		redisCache.MSet(redisCacheToSet...)
+		redisCache.HSet(schema.cachePrefix, redisCacheToSet...)
 	}
 	for _, list := range duplicates {
 		for _, k := range list[1:] {
@@ -166,10 +157,162 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 	return
 }
 
+func tryByIDsOld(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
+	lenIDs := len(ids)
+	newSlice := reflect.MakeSlice(entities.Type(), lenIDs, lenIDs)
+	if lenIDs == 0 {
+		entities.Set(newSlice)
+		return
+	}
+	t, has, name := getEntityTypeForSlice(engine.registry, entities.Type(), true)
+	if !has {
+		panic(fmt.Errorf("entity '%s' is not registered", name))
+	}
+
+	schema = getEntitySchema(engine.registry, t)
+	hasLocalCache := schema.hasLocalCache
+	hasRedis := schema.hasRedisCache
+
+	var localCache LocalCache
+	var redisCache RedisCache
+	hasValid := false
+
+	cacheKeysMap := make(map[uint64]int)
+	duplicates := make(map[uint64][]int)
+	for i, id := range ids {
+		oldValue, hasDuplicate := cacheKeysMap[id]
+		if hasDuplicate {
+			if len(duplicates[id]) == 0 {
+				duplicates[id] = append(duplicates[id], oldValue)
+			}
+			duplicates[id] = append(duplicates[id], i)
+		} else {
+			cacheKeysMap[id] = i
+		}
+	}
+	cacheKeys := make([]uint64, len(cacheKeysMap))
+	j := 0
+	for key := range cacheKeysMap {
+		cacheKeys[j] = key
+		j++
+	}
+
+	var localCacheToSet []interface{}
+	var redisCacheToSet []interface{}
+	if hasLocalCache {
+		localCache, _ = schema.GetLocalCache(engine)
+		for i, key := range cacheKeys {
+			val, hasInCache := localCache.Get(key)
+			if hasInCache {
+				if val != cacheNilValue {
+					e := schema.NewEntity()
+					k := cacheKeysMap[cacheKeys[i]]
+					newSlice.Index(k).Set(e.getORM().value)
+					fillFromBinary(serializer, engine.registry, val.([]byte), e)
+					hasValid = true
+				} else {
+					hasMissing = true
+				}
+				cacheKeysMap[cacheKeys[i]] = -1
+			}
+		}
+	}
+	j = 0
+	for k, v := range cacheKeysMap {
+		if v >= 0 {
+			cacheKeys[j] = k
+			j++
+		}
+	}
+	if hasRedis && j > 0 {
+		redisCache, _ = schema.GetRedisCache(engine)
+		for i, key := range cacheKeys[0:j] {
+			val, hasInCache := redisCache.HGet(schema.cachePrefix, strconv.FormatUint(key, 10))
+			if hasInCache {
+				if val != cacheNilValue {
+					e := schema.NewEntity()
+					k := cacheKeysMap[cacheKeys[i]]
+					newSlice.Index(k).Set(e.getORM().value)
+					fillFromBinary(serializer, engine.registry, []byte(val), e)
+					if hasLocalCache {
+						localCacheToSet = append(localCacheToSet, cacheKeys[i], e.getORM().copyBinary())
+					}
+					hasValid = true
+				} else {
+					hasMissing = true
+				}
+				cacheKeysMap[cacheKeys[i]] = -1
+			}
+		}
+	}
+	var idsDB []uint64
+	for _, v := range cacheKeysMap {
+		if v >= 0 {
+			idsDB = append(idsDB, ids[v])
+		}
+	}
+	if len(idsDB) > 0 {
+		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + strconv.FormatUint(idsDB[0], 10)
+		for _, id := range idsDB[1:] {
+			query += "," + strconv.FormatUint(id, 10)
+		}
+		query += ")"
+		pool := schema.GetMysql(engine)
+		results, def := pool.Query(query)
+		defer def()
+		found := 0
+		for results.Next() {
+			pointers := prepareScan(schema)
+			results.Scan(pointers...)
+			id := *pointers[0].(*uint64)
+			e := schema.NewEntity()
+			k := cacheKeysMap[id]
+			newSlice.Index(k).Set(e.getORM().value)
+			fillFromDBRow(serializer, engine.registry, pointers, e)
+			if hasLocalCache {
+				localCacheToSet = append(localCacheToSet, id, e.getORM().copyBinary())
+			}
+			if hasRedis {
+				redisCacheToSet = append(redisCacheToSet, strconv.FormatUint(id, 10), e.getORM().binary)
+			}
+			hasValid = true
+			found++
+		}
+		def()
+		if !hasMissing && found < len(idsDB) {
+			hasMissing = true
+		}
+	}
+	if len(localCacheToSet) > 0 && localCache != nil {
+		localCache.MSet(localCacheToSet...)
+	}
+	if len(redisCacheToSet) > 0 && redisCache != nil {
+		redisCache.HSet(schema.cachePrefix, redisCacheToSet...)
+	}
+	for _, list := range duplicates {
+		for _, k := range list[1:] {
+			val := newSlice.Index(list[0])
+			if val.IsNil() {
+				newVal := newSlice.Index(k)
+				newVal.Set(reflect.Zero(reflect.PtrTo(schema.t)))
+			} else {
+				newSlice.Index(k).Set(val.Interface().(Entity).getORM().value)
+			}
+		}
+	}
+	entities.Set(newSlice)
+	if len(references) > 0 && hasValid {
+		warmUpReferences(serializer, engine, schema, entities, references, true)
+	}
+	return
+}
+
+type redisMapType map[string]map[string]map[string][]Entity
+
 func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *entitySchema, rows reflect.Value, references []string, many bool) {
 	dbMap := make(map[string]map[*entitySchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
-	var redisMap map[string]map[string][]Entity
+	var redisMap redisMapType
 	l := 1
 	if many {
 		l = rows.Len()
@@ -207,14 +350,11 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 		}
 		parentSchema := engine.registry.entitySchemas[engine.registry.entities[parentRef]]
 		hasLocalCache := parentSchema.hasLocalCache
-		if !hasLocalCache && engine.hasRequestCache {
-			hasLocalCache = true
-		}
 		if hasLocalCache && localMap == nil {
 			localMap = make(map[string]map[string][]Entity)
 		}
 		if parentSchema.hasRedisCache && redisMap == nil {
-			redisMap = make(map[string]map[string][]Entity)
+			redisMap = make(redisMapType)
 		}
 		for i := 0; i < l; i++ {
 			var ref reflect.Value
@@ -236,7 +376,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 			if !e.IsLoaded() {
 				id := e.GetID()
 				if id > 0 {
-					fillRefMap(engine, id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
+					fillRefMap(id, referencesNextEntities, refName, e, parentSchema, dbMap, localMap, redisMap)
 				}
 			}
 		}
@@ -255,7 +395,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				for _, r := range v[key] {
 					fillFromBinary(serializer, engine.registry, data, r)
 				}
-				fillRef(key, localMap, redisMap, dbMap)
+				fillRef(k, key, localMap, redisMap, dbMap)
 			}
 		} else if l > 1 {
 			keys := make([]string, len(v))
@@ -264,34 +404,35 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 				keys[i] = k
 				i++
 			}
-			for key, fromCache := range engine.GetLocalCache(k).MGet(keys...) {
-				if fromCache != nil && fromCache != cacheNilValue {
+			for key, cacheKey := range keys {
+				fromCache, hasInCache := engine.GetLocalCache(k).Get(cacheKey)
+				if hasInCache && fromCache != cacheNilValue {
 					data := fromCache.([]byte)
 					for _, r := range v[keys[key]] {
 						fillFromBinary(serializer, engine.registry, data, r)
 					}
-					fillRef(keys[key], localMap, redisMap, dbMap)
+					fillRef(k, keys[key], localMap, redisMap, dbMap)
 				}
 			}
 		}
 	}
-	for k, v := range redisMap {
-		l := len(v)
-		if l == 0 {
-			continue
-		}
-		keys := make([]string, l)
-		i := 0
-		for k := range v {
-			keys[i] = k
-			i++
-		}
-		for key, fromCache := range engine.GetRedis(k).MGet(keys...) {
-			if fromCache != nil && fromCache != cacheNilValue {
-				for _, r := range v[keys[key]] {
-					fillFromBinary(serializer, engine.registry, []byte(fromCache.(string)), r)
+	for redisCacheName, level1 := range redisMap {
+		for hSetKey, level2 := range level1 {
+			keys := make([]string, len(level2))
+			i := 0
+			for k := range level2 {
+				keys[i] = k
+				i++
+			}
+			fmt.Printf("KEY %s %v\n", hSetKey, keys)
+			for key, fromCache := range engine.GetRedis(redisCacheName).HMGet(hSetKey, keys...) {
+				fmt.Printf("FOUND %s %v\n", key, fromCache)
+				if fromCache != nil && fromCache != cacheNilValue {
+					for _, r := range level2[key] {
+						fillFromBinary(serializer, engine.registry, []byte(fromCache.(string)), r)
+					}
+					fillRef(hSetKey, key, nil, redisMap, dbMap)
 				}
-				fillRef(keys[key], nil, redisMap, dbMap)
 			}
 		}
 	}
@@ -317,7 +458,7 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 					pointers := prepareScan(schema)
 					results.Scan(pointers...)
 					id := *pointers[0].(*uint64)
-					for _, r := range v2[schema.getCacheKey(id)] {
+					for _, r := range v2[strconv.FormatUint(id, 10)] {
 						fillFromDBRow(serializer, engine.registry, pointers, r)
 					}
 				}
@@ -325,15 +466,14 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 
 		}
 	}
-	for pool, v := range redisMap {
-		if len(v) == 0 {
-			continue
+	for pool, level1 := range redisMap {
+		for cachePrefix, level2 := range level1 {
+			values := make([]interface{}, 0)
+			for cacheKey, refs := range level2 {
+				values = append(values, cacheKey, refs[0].getORM().binary)
+			}
+			engine.GetRedis(pool).HSet(cachePrefix, values...)
 		}
-		values := make([]interface{}, 0)
-		for cacheKey, refs := range v {
-			values = append(values, cacheKey, refs[0].getORM().binary)
-		}
-		engine.GetRedis(pool).MSet(values...)
 	}
 	for pool, v := range localMap {
 		if len(v) == 0 {
@@ -363,12 +503,12 @@ func warmUpReferences(serializer *serializer, engine *engineImplementation, sche
 	}
 }
 
-func fillRef(key string, localMap map[string]map[string][]Entity,
-	redisMap map[string]map[string][]Entity, dbMap map[string]map[*entitySchema]map[string][]Entity) {
+func fillRef(cachePrefix, key string, localMap map[string]map[string][]Entity,
+	redisMap redisMapType, dbMap map[string]map[*entitySchema]map[string][]Entity) {
 	for _, p := range localMap {
 		delete(p, key)
 	}
-	for _, p := range redisMap {
+	for _, p := range redisMap[cachePrefix] {
 		delete(p, key)
 	}
 	for _, p := range dbMap {
@@ -378,14 +518,14 @@ func fillRef(key string, localMap map[string]map[string][]Entity,
 	}
 }
 
-func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *entitySchema,
+func fillRefMap(id uint64, referencesNextEntities map[string][]Entity, refName string, v Entity, parentSchema *entitySchema,
 	dbMap map[string]map[*entitySchema]map[string][]Entity,
-	localMap map[string]map[string][]Entity, redisMap map[string]map[string][]Entity) {
+	localMap map[string]map[string][]Entity, redisMap redisMapType) {
 	_, has := referencesNextEntities[refName]
 	if has {
 		referencesNextEntities[refName] = append(referencesNextEntities[refName], v)
 	}
-	cacheKey := parentSchema.getCacheKey(id)
+	cacheKey := strconv.FormatUint(id, 10)
 	if dbMap[parentSchema.mysqlPoolName] == nil {
 		dbMap[parentSchema.mysqlPoolName] = make(map[*entitySchema]map[string][]Entity)
 	}
@@ -394,11 +534,7 @@ func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities 
 	}
 	dbMap[parentSchema.mysqlPoolName][parentSchema][cacheKey] = append(dbMap[parentSchema.mysqlPoolName][parentSchema][cacheKey], v)
 	hasLocalCache := parentSchema.hasLocalCache
-	localCacheName := parentSchema.localCacheName
-	if !hasLocalCache && engine.hasRequestCache {
-		hasLocalCache = true
-		localCacheName = requestCacheKey
-	}
+	localCacheName := parentSchema.cachePrefix
 	if hasLocalCache {
 		if localMap[localCacheName] == nil {
 			localMap[localCacheName] = make(map[string][]Entity)
@@ -407,8 +543,11 @@ func fillRefMap(engine *engineImplementation, id uint64, referencesNextEntities 
 	}
 	if parentSchema.hasRedisCache {
 		if redisMap[parentSchema.redisCacheName] == nil {
-			redisMap[parentSchema.redisCacheName] = make(map[string][]Entity)
+			redisMap[parentSchema.redisCacheName] = make(map[string]map[string][]Entity)
 		}
-		redisMap[parentSchema.redisCacheName][cacheKey] = append(redisMap[parentSchema.redisCacheName][cacheKey], v)
+		if redisMap[parentSchema.redisCacheName][parentSchema.cachePrefix] == nil {
+			redisMap[parentSchema.redisCacheName][parentSchema.cachePrefix] = make(map[string][]Entity)
+		}
+		redisMap[parentSchema.redisCacheName][parentSchema.cachePrefix][cacheKey] = append(redisMap[parentSchema.redisCacheName][parentSchema.cachePrefix][cacheKey], v)
 	}
 }

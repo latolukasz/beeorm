@@ -32,10 +32,6 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 		panic(fmt.Errorf("max cache index page size (%d) exceeded %s", definition.Max, indexName))
 	}
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
-	if !hasLocalCache && engine.hasRequestCache {
-		hasLocalCache = true
-		localCache = engine.GetLocalCache(requestCacheKey)
-	}
 	redisCache, hasRedis := schema.GetRedisCache(engine)
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))
@@ -229,10 +225,6 @@ func cachedSearchOne(serializer *serializer, engine *engineImplementation, entit
 	}
 	where := NewWhere(definition.Query, arguments...)
 	localCache, hasLocalCache := schema.GetLocalCache(engine)
-	if !hasLocalCache && engine.hasRequestCache {
-		hasLocalCache = true
-		localCache = engine.GetLocalCache(requestCacheKey)
-	}
 	redisCache, hasRedis := schema.GetRedisCache(engine)
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))

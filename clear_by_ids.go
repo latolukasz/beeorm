@@ -2,20 +2,14 @@ package beeorm
 
 func clearByIDs(engine *engineImplementation, entity Entity, ids ...uint64) {
 	schema := initIfNeeded(engine.registry, entity).entitySchema
-	cacheKeys := make([]string, len(ids))
-	for i, id := range ids {
-		cacheKeys[i] = schema.getCacheKey(id)
-	}
-	localCache, has := schema.GetLocalCache(engine)
-	if !has && engine.hasRequestCache {
-		has = true
-		localCache = engine.GetLocalCache(requestCacheKey)
-	}
+	localPool, has := schema.GetLocalCache(engine)
 	if has {
-		localCache.Remove(cacheKeys...)
+		for _, id := range ids {
+			localPool.Remove(id)
+		}
 	}
-	redisCache, has := schema.GetRedisCache(engine)
+	redisPool, has := schema.GetRedisCache(engine)
 	if has {
-		redisCache.Del(cacheKeys...)
+		redisPool.hDelUints(schema.cachePrefix, ids...)
 	}
 }

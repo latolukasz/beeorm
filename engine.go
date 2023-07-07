@@ -9,7 +9,6 @@ import (
 
 type Engine interface {
 	Clone() Engine
-	EnableRequestCache()
 	GetMysql(code ...string) *DB
 	GetLocalCache(code ...string) LocalCache
 	GetRedis(code ...string) RedisCache
@@ -55,7 +54,6 @@ type engineImplementation struct {
 	dbs                    map[string]*DB
 	localCache             map[string]*localCache
 	redis                  map[string]*redisCache
-	hasRequestCache        bool
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
 	queryLoggersLocalCache []LogHandler
@@ -72,7 +70,6 @@ type engineImplementation struct {
 func (e *engineImplementation) Clone() Engine {
 	return &engineImplementation{
 		registry:               e.registry,
-		hasRequestCache:        e.hasRequestCache,
 		queryLoggersDB:         e.queryLoggersDB,
 		queryLoggersRedis:      e.queryLoggersRedis,
 		queryLoggersLocalCache: e.queryLoggersLocalCache,
@@ -120,10 +117,6 @@ func (e *engineImplementation) GetMetaData() Meta {
 	return e.meta
 }
 
-func (e *engineImplementation) EnableRequestCache() {
-	e.hasRequestCache = true
-}
-
 func (e *engineImplementation) GetMysql(code ...string) *DB {
 	dbCode := "default"
 	if len(code) > 0 {
@@ -158,15 +151,6 @@ func (e *engineImplementation) GetLocalCache(code ...string) LocalCache {
 	if !has {
 		config, has := e.registry.localCacheServers[dbCode]
 		if !has {
-			if dbCode == requestCacheKey {
-				cache = &localCache{config: newLocalCacheConfig(dbCode, 5000), engine: e}
-				if e.localCache == nil {
-					e.localCache = map[string]*localCache{dbCode: cache}
-				} else {
-					e.localCache[dbCode] = cache
-				}
-				return cache
-			}
 			panic(fmt.Errorf("unregistered local cache pool '%s'", dbCode))
 		}
 		cache = &localCache{engine: e, config: config.(*localCachePoolConfig)}

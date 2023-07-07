@@ -3,7 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"reflect"
-	"time"
+	"strconv"
 )
 
 const cacheNilValue = ""
@@ -15,14 +15,8 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 	redisCache, hasRedis := schema.GetRedisCache(engine)
 	var cacheKey string
 	if useCache {
-		if !hasLocalCache && engine.hasRequestCache {
-			hasLocalCache = true
-			localCache = engine.GetLocalCache(requestCacheKey)
-		}
-
 		if hasLocalCache {
-			cacheKey = schema.getCacheKey(id)
-			e, has := localCache.Get(cacheKey)
+			e, has := localCache.Get(id)
 			if has {
 				if e == cacheNilValue {
 					return false, schema
@@ -36,8 +30,8 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 			}
 		}
 		if hasRedis {
-			cacheKey = schema.getCacheKey(id)
-			row, has := redisCache.Get(cacheKey)
+			cacheKey = strconv.FormatUint(id, 10)
+			row, has := redisCache.HGet(schema.cachePrefix, cacheKey)
 			if has {
 				if row == cacheNilValue {
 					if localCache != nil {
@@ -50,7 +44,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 					warmUpReferences(serializer, engine, schema, orm.value, references, false)
 				}
 				if localCache != nil {
-					localCache.Set(cacheKey, orm.copyBinary())
+					localCache.Set(id, orm.copyBinary())
 				}
 				return true, schema
 			}
@@ -63,7 +57,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 			localCache.Set(cacheKey, cacheNilValue)
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, cacheNilValue, 30*time.Second)
+			redisCache.HSet(schema.cachePrefix, cacheKey, cacheNilValue)
 		}
 		return false, schema
 	}
@@ -72,7 +66,7 @@ func loadByID(serializer *serializer, engine *engineImplementation, id uint64, e
 			localCache.Set(cacheKey, orm.copyBinary())
 		}
 		if redisCache != nil {
-			redisCache.Set(cacheKey, orm.binary, 0)
+			redisCache.HSet(schema.cachePrefix, cacheKey, orm.binary)
 		}
 	}
 

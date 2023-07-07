@@ -86,9 +86,7 @@ func (s *serializer) DeserializeFloat() float64 {
 }
 
 func (s *serializer) DeserializeFixed(ln int) []byte {
-	buf := make([]byte, ln)
-	_, _ = s.buffer.Read(buf)
-	return buf
+	return s.buffer.Next(ln)
 }
 
 func (s *serializer) DeserializeString() string {
@@ -96,7 +94,8 @@ func (s *serializer) DeserializeString() string {
 	if l == 0 {
 		return ""
 	}
-	return string(s.DeserializeFixed(int(l)))
+	val := string(s.DeserializeFixed(int(l)))
+	return val
 }
 
 func (s *serializer) DeserializeBytes() []byte {

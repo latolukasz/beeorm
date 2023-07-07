@@ -57,10 +57,10 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	if t != nil {
 		assert.Equal(t, engine.GetRegistry(), vRegistry)
 	}
-	redisCache := engine.GetRedis()
-	redisCache.FlushDB()
-	redisCache = engine.GetRedis("default_queue")
-	redisCache.FlushDB()
+	cacheRedis := engine.GetRedis()
+	cacheRedis.FlushDB()
+	cacheRedis = engine.GetRedis("default_queue")
+	cacheRedis.FlushDB()
 	redisSearch := engine.GetRedis("search")
 	redisSearch.FlushDB()
 
@@ -75,12 +75,12 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		if eType.Kind() == reflect.Ptr {
 			eType = eType.Elem()
 		}
-		entitySchema := vRegistry.GetEntitySchema(eType.String())
-		entitySchema.TruncateTable(engine)
-		entitySchema.UpdateSchema(engine)
-		localCache, has := entitySchema.GetLocalCache(engine)
+		schema := vRegistry.GetEntitySchema(eType.String())
+		schema.TruncateTable(engine)
+		schema.UpdateSchema(engine)
+		cacheLocal, has := schema.GetLocalCache(engine)
 		if has {
-			localCache.Clear()
+			cacheLocal.Clear()
 		}
 	}
 	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")

@@ -14,12 +14,12 @@ type loadByIDBenchmarkEntity struct {
 	Decimal float32 `orm:"decimal=10,2"`
 }
 
-// BenchmarkLoadByIDLocalCache-10    	 4791048	       250.4 ns/op	      16 B/op	       3 allocs/op
+// BenchmarkLoadByIDLocalCache-10    	 6440548	       183.9 ns/op	       4 B/op	       1 allocs/op
 func BenchmarkLoadByIDLocalCache(b *testing.B) {
 	benchmarkLoadByIDCache(b, true, false)
 }
 
-// BenchmarkLoadByIDRedisCache-10    	    1892	    642005 ns/op	     285 B/op	      12 allocs/op
+// BenchmarkLoadByIDRedisCache-10    	    1966	    590329 ns/op	     272 B/op	      10 allocs/op
 func BenchmarkLoadByIDRedisCache(b *testing.B) {
 	benchmarkLoadByIDCache(b, false, true)
 }

@@ -115,7 +115,10 @@ func testUUID(t *testing.T, local bool, redis bool) {
 		assert.False(t, engine.LoadByID(id, entity))
 	}
 	engine.GetRedis().FlushAll()
-	engine.GetLocalCache().Clear()
+	localCache, hasLocalCache := schema.GetLocalCache(engine)
+	if hasLocalCache {
+		localCache.Clear()
+	}
 	assert.False(t, engine.LoadByID(id, entity))
 
 	registry = &beeorm.Registry{}

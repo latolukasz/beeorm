@@ -603,89 +603,92 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		}
 		schema := f.engine.registry.GetEntitySchema(e.Entity).(*entitySchema)
 		hasLocalCache := schema.hasLocalCache
-		localCacheCode := schema.localCacheName
 		hasRedis := schema.hasRedisCache
-		if !hasLocalCache && f.engine.hasRequestCache {
-			hasLocalCache = true
-			localCacheCode = requestCacheKey
-		}
 		if !hasLocalCache && !hasRedis {
 			continue
 		}
-		cacheKey := schema.getCacheKey(e.ID)
 		switch e.Action {
 		case Insert:
 			if lazy {
 				e.entity.getORM().serialize(f.engine.getSerializer(nil))
 				if hasLocalCache {
-					f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, e.entity.getORM().copyBinary())
+					f.GetLocalCacheSetter(schema.cachePrefix).Set(e.ID, e.entity.getORM().copyBinary())
 				}
 				if hasRedis {
-					f.GetRedisCacheSetter(schema.redisCacheName).Set(cacheKey, e.entity.getORM().copyBinary(), 0)
+					f.GetRedisCacheSetter(schema.redisCacheName).HSet(schema.cachePrefix, strconv.FormatUint(e.ID, 10), e.entity.getORM().copyBinary())
 				}
 				return
 			}
 			keys := f.getCacheQueriesKeys(schema, e.Update, nil, false, true)
 			if hasLocalCache {
-				setter := f.GetLocalCacheSetter(localCacheCode)
+				setter := f.GetLocalCacheSetter(schema.cachePrefix)
 				if e.entity != nil {
 					e.entity.getORM().serialize(f.engine.getSerializer(nil))
-					setter.Set(cacheKey, e.entity.getORM().copyBinary())
+					setter.Set(e.ID, e.entity.getORM().copyBinary())
 				} else {
-					setter.Remove(cacheKey)
+					setter.Remove(e.ID)
 				}
-				setter.Remove(keys...)
+				for _, key := range keys {
+					setter.Remove(key)
+				}
 			}
 			if hasRedis {
 				setter := f.GetRedisCacheSetter(schema.redisCacheName)
-				setter.Del(cacheKey)
+				setter.HDel(schema.cachePrefix, strconv.FormatUint(e.ID, 10))
 				setter.Del(keys...)
 			}
 			break
 		case Update:
 			if lazy {
 				if hasLocalCache {
-					setter := f.GetLocalCacheSetter(localCacheCode)
+					setter := f.GetLocalCacheSetter(schema.cachePrefix)
 					e.entity.getORM().serialize(f.engine.getSerializer(nil))
-					setter.Set(cacheKey, e.entity.getORM().copyBinary())
+					setter.Set(e.ID, e.entity.getORM().copyBinary())
 				}
 				break
 			}
 			keysOld := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, false)
 			keysNew := f.getCacheQueriesKeys(schema, e.Update, e.Old, false, false)
 			if hasLocalCache {
-				setter := f.GetLocalCacheSetter(localCacheCode)
+				setter := f.GetLocalCacheSetter(schema.cachePrefix)
 				if !fromLazyConsumer || e.clearLocalCache {
 					if e.entity != nil {
-						setter.Set(cacheKey, e.entity.getORM().copyBinary())
+						setter.Set(e.ID, e.entity.getORM().copyBinary())
 					} else {
-						setter.Remove(cacheKey)
+						setter.Remove(e.ID)
 					}
 				}
-				setter.Remove(keysOld...)
-				setter.Remove(keysNew...)
+				for _, key := range keysOld {
+					setter.Remove(key)
+				}
+				for _, key := range keysNew {
+					setter.Remove(key)
+				}
 			}
 			if hasRedis {
 				setter := f.GetRedisCacheSetter(schema.redisCacheName)
-				setter.Del(cacheKey)
+				setter.HDel(schema.cachePrefix, strconv.FormatUint(e.ID, 10))
 				setter.Del(keysOld...)
 				setter.Del(keysNew...)
 			}
 			break
 		case Delete:
 			if lazy && hasLocalCache {
-				f.GetLocalCacheSetter(localCacheCode).Set(cacheKey, cacheNilValue)
+				f.GetLocalCacheSetter(schema.cachePrefix).Set(e.ID, cacheNilValue)
 				break
 			}
 			keys := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, true)
 			if hasLocalCache {
-				setter := f.GetLocalCacheSetter(localCacheCode)
-				setter.Set(cacheKey, cacheNilValue)
-				setter.Remove(keys...)
+				setter := f.GetLocalCacheSetter(schema.cachePrefix)
+				setter.Set(e.ID, cacheNilValue)
+				for _, key := range keys {
+					setter.Remove(key)
+				}
+
 			}
 			if hasRedis {
 				setter := f.GetRedisCacheSetter(schema.redisCacheName)
-				setter.Del(cacheKey)
+				setter.HDel(schema.cachePrefix, strconv.FormatUint(e.ID, 10))
 				setter.Del(keys...)
 			}
 			break

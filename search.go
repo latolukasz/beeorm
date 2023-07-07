@@ -239,6 +239,7 @@ func fillFromDBRow(serializer *serializer, registry *validatedRegistry, pointers
 	orm := initIfNeeded(registry, entity)
 	orm.inDB = true
 	orm.loaded = true
+	serializer.Reset(nil)
 	orm.deserializeFromDB(serializer, pointers)
 	orm.deserialize(serializer)
 }

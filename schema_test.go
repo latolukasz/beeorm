@@ -286,7 +286,7 @@ func testSchema(t *testing.T, version int) {
 	}
 	registry.RegisterEntity(&invalidSchema2{})
 	_, err = registry.Validate()
-	assert.EqualError(t, err, "local cache pool 'invalid' not found")
+	assert.EqualError(t, err, "invalid local cache limit for 'beeorm.invalidSchema2'")
 
 	registry = &Registry{}
 	registry.RegisterMySQLPool(pool, MySQLPoolOptions{})

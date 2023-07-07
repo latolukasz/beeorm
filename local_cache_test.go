@@ -47,23 +47,4 @@ func TestLocalCache(t *testing.T) {
 	val, has = c.Get("test_get")
 	assert.True(t, has)
 	assert.Equal(t, "hello", val)
-
-	values := c.MGet("m_get_1", "m_get_2", "m_get_3")
-	assert.Len(t, values, 3)
-	assert.Nil(t, values[0])
-	assert.Nil(t, values[1])
-	assert.Nil(t, values[2])
-
-	c.MSet("m_get_1", "a", "m_get_3", "c")
-	values = c.MGet("m_get_1", "m_get_2", "m_get_3")
-	assert.Len(t, values, 3)
-	assert.Equal(t, "a", values[0])
-	assert.Nil(t, values[1])
-	assert.Equal(t, "c", values[2])
-
-	c.Remove("m_get_1", "test_get_set")
-	values = c.MGet("m_get_1", "test_get_set")
-	assert.Len(t, values, 2)
-	assert.Nil(t, values[0])
-	assert.Nil(t, values[1])
 }

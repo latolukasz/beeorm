@@ -165,7 +165,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	engine.EnableRequestCache()
+	//engine.EnableRequestCache()
 	engine.GetRedis().FlushDB()
 	found = engine.LoadByIDs([]uint64{1}, &rows)
 	assert.True(t, found)

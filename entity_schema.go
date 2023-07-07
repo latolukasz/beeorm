@@ -120,8 +120,8 @@ type entitySchema struct {
 	uniqueIndices              map[string][]string
 	uniqueIndicesGlobal        map[string][]string
 	references                 []EntitySchemaReference
-	localCacheName             string
 	hasLocalCache              bool
+	localCacheLimit            int
 	redisCacheName             string
 	hasRedisCache              bool
 	searchCacheName            string
@@ -226,7 +226,7 @@ func (entitySchema *entitySchema) GetLocalCache(engine Engine) (cache LocalCache
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return engine.GetLocalCache(entitySchema.localCacheName), true
+	return engine.GetLocalCache(entitySchema.cachePrefix), true
 }
 
 func (entitySchema *entitySchema) GetRedisCache(engine Engine) (cache RedisCache, has bool) {
@@ -304,18 +304,12 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolName)
 	}
 	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
-	localCache := entitySchema.getTag("localCache", "default", "")
-	redisCache := entitySchema.getTag("redisCache", "default", "")
-	if localCache != "" {
-		_, has = registry.localCachePools[localCache]
+	localCacheLimit := entitySchema.getTag("localCache", "default", "")
+	redisCacheName := entitySchema.getTag("redisCache", "default", "")
+	if redisCacheName != "" {
+		_, has = registry.mysqlPools[redisCacheName]
 		if !has {
-			return fmt.Errorf("local cache pool '%s' not found", localCache)
-		}
-	}
-	if redisCache != "" {
-		_, has = registry.mysqlPools[redisCache]
-		if !has {
-			return fmt.Errorf("redis pool '%s' not found", redisCache)
+			return fmt.Errorf("redis pool '%s' not found", redisCacheName)
 		}
 	}
 	cachePrefix := ""
@@ -496,10 +490,20 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.cachedIndexesOne = cachedQueriesOne
 	entitySchema.cachedIndexesAll = cachedQueriesAll
 	entitySchema.cachedIndexesTrackedFields = cachedQueriesTrackedFields
-	entitySchema.localCacheName = localCache
-	entitySchema.hasLocalCache = localCache != ""
-	entitySchema.redisCacheName = redisCache
-	entitySchema.hasRedisCache = redisCache != ""
+	entitySchema.hasLocalCache = localCacheLimit != ""
+	if entitySchema.hasLocalCache {
+		limit := 100000
+		if localCacheLimit != "default" {
+			userLimit, err := strconv.Atoi(localCacheLimit)
+			if err != nil || userLimit <= 0 {
+				return fmt.Errorf("invalid local cache limit for '%s'", entitySchema.t.String())
+			}
+			limit = userLimit
+		}
+		entitySchema.localCacheLimit = limit
+	}
+	entitySchema.redisCacheName = redisCacheName
+	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.references = references
 	entitySchema.cachePrefix = cachePrefix
 	entitySchema.uniqueIndices = uniqueIndicesSimple
@@ -647,7 +651,7 @@ func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{
 
 func (entitySchema *entitySchema) DisableCache(local, redis bool) {
 	if local {
-		entitySchema.localCacheName = ""
+		entitySchema.localCacheLimit = 0
 		entitySchema.hasLocalCache = false
 	}
 	if redis {
@@ -1053,10 +1057,6 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 		}
 	}
 	return make(map[string]map[string]string)
-}
-
-func (entitySchema *entitySchema) getCacheKey(id uint64) string {
-	return entitySchema.cachePrefix + ":" + strconv.FormatUint(id, 10)
 }
 
 func (entitySchema *entitySchema) NewEntity() Entity {

@@ -9,7 +9,7 @@ import (
 )
 
 type cachedSearchEntity struct {
-	ORM            `orm:"localCache=second;redisCache;"`
+	ORM            `orm:"localCache=2000;redisCache;"`
 	ID             uint64
 	Name           string `orm:"length=100;unique=FirstIndex"`
 	Age            uint16 `orm:"index=SecondIndex"`
@@ -47,6 +47,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entityRef *cachedSearchRefEntity
 	engine := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity)
 	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
+	assert.Equal(t, 2000, schema.(*entitySchema).localCacheLimit)
 	schema.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {
 		engine.Flush(&cachedSearchRefEntity{Name: "Name " + strconv.Itoa(i)})
@@ -101,7 +102,6 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Len(t, dbLogger.Logs, 0)
 
 	pager = NewPager(2, 4)
-	//a00d4_IndexAge3820524834
 	totalRows = engine.CachedSearch(&rows, "IndexAge", pager, 18)
 	assert.Equal(t, 5, totalRows)
 	assert.Len(t, rows, 1)
@@ -117,7 +117,6 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Len(t, dbLogger.Logs, 0)
 
 	rows[0].Age = 18
-	//a00d4_IndexAge598045226 a00d4_IndexAge3820524834
 	engine.Flush(rows[0])
 
 	pager = NewPager(1, 10)

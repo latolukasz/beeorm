@@ -101,12 +101,6 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	if registry.localCacheServers == nil {
 		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
-	for k, v := range r.localCachePools {
-		registry.localCacheServers[k] = v
-		if len(k) > maxPoolLen {
-			maxPoolLen = len(k)
-		}
-	}
 	if registry.redisServers == nil {
 		registry.redisServers = make(map[string]RedisPoolConfig)
 	}
@@ -123,13 +117,22 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 		registry.enums[k] = v
 	}
 	for name, entityType := range r.entities {
-		entitySchema := &entitySchema{}
-		err := entitySchema.init(r, entityType)
+		schema := &entitySchema{}
+		err = schema.init(r, entityType)
 		if err != nil {
 			return nil, err
 		}
-		registry.entitySchemas[entityType] = entitySchema
+		registry.entitySchemas[entityType] = schema
 		registry.entities[name] = entityType
+		if schema.hasLocalCache {
+			r.localCachePools[schema.cachePrefix] = newLocalCacheConfig(schema.cachePrefix, schema.localCacheLimit)
+		}
+	}
+	for k, v := range r.localCachePools {
+		registry.localCacheServers[k] = v
+		if len(k) > maxPoolLen {
+			maxPoolLen = len(k)
+		}
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
 	if !has {

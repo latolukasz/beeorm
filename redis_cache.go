@@ -18,6 +18,7 @@ type RedisCacheSetter interface {
 	Del(keys ...string)
 	xAdd(stream string, values []string) (id string)
 	HSet(key string, values ...interface{})
+	HDel(key string, keys ...string)
 }
 
 type RedisCache interface {
@@ -44,6 +45,7 @@ type RedisCache interface {
 	Ltrim(key string, start, stop int64)
 	HSetNx(key, field string, value interface{}) bool
 	HDel(key string, fields ...string)
+	hDelUints(key string, fields ...uint64)
 	HMGet(key string, fields ...string) map[string]interface{}
 	HGetAll(key string) map[string]string
 	HGet(key, field string) (value string, has bool)
@@ -110,6 +112,7 @@ type redisCacheSetter struct {
 	setExpireTTLs   []time.Duration
 	deletes         []string
 	HSets           map[string][]interface{}
+	HDeletes        map[string][]string
 	xAdds           map[string][][]string
 }
 
@@ -406,6 +409,24 @@ func (r *redisCache) HDel(key string, fields ...string) {
 	_, err := r.client.HDel(context.Background(), key, fields...).Result()
 	if r.engine.hasRedisLogger {
 		message := "HDEL " + key + " " + strings.Join(fields, " ")
+		r.fillLogFields("HDEL", message, start, false, err)
+	}
+	checkError(err)
+}
+
+func (r *redisCache) hDelUints(key string, fields ...uint64) {
+	key = r.addNamespacePrefix(key)
+	start := getNow(r.engine.hasRedisLogger)
+	args := make([]interface{}, 2+len(fields))
+	args[0] = "hdel"
+	args[1] = key
+	for i, field := range fields {
+		args[2+i] = field
+	}
+	cmd := redis.NewIntCmd(context.Background(), args...)
+	err := r.client.Process(context.Background(), cmd)
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("HDEL %s %v", key, fields)
 		r.fillLogFields("HDEL", message, start, false, err)
 	}
 	checkError(err)
@@ -1019,6 +1040,17 @@ func (r *redisCacheSetter) HSet(key string, values ...interface{}) {
 	}
 }
 
+func (r *redisCacheSetter) HDel(key string, keys ...string) {
+	if len(keys) == 0 {
+		return
+	}
+	if r.HDeletes == nil {
+		r.HDeletes = map[string][]string{key: keys}
+	} else {
+		r.HDeletes[key] = keys
+	}
+}
+
 func (r *redisCacheSetter) flush() {
 	commands := 0
 	if r.sets != nil {
@@ -1036,6 +1068,9 @@ func (r *redisCacheSetter) flush() {
 	if r.HSets != nil {
 		commands++
 	}
+	if r.HDeletes != nil {
+		commands++
+	}
 	if commands == 0 {
 		return
 	}
@@ -1050,7 +1085,7 @@ func (r *redisCacheSetter) flush() {
 		}
 	}
 	if !usePipeLine {
-		usePipeLine = len(r.HSets) > 1
+		usePipeLine = len(r.HSets) > 1 || len(r.HDeletes) > 1
 	}
 	if usePipeLine {
 		pipeLine := cache.PipeLine()
@@ -1073,6 +1108,12 @@ func (r *redisCacheSetter) flush() {
 		if r.HSets != nil {
 			for key, values := range r.HSets {
 				pipeLine.HSet(key, values...)
+			}
+			r.HSets = nil
+		}
+		if r.HDeletes != nil {
+			for key, values := range r.HDeletes {
+				pipeLine.HDel(key, values...)
 			}
 			r.HSets = nil
 		}
@@ -1114,6 +1155,12 @@ func (r *redisCacheSetter) flush() {
 			cache.HSet(key, values...)
 		}
 		r.HSets = nil
+	}
+	if r.HDeletes != nil {
+		for key, values := range r.HDeletes {
+			cache.HDel(key, values...)
+		}
+		r.HDeletes = nil
 	}
 }
 
