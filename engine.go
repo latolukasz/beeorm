@@ -303,7 +303,7 @@ func (e *engineImplementation) Load(entity Entity, references ...string) (found 
 }
 
 func (e *engineImplementation) LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool) {
-	_, hasMissing := tryByIDs(e.getSerializer(nil), e, ids, reflect.ValueOf(entities).Elem(), references)
+	_, hasMissing := tryByIDs(e.getSerializer(nil), e, ids, reflect.ValueOf(entities), references)
 	return !hasMissing
 }
 

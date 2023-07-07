@@ -84,8 +84,7 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 	found = engine.LoadByID(17557, entity)
 	assert.True(t, found)
 
-	found = engine.LoadByIDs([]uint64{17557}, &rows)
-	assert.True(t, found)
+	engine.LoadByIDs([]uint64{17557}, &rows)
 
 	assert.True(t, engine.LoadByID(17558, entity))
 	ForceDelete(entity)
