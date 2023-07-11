@@ -37,6 +37,7 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	entity.Float = 1.3
 	entity.Decimal = 12.23
 	engine.Flush(entity)
+	entity, _ = LoadByID[*loadByIDBenchmarkEntity](1, engine)
 	_ = engine.LoadByID(1, entity)
 	b.ResetTimer()
 	b.ReportAllocs()

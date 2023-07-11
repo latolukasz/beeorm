@@ -7,6 +7,14 @@ import (
 	"sync"
 )
 
+type ID interface {
+	int | uint8 | uint16 | uint32 | uint64
+}
+
+func LoadByID[E Entity, I ID](id I, engine Engine, references ...string) (entity E, found bool) {
+	return entity, true
+}
+
 type Engine interface {
 	Clone() Engine
 	GetMysql(code ...string) *DB
