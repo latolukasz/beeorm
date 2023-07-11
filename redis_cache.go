@@ -465,21 +465,27 @@ func (r *redisCache) hMGetUints(key string, fields ...uint64) []interface{} {
 	}
 	cmd := redis.NewSliceCmd(context.Background(), args...)
 	err := r.client.Process(context.Background(), cmd)
-	misses := 0
+	misses := false
 	var results []interface{}
-	if err != nil {
+	if err == nil {
 		results, err = cmd.Result()
-		if err != nil {
-			for _, v := range results {
-				if v == nil {
-					misses++
+		if err == nil {
+			if len(results) == 0 {
+				results = make([]interface{}, len(fields))
+			}
+			if r.engine.hasRedisLogger {
+				for _, v := range results {
+					if v == nil {
+						misses = true
+						break
+					}
 				}
 			}
 		}
 	}
 	if r.engine.hasRedisLogger {
 		message := "HMGET " + key + " " + fmt.Sprintf("%v", fields)
-		r.fillLogFields("HMGET", message, start, misses > 0, err)
+		r.fillLogFields("HMGET", message, start, misses, err)
 	}
 	checkError(err)
 	return results

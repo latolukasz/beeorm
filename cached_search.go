@@ -12,7 +12,7 @@ import (
 
 const idsOnCachePage = 1000
 
-func cachedSearch(serializer *serializer, engine *engineImplementation, entities interface{}, indexName string, pager *Pager,
+func cachedSearch(engine *engineImplementation, entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)
 	entityType, has, name := getEntityTypeForSlice(engine.registry, value.Type(), checkIsSlice)
@@ -184,7 +184,7 @@ func cachedSearch(serializer *serializer, engine *engineImplementation, entities
 	_, is := entities.(Entity)
 	if !is && len(idsToReturn) > 0 {
 		elem := value.Elem()
-		_, missing := tryByIDs(serializer, engine, idsToReturn, elem, references)
+		_, missing := tryByIDs(engine, idsToReturn, elem, references)
 		if missing {
 			l := elem.Len()
 			missingCounter := 0

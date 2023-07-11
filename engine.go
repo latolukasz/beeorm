@@ -270,22 +270,22 @@ func (e *engineImplementation) CachedSearchOneWithReferences(entity Entity, inde
 }
 
 func (e *engineImplementation) CachedSearch(entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
-	total, _ := cachedSearch(e.getSerializer(nil), e, entities, indexName, pager, arguments, true, nil)
+	total, _ := cachedSearch(e, entities, indexName, pager, arguments, true, nil)
 	return total
 }
 
 func (e *engineImplementation) CachedSearchIDs(entity Entity, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64) {
-	return cachedSearch(e.getSerializer(nil), e, entity, indexName, pager, arguments, false, nil)
+	return cachedSearch(e, entity, indexName, pager, arguments, false, nil)
 }
 
 func (e *engineImplementation) CachedSearchCount(entity Entity, indexName string, arguments ...interface{}) int {
-	total, _ := cachedSearch(e.getSerializer(nil), e, entity, indexName, NewPager(1, 1), arguments, false, nil)
+	total, _ := cachedSearch(e, entity, indexName, NewPager(1, 1), arguments, false, nil)
 	return total
 }
 
 func (e *engineImplementation) CachedSearchWithReferences(entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int) {
-	total, _ := cachedSearch(e.getSerializer(nil), e, entities, indexName, pager, arguments, true, references)
+	total, _ := cachedSearch(e, entities, indexName, pager, arguments, true, references)
 	return total
 }
 
@@ -303,7 +303,7 @@ func (e *engineImplementation) Load(entity Entity, references ...string) (found 
 }
 
 func (e *engineImplementation) LoadByIDs(ids []uint64, entities interface{}, references ...string) (found bool) {
-	_, hasMissing := tryByIDs(e.getSerializer(nil), e, ids, reflect.ValueOf(entities), references)
+	_, hasMissing := tryByIDs(e, ids, reflect.ValueOf(entities), references)
 	return !hasMissing
 }
 

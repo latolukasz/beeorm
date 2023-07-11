@@ -60,8 +60,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 
 	var rows []*loadByIdsEntity
 	engine.EnableQueryDebug()
-	found := engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows)
-	return
+	found := engine.LoadByIDs([]uint64{1, 2, 3, 4}, &rows, "*")
 	assert.False(t, found)
 	assert.Len(t, rows, 4)
 	assert.Equal(t, "a", rows[0].Name)

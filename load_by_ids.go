@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
+func tryByIDs(engine *engineImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
 	t, has, name := getEntityTypeForSlice(engine.registry, entities.Type(), true)
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
@@ -38,7 +38,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 				entity := schema.NewEntity()
 				resultsSlice.Index(i).Set(entity.getORM().value)
 				if fromLocalCache != cacheNilValue {
-					fillFromBinary(serializer, engine.registry, fromLocalCache.([]byte), entity)
+					fillFromBinary(engine.getSerializer(nil), engine.registry, fromLocalCache.([]byte), entity)
 				} else {
 					hasMissing = true
 					hasCacheNils = true
@@ -51,13 +51,13 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 		redisHSetKeys := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		fromRedisAll := cacheRedis.hMGetUints(schema.cachePrefix, redisHSetKeys...)
 		if foundInCache == 0 {
-			for i := range ids {
+			for i := range redisHSetKeys {
 				fromRedisCache := fromRedisAll[i]
 				if fromRedisCache != nil {
 					entity := schema.NewEntity()
 					resultsSlice.Index(i).Set(entity.getORM().value)
 					if fromRedisCache != cacheNilValue {
-						fillFromBinary(serializer, engine.registry, []byte(fromRedisCache.(string)), entity)
+						fillFromBinary(engine.getSerializer(nil), engine.registry, []byte(fromRedisCache.(string)), entity)
 					} else {
 						hasMissing = true
 						hasCacheNils = true
@@ -74,7 +74,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 							entity := schema.NewEntity()
 							resultsSlice.Index(i).Set(entity.getORM().value)
 							if fromRedisCache != cacheNilValue {
-								fillFromBinary(serializer, engine.registry, []byte(fromRedisCache.(string)), entity)
+								fillFromBinary(engine.getSerializer(nil), engine.registry, []byte(fromRedisCache.(string)), entity)
 								if hasLocalCache {
 									cacheLocal.Set(id, entity.getORM().copyBinary())
 								}
@@ -92,6 +92,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 			}
 		}
 	}
+	var redisHSetValues []interface{}
 	if foundInCache < len(ids) {
 		dbIDs := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		idsQuery := strings.ReplaceAll(fmt.Sprintf("%v", dbIDs), " ", ",")[1:]
@@ -104,7 +105,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
 			entity := schema.NewEntity()
-			fillFromDBRow(serializer, engine.registry, pointers, entity)
+			fillFromDBRow(engine.getSerializer(nil), engine.registry, pointers, entity)
 			id := *pointers[0].(*uint64)
 			for i, originalID := range ids {
 				if id == originalID {
@@ -115,10 +116,17 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 				cacheLocal.Set(id, entity.getORM().copyBinary())
 			}
 			if hasRedisCache {
-				// TODO FILL REDIS CACHE
+				if len(ids) == 1 {
+					cacheRedis.HSet(schema.cachePrefix, id, string(entity.getORM().binary))
+				} else {
+					redisHSetValues = append(redisHSetValues, id, string(entity.getORM().binary))
+				}
 			}
 		}
 		def()
+		if redisHSetValues != nil {
+			cacheRedis.HSet(schema.cachePrefix, redisHSetValues...)
+		}
 		if foundInDB < len(dbIDs) {
 			for i, id := range ids {
 				if resultsSlice.Index(i).IsZero() {
@@ -130,7 +138,7 @@ func tryByIDs(serializer *serializer, engine *engineImplementation, ids []uint64
 						cacheLocal.Set(id, cacheNilValue)
 					}
 					if hasRedisCache {
-						// TODO FILL REDIS CACHE
+						cacheRedis.HSet(schema.cachePrefix, id, cacheNilValue)
 					}
 				}
 			}

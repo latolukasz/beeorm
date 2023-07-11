@@ -4,11 +4,12 @@ import (
 	"testing"
 )
 
-// BenchmarkLoadByIDsLocalCache-10    	 3787432	       315.8 ns/op	     196 B/op	       2 allocs/op
+// BenchmarkLoadByIDsLocalCache-10    	 3970012	       300.0 ns/op	     196 B/op	       2 allocs/op
 func BenchmarkLoadByIDsLocalCache(b *testing.B) {
 	benchmarkLoadByIDsCache(b, true, false)
 }
 
+// BenchmarkLoadByIDsRedisCache-10    	    1947	    611389 ns/op	     512 B/op	      13 allocs/op
 func BenchmarkLoadByIDsRedisCache(b *testing.B) {
 	benchmarkLoadByIDsCache(b, false, true)
 }
