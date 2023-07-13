@@ -322,7 +322,7 @@ func tryByIDsOld(serializer *serializer, engine *engineImplementation, ids []uin
 
 type redisMapType map[string]map[string]map[string][]Entity
 
-func warmUpReferences(serializer *serializer, engine *engineImplementation, schema *entitySchema, rows reflect.Value, references []string, many bool) {
+func warmUpReferences(c Context, schema *entitySchema, rows reflect.Value, references []string, many bool) {
 	dbMap := make(map[string]map[*entitySchema]map[string][]Entity)
 	var localMap map[string]map[string][]Entity
 	var redisMap redisMapType

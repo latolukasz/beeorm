@@ -1,5 +1,9 @@
 package beeorm
 
+func ClearCacheByIDs[E Entity](c Context, entity Entity, ids ...uint64) {
+	// TODO
+}
+
 func clearByIDs(engine *engineImplementation, entity Entity, ids ...uint64) {
 	schema := initIfNeeded(engine.registry, entity).entitySchema
 	localPool, has := schema.GetLocalCache(engine)

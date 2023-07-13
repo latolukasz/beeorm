@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"testing"
 )
 
@@ -37,11 +38,12 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	entity.Float = 1.3
 	entity.Decimal = 12.23
 	engine.Flush(entity)
-	entity, _ = LoadByID[*loadByIDBenchmarkEntity](1, engine)
-	_ = engine.LoadByID(1, entity)
+
+	c := CreateContext(context.Background())
+	GetByID[*loadByIDBenchmarkEntity](c, 1)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = engine.LoadByID(1, entity)
+		GetByID[*loadByIDBenchmarkEntity](c, 1)
 	}
 }

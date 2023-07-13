@@ -438,7 +438,7 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 	}
 }
 
-func (orm *ORM) deserialize(serializer *serializer) {
+func (orm *ORM) deserialize(c Context) {
 	serializer.Reset(orm.binary)
 	hash := serializer.DeserializeUInteger()
 	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {

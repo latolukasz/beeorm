@@ -7,6 +7,29 @@ import (
 	"strconv"
 )
 
+func SearchWithCount(c Context, where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
+	// TODO
+	return 0
+}
+
+func Search(c Context, where *Where, pager *Pager, entities interface{}, references ...string) {
+	// TODO
+}
+
+func SearchIDsWithCount[E Entity](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
+	// TODO
+	return nil, 0
+}
+
+func SearchIDs[E Entity](c Context, where *Where, pager *Pager, entity Entity) []uint64 {
+	// TODO
+	return nil
+}
+
+func SearchOne[E Entity](c Context, where *Where, references ...string) (entity E) {
+	return searchOne[E](c, where, references)
+}
+
 func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
 	return searchIDs(engine, where, pager, true, entityType)
 }
@@ -115,9 +138,8 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, isSearch bool, references []string) (bool, *entitySchema, []interface{}) {
-	orm := initIfNeeded(engine.registry, entity)
-	schema := orm.entitySchema
+func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E) {
+	initIfNeeded(schema, entity)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(engine, where, schema)
 	}
@@ -134,7 +156,7 @@ func searchRow(serializer *serializer, engine *engineImplementation, where *Wher
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	fillFromDBRow(serializer, engine.registry, pointers, entity)
+	fillFromDBRow(serializer, schema, pointers, entity)
 	if len(references) > 0 {
 		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 	}
@@ -177,7 +199,7 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
-		fillFromDBRow(serializer, engine.registry, pointers, value.Interface().(Entity))
+		fillFromDBRow(serializer, schema, pointers, value.Interface().(Entity))
 		val = reflect.Append(val, value)
 		i++
 	}
@@ -190,8 +212,8 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 	return totalRows
 }
 
-func searchOne(serializer *serializer, engine *engineImplementation, where *Where, entity Entity, references []string) (bool, *entitySchema, []interface{}) {
-	return searchRow(serializer, engine, where, entity, true, references)
+func searchOne[E Entity](c Context, where *Where, references []string) E {
+	return searchRow(c, schema, where, true, references)
 }
 
 func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
@@ -235,8 +257,8 @@ func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, wh
 	return totalRows
 }
 
-func fillFromDBRow(serializer *serializer, registry *validatedRegistry, pointers []interface{}, entity Entity) {
-	orm := initIfNeeded(registry, entity)
+func fillFromDBRow(serializer *serializer, schema *entitySchema, pointers []interface{}, entity Entity) {
+	orm := initIfNeeded(schema, entity)
 	orm.inDB = true
 	orm.loaded = true
 	serializer.Reset(nil)
@@ -244,12 +266,12 @@ func fillFromDBRow(serializer *serializer, registry *validatedRegistry, pointers
 	orm.deserialize(serializer)
 }
 
-func fillFromBinary(serializer *serializer, registry *validatedRegistry, binary []byte, entity Entity) {
-	orm := initIfNeeded(registry, entity)
+func fillFromBinary(c Context, schema *entitySchema, binary []byte, entity Entity) {
+	orm := initIfNeeded(schema, entity)
 	orm.inDB = true
 	orm.loaded = true
 	orm.binary = binary
-	orm.deserialize(serializer)
+	orm.deserialize(c)
 }
 
 func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {

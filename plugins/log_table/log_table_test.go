@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
+	"github.com/latolukasz/beeorm/v3/plugins/crud_stream"
 
-	"github.com/latolukasz/beeorm/v2"
+	"github.com/latolukasz/beeorm/v3"
 	"github.com/stretchr/testify/assert"
 )
 

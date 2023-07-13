@@ -5,7 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/latolukasz/beeorm/v2"
+	"github.com/latolukasz/beeorm/v3"
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/uuid"

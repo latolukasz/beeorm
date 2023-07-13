@@ -1,15 +1,13 @@
 package beeorm
 
 import (
-	"fmt"
+	"context"
 	"reflect"
 )
 
 type ValidatedRegistry interface {
-	CreateEngine() Engine
+	NewContext(parent context.Context) Context
 	GetEntitySchema(entityName string) EntitySchema
-	GetEntitySchemaForEntity(entity Entity) EntitySchema
-	GetEntitySchemaForCachePrefix(cachePrefix string) EntitySchema
 	GetSourceRegistry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
@@ -33,6 +31,10 @@ type validatedRegistry struct {
 	enums              map[string]Enum
 	plugins            []Plugin
 	defaultQueryLogger *defaultLogLogger
+}
+
+func (r *validatedRegistry) NewContext(parent context.Context) Context {
+	return &contextImplementation{parent: parent, validatedRegistry: r}
 }
 
 func (r *validatedRegistry) GetSourceRegistry() *Registry {
@@ -101,44 +103,12 @@ func (r *validatedRegistry) GetRedisPools() map[string]RedisPoolConfig {
 	return r.redisServers
 }
 
-func (r *validatedRegistry) CreateEngine() Engine {
-	engine := &engineImplementation{registry: r}
-	for _, plugin := range engine.registry.plugins {
-		interfaceEngineCreated, isInterfaceEngineCreated := plugin.(PluginInterfaceEngineCreated)
-		if isInterfaceEngineCreated {
-			interfaceEngineCreated.PluginInterfaceEngineCreated(engine)
-		}
-	}
-	return engine
-}
-
 func (r *validatedRegistry) GetEntitySchema(entityName string) EntitySchema {
 	t, has := r.entities[entityName]
 	if !has {
 		return nil
 	}
-	return getEntitySchema(r, t)
-}
-
-func (r *validatedRegistry) GetEntitySchemaForEntity(entity Entity) EntitySchema {
-	t := reflect.TypeOf(entity)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	entitySchema := getEntitySchema(r, t)
-	if entitySchema == nil {
-		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
-	}
-	return entitySchema
-}
-
-func (r *validatedRegistry) GetEntitySchemaForCachePrefix(cachePrefix string) EntitySchema {
-	for _, schema := range r.entitySchemas {
-		if schema.cachePrefix == cachePrefix {
-			return schema
-		}
-	}
-	return nil
+	return r.entitySchemas[t]
 }
 
 func (r *validatedRegistry) GetEnum(code string) Enum {

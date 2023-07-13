@@ -12,6 +12,34 @@ import (
 
 const idsOnCachePage = 1000
 
+func CachedSearchOne[E Entity](c Context, indexName string, arguments ...interface{}) {
+	// TODO
+}
+
+func CachedSearchOneWithReferences[E Entity](c Context, indexName string, arguments []interface{}, references []string) {
+	// TODO
+}
+
+func CachedSearch(c Context, entities interface{}, indexName string, pager *Pager, arguments ...interface{}) (totalRows int) {
+	// TODO
+	return 0
+}
+
+func CachedSearchIDs[E Entity](c Context, indexName string, pager *Pager, arguments ...interface{}) (totalRows int, ids []uint64) {
+	// TODO
+	return 0, nil
+}
+
+func CachedSearchCount[E Entity](c Context, indexName string, arguments ...interface{}) int {
+	// TODO
+	return 0
+}
+
+func CachedSearchWithReferences(c Context, entities interface{}, indexName string, pager *Pager, arguments []interface{}, references []string) (totalRows int) {
+	// TODO
+	return 0
+}
+
 func cachedSearch(engine *engineImplementation, entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, checkIsSlice bool, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)

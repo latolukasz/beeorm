@@ -65,27 +65,27 @@ type LogHandler interface {
 	Handle(engine Engine, log map[string]interface{})
 }
 
-func (e *engineImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
+func (c *contextImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
 	if mysql {
-		e.hasDBLogger = true
-		e.queryLoggersDB = e.appendLog(e.queryLoggersDB, handler)
+		c.hasDBLogger = true
+		c.queryLoggersDB = c.appendLog(c.queryLoggersDB, handler)
 	}
 	if redis {
-		e.hasRedisLogger = true
-		e.queryLoggersRedis = e.appendLog(e.queryLoggersRedis, handler)
+		c.hasRedisLogger = true
+		c.queryLoggersRedis = c.appendLog(c.queryLoggersRedis, handler)
 	}
 	if local {
-		e.hasLocalCacheLogger = true
-		e.queryLoggersLocalCache = e.appendLog(e.queryLoggersLocalCache, handler)
+		c.hasLocalCacheLogger = true
+		c.queryLoggersLocalCache = c.appendLog(c.queryLoggersLocalCache, handler)
 	}
 }
 
-func (e *engineImplementation) EnableQueryDebug() {
-	e.EnableQueryDebugCustom(true, true, true)
+func (c *contextImplementation) EnableQueryDebug() {
+	c.EnableQueryDebugCustom(true, true, true)
 }
 
-func (e *engineImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
-	e.RegisterQueryLogger(e.registry.defaultQueryLogger, mysql, redis, local)
+func (c *contextImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
+	c.RegisterQueryLogger(c.registry.defaultQueryLogger, mysql, redis, local)
 }
 
 func getNow(has bool) *time.Time {
@@ -96,7 +96,7 @@ func getNow(has bool) *time.Time {
 	return &s
 }
 
-func (e *engineImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
+func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
 	for _, v := range logs {
 		if v == toAdd {
 			return logs

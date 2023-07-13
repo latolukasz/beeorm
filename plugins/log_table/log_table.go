@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/latolukasz/beeorm/v2/plugins/crud_stream"
+	"github.com/latolukasz/beeorm/v3/plugins/crud_stream"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/latolukasz/beeorm/v2"
+	"github.com/latolukasz/beeorm/v3"
 
 	jsoniter "github.com/json-iterator/go"
 )

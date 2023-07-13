@@ -13,6 +13,19 @@ import (
 
 type CachedQuery struct{}
 
+func GetEntitySchema[E Entity](c Context) EntitySchema {
+	// TODO
+	t := reflect.TypeOf(entity)
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
+	}
+	entitySchema := getEntitySchema(r, t)
+	if entitySchema == nil {
+		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
+	}
+	return entitySchema
+}
+
 type cachedQueryDefinition struct {
 	Max           int
 	Query         string
@@ -79,15 +92,15 @@ type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
 	GetType() reflect.Type
-	NewEntity() Entity
+	newEntity() Entity
 	DropTable(engine Engine)
 	TruncateTable(engine Engine)
 	UpdateSchema(engine Engine)
 	UpdateSchemaAndTruncateTable(engine Engine)
 	GetMysql(engine Engine) *DB
 	GetMysqlPool() string
-	GetLocalCache(engine Engine) (cache LocalCache, has bool)
-	GetRedisCache(engine Engine) (cache RedisCache, has bool)
+	GetLocalCache(c Context) (cache LocalCache, has bool)
+	GetRedisCache(c Context) (cache RedisCache, has bool)
 	GetReferences() []EntitySchemaReference
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
@@ -170,10 +183,6 @@ type tableFields struct {
 	refsTypes               []reflect.Type
 }
 
-func getEntitySchema(registry *validatedRegistry, entityType reflect.Type) *entitySchema {
-	return registry.entitySchemas[entityType]
-}
-
 func (entitySchema *entitySchema) GetTableName() string {
 	return entitySchema.tableName
 }
@@ -222,14 +231,14 @@ func (entitySchema *entitySchema) GetMysqlPool() string {
 	return entitySchema.mysqlPoolName
 }
 
-func (entitySchema *entitySchema) GetLocalCache(engine Engine) (cache LocalCache, has bool) {
+func (entitySchema *entitySchema) GetLocalCache(c Context) (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
 	return engine.GetLocalCache(entitySchema.cachePrefix), true
 }
 
-func (entitySchema *entitySchema) GetRedisCache(engine Engine) (cache RedisCache, has bool) {
+func (entitySchema *entitySchema) GetRedisCache(c Context) (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
@@ -1059,7 +1068,7 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) NewEntity() Entity {
+func (entitySchema *entitySchema) newEntity() Entity {
 	val := reflect.New(entitySchema.t)
 	e := val.Interface().(Entity)
 	orm := e.getORM()

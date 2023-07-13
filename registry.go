@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -36,7 +37,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
+func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, err error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -150,9 +151,9 @@ func (r *Registry) Validate() (validated ValidatedRegistry, err error) {
 	registry.redisStreamPools = r.redisStreamPools
 	registry.plugins = r.plugins
 	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	e := registry.CreateEngine()
+	c := registry.NewContext(ctx)
 	for _, schema := range registry.entitySchemas {
-		_, err := checkStruct(schema, e.(*engineImplementation), schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
+		_, err := checkStruct(c, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}

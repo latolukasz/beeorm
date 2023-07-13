@@ -71,7 +71,7 @@ type Flusher interface {
 }
 
 type flusher struct {
-	engine                 *engineImplementation
+	context                Context
 	trackedEntities        map[uintptr]Entity
 	trackedEntitiesCounter int
 	events                 []*entitySQLFlush

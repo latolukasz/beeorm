@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 
-	"github.com/latolukasz/beeorm/v2"
+	"github.com/latolukasz/beeorm/v3"
 )
 
 const PluginCode = "github.com/latolukasz/beeorm/plugins/foreign_keys"

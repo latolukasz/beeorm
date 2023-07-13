@@ -30,6 +30,14 @@ type TableSQLSchemaDefinition struct {
 	PostAlters     []Alter
 }
 
+func GetAlters(c Context) (alters []Alter) {
+	pre, alters, post := getAlters(c)
+	final := pre
+	final = append(final, alters...)
+	final = append(final, post...)
+	return final
+}
+
 func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	pool := td.EntitySchema.GetMysql(td.engine)
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), td.EntitySchema.GetTableName())
@@ -774,7 +782,7 @@ type ColumnSchemaDefinition struct {
 	Definition string
 }
 
-func checkStruct(entitySchema *entitySchema, engine *engineImplementation, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
+func checkStruct(c Context, entitySchema *entitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
 	subField *reflect.StructField, subFieldPrefix string) ([]*ColumnSchemaDefinition, error) {
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {
