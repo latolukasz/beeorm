@@ -7,6 +7,7 @@ import (
 )
 
 type Context interface {
+	Ctx() context.Context
 	Clone() Context
 	Flusher() Flusher
 	Engine() Engine
@@ -52,7 +53,9 @@ func (c *contextImplementation) getSerializer() *serializer {
 	return c.serializer
 }
 
-// END
+func (c *contextImplementation) Ctx() context.Context {
+	return c.parent
+}
 
 func (c *contextImplementation) Clone() Context {
 	return &contextImplementation{

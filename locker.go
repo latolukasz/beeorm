@@ -34,7 +34,7 @@ func (r *redisCache) GetLocker() *Locker {
 	return r.locker
 }
 
-func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
+func (l *Locker) Obtain(c Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
 	key = l.r.addNamespacePrefix(key)
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
@@ -42,7 +42,8 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 	if waitTimeout > ttl {
 		panic(errors.New("waitTimeout can't be higher than ttl"))
 	}
-	start := getNow(l.r.engine.hasRedisLogger)
+	hasLogger := c.(*contextImplementation).hasRedisLogger
+	start := getNow(hasLogger)
 	var options *redislock.Options
 	if waitTimeout > 0 {
 		options = &redislock.Options{}
@@ -55,22 +56,22 @@ func (l *Locker) Obtain(ctx context.Context, key string, ttl time.Duration, wait
 		}
 		options.RetryStrategy = redislock.LimitRetry(redislock.LinearBackoff(interval), limit)
 	}
-	redisLock, err := l.locker.Obtain(ctx, key, ttl, options)
+	redisLock, err := l.locker.Obtain(c.Ctx(), key, ttl, options)
 	if err != nil {
 		if err == redislock.ErrNotObtained {
-			if l.r.engine.hasRedisLogger {
+			if hasLogger {
 				message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
-				l.fillLogFields("LOCK OBTAIN", message, start, true, nil)
+				l.fillLogFields(c, "LOCK OBTAIN", message, start, true, nil)
 			}
 			return nil, false
 		}
 	}
-	if l.r.engine.hasRedisLogger {
+	if hasLogger {
 		message := fmt.Sprintf("LOCK OBTAIN %s TTL %s WAIT %s", key, ttl.String(), waitTimeout.String())
-		l.fillLogFields("LOCK OBTAIN", message, start, false, nil)
+		l.fillLogFields(c, "LOCK OBTAIN", message, start, false, nil)
 	}
 	checkError(err)
-	lock = &Lock{lock: redisLock, locker: l, ttl: ttl, key: key, has: true, engine: l.r.engine}
+	lock = &Lock{lock: redisLock, locker: l, ttl: ttl, key: key, has: true}
 	return lock, true
 }
 
@@ -80,57 +81,59 @@ type Lock struct {
 	ttl    time.Duration
 	locker *Locker
 	has    bool
-	engine *engineImplementation
 }
 
-func (l *Lock) Release() {
+func (l *Lock) Release(c Context) {
 	if !l.has {
 		return
 	}
 	l.has = false
-	start := getNow(l.engine.hasRedisLogger)
+	hasLogger := c.(*contextImplementation).hasRedisLogger
+	start := getNow(hasLogger)
 	err := l.lock.Release(context.Background())
 	ok := true
 	if err == redislock.ErrLockNotHeld {
 		err = nil
 		ok = false
 	}
-	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK RELEASE", "LOCK RELEASE "+l.key, start, !ok, err)
+	if hasLogger {
+		l.locker.fillLogFields(c, "LOCK RELEASE", "LOCK RELEASE "+l.key, start, !ok, err)
 	}
 	checkError(err)
 }
 
-func (l *Lock) TTL(ctx context.Context) time.Duration {
-	start := getNow(l.engine.hasRedisLogger)
-	t, err := l.lock.TTL(ctx)
-	if l.engine.hasRedisLogger {
-		l.locker.fillLogFields("LOCK TTL", "LOCK TTL "+l.key, start, false, err)
+func (l *Lock) TTL(c Context) time.Duration {
+	hasLogger := c.(*contextImplementation).hasRedisLogger
+	start := getNow(hasLogger)
+	t, err := l.lock.TTL(c.Ctx())
+	if hasLogger {
+		l.locker.fillLogFields(c, "LOCK TTL", "LOCK TTL "+l.key, start, false, err)
 	}
 	checkError(err)
 	return t
 }
 
-func (l *Lock) Refresh(ctx context.Context, ttl time.Duration) bool {
+func (l *Lock) Refresh(c Context, ttl time.Duration) bool {
 	if !l.has {
 		return false
 	}
-	start := getNow(l.engine.hasRedisLogger)
-	err := l.lock.Refresh(ctx, ttl, nil)
+	hasLogger := c.(*contextImplementation).hasRedisLogger
+	start := getNow(hasLogger)
+	err := l.lock.Refresh(c.Ctx(), ttl, nil)
 	ok := true
 	if err == redislock.ErrNotObtained {
 		ok = false
 		err = nil
 		l.has = false
 	}
-	if l.engine.hasRedisLogger {
+	if hasLogger {
 		message := fmt.Sprintf("LOCK REFRESH %s %s", l.key, l.ttl)
-		l.locker.fillLogFields("LOCK REFRESH", message, start, !ok, err)
+		l.locker.fillLogFields(c, "LOCK REFRESH", message, start, !ok, err)
 	}
 	checkError(err)
 	return ok
 }
 
-func (l *Locker) fillLogFields(operation, query string, start *time.Time, cacheMiss bool, err error) {
-	fillLogFields(l.r.engine, l.r.engine.queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
+func (l *Locker) fillLogFields(c Context, operation, query string, start *time.Time, cacheMiss bool, err error) {
+	fillLogFields(c, c.(*contextImplementation).queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
 }
