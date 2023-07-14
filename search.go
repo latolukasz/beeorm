@@ -274,7 +274,7 @@ func fillFromBinary(c Context, schema *entitySchema, binary []byte, entity Entit
 	orm.deserialize(c)
 }
 
-func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, checkIsSlice bool) (reflect.Type, bool, string) {
+func getEntitySchemaForSlice(engine *engineImplementation, sliceType reflect.Type, checkIsSlice bool) (*entitySchema, bool, string) {
 	name := sliceType.String()
 	if name[0] == 42 {
 		name = name[1:]
@@ -282,8 +282,11 @@ func getEntityTypeForSlice(registry *validatedRegistry, sliceType reflect.Type, 
 	if name[0] == 91 {
 		name = name[3:]
 	} else if checkIsSlice {
-		panic(fmt.Errorf("interface %s is no slice of beeorm.Entity", sliceType.String()))
+		panic(fmt.Errorf("interface %s is not slice of beeorm.Entity", sliceType.String()))
 	}
-	e, has := registry.entities[name]
-	return e, has, name
+	t, has := engine.entities[name]
+	if !has {
+		return nil, false, name
+	}
+	return engine.entitySchemas[t], true, name
 }
