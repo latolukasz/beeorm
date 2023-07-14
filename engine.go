@@ -12,11 +12,11 @@ type Engine interface {
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
 	GetMySQL(code string) *DB
-	GetMySQLPools() map[string]MySQLPoolConfig
+	GetMySQLPools() map[string]*DB
 	GetLocalCache(code string) LocalCache
 	GetLocalCachePools() map[string]LocalCache
 	GetRedis(code string) RedisCache
-	GetRedisPools() map[string]RedisPoolConfig
+	GetRedisPools() map[string]RedisCache
 	GetEntities() map[string]reflect.Type
 	GetPlugins() []string
 	GetPlugin(code string) Plugin

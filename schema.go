@@ -102,7 +102,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 
 	registry := c.Engine().(*engineImplementation)
 	for _, pool := range registry.mySQLServers {
-		poolName := pool.GetCode()
+		poolName := pool.GetPoolConfig().GetCode()
 		tablesInDB[poolName] = make(map[string]bool)
 		pool := c.Engine().GetMySQL(poolName)
 		tables := getAllTables(pool.client)
@@ -176,7 +176,7 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 	engine := c.Engine().(*engineImplementation)
 	pool := engine.GetMySQL(entitySchema.mysqlPoolCode)
 	var skip string
-	hasTable := pool.QueryRow(NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.tableName)), &skip)
+	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.tableName)), &skip)
 	sqlSchema := &TableSQLSchemaDefinition{
 		context:       c.(*contextImplementation),
 		EntitySchema:  entitySchema,
@@ -185,7 +185,7 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 		EntityColumns: columns}
 	if hasTable {
 		sqlSchema.DBTableColumns = make([]*ColumnSchemaDefinition, 0)
-		pool.QueryRow(NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.tableName)), &skip, &sqlSchema.DBCreateSchema)
+		pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.tableName)), &skip, &sqlSchema.DBCreateSchema)
 		lines := strings.Split(sqlSchema.DBCreateSchema, "\n")
 		for x := 1; x < len(lines); x++ {
 			if lines[x][2] != 96 {
@@ -204,7 +204,7 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 
 		var rows []indexDB
 		/* #nosec */
-		results, def := pool.Query(fmt.Sprintf("SHOW INDEXES FROM `%s`", entitySchema.tableName))
+		results, def := pool.Query(c, fmt.Sprintf("SHOW INDEXES FROM `%s`", entitySchema.tableName))
 		defer def()
 		for results.Next() {
 			var row indexDB

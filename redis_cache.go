@@ -98,7 +98,6 @@ type RedisCache interface {
 }
 
 type redisCache struct {
-	engine *engineImplementation
 	client *redis.Client
 	locker *Locker
 	config RedisPoolConfig

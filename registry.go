@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -37,7 +36,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate(ctx context.Context) (Engine, error) {
+func (r *Registry) Validate() (Engine, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -45,13 +44,13 @@ func (r *Registry) Validate(ctx context.Context) (Engine, error) {
 		r.defaultCollate = "0900_ai_ci"
 	}
 	maxPoolLen := 0
-	e := &engine{}
+	e := &engineImplementation{}
 	e.registry = r
 	l := len(r.entities)
 	e.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.entities = make(map[string]reflect.Type)
 	if e.mySQLServers == nil {
-		e.mySQLServers = make(map[string]MySQLPoolConfig)
+		e.mySQLServers = make(map[string]*DB)
 	}
 	for k, v := range r.mysqlPools {
 		if len(k) > maxPoolLen {
@@ -97,16 +96,16 @@ func (r *Registry) Validate(ctx context.Context) (Engine, error) {
 		db.SetMaxIdleConns(maxIdle)
 		db.SetConnMaxLifetime(maxDuration)
 		v.(*mySQLPoolConfig).client = db
-		e.mySQLServers[k] = v
+		e.mySQLServers[k] = &DB{config: v, client: &standardSQLClient{db: v.getClient()}}
 	}
 	if e.localCacheServers == nil {
-		e.localCacheServers = make(map[string]LocalCachePoolConfig)
+		e.localCacheServers = make(map[string]LocalCache)
 	}
 	if e.redisServers == nil {
-		e.redisServers = make(map[string]RedisPoolConfig)
+		e.redisServers = make(map[string]RedisCache)
 	}
 	for k, v := range r.redisPools {
-		e.redisServers[k] = v
+		e.redisServers[k] = &redisCache{}
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
 		}
@@ -151,9 +150,8 @@ func (r *Registry) Validate(ctx context.Context) (Engine, error) {
 	e.redisStreamPools = r.redisStreamPools
 	e.plugins = r.plugins
 	e.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	c := e.NewContext(ctx)
 	for _, schema := range e.entitySchemas {
-		_, err := checkStruct(c, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
+		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
