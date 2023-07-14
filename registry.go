@@ -105,7 +105,8 @@ func (r *Registry) Validate() (Engine, error) {
 		e.redisServers = make(map[string]RedisCache)
 	}
 	for k, v := range r.redisPools {
-		e.redisServers[k] = &redisCache{}
+		client := v.getClient()
+		e.redisServers[k] = &redisCache{config: v, client: client}
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
 		}
