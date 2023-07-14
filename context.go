@@ -9,7 +9,7 @@ import (
 type Context interface {
 	Clone() Context
 	Flusher() Flusher
-	ValidatedRegistry() ValidatedRegistry
+	Engine() Engine
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
@@ -23,7 +23,7 @@ type Context interface {
 
 type contextImplementation struct {
 	parent                 context.Context
-	validatedRegistry      *validatedRegistry
+	engine                 *engineImplementation
 	flusher                Flusher
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
@@ -57,7 +57,7 @@ func (c *contextImplementation) getSerializer() *serializer {
 func (c *contextImplementation) Clone() Context {
 	return &contextImplementation{
 		parent:                 c.parent,
-		validatedRegistry:      c.validatedRegistry,
+		engine:                 c.engine,
 		queryLoggersDB:         c.queryLoggersDB,
 		queryLoggersRedis:      c.queryLoggersRedis,
 		queryLoggersLocalCache: c.queryLoggersLocalCache,
@@ -105,8 +105,8 @@ func (c *contextImplementation) GetMetaData() Meta {
 	return c.meta
 }
 
-func (c *contextImplementation) ValidatedRegistry() ValidatedRegistry {
-	return c.validatedRegistry
+func (c *contextImplementation) Engine() Engine {
+	return c.engine
 }
 
 func (c *contextImplementation) Flusher() Flusher {

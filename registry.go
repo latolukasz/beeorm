@@ -37,7 +37,7 @@ func NewRegistry() *Registry {
 	return &Registry{}
 }
 
-func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, err error) {
+func (r *Registry) Validate(ctx context.Context) (Engine, error) {
 	if r.defaultEncoding == "" {
 		r.defaultEncoding = "utf8mb4"
 	}
@@ -45,13 +45,13 @@ func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, e
 		r.defaultCollate = "0900_ai_ci"
 	}
 	maxPoolLen := 0
-	registry := &validatedRegistry{}
-	registry.registry = r
+	e := &engine{}
+	e.registry = r
 	l := len(r.entities)
-	registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
-	registry.entities = make(map[string]reflect.Type)
-	if registry.mySQLServers == nil {
-		registry.mySQLServers = make(map[string]MySQLPoolConfig)
+	e.entitySchemas = make(map[reflect.Type]*entitySchema, l)
+	e.entities = make(map[string]reflect.Type)
+	if e.mySQLServers == nil {
+		e.mySQLServers = make(map[string]MySQLPoolConfig)
 	}
 	for k, v := range r.mysqlPools {
 		if len(k) > maxPoolLen {
@@ -97,40 +97,40 @@ func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, e
 		db.SetMaxIdleConns(maxIdle)
 		db.SetConnMaxLifetime(maxDuration)
 		v.(*mySQLPoolConfig).client = db
-		registry.mySQLServers[k] = v
+		e.mySQLServers[k] = v
 	}
-	if registry.localCacheServers == nil {
-		registry.localCacheServers = make(map[string]LocalCachePoolConfig)
+	if e.localCacheServers == nil {
+		e.localCacheServers = make(map[string]LocalCachePoolConfig)
 	}
-	if registry.redisServers == nil {
-		registry.redisServers = make(map[string]RedisPoolConfig)
+	if e.redisServers == nil {
+		e.redisServers = make(map[string]RedisPoolConfig)
 	}
 	for k, v := range r.redisPools {
-		registry.redisServers[k] = v
+		e.redisServers[k] = v
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
 		}
 	}
-	if registry.enums == nil {
-		registry.enums = make(map[string]Enum)
+	if e.enums == nil {
+		e.enums = make(map[string]Enum)
 	}
 	for k, v := range r.enums {
-		registry.enums[k] = v
+		e.enums[k] = v
 	}
 	for name, entityType := range r.entities {
 		schema := &entitySchema{}
-		err = schema.init(r, entityType)
+		err := schema.init(r, entityType)
 		if err != nil {
 			return nil, err
 		}
-		registry.entitySchemas[entityType] = schema
-		registry.entities[name] = entityType
+		e.entitySchemas[entityType] = schema
+		e.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCachePools[schema.cachePrefix] = newLocalCacheConfig(schema.cachePrefix, schema.localCacheLimit)
 		}
 	}
 	for k, v := range r.localCachePools {
-		registry.localCacheServers[k] = v
+		e.localCacheServers[k] = v
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
 		}
@@ -147,19 +147,19 @@ func (r *Registry) Validate(ctx context.Context) (validated ValidatedRegistry, e
 			r.RegisterRedisStreamConsumerGroups(StreamGarbageCollectorChannelName, StreamGarbageCollectorGroupName)
 		}
 	}
-	registry.redisStreamGroups = r.redisStreamGroups
-	registry.redisStreamPools = r.redisStreamPools
-	registry.plugins = r.plugins
-	registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	c := registry.NewContext(ctx)
-	for _, schema := range registry.entitySchemas {
+	e.redisStreamGroups = r.redisStreamGroups
+	e.redisStreamPools = r.redisStreamPools
+	e.plugins = r.plugins
+	e.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
+	c := e.NewContext(ctx)
+	for _, schema := range e.entitySchemas {
 		_, err := checkStruct(c, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
-		schema.registry = registry
+		schema.engine = e
 	}
-	return registry, nil
+	return e, nil
 }
 
 func (r *Registry) SetDefaultEncoding(encoding string) {

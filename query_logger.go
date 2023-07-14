@@ -28,7 +28,7 @@ type defaultLogLogger struct {
 	logger     *log.Logger
 }
 
-func (d *defaultLogLogger) Handle(_ Engine, fields map[string]interface{}) {
+func (d *defaultLogLogger) Handle(_ Context, fields map[string]interface{}) {
 	row := beeORMLogo
 	switch fields["source"] {
 	case "mysql":
@@ -62,7 +62,7 @@ func (d *defaultLogLogger) Handle(_ Engine, fields map[string]interface{}) {
 }
 
 type LogHandler interface {
-	Handle(engine Engine, log map[string]interface{})
+	Handle(c Context, log map[string]interface{})
 }
 
 func (c *contextImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
@@ -85,7 +85,7 @@ func (c *contextImplementation) EnableQueryDebug() {
 }
 
 func (c *contextImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
-	c.RegisterQueryLogger(c.registry.defaultQueryLogger, mysql, redis, local)
+	c.RegisterQueryLogger(c.engine.defaultQueryLogger, mysql, redis, local)
 }
 
 func getNow(has bool) *time.Time {
@@ -105,7 +105,7 @@ func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) [
 	return append(logs, toAdd)
 }
 
-func fillLogFields(engine Engine, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
+func fillLogFields(context Context, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	fields := map[string]interface{}{
 		"operation": operation,
 		"query":     query,
@@ -115,7 +115,7 @@ func fillLogFields(engine Engine, handlers []LogHandler, pool, source, operation
 	if cacheMiss {
 		fields["miss"] = "TRUE"
 	}
-	meta := engine.GetMetaData()
+	meta := context.GetMetaData()
 	if len(meta) > 0 {
 		fields["meta"] = meta
 	}
@@ -128,7 +128,7 @@ func fillLogFields(engine Engine, handlers []LogHandler, pool, source, operation
 	if err != nil {
 		fields["error"] = err.Error()
 	}
-	for _, handler := range handlers {
-		handler.Handle(engine, fields)
+	for _, handler := range context.(*contextImplementation).queryLoggersDB {
+		handler.Handle(context, fields)
 	}
 }

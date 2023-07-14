@@ -14,16 +14,13 @@ import (
 type CachedQuery struct{}
 
 func GetEntitySchema[E Entity](c Context) EntitySchema {
-	// TODO
-	t := reflect.TypeOf(entity)
-	if t.Kind() == reflect.Ptr {
-		t = t.Elem()
-	}
-	entitySchema := getEntitySchema(r, t)
-	if entitySchema == nil {
+	var entity E
+	t := reflect.TypeOf(entity).Elem()
+	schema, has := c.Engine().(*engineImplementation).entitySchemas[t]
+	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 	}
-	return entitySchema
+	return schema
 }
 
 type cachedQueryDefinition struct {
@@ -93,19 +90,18 @@ type EntitySchema interface {
 	GetEntityName() string
 	GetType() reflect.Type
 	newEntity() Entity
-	DropTable(engine Engine)
-	TruncateTable(engine Engine)
-	UpdateSchema(engine Engine)
-	UpdateSchemaAndTruncateTable(engine Engine)
-	GetMysql(engine Engine) *DB
-	GetMysqlPool() string
-	GetLocalCache(c Context) (cache LocalCache, has bool)
-	GetRedisCache(c Context) (cache RedisCache, has bool)
+	DropTable(c Context)
+	TruncateTable(c Context)
+	UpdateSchema(c Context)
+	UpdateSchemaAndTruncateTable(c Context)
+	GetMysql() *DB
+	GetLocalCache() (cache LocalCache, has bool)
+	GetRedisCache() (cache RedisCache, has bool)
 	GetReferences() []EntitySchemaReference
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
-	GetSchemaChanges(engine Engine) (has bool, alters []Alter)
-	GetUsage(registry ValidatedRegistry) map[reflect.Type][]string
+	GetSchemaChanges(c Context) (has bool, alters []Alter)
+	GetUsage(registry Engine) map[reflect.Type][]string
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetPluginOption(plugin, key string) interface{}
 	DisableCache(local, redis bool)
@@ -118,10 +114,10 @@ type SettableEntitySchema interface {
 
 type entitySchema struct {
 	tableName                  string
-	mysqlPoolName              string
+	mysqlPoolCode              string
 	t                          reflect.Type
 	fields                     *tableFields
-	registry                   *validatedRegistry
+	engine                     *engineImplementation
 	fieldsQuery                string
 	tags                       map[string]map[string]string
 	cachedIndexes              map[string]*cachedQueryDefinition
@@ -195,54 +191,50 @@ func (entitySchema *entitySchema) GetType() reflect.Type {
 	return entitySchema.t
 }
 
-func (entitySchema *entitySchema) DropTable(engine Engine) {
-	pool := entitySchema.GetMysql(engine)
-	pool.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (entitySchema *entitySchema) DropTable(c Context) {
+	pool := entitySchema.GetMysql()
+	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
-func (entitySchema *entitySchema) TruncateTable(engine Engine) {
-	pool := entitySchema.GetMysql(engine)
-	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
-	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (entitySchema *entitySchema) TruncateTable(c Context) {
+	pool := entitySchema.GetMysql()
+	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
-func (entitySchema *entitySchema) UpdateSchema(engine Engine) {
-	pool := entitySchema.GetMysql(engine)
-	has, alters := entitySchema.GetSchemaChanges(engine)
+func (entitySchema *entitySchema) UpdateSchema(c Context) {
+	pool := entitySchema.GetMysql()
+	has, alters := entitySchema.GetSchemaChanges(c)
 	if has {
 		for _, alter := range alters {
-			_ = pool.Exec(alter.SQL)
+			_ = pool.Exec(c, alter.SQL)
 		}
 	}
 }
 
-func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(engine Engine) {
-	entitySchema.UpdateSchema(engine)
-	pool := entitySchema.GetMysql(engine)
-	_ = pool.Exec(fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
-	_ = pool.Exec(fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
+	entitySchema.UpdateSchema(c)
+	pool := entitySchema.GetMysql()
+	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
-func (entitySchema *entitySchema) GetMysql(engine Engine) *DB {
-	return engine.GetMysql(entitySchema.mysqlPoolName)
+func (entitySchema *entitySchema) GetMysql() *DB {
+	return entitySchema.engine.GetMySQL(entitySchema.mysqlPoolCode)
 }
 
-func (entitySchema *entitySchema) GetMysqlPool() string {
-	return entitySchema.mysqlPoolName
-}
-
-func (entitySchema *entitySchema) GetLocalCache(c Context) (cache LocalCache, has bool) {
+func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return engine.GetLocalCache(entitySchema.cachePrefix), true
+	return entitySchema.engine.GetLocalCache(entitySchema.cachePrefix), true
 }
 
-func (entitySchema *entitySchema) GetRedisCache(c Context) (cache RedisCache, has bool) {
+func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return engine.GetRedis(entitySchema.redisCacheName), true
+	return entitySchema.engine.GetRedisCache(entitySchema.cachePrefix), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
@@ -264,20 +256,20 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 	return data
 }
 
-func (entitySchema *entitySchema) GetSchemaChanges(engine Engine) (has bool, alters []Alter) {
-	pre, alters, post := getSchemaChanges(engine.(*engineImplementation), entitySchema)
+func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
+	pre, alters, post := getSchemaChanges(c, entitySchema)
 	final := pre
 	final = append(final, alters...)
 	final = append(final, post...)
 	return len(final) > 0, final
 }
 
-func (entitySchema *entitySchema) GetUsage(registry ValidatedRegistry) map[reflect.Type][]string {
-	vRegistry := registry.(*validatedRegistry)
+func (entitySchema *entitySchema) GetUsage(engine Engine) map[reflect.Type][]string {
+	e := engine.(*engineImplementation)
 	results := make(map[reflect.Type][]string)
-	if vRegistry.entities != nil {
-		for _, t := range vRegistry.entities {
-			schema := getEntitySchema(vRegistry, t)
+	if e.entities != nil {
+		for _, t := range e.entities {
+			schema := entitySchema.engine.entitySchemas[t]
 			entitySchema.getUsage(schema.fields, schema.t, "", results)
 		}
 	}
@@ -307,10 +299,10 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	references := make([]EntitySchemaReference, 0)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
-	entitySchema.mysqlPoolName = entitySchema.getTag("mysql", "default", "default")
-	_, has := registry.mysqlPools[entitySchema.mysqlPoolName]
+	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", "default")
+	_, has := registry.mysqlPools[entitySchema.mysqlPoolCode]
 	if !has {
-		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolName)
+		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolCode)
 	}
 	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
 	localCacheLimit := entitySchema.getTag("localCache", "default", "")
@@ -322,8 +314,8 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		}
 	}
 	cachePrefix := ""
-	if entitySchema.mysqlPoolName != "default" {
-		cachePrefix = entitySchema.mysqlPoolName
+	if entitySchema.mysqlPoolCode != "default" {
+		cachePrefix = entitySchema.mysqlPoolCode
 	}
 	cachePrefix += entitySchema.tableName
 	cachedQueries := make(map[string]*cachedQueryDefinition)
