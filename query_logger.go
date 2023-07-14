@@ -105,7 +105,7 @@ func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) [
 	return append(logs, toAdd)
 }
 
-func fillLogFields(context Context, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
+func fillLogFields(context Context, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	fields := map[string]interface{}{
 		"operation": operation,
 		"query":     query,
@@ -128,7 +128,7 @@ func fillLogFields(context Context, pool, source, operation, query string, start
 	if err != nil {
 		fields["error"] = err.Error()
 	}
-	for _, handler := range context.(*contextImplementation).queryLoggersDB {
+	for _, handler := range handlers {
 		handler.Handle(context, fields)
 	}
 }

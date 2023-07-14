@@ -130,7 +130,7 @@ func (r *Registry) Validate() (Engine, error) {
 		}
 	}
 	for k, v := range r.localCachePools {
-		e.localCacheServers[k] = &LocalCache()
+		e.localCacheServers[k] = &localCache{engine: e, config: v.(*localCachePoolConfig)}
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
 		}

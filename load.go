@@ -1,7 +1,5 @@
 package beeorm
 
-import "reflect"
-
 func Load(c Context, entity Entity, references ...string) bool {
 	if entity.IsLoaded() {
 		//if len(references) > 0 {
@@ -10,8 +8,8 @@ func Load(c Context, entity Entity, references ...string) bool {
 		//}
 		return true
 	}
-	schema := getEntitySchema(reflect.TypeOf(entity))
-	orm := initIfNeeded(schema, entity)
+	schema := GetEntitySchema[Entity](c)
+	orm := initIfNeeded(schema.(*entitySchema), entity)
 	id := orm.GetID()
 	if id > 0 {
 		return getByID[Entity](c, id, entity, references...) != nil

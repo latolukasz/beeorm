@@ -234,7 +234,7 @@ func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetRedisCache(entitySchema.cachePrefix), true
+	return entitySchema.engine.GetRedis(entitySchema.cachePrefix), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {

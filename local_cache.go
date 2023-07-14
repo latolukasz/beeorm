@@ -28,17 +28,17 @@ func (p *localCachePoolConfig) GetLimit() int {
 }
 
 type LocalCacheSetter interface {
-	Set(key interface{}, value interface{})
-	MSet(pairs ...interface{})
-	Remove(keys ...interface{})
+	Set(c Context, key interface{}, value interface{})
+	MSet(c Context, pairs ...interface{})
+	Remove(c Context, keys ...interface{})
 }
 
 type LocalCache interface {
 	LocalCacheSetter
 	GetPoolConfig() LocalCachePoolConfig
-	GetSet(key interface{}, ttl time.Duration, provider func() interface{}) interface{}
-	Get(key interface{}) (value interface{}, ok bool)
-	Clear()
+	GetSet(c Context, key interface{}, ttl time.Duration, provider func() interface{}) interface{}
+	Get(c Context, key interface{}) (value interface{}, ok bool)
+	Clear(c Context)
 	GetObjectsCount() int
 }
 
@@ -65,12 +65,12 @@ type ttlValue struct {
 	time  int64
 }
 
-func (c *localCache) GetPoolConfig() LocalCachePoolConfig {
-	return c.config
+func (lc *localCache) GetPoolConfig() LocalCachePoolConfig {
+	return lc.config
 }
 
-func (c *localCache) GetSet(key interface{}, ttl time.Duration, provider func() interface{}) interface{} {
-	val, has := c.Get(key)
+func (lc *localCache) GetSet(c Context, key interface{}, ttl time.Duration, provider func() interface{}) interface{} {
+	val, has := lc.Get(c, key)
 	if has {
 		ttlVal := val.(ttlValue)
 		seconds := int64(ttl.Seconds())
@@ -80,99 +80,99 @@ func (c *localCache) GetSet(key interface{}, ttl time.Duration, provider func() 
 	}
 	userVal := provider()
 	val = ttlValue{value: userVal, time: time.Now().Unix()}
-	c.Set(key, val)
+	lc.Set(c, key, val)
 	return userVal
 }
 
-func (c *localCache) Get(key interface{}) (value interface{}, ok bool) {
+func (lc *localCache) Get(c Context, key interface{}) (value interface{}, ok bool) {
 	func() {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		value, ok = c.config.lru.Get(key)
+		lc.mutex.Lock()
+		defer lc.mutex.Unlock()
+		value, ok = lc.config.lru.Get(key)
 	}()
-	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("GET", fmt.Sprintf("GET %v", key), !ok)
+	if c.(*contextImplementation).hasLocalCacheLogger {
+		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %v", key), !ok)
 	}
 	return
 }
 
-func (c *localCache) Set(key interface{}, value interface{}) {
+func (lc *localCache) Set(c Context, key interface{}, value interface{}) {
 	func() {
-		c.mutex.Lock()
-		defer c.mutex.Unlock()
-		c.config.lru.Add(key, value)
+		lc.mutex.Lock()
+		defer lc.mutex.Unlock()
+		lc.config.lru.Add(key, value)
 	}()
-	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("SET", fmt.Sprintf("SET %s %v", key, value), false)
+	if c.(*contextImplementation).hasLocalCacheLogger {
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
 
-func (c *localCacheSetter) Set(key interface{}, value interface{}) {
-	c.setKeys = append(c.setKeys, key)
-	c.setValues = append(c.setValues, value)
+func (lc *localCacheSetter) Set(_ Context, key interface{}, value interface{}) {
+	lc.setKeys = append(lc.setKeys, key)
+	lc.setValues = append(lc.setValues, value)
 }
 
-func (c *localCache) MSet(pairs ...interface{}) {
+func (lc *localCache) MSet(c Context, pairs ...interface{}) {
 	for i := 0; i < len(pairs); i += 2 {
-		c.Set(pairs[i], pairs[i+1])
+		lc.Set(c, pairs[i], pairs[i+1])
 	}
 }
 
-func (c *localCacheSetter) MSet(pairs ...interface{}) {
+func (lc *localCacheSetter) MSet(_ Context, pairs ...interface{}) {
 	for i := 0; i < len(pairs); i += 2 {
-		c.setKeys = append(c.setKeys, pairs[i])
-		c.setValues = append(c.setValues, pairs[i+1])
+		lc.setKeys = append(lc.setKeys, pairs[i])
+		lc.setValues = append(lc.setValues, pairs[i+1])
 	}
 }
 
-func (c *localCache) Remove(keys ...interface{}) {
+func (lc *localCache) Remove(c Context, keys ...interface{}) {
 	for _, v := range keys {
 		func() {
-			c.mutex.Lock()
-			defer c.mutex.Unlock()
-			c.config.lru.Remove(v)
+			lc.mutex.Lock()
+			defer lc.mutex.Unlock()
+			lc.config.lru.Remove(v)
 		}()
 	}
-	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("REMOVE", fmt.Sprintf("REMOVE %v", keys), false)
+	if c.(*contextImplementation).hasLocalCacheLogger {
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %v", keys), false)
 	}
 }
 
-func (c *localCacheSetter) Remove(keys ...interface{}) {
-	c.removes = append(c.removes, keys...)
+func (lc *localCacheSetter) Remove(_ Context, keys ...interface{}) {
+	lc.removes = append(lc.removes, keys...)
 }
 
-func (c *localCacheSetter) flush() {
-	if c.setKeys == nil && c.removes == nil {
+func (lc *localCacheSetter) flush(c Context) {
+	if lc.setKeys == nil && lc.removes == nil {
 		return
 	}
-	cache := c.engine.GetLocalCache(c.code)
-	for i, key := range c.setKeys {
-		cache.Set(key, c.setValues[i])
+	cache := lc.engine.GetLocalCache(lc.code)
+	for i, key := range lc.setKeys {
+		cache.Set(c, key, lc.setValues[i])
 	}
-	if c.removes != nil {
-		cache.Remove(c.removes...)
+	if lc.removes != nil {
+		cache.Remove(c, lc.removes...)
 	}
-	c.setKeys = nil
-	c.setValues = nil
-	c.removes = nil
+	lc.setKeys = nil
+	lc.setValues = nil
+	lc.removes = nil
 }
 
-func (c *localCache) Clear() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	c.config.lru.Clear()
-	if c.engine.hasLocalCacheLogger {
-		c.fillLogFields("CLEAR", "CLEAR", false)
+func (lc *localCache) Clear(c Context) {
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	lc.config.lru.Clear()
+	if c.(*contextImplementation).hasLocalCacheLogger {
+		lc.fillLogFields(c, "CLEAR", "CLEAR", false)
 	}
 }
 
-func (c *localCache) GetObjectsCount() int {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-	return c.config.lru.Len()
+func (lc *localCache) GetObjectsCount() int {
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	return lc.config.lru.Len()
 }
 
-func (c *localCache) fillLogFields(operation, query string, cacheMiss bool) {
-	fillLogFields(c.engine, c.engine.queryLoggersLocalCache, c.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
+func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {
+	fillLogFields(c, c.(*contextImplementation).queryLoggersLocalCache, lc.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

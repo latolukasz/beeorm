@@ -1,19 +1,15 @@
 package beeorm
 
-func ClearCacheByIDs[E Entity](c Context, entity Entity, ids ...uint64) {
-	// TODO
-}
-
-func clearByIDs(engine *engineImplementation, entity Entity, ids ...uint64) {
-	schema := initIfNeeded(engine.registry, entity).entitySchema
-	localPool, has := schema.GetLocalCache(engine)
+func ClearCacheByIDs[E Entity](c Context, ids ...uint64) {
+	schema := GetEntitySchema[E](c).(*entitySchema)
+	localPool, has := schema.GetLocalCache()
 	if has {
 		for _, id := range ids {
-			localPool.Remove(id)
+			localPool.Remove(c, id)
 		}
 	}
-	redisPool, has := schema.GetRedisCache(engine)
+	redisPool, has := schema.GetRedisCache()
 	if has {
-		redisPool.hDelUints(schema.cachePrefix, ids...)
+		redisPool.hDelUints(c, schema.cachePrefix, ids...)
 	}
 }
