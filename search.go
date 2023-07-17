@@ -8,30 +8,24 @@ import (
 )
 
 func SearchWithCount(c Context, where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	// TODO
-	return 0
+	return search(c, where, pager, true, true, reflect.ValueOf(entities), references...)
 }
 
 func Search(c Context, where *Where, pager *Pager, entities interface{}, references ...string) {
-	// TODO
+	search(c, where, pager, false, true, reflect.ValueOf(entities), references...)
 }
 
 func SearchIDsWithCount[E Entity](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
-	// TODO
-	return nil, 0
+	return searchIDs[E](c, where, pager, true)
 }
 
-func SearchIDs[E Entity](c Context, where *Where, pager *Pager, entity Entity) []uint64 {
-	// TODO
-	return nil
+func SearchIDs[E Entity](c Context, where *Where, pager *Pager) []uint64 {
+	ids, _ := searchIDs[E](c, where, pager, false)
+	return ids
 }
 
 func SearchOne[E Entity](c Context, where *Where, references ...string) (entity E) {
 	return searchOne[E](c, where, references)
-}
-
-func searchIDsWithCount(engine *engineImplementation, where *Where, pager *Pager, entityType reflect.Type) (results []uint64, totalRows int) {
-	return searchIDs(engine, where, pager, true, entityType)
 }
 
 func prepareScan(schema *entitySchema) (pointers []interface{}) {
@@ -139,41 +133,46 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 }
 
 func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E) {
-	initIfNeeded(schema, entity)
+	schema := GetEntitySchema[E](c).(*entitySchema)
 	if isSearch {
-		where = runPluginInterfaceEntitySearch(engine, where, schema)
+		where = runPluginInterfaceEntitySearch(c, where, schema)
 	}
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
 
-	pool := schema.GetMysql(engine)
-	results, def := pool.Query(query, where.GetParameters()...)
+	pool := schema.GetMysql()
+	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 	if !results.Next() {
-		return false, schema, nil
+		return
 	}
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
-	fillFromDBRow(serializer, schema, pointers, entity)
-	if len(references) > 0 {
-		warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
+	if entityToFill != nil {
+		entity = entityToFill.(E)
+	} else {
+		entity = schema.newEntity().(E)
 	}
-	return true, schema, pointers
+	fillFromDBRow(c, schema, pointers, entity)
+	//if len(references) > 0 {
+	//	warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
+	//}
+	return
 }
 
-func runPluginInterfaceEntitySearch(engine *engineImplementation, where *Where, schema *entitySchema) *Where {
-	for _, plugin := range engine.registry.plugins {
+func runPluginInterfaceEntitySearch(c Context, where *Where, schema *entitySchema) *Where {
+	for _, plugin := range c.Engine().GetRegistry().plugins {
 		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
 		if isInterfaceEntitySearch {
-			where = interfaceEntitySearch.PluginInterfaceEntitySearch(engine, schema, where)
+			where = interfaceEntitySearch.PluginInterfaceEntitySearch(c, schema, where)
 		}
 	}
 	return where
 }
 
-func search(serializer *serializer, engine *engineImplementation, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -182,13 +181,14 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
+	GetEntitySchema()
 	schema := getEntitySchema(engine.registry, entityType)
 	where = runPluginInterfaceEntitySearch(engine, where, schema)
 
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
-	pool := schema.GetMysql(engine)
+	pool := schema.GetMysql()
 	results, def := pool.Query(query, where.GetParameters()...)
 	defer def()
 
@@ -199,24 +199,24 @@ func search(serializer *serializer, engine *engineImplementation, where *Where, 
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
 		value := reflect.New(entityType)
-		fillFromDBRow(serializer, schema, pointers, value.Interface().(Entity))
+		fillFromDBRow(c, schema, pointers, value.Interface().(Entity))
 		val = reflect.Append(val, value)
 		i++
 	}
 	def()
-	totalRows = getTotalRows(engine, withCount, pager, where, schema, i)
-	if len(references) > 0 && i > 0 {
-		warmUpReferences(serializer, engine, schema, val, references, true)
-	}
+	totalRows = getTotalRows(c, withCount, pager, where, schema, i)
+	//if len(references) > 0 && i > 0 {
+	//	warmUpReferences(serializer, engine, schema, val, references, true)
+	//}
 	valOrigin.Set(val)
 	return totalRows
 }
 
 func searchOne[E Entity](c Context, where *Where, references []string) E {
-	return searchRow(c, schema, where, true, references)
+	return searchRow[E](c, where, nil, true, references)
 }
 
-func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCount bool, entityType reflect.Type) (ids []uint64, total int) {
+func searchIDs[E Entity](c Context, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
@@ -239,7 +239,7 @@ func searchIDs(engine *engineImplementation, where *Where, pager *Pager, withCou
 	return result, totalRows
 }
 
-func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, where *Where, schema *entitySchema, foundRows int) int {
+func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema *entitySchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows
@@ -247,8 +247,8 @@ func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, wh
 			/* #nosec */
 			query := "SELECT count(1) FROM `" + schema.tableName + "` WHERE " + where.String()
 			var foundTotal string
-			pool := schema.GetMysql(engine)
-			pool.QueryRow(NewWhere(query, where.GetParameters()...), &foundTotal)
+			pool := schema.GetMysql()
+			pool.QueryRow(c, NewWhere(query, where.GetParameters()...), &foundTotal)
 			totalRows, _ = strconv.Atoi(foundTotal)
 		} else {
 			totalRows += (pager.GetCurrentPage() - 1) * pager.GetPageSize()
@@ -257,13 +257,14 @@ func getTotalRows(engine *engineImplementation, withCount bool, pager *Pager, wh
 	return totalRows
 }
 
-func fillFromDBRow(serializer *serializer, schema *entitySchema, pointers []interface{}, entity Entity) {
+func fillFromDBRow(c Context, schema *entitySchema, pointers []interface{}, entity Entity) {
 	orm := initIfNeeded(schema, entity)
 	orm.inDB = true
 	orm.loaded = true
-	serializer.Reset(nil)
-	orm.deserializeFromDB(serializer, pointers)
-	orm.deserialize(serializer)
+	s := c.getSerializer()
+	s.Reset(nil)
+	orm.deserializeFromDB(s, pointers)
+	orm.deserialize(c)
 }
 
 func fillFromBinary(c Context, schema *entitySchema, binary []byte, entity Entity) {

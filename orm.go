@@ -85,7 +85,7 @@ func (orm *ORM) GetMetaData() Meta {
 }
 
 func (orm *ORM) Clone() Entity {
-	newEntity := orm.entitySchema.NewEntity()
+	newEntity := orm.entitySchema.newEntity()
 	for i, field := range orm.entitySchema.fields.fields {
 		if field.IsExported() {
 			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
@@ -439,12 +439,13 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 }
 
 func (orm *ORM) deserialize(c Context) {
-	serializer.Reset(orm.binary)
-	hash := serializer.DeserializeUInteger()
+	s := c.getSerializer()
+	s.Reset(orm.binary)
+	hash := s.DeserializeUInteger()
 	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.t.String()))
 	}
-	orm.deserializeFields(serializer, orm.entitySchema.fields, orm.elem)
+	orm.deserializeFields(s, orm.entitySchema.fields, orm.elem)
 	orm.loaded = true
 }
 
