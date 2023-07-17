@@ -11,6 +11,7 @@ type Context interface {
 	Clone() Context
 	Flusher() Flusher
 	Engine() Engine
+	EventBroker() EventBroker
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)

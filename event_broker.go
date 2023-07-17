@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -13,12 +12,12 @@ import (
 )
 
 type Event interface {
-	Ack()
+	Ack(c Context)
 	ID() string
 	Stream() string
 	Meta() Meta
 	Unserialize(val interface{})
-	delete()
+	delete(c Context)
 }
 
 type event struct {
@@ -35,14 +34,14 @@ type garbageCollectorEvent struct {
 	Pool  string
 }
 
-func (ev *event) Ack() {
-	ev.consumer.redis.XAck(ev.stream, ev.consumer.group, ev.message.ID)
+func (ev *event) Ack(c Context) {
+	ev.consumer.redis.XAck(c, ev.stream, ev.consumer.group, ev.message.ID)
 	ev.ack = true
 }
 
-func (ev *event) delete() {
-	ev.Ack()
-	ev.consumer.redis.XDel(ev.stream, ev.message.ID)
+func (ev *event) delete(c Context) {
+	ev.Ack(c)
+	ev.consumer.redis.XDel(c, ev.stream, ev.message.ID)
 	ev.deleted = true
 }
 
@@ -81,7 +80,7 @@ type EventBroker interface {
 }
 
 type eventBroker struct {
-	engine *engineImplementation
+	c *contextImplementation
 }
 
 func createEventSlice(body interface{}, meta Meta) []string {
@@ -108,21 +107,19 @@ func createEventSlice(body interface{}, meta Meta) []string {
 	return values
 }
 
-func (e *engineImplementation) GetEventBroker() EventBroker {
-	e.Mutex.Lock()
-	defer e.Mutex.Unlock()
-	if e.eventBroker == nil {
-		e.eventBroker = &eventBroker{engine: e}
+func (c *contextImplementation) EventBroker() EventBroker {
+	if c.eventBroker == nil {
+		c.eventBroker = &eventBroker{c: c}
 	}
-	return e.eventBroker
+	return c.eventBroker
 }
 
 func (eb *eventBroker) Publish(stream string, body interface{}, meta Meta) (id string) {
-	return eb.engine.GetRedis(getRedisCodeForStream(eb.engine.registry, stream)).xAdd(stream, createEventSlice(body, meta))
+	return eb.c.engine.GetRedis(getRedisCodeForStream(eb.c.engine, stream)).xAdd(eb.c, stream, createEventSlice(body, meta))
 }
 
-func getRedisCodeForStream(registry *validatedRegistry, stream string) string {
-	pool, has := registry.redisStreamPools[stream]
+func getRedisCodeForStream(engine *engineImplementation, stream string) string {
+	pool, has := engine.redisStreamPools[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
 	}
@@ -132,21 +129,21 @@ func getRedisCodeForStream(registry *validatedRegistry, stream string) string {
 type EventConsumerHandler func(events []Event)
 
 type EventsConsumer interface {
-	Consume(ctx context.Context, count int, handler EventConsumerHandler) bool
-	ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool
-	Claim(from, to int)
+	Consume(c Context, count int, handler EventConsumerHandler) bool
+	ConsumeMany(c Context, nr, count int, handler EventConsumerHandler) bool
+	Claim(c Context, from, to int)
 	SetBlockTime(seconds int)
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
-	streams := eb.engine.registry.getRedisStreamsForGroup(group)
+	streams := eb.c.engine.getRedisStreamsForGroup(group)
 	if len(streams) == 0 {
 		panic(fmt.Errorf("unregistered streams for group %s", group))
 	}
-	redisPool := eb.engine.registry.redisStreamPools[streams[0]]
+	redisPool := eb.c.engine.registry.redisStreamPools[streams[0]]
 	return &eventsConsumer{
-		eventConsumerBase: eventConsumerBase{engine: eb.engine, block: true, blockTime: time.Second * 30},
-		redis:             eb.engine.GetRedis(redisPool).(*redisCache),
+		eventConsumerBase: eventConsumerBase{c: eb.c, block: true, blockTime: time.Second * 30},
+		redis:             eb.c.engine.GetRedis(redisPool).(*redisCache),
 		streams:           streams,
 		group:             group,
 		lockTTL:           time.Second * 90,
@@ -154,7 +151,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	engine    *engineImplementation
+	c         *contextImplementation
 	block     bool
 	blockTime time.Duration
 }
@@ -179,30 +176,30 @@ func (b *eventConsumerBase) SetBlockTime(seconds int) {
 	b.blockTime = time.Duration(seconds) * time.Second
 }
 
-func (r *eventsConsumer) Consume(ctx context.Context, count int, handler EventConsumerHandler) bool {
-	return r.ConsumeMany(ctx, 1, count, handler)
+func (r *eventsConsumer) Consume(c Context, count int, handler EventConsumerHandler) bool {
+	return r.ConsumeMany(c, 1, count, handler)
 }
 
-func (r *eventsConsumer) ConsumeMany(ctx context.Context, nr, count int, handler EventConsumerHandler) bool {
-	return r.consume(ctx, r.getName(nr), count, handler)
+func (r *eventsConsumer) ConsumeMany(c Context, nr, count int, handler EventConsumerHandler) bool {
+	return r.consume(c, r.getName(nr), count, handler)
 }
 
-func (r *eventsConsumer) consume(ctx context.Context, name string, count int, handler EventConsumerHandler) (finished bool) {
+func (r *eventsConsumer) consume(c Context, name string, count int, handler EventConsumerHandler) (finished bool) {
 	lockKey := r.redis.config.GetNamespace() + r.group + "_" + name
 	locker := r.redis.GetLocker()
-	lock, has := locker.Obtain(ctx, lockKey, r.lockTTL, 0)
+	lock, has := locker.Obtain(c, lockKey, r.lockTTL, 0)
 	if !has {
 		return false
 	}
 	timer := time.NewTimer(r.lockTick)
 	defer func() {
-		lock.Release()
+		lock.Release(c)
 		timer.Stop()
 	}()
 	r.garbage()
 
 	for _, stream := range r.streams {
-		r.redis.XGroupCreateMkStream(stream, r.group, "0")
+		r.redis.XGroupCreateMkStream(c, stream, r.group, "0")
 	}
 
 	attributes := &consumeAttributes{
@@ -219,15 +216,15 @@ func (r *eventsConsumer) consume(ctx context.Context, name string, count int, ha
 	}
 	for {
 		select {
-		case <-ctx.Done():
+		case <-c.Ctx().Done():
 			return true
 		case <-timer.C:
-			if !lock.Refresh(ctx, r.lockTTL) {
+			if !lock.Refresh(c, r.lockTTL) {
 				return false
 			}
 			timer.Reset(r.lockTick)
 		default:
-			if r.digest(ctx, attributes) {
+			if r.digest(c, attributes) {
 				return true
 			}
 		}
@@ -245,15 +242,15 @@ type consumeAttributes struct {
 	Streams   []string
 }
 
-func (r *eventsConsumer) digest(ctx context.Context, attributes *consumeAttributes) (stop bool) {
-	finished := r.digestKeys(ctx, attributes)
+func (r *eventsConsumer) digest(c Context, attributes *consumeAttributes) (stop bool) {
+	finished := r.digestKeys(c, attributes)
 	if !r.block && finished {
 		return true
 	}
 	return false
 }
 
-func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttributes) (finished bool) {
+func (r *eventsConsumer) digestKeys(c Context, attributes *consumeAttributes) (finished bool) {
 	i := 0
 	for _, stream := range r.streams {
 		attributes.Streams[i] = stream
@@ -269,7 +266,7 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 	}
 	a := &redis.XReadGroupArgs{Consumer: attributes.Name, Group: r.group, Streams: attributes.Streams,
 		Count: int64(attributes.Count), Block: attributes.BlockTime}
-	results := r.redis.XReadGroup(ctx, a)
+	results := r.redis.XReadGroup(c, a)
 	totalMessages := 0
 	for _, row := range results {
 		l := len(row.Messages)
@@ -317,17 +314,17 @@ func (r *eventsConsumer) digestKeys(ctx context.Context, attributes *consumeAttr
 		r.garbage()
 	}
 	for stream, ids := range toAck {
-		r.redis.XAck(stream, r.group, ids...)
+		r.redis.XAck(c, stream, r.group, ids...)
 	}
 	return false
 }
 
-func (r *eventsConsumer) Claim(from, to int) {
+func (r *eventsConsumer) Claim(c Context, from, to int) {
 	for _, stream := range r.streams {
 		start := "-"
 		for {
 			xPendingArg := &redis.XPendingExtArgs{Stream: stream, Group: r.group, Start: start, End: "+", Consumer: r.getName(from), Count: 100}
-			pending := r.redis.XPendingExt(xPendingArg)
+			pending := r.redis.XPendingExt(c, xPendingArg)
 			l := len(pending)
 			if l == 0 {
 				break
@@ -338,7 +335,7 @@ func (r *eventsConsumer) Claim(from, to int) {
 			}
 			start = r.incrementID(ids[l-1])
 			arg := &redis.XClaimArgs{Consumer: r.getName(to), Stream: stream, Group: r.group, Messages: ids}
-			r.redis.XClaimJustID(arg)
+			r.redis.XClaimJustID(c, arg)
 			if l < 100 {
 				break
 			}
@@ -360,7 +357,7 @@ func (r *eventsConsumer) garbage() {
 	now := time.Now().Unix()
 	if (now - r.garbageLastTick) >= 10 {
 		garbageEvent := garbageCollectorEvent{Group: r.group, Pool: r.redis.config.GetCode()}
-		r.engine.GetEventBroker().Publish(StreamGarbageCollectorChannelName, garbageEvent, nil)
+		r.c.EventBroker().Publish(StreamGarbageCollectorChannelName, garbageEvent, nil)
 		r.garbageLastTick = now
 	}
 }
