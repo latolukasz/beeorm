@@ -107,7 +107,7 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
 			entity := schema.newEntity()
-			fillFromDBRow(c.getSerializer(), schema, pointers, entity)
+			fillFromDBRow(c, schema, pointers, entity)
 			id := *pointers[0].(*uint64)
 			for i, originalID := range ids {
 				if id == originalID {
