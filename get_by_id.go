@@ -40,7 +40,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 				return
 			}
 			if entityToFill == nil {
-				entity = schema.newEntity().(E)
+				entity = schema.NewEntity().(E)
 			} else {
 				entity = entityToFill.(E)
 			}

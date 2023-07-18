@@ -75,7 +75,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	beeorm.RunStreamGarbageCollectorConsumer(engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
 
-	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity1)
+	schema := engine.Registry().GetEntitySchemaForEntity(entity1)
 	logs := GetEntityLogs(engine, schema, 1, nil, nil)
 	assert.Len(t, logs, 1)
 	assert.Nil(t, logs[0].MetaData)
@@ -89,7 +89,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	beeorm.RunStreamGarbageCollectorConsumer(engine)
 	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
 
-	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(entity2)
+	schema2 := engine.Registry().GetEntitySchemaForEntity(entity2)
 	logs = GetEntityLogs(engine, schema2, 1, nil, nil)
 	assert.Len(t, logs, 1)
 	assert.Nil(t, logs[0].MetaData)
@@ -164,7 +164,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Len(t, logs, 1)
 	assert.Len(t, logs[0].Before, 1)
 
-	logs = GetEntityLogs(engine, engine.GetRegistry().GetEntitySchemaForEntity(entity3), 1, nil, nil)
+	logs = GetEntityLogs(engine, engine.Registry().GetEntitySchemaForEntity(entity3), 1, nil, nil)
 	assert.Len(t, logs, 0)
 
 	engine.LoadByID(2, e1)

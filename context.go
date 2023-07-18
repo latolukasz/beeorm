@@ -115,7 +115,7 @@ func (c *contextImplementation) Engine() Engine {
 
 func (c *contextImplementation) Flusher() Flusher {
 	if c.flusher == nil {
-		c.flusher = &flusher{context: c}
+		c.flusher = &flusher{c: c}
 	}
 	return c.flusher
 }

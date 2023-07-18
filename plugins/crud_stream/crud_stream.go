@@ -71,7 +71,7 @@ func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeor
 }
 
 func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm.EventEntityFlushed, cacheFlusher beeorm.FlusherCacheSetter) {
-	entitySchema := engine.GetRegistry().GetEntitySchema(event.EntityName())
+	entitySchema := engine.Registry().GetEntitySchema(event.EntityName())
 	if entitySchema.GetPluginOption(PluginCode, hasCrudStreamOption) != true {
 		return
 	}

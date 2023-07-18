@@ -181,9 +181,9 @@ func TestCrudStream(t *testing.T) {
 	})
 	assert.False(t, valid)
 
-	beeorm.RunLazyFlushConsumer(engine.GetRegistry().CreateEngine(), true)
+	beeorm.RunLazyFlushConsumer(engine.Registry().CreateEngine(), true)
 	valid = false
-	consumer = engine.GetRegistry().CreateEngine().GetEventBroker().Consumer("test-consumer")
+	consumer = engine.Registry().CreateEngine().GetEventBroker().Consumer("test-consumer")
 	consumer.SetBlockTime(0)
 	consumer.Consume(context.Background(), 10, func(events []beeorm.Event) {
 		valid = true

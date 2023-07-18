@@ -89,7 +89,7 @@ type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
 	GetType() reflect.Type
-	newEntity() Entity
+	NewEntity() Entity
 	DropTable(c Context)
 	TruncateTable(c Context)
 	UpdateSchema(c Context)
@@ -1060,7 +1060,7 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) newEntity() Entity {
+func (entitySchema *entitySchema) NewEntity() Entity {
 	val := reflect.New(entitySchema.t)
 	e := val.Interface().(Entity)
 	orm := e.getORM()

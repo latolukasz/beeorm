@@ -153,7 +153,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	if entityToFill != nil {
 		entity = entityToFill.(E)
 	} else {
-		entity = schema.newEntity().(E)
+		entity = schema.NewEntity().(E)
 	}
 	fillFromDBRow(c, schema, pointers, entity)
 	//if len(references) > 0 {
@@ -163,7 +163,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 }
 
 func runPluginInterfaceEntitySearch(c Context, where *Where, schema *entitySchema) *Where {
-	for _, plugin := range c.Engine().GetRegistry().plugins {
+	for _, plugin := range c.Engine().Registry().plugins {
 		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
 		if isInterfaceEntitySearch {
 			where = interfaceEntitySearch.PluginInterfaceEntitySearch(c, schema, where)
@@ -196,7 +196,7 @@ func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool,
 	for results.Next() {
 		pointers := prepareScan(schema)
 		results.Scan(pointers...)
-		entity := schema.newEntity()
+		entity := schema.NewEntity()
 		fillFromDBRow(c, schema, pointers, entity)
 		val = reflect.Append(val, reflect.ValueOf(entity))
 		i++

@@ -46,7 +46,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
 	engine := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity)
-	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
+	schema := engine.Registry().GetEntitySchemaForEntity(entity)
 	assert.Equal(t, 2000, schema.(*entitySchema).localCacheLimit)
 	schema.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {

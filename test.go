@@ -55,7 +55,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 
 	engine = vRegistry.CreateEngine()
 	if t != nil {
-		assert.Equal(t, engine.GetRegistry(), vRegistry)
+		assert.Equal(t, engine.Registry(), vRegistry)
 	}
 	cacheRedis := engine.GetRedis()
 	cacheRedis.FlushDB()

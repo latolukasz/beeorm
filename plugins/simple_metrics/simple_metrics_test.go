@@ -21,7 +21,7 @@ func TestMysqlMetrics(t *testing.T) {
 	registry.RegisterPlugin(plugin)
 	engine := beeorm.PrepareTables(t, registry, 8, 6, "", entity)
 
-	plugin = engine.GetRegistry().GetPlugin(PluginCode).(*Plugin)
+	plugin = engine.Registry().GetPlugin(PluginCode).(*Plugin)
 	dbStats := plugin.GetMySQLQueriesStats("")
 	assert.NotEmpty(t, dbStats)
 	slowStats := plugin.GetMySQLSlowQueriesStats("")

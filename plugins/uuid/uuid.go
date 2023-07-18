@@ -69,7 +69,7 @@ func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeor
 	if !event.Type().Is(beeorm.Insert) || event.EntityID() > 0 {
 		return
 	}
-	schema := engine.GetRegistry().GetEntitySchema(event.EntityName())
+	schema := engine.Registry().GetEntitySchema(event.EntityName())
 	if schema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return
 	}

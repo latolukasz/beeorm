@@ -8,7 +8,7 @@ import (
 
 func TestEngine(t *testing.T) {
 	engine := PrepareTables(t, &Registry{}, 5, 6, "")
-	source := engine.GetRegistry().GetSourceRegistry()
+	source := engine.Registry().GetSourceRegistry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
 		engine.GetMysql("test")

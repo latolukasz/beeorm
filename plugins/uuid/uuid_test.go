@@ -59,8 +59,8 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	alters[0].Exec(engine)
 	alters[1].Exec(engine)
 
-	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
-	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(referenceEntity)
+	schema := engine.Registry().GetEntitySchemaForEntity(entity)
+	schema2 := engine.Registry().GetEntitySchemaForEntity(referenceEntity)
 	schema.DisableCache(!local, !redis)
 	schema2.DisableCache(!local, !redis)
 

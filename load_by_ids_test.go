@@ -47,9 +47,9 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	var reference *loadByIdsReference
 	var subReference *loadByIdsSubReference
 	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, reference, subReference)
-	schema := engine.GetRegistry().GetEntitySchemaForEntity(entity)
-	schema2 := engine.GetRegistry().GetEntitySchemaForEntity(reference)
-	schema3 := engine.GetRegistry().GetEntitySchemaForEntity(subReference)
+	schema := engine.Registry().GetEntitySchemaForEntity(entity)
+	schema2 := engine.Registry().GetEntitySchemaForEntity(reference)
+	schema3 := engine.Registry().GetEntitySchemaForEntity(subReference)
 	schema.DisableCache(!local, !redis)
 	schema2.DisableCache(!local, !redis)
 	schema3.DisableCache(!local, !redis)

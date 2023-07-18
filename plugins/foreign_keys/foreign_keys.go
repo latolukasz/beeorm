@@ -79,7 +79,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	if refs != nil {
 		references := refs.([]beeorm.EntitySchemaReference)
 		for _, reference := range references {
-			refOneSchema := engine.GetRegistry().GetEntitySchema(reference.EntityName)
+			refOneSchema := engine.Registry().GetEntitySchema(reference.EntityName)
 			pool := refOneSchema.GetMysql(engine)
 			fieldType := refOneSchema.GetType().Field(1).Type.String()
 			if fieldType == "uint" {

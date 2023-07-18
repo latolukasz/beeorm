@@ -88,7 +88,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 		subReference2, reference2)
 
 	schemas := make([]EntitySchema, 0)
-	registry := engine.GetRegistry()
+	registry := engine.Registry()
 	schemas = append(schemas, registry.GetEntitySchemaForEntity(entity))
 
 	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityRedis))
@@ -127,16 +127,16 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
-	schema := engine.GetRegistry().GetEntitySchemaForCachePrefix("6e009")
+	schema := engine.Registry().GetEntitySchemaForCachePrefix("6e009")
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
-	schema = engine.GetRegistry().GetEntitySchemaForCachePrefix("invalid")
+	schema = engine.Registry().GetEntitySchemaForCachePrefix("invalid")
 	assert.Nil(t, schema)
 
 	entity = &loadByIDEntity{}
 	engine.EnableQueryDebug()
-	fmt.Printf("ID %d %v\n", id, engine.GetRegistry().GetEntitySchemaForEntity(reference).(*entitySchema).cachePrefix)
-	fmt.Printf("ID %d %v\n", id, engine.GetRegistry().GetEntitySchemaForEntity(reference2).(*entitySchema).cachePrefix)
+	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference).(*entitySchema).cachePrefix)
+	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference2).(*entitySchema).cachePrefix)
 	found = engine.LoadByID(id, entity, "ReferenceThird", "ReferenceOne")
 	return
 	assert.True(t, found)

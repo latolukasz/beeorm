@@ -82,7 +82,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 			"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 			"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-			db.GetPoolConfig().GetDatabase(), tableName, engine.GetRegistry().GetSourceRegistry().GetDefaultCollate())
+			db.GetPoolConfig().GetDatabase(), tableName, engine.Registry().GetSourceRegistry().GetDefaultCollate())
 	}
 
 	if !hasLogTable {
@@ -110,7 +110,7 @@ func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 		for _, event := range events {
 			var data crud_stream.CrudEvent
 			event.Unserialize(&data)
-			schema := engine.GetRegistry().GetEntitySchema(data.EntityName)
+			schema := engine.Registry().GetEntitySchema(data.EntityName)
 			if schema == nil {
 				continue
 			}
@@ -196,7 +196,7 @@ func handleLogEvents(engine beeorm.Engine, values map[string][]*crud_stream.Crud
 		func() {
 			defer poolDB.Rollback()
 			for _, value := range rows {
-				schema := engine.GetRegistry().GetEntitySchema(value.EntityName)
+				schema := engine.Registry().GetEntitySchema(value.EntityName)
 				tableName := schema.GetPluginOption(PluginCode, tableNameOption)
 				query := "INSERT INTO `" + tableName.(string) + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)

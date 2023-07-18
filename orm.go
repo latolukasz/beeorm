@@ -85,7 +85,7 @@ func (orm *ORM) GetMetaData() Meta {
 }
 
 func (orm *ORM) Clone() Entity {
-	newEntity := orm.entitySchema.newEntity()
+	newEntity := orm.entitySchema.NewEntity()
 	for i, field := range orm.entitySchema.fields.fields {
 		if field.IsExported() {
 			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
@@ -445,11 +445,12 @@ func (orm *ORM) deserialize(c Context) {
 	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.t.String()))
 	}
-	orm.deserializeFields(s, orm.entitySchema.fields, orm.elem)
+	orm.deserializeFields(c, orm.entitySchema.fields, orm.elem)
 	orm.loaded = true
 }
 
-func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, elem reflect.Value) {
+func (orm *ORM) deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
+	serializer := c.getSerializer()
 	for _, i := range fields.uintegers {
 		v := serializer.DeserializeUInteger()
 		elem.Field(i).SetUint(v)
@@ -460,7 +461,7 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
-			e := getEntitySchema(orm.entitySchema.registry, fields.refsTypes[k]).NewEntity()
+			e := c.Engine().GetEntitySchema(fields.refsTypes[k]).NewEntity()
 			o := e.getORM()
 			o.idElem.SetUint(id)
 			o.inDB = true
@@ -649,11 +650,11 @@ func (orm *ORM) deserializeFields(serializer *serializer, fields *tableFields, e
 		}
 	}
 	for k, i := range fields.structs {
-		orm.deserializeFields(serializer, fields.structsFields[k], elem.Field(i))
+		orm.deserializeFields(c, fields.structsFields[k], elem.Field(i))
 	}
 }
 
-func (orm *ORM) SetField(field string, value interface{}) error {
+func (orm *ORM) SetField(c Context, field string, value interface{}) error {
 	asString, isString := value.(string)
 	if isString {
 		asStringLower := strings.ToLower(asString)
@@ -927,7 +928,7 @@ func (orm *ORM) SetField(field string, value interface{}) error {
 						if id == 0 {
 							f.Set(reflect.Zero(f.Type()))
 						} else {
-							newRef := orm.entitySchema.registry.GetEntitySchema(f.Type().Elem().String()).NewEntity()
+							newRef := c.Engine().GetEntitySchema(f.Type().Elem()).NewEntity()
 							newRef.getORM().idElem.SetUint(id)
 							f.Set(reflect.ValueOf(newRef))
 						}

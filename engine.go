@@ -7,8 +7,8 @@ import (
 
 type Engine interface {
 	NewContext(parent context.Context) Context
-	GetEntitySchema(entityName string) EntitySchema
-	GetRegistry() *Registry
+	GetEntitySchema(entity any) EntitySchema
+	Registry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
 	GetMySQL(code string) *DB
@@ -40,7 +40,7 @@ func (e *engineImplementation) NewContext(parent context.Context) Context {
 	return &contextImplementation{parent: parent, engine: e}
 }
 
-func (e *engineImplementation) GetRegistry() *Registry {
+func (e *engineImplementation) Registry() *Registry {
 	return e.registry
 }
 
@@ -118,12 +118,20 @@ func (e *engineImplementation) GetRedisPools() map[string]RedisCache {
 	return e.redisServers
 }
 
-func (e *engineImplementation) GetEntitySchema(entityName string) EntitySchema {
-	t, has := e.entities[entityName]
-	if !has {
-		return nil
+func (e *engineImplementation) GetEntitySchema(entity any) EntitySchema {
+	switch entity.(type) {
+	case string:
+		t, has := e.entities[entity.(string)]
+		if !has {
+			return nil
+		}
+		return e.entitySchemas[t]
+	case Entity:
+		return e.entitySchemas[reflect.TypeOf(entity).Elem()]
+	case reflect.Type:
+		return e.entitySchemas[entity.(reflect.Type)]
 	}
-	return e.entitySchemas[t]
+	return nil
 }
 
 func (e *engineImplementation) GetEnum(code string) Enum {

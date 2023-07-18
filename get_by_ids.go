@@ -37,7 +37,7 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 		for i, id := range ids {
 			fromLocalCache, hasInLocalCache := cacheLocal.Get(c, id)
 			if hasInLocalCache {
-				entity := schema.newEntity()
+				entity := schema.NewEntity()
 				resultsSlice.Index(i).Set(entity.getORM().value)
 				if fromLocalCache != cacheNilValue {
 					fillFromBinary(c, schema, fromLocalCache.([]byte), entity)
@@ -56,7 +56,7 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 			for i := range redisHSetKeys {
 				fromRedisCache := fromRedisAll[i]
 				if fromRedisCache != nil {
-					entity := schema.newEntity()
+					entity := schema.NewEntity()
 					resultsSlice.Index(i).Set(entity.getORM().value)
 					if fromRedisCache != cacheNilValue {
 						fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
@@ -73,7 +73,7 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 				if fromRedisCache != nil {
 					for i, idOriginal := range ids {
 						if id == idOriginal {
-							entity := schema.newEntity()
+							entity := schema.NewEntity()
 							resultsSlice.Index(i).Set(entity.getORM().value)
 							if fromRedisCache != cacheNilValue {
 								fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
@@ -106,7 +106,7 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 			foundInDB++
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
-			entity := schema.newEntity()
+			entity := schema.NewEntity()
 			fillFromDBRow(c, schema, pointers, entity)
 			id := *pointers[0].(*uint64)
 			for i, originalID := range ids {
