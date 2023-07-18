@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -17,37 +16,37 @@ type LazyFlushConsumer struct {
 	flusher                      *flusher
 }
 
-func NewLazyFlushConsumer(engine Engine) *LazyFlushConsumer {
-	c := &LazyFlushConsumer{}
-	c.engine = engine.Clone().(*engineImplementation)
-	c.engine.SetMetaData("lazy", "1")
-	c.block = true
-	c.blockTime = time.Second * 30
-	c.flusher = &flusher{engine: engine.(*engineImplementation)}
-	return c
+func NewLazyFlushConsumer(c Context) *LazyFlushConsumer {
+	lfc := &LazyFlushConsumer{}
+	lfc.c = c.(*contextImplementation)
+	lfc.c.SetMetaData("lazy", "1")
+	lfc.block = true
+	lfc.blockTime = time.Second * 30
+	lfc.flusher = &flusher{c: c}
+	return lfc
 }
 
-type LazyFlushQueryErrorResolver func(engine Engine, event EventEntityFlushed, queryError *mysql.MySQLError) error
+type LazyFlushQueryErrorResolver func(c Context, event EventEntityFlushed, queryError *mysql.MySQLError) error
 
-func (r *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
-	r.lazyFlushQueryErrorResolvers = append(r.lazyFlushQueryErrorResolvers, resolver)
+func (lfc *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
+	lfc.lazyFlushQueryErrorResolvers = append(lfc.lazyFlushQueryErrorResolvers, resolver)
 }
 
-func (r *LazyFlushConsumer) Digest(ctx context.Context) bool {
-	r.consumer = r.engine.GetEventBroker().Consumer(LazyFlushGroupName).(*eventsConsumer)
-	r.consumer.eventConsumerBase = r.eventConsumerBase
-	return r.consumer.Consume(ctx, 500, func(events []Event) {
+func (lfc *LazyFlushConsumer) Digest() bool {
+	lfc.consumer = lfc.c.EventBroker().Consumer(LazyFlushGroupName).(*eventsConsumer)
+	lfc.consumer.eventConsumerBase = lfc.eventConsumerBase
+	return lfc.consumer.Consume(lfc.c, 500, func(events []Event) {
 		lazyEvents := make([]*entitySQLFlush, 0)
 		for _, e := range events {
 			var data []*entitySQLFlush
 			e.Unserialize(&data)
 			lazyEvents = append(lazyEvents, data...)
 		}
-		r.handleEvents(events, lazyEvents)
+		lfc.handleEvents(events, lazyEvents)
 	})
 }
 
-func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*entitySQLFlush) {
+func (lfc *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*entitySQLFlush) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			_, isMySQLError := rec.(*mysql.MySQLError)
@@ -55,7 +54,7 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*entitySQL
 				panic(rec)
 			}
 			for i, e := range lazyEvents {
-				f := &flusher{engine: r.engine}
+				f := &flusher{c: lfc.c}
 				f.events = []*entitySQLFlush{e}
 				func() {
 					defer func() {
@@ -64,22 +63,22 @@ func (r *LazyFlushConsumer) handleEvents(events []Event, lazyEvents []*entitySQL
 							if !stillMySQLError {
 								panic(rec2)
 							}
-							for _, errorResolver := range r.lazyFlushQueryErrorResolvers {
-								if errorResolver(r.engine, e, mySQLError) == nil {
-									events[i].Ack()
+							for _, errorResolver := range lfc.lazyFlushQueryErrorResolvers {
+								if errorResolver(lfc.c, e, mySQLError) == nil {
+									events[i].Ack(lfc.c)
 									return
 								}
 							}
 							panic(rec2)
 						}
-						events[i].Ack()
+						events[i].Ack(lfc.c)
 					}()
 					f.execute(false, true)
 				}()
 			}
 		}
 	}()
-	f := &flusher{engine: r.engine}
+	f := &flusher{c: lfc.c}
 	f.events = lazyEvents
 	f.execute(false, true)
 	f.flushCacheSetters()
