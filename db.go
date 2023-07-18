@@ -293,7 +293,7 @@ type preparedStmtStruct struct {
 }
 
 func (p preparedStmtStruct) Exec(c Context, args ...any) ExecResult {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := p.stmt.Exec(args...)
 	if hasLogger {
@@ -308,7 +308,7 @@ func (p preparedStmtStruct) Exec(c Context, args ...any) ExecResult {
 }
 
 func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func()) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := p.stmt.Query(args...)
 	if hasLogger {
@@ -329,7 +329,7 @@ func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func
 }
 
 func (p preparedStmtStruct) QueryRow(c Context, args []interface{}, toFill ...interface{}) (found bool) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	row := p.stmt.QueryRow(args...)
 	err := row.Scan(toFill...)
@@ -396,7 +396,7 @@ func (db *DB) SetMockClientTX(mock DBClientTX) {
 }
 
 func (db *DB) Begin(c Context) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.Begin()
 	if hasLogger {
@@ -406,7 +406,7 @@ func (db *DB) Begin(c Context) {
 }
 
 func (db *DB) Commit(c Context) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.Commit()
 	if hasLogger {
@@ -416,7 +416,7 @@ func (db *DB) Commit(c Context) {
 }
 
 func (db *DB) Rollback(c Context) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	has, err := db.client.Rollback()
 	if has {
@@ -428,7 +428,7 @@ func (db *DB) Rollback(c Context) {
 }
 
 func (db *DB) Prepare(c Context, query string) (stmt PreparedStmt, close func()) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Prepare(query)
 	if hasLogger {
@@ -450,7 +450,7 @@ func (db *DB) Exec(c Context, query string, args ...interface{}) ExecResult {
 }
 
 func (db *DB) exec(c Context, query string, args ...interface{}) (ExecResult, error) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := db.client.Exec(query, args...)
 	if hasLogger {
@@ -464,7 +464,7 @@ func (db *DB) exec(c Context, query string, args ...interface{}) (ExecResult, er
 }
 
 func (db *DB) QueryRow(c Context, query *Where, toFill ...interface{}) (found bool) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)
 	err := row.Scan(toFill...)
@@ -494,7 +494,7 @@ func (db *DB) QueryRow(c Context, query *Where, toFill ...interface{}) (found bo
 }
 
 func (db *DB) Query(c Context, query string, args ...interface{}) (rows Rows, close func()) {
-	hasLogger := c.(*contextImplementation).hasDBLogger
+	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Query(query, args...)
 	if hasLogger {
@@ -516,7 +516,8 @@ func (db *DB) Query(c Context, query string, args ...interface{}) (rows Rows, cl
 
 func (db *DB) fillLogFields(c Context, operation, query string, start *time.Time, err error) {
 	query = strings.ReplaceAll(query, "\n", " ")
-	fillLogFields(c, c.(*contextImplementation).queryLoggersDB, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
+	_, loggers := c.getDBLoggers()
+	fillLogFields(c, loggers, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
 }
 
 func convertSQLError(err error) error {

@@ -376,7 +376,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			e.UpdateOnDuplicate = nil
 		} else if rowsAffected == 0 {
 			if e.entity != nil && e.ID == 0 {
-				schema := f.c.Engine().GetEntitySchema(e.entity).(*entitySchema)
+				schema := f.c.Engine().GetEntitySchema(e.entity)
 			OUTER:
 				for _, uniqueIndex := range schema.uniqueIndices {
 					fields := make([]string, 0)
@@ -445,7 +445,7 @@ func (f *flusher) executePluginInterfaceEntityFlushed(e *entitySQLFlush) {
 
 func (f *flusher) Track(entity ...Entity) Flusher {
 	for _, e := range entity {
-		initIfNeeded(f.c.Engine().GetEntitySchema(e).(*entitySchema), e)
+		initIfNeeded(f.c.Engine().GetEntitySchema(e), e)
 		address := e.getORM().value.Pointer()
 		if f.trackedEntities == nil {
 			f.trackedEntities = map[uintptr]Entity{address: e}
@@ -505,7 +505,7 @@ func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
 }
 
 func (f *flusher) PublishToStream(stream string, body interface{}, meta Meta) {
-	f.GetRedisCacheSetter(getRedisCodeForStream(f.c.Engine().(*engineImplementation), stream)).xAdd(f.c, stream, createEventSlice(body, meta))
+	f.GetRedisCacheSetter(getRedisCodeForStream(f.c.Engine(), stream)).xAdd(f.c, stream, createEventSlice(body, meta))
 }
 
 func (f *flusher) Flush() {
@@ -575,7 +575,7 @@ func (f *flusher) flushWithCheck() error {
 func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	references := make(map[uintptr]Entity)
 	for _, entity := range source {
-		initIfNeeded(f.c.Engine().GetEntitySchema(entity).(*entitySchema), entity)
+		initIfNeeded(f.c.Engine().GetEntitySchema(entity), entity)
 		if !root {
 			_, has := f.trackedEntities[entity.getORM().value.Pointer()]
 			if has {
@@ -601,7 +601,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		if e.skip || e.ID == 0 {
 			continue
 		}
-		schema := f.c.Engine().GetEntitySchema(e.Entity).(*entitySchema)
+		schema := f.c.Engine().GetEntitySchema(e.Entity)
 		hasLocalCache := schema.hasLocalCache
 		hasRedis := schema.hasRedisCache
 		if !hasLocalCache && !hasRedis {
@@ -701,7 +701,7 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 		refValue := entity.getORM().elem.FieldByName(reference.ColumnName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
-			initIfNeeded(f.c.Engine().GetEntitySchema(refEntity).(*entitySchema), refEntity)
+			initIfNeeded(f.c.Engine().GetEntitySchema(refEntity), refEntity)
 			if refEntity.GetID() == 0 {
 				address := refValue.Pointer()
 				references[address] = refEntity
@@ -715,7 +715,7 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 	}
 }
 
-func (f *flusher) getCacheQueriesKeys(schema *entitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
+func (f *flusher) getCacheQueriesKeys(schema EntitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.cachedIndexesAll {
 		if addedDeleted && len(definition.TrackedFields) == 0 {

@@ -37,7 +37,7 @@ type Entity interface {
 
 type ORM struct {
 	binary               []byte
-	entitySchema         *entitySchema
+	entitySchema         EntitySchema
 	onDuplicateKeyUpdate Bind
 	meta                 Meta
 	initialised          bool

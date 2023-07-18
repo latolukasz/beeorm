@@ -135,8 +135,8 @@ func testLoadByID(t *testing.T, local, redis bool) {
 
 	entity = &loadByIDEntity{}
 	engine.EnableQueryDebug()
-	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference).(*entitySchema).cachePrefix)
-	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference2).(*entitySchema).cachePrefix)
+	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference).cachePrefix)
+	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference2).cachePrefix)
 	found = engine.LoadByID(id, entity, "ReferenceThird", "ReferenceOne")
 	return
 	assert.True(t, found)

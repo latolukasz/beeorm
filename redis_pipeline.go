@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,115 +17,126 @@ type RedisPipeLine struct {
 	log      []string
 }
 
-func (rp *RedisPipeLine) Del(key ...string) {
+func (rp *RedisPipeLine) Del(c Context, key ...string) {
 	for i, v := range key {
 		key[i] = rp.r.addNamespacePrefix(v)
 	}
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "DEL")
 		rp.log = append(rp.log, key...)
 	}
-	rp.pipeLine.Del(context.Background(), key...)
+	rp.pipeLine.Del(c.Ctx(), key...)
 }
 
-func (rp *RedisPipeLine) Get(key string) *PipeLineGet {
+func (rp *RedisPipeLine) Get(c Context, key string) *PipeLineGet {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "GET", key)
 	}
-	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(context.Background(), key)}
+	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(c.Ctx(), key)}
 }
 
-func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) {
+func (rp *RedisPipeLine) Set(c Context, key string, value interface{}, expiration time.Duration) {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "SET", key, expiration.String())
 	}
-	rp.pipeLine.Set(context.Background(), key, value, expiration)
+	rp.pipeLine.Set(c.Ctx(), key, value, expiration)
 }
 
-func (rp *RedisPipeLine) MSet(pairs ...interface{}) {
+func (rp *RedisPipeLine) MSet(c Context, pairs ...interface{}) {
 	if rp.r.config.HasNamespace() {
 		for i := 0; i < len(pairs); i = i + 2 {
 			pairs[i] = rp.r.addNamespacePrefix(pairs[i].(string))
 		}
 	}
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		message := "MSET"
 		for _, v := range pairs {
 			message += fmt.Sprintf(" %v", v)
 		}
 		rp.log = append(rp.log, "MSET", message)
 	}
-	rp.pipeLine.MSet(context.Background(), pairs...)
+	rp.pipeLine.MSet(c.Ctx(), pairs...)
 }
 
-func (rp *RedisPipeLine) Expire(key string, expiration time.Duration) *PipeLineBool {
+func (rp *RedisPipeLine) Expire(c Context, key string, expiration time.Duration) *PipeLineBool {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "EXPIRE", key, expiration.String())
 	}
-	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(context.Background(), key, expiration)}
+	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(c.Ctx(), key, expiration)}
 }
 
-func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
+func (rp *RedisPipeLine) HIncrBy(c Context, key, field string, incr int64) *PipeLineInt {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "HINCRBY", key, field, strconv.Itoa(int(incr)))
 	}
-	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(context.Background(), key, field, incr)}
+	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(c.Ctx(), key, field, incr)}
 }
 
-func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
+func (rp *RedisPipeLine) HSet(c Context, key string, values ...interface{}) {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "HSET", key)
 		for _, v := range values {
 			rp.log = append(rp.log, fmt.Sprintf("%v", v))
 		}
 	}
-	rp.pipeLine.HSet(context.Background(), key, values...)
+	rp.pipeLine.HSet(c.Ctx(), key, values...)
 }
 
-func (rp *RedisPipeLine) HDel(key string, values ...string) {
+func (rp *RedisPipeLine) HDel(c Context, key string, values ...string) {
 	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "HDEL", key)
 		rp.log = append(rp.log, values...)
 	}
-	rp.pipeLine.HDel(context.Background(), key, values...)
+	rp.pipeLine.HDel(c.Ctx(), key, values...)
 }
 
-func (rp *RedisPipeLine) XAdd(stream string, values []string) *PipeLineString {
+func (rp *RedisPipeLine) XAdd(c Context, stream string, values []string) *PipeLineString {
 	stream = rp.r.addNamespacePrefix(stream)
 	rp.commands++
-	if rp.r.engine.hasRedisLogger {
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
 		rp.log = append(rp.log, "XADD", stream)
 		rp.log = append(rp.log, values...)
 	}
-	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(context.Background(), &redis.XAddArgs{Stream: stream, Values: values})}
+	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(c.Ctx(), &redis.XAddArgs{Stream: stream, Values: values})}
 }
 
-func (rp *RedisPipeLine) Exec() {
+func (rp *RedisPipeLine) Exec(c Context) {
 	if rp.commands == 0 {
 		return
 	}
-	start := getNow(rp.r.engine.hasRedisLogger)
-	_, err := rp.pipeLine.Exec(context.Background())
+	hasLog, loggers := c.getRedisLoggers()
+	start := getNow(hasLog)
+	_, err := rp.pipeLine.Exec(c.Ctx())
 	rp.pipeLine = rp.r.client.Pipeline()
 	if err != nil && err == redis.Nil {
 		err = nil
 	}
-	if rp.r.engine.hasRedisLogger {
-		rp.fillLogFields(start, err)
+	if hasLog {
+		query := strings.Join(rp.log, " ")
+		fillLogFields(c, loggers, rp.pool, sourceRedis, "PIPELINE EXEC", query, start, false, err)
 	}
 	rp.log = nil
 	rp.commands = 0
@@ -178,9 +188,4 @@ func (c *PipeLineBool) Result() bool {
 	val, err := c.cmd.Result()
 	checkError(err)
 	return val
-}
-
-func (rp *RedisPipeLine) fillLogFields(start *time.Time, err error) {
-	query := strings.Join(rp.log, " ")
-	fillLogFields(rp.r.engine, rp.r.engine.queryLoggersRedis, rp.pool, sourceRedis, "PIPELINE EXEC", query, start, false, err)
 }

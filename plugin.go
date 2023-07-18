@@ -13,7 +13,7 @@ type PluginInterfaceInitEntitySchema interface {
 }
 
 type PluginInterfaceTableSQLSchemaDefinition interface {
-	PluginInterfaceTableSQLSchemaDefinition(engine Engine, sqlSchema *TableSQLSchemaDefinition) error
+	PluginInterfaceTableSQLSchemaDefinition(c Context, sqlSchema *TableSQLSchemaDefinition) error
 }
 
 type PluginInterfaceEntityFlushing interface {
@@ -27,6 +27,6 @@ type PluginInterfaceEntitySearch interface {
 	PluginInterfaceEntitySearch(c Context, schema EntitySchema, where *Where) *Where
 }
 
-type PluginInterfaceEngineCreated interface {
-	PluginInterfaceEngineCreated(engine Engine)
+type PluginInterfaceContentCreated interface {
+	PluginInterfaceContentCreated(c Context)
 }

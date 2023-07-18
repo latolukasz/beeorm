@@ -16,8 +16,8 @@ type CachedQuery struct{}
 func GetEntitySchema[E Entity](c Context) EntitySchema {
 	var entity E
 	t := reflect.TypeOf(entity).Elem()
-	schema, has := c.Engine().(*engineImplementation).entitySchemas[t]
-	if !has {
+	schema := c.Engine().GetEntitySchema(t)
+	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 	}
 	return schema
@@ -117,7 +117,7 @@ type entitySchema struct {
 	mysqlPoolCode              string
 	t                          reflect.Type
 	fields                     *tableFields
-	engine                     *engineImplementation
+	engine                     Engine
 	fieldsQuery                string
 	tags                       map[string]map[string]string
 	cachedIndexes              map[string]*cachedQueryDefinition
@@ -265,12 +265,11 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 }
 
 func (entitySchema *entitySchema) GetUsage(engine Engine) map[reflect.Type][]string {
-	e := engine.(*engineImplementation)
 	results := make(map[reflect.Type][]string)
-	if e.entities != nil {
-		for _, t := range e.entities {
-			schema := entitySchema.engine.entitySchemas[t]
-			entitySchema.getUsage(schema.fields, schema.t, "", results)
+	if engine.GetEntities() != nil {
+		for _, t := range engine.GetEntities() {
+			schema := engine.GetEntitySchema(t)
+			entitySchema.getUsage(schema.fields, schema.GetType(), "", results)
 		}
 	}
 	return results

@@ -8,7 +8,7 @@ type ID interface {
 
 const cacheNilValue = ""
 
-func initIfNeeded(schema *entitySchema, entity Entity) *ORM {
+func initIfNeeded(schema EntitySchema, entity Entity) *ORM {
 	orm := entity.getORM()
 	if !orm.initialised {
 		orm.initialised = true

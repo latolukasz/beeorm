@@ -7,11 +7,11 @@ import (
 )
 
 func GetByIDs(c Context, ids []uint64, entities interface{}, references ...string) (found bool) {
-	return GetByIDs(c.(*contextImplementation), ids, entities, references...)
+	return GetByIDs(c, ids, entities, references...)
 }
 
-func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
-	schema, has, name := getEntitySchemaForSlice(c.engine, entities.Type(), true)
+func getByIDs(c Context, ids []uint64, entities reflect.Value, references []string) (schema EntitySchema, hasMissing bool) {
+	schema, has, name := getEntitySchemaForSlice(c.Engine(), entities.Type(), true)
 	if !has {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}

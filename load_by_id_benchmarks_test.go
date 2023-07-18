@@ -30,7 +30,7 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
 	engine := PrepareTables(nil, registry, 5, 6, "", entity)
-	schema := engine.Registry().GetEntitySchemaForEntity(entity).(*entitySchema)
+	schema := engine.Registry().GetEntitySchemaForEntity(entity)
 	schema.DisableCache(!local, !redis)
 
 	entity.Name = "Name"

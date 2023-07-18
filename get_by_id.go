@@ -11,7 +11,7 @@ func GetByID[E Entity, I ID](c Context, id I, references ...string) (entity E) {
 }
 
 func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ...string) (entity E) {
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := GetEntitySchema[E](c)
 
 	cacheLocal, hasLocalCache := schema.GetLocalCache()
 	cacheRedis, hasRedis := schema.GetRedisCache()

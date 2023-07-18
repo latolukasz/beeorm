@@ -42,7 +42,7 @@ func (l *Locker) Obtain(c Context, key string, ttl time.Duration, waitTimeout ti
 	if waitTimeout > ttl {
 		panic(errors.New("waitTimeout can't be higher than ttl"))
 	}
-	hasLogger := c.(*contextImplementation).hasRedisLogger
+	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	var options *redislock.Options
 	if waitTimeout > 0 {
@@ -88,7 +88,7 @@ func (l *Lock) Release(c Context) {
 		return
 	}
 	l.has = false
-	hasLogger := c.(*contextImplementation).hasRedisLogger
+	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	err := l.lock.Release(context.Background())
 	ok := true
@@ -103,7 +103,7 @@ func (l *Lock) Release(c Context) {
 }
 
 func (l *Lock) TTL(c Context) time.Duration {
-	hasLogger := c.(*contextImplementation).hasRedisLogger
+	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	t, err := l.lock.TTL(c.Ctx())
 	if hasLogger {
@@ -117,7 +117,7 @@ func (l *Lock) Refresh(c Context, ttl time.Duration) bool {
 	if !l.has {
 		return false
 	}
-	hasLogger := c.(*contextImplementation).hasRedisLogger
+	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	err := l.lock.Refresh(c.Ctx(), ttl, nil)
 	ok := true
@@ -135,5 +135,6 @@ func (l *Lock) Refresh(c Context, ttl time.Duration) bool {
 }
 
 func (l *Locker) fillLogFields(c Context, operation, query string, start *time.Time, cacheMiss bool, err error) {
-	fillLogFields(c, c.(*contextImplementation).queryLoggersRedis, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
+	_, loggers := c.getRedisLoggers()
+	fillLogFields(c, loggers, l.r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
 }

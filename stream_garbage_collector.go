@@ -18,7 +18,7 @@ type StreamGarbageCollectorConsumer struct {
 
 func NewStreamGarbageCollectorConsumer(engine Engine) *StreamGarbageCollectorConsumer {
 	c := &StreamGarbageCollectorConsumer{}
-	c.engine = engine.(*engineImplementation)
+	c.engine = engine
 	c.block = true
 	c.blockTime = time.Second * 30
 	return c

@@ -19,13 +19,15 @@ type Context interface {
 	GetPluginOption(plugin, key string) interface{}
 	SetMetaData(key, value string)
 	GetMetaData() Meta
-	HasRedisLogger() (bool, []LogHandler)
+	getDBLoggers() (bool, []LogHandler)
+	getLocalCacheLoggers() (bool, []LogHandler)
+	getRedisLoggers() (bool, []LogHandler)
 	getSerializer() *serializer
 }
 
 type contextImplementation struct {
 	parent                 context.Context
-	engine                 *engineImplementation
+	engine                 Engine
 	flusher                Flusher
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
@@ -120,9 +122,23 @@ func (c *contextImplementation) Flusher() Flusher {
 	return c.flusher
 }
 
-func (c *contextImplementation) HasRedisLogger() (bool, []LogHandler) {
+func (c *contextImplementation) getRedisLoggers() (bool, []LogHandler) {
 	if c.hasRedisLogger {
 		return true, c.queryLoggersRedis
+	}
+	return false, nil
+}
+
+func (c *contextImplementation) getDBLoggers() (bool, []LogHandler) {
+	if c.hasDBLogger {
+		return true, c.queryLoggersDB
+	}
+	return false, nil
+}
+
+func (c *contextImplementation) getLocalCacheLoggers() (bool, []LogHandler) {
+	if c.hasLocalCacheLogger {
+		return true, c.queryLoggersLocalCache
 	}
 	return false, nil
 }

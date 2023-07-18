@@ -33,7 +33,7 @@ func CachedSearchWithReferences(c Context, entities interface{}, indexName strin
 func cachedSearch(c Context, entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)
-	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine().(*engineImplementation), value.Type(), true)
+	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine(), value.Type(), true)
 	if !hasSchema {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
@@ -201,7 +201,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	_, is := entities.(Entity)
 	if !is && len(idsToReturn) > 0 {
 		elem := value.Elem()
-		_, missing := getByIDs(c.(*contextImplementation), idsToReturn, elem, references)
+		_, missing := getByIDs(c, idsToReturn, elem, references)
 		if missing {
 			l := elem.Len()
 			missingCounter := 0
@@ -232,7 +232,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 func cachedSearchOne[E Entity](c Context, indexName string, arguments []interface{}, references []string) (entity E) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := GetEntitySchema[E](c)
 	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", entityType.String()))
 	}
@@ -286,6 +286,6 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	return entity
 }
 
-func getCacheKeySearch(entitySchema *entitySchema, indexName string, parameters ...interface{}) string {
+func getCacheKeySearch(entitySchema EntitySchema, indexName string, parameters ...interface{}) string {
 	return entitySchema.cachePrefix + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
 }

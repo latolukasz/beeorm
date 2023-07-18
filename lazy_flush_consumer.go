@@ -18,7 +18,7 @@ type LazyFlushConsumer struct {
 
 func NewLazyFlushConsumer(c Context) *LazyFlushConsumer {
 	lfc := &LazyFlushConsumer{}
-	lfc.c = c.(*contextImplementation)
+	lfc.c = c
 	lfc.c.SetMetaData("lazy", "1")
 	lfc.block = true
 	lfc.blockTime = time.Second * 30

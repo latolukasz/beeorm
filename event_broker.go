@@ -80,7 +80,7 @@ type EventBroker interface {
 }
 
 type eventBroker struct {
-	c *contextImplementation
+	c Context
 }
 
 func createEventSlice(body interface{}, meta Meta) []string {
@@ -118,7 +118,7 @@ func (eb *eventBroker) Publish(stream string, body interface{}, meta Meta) (id s
 	return eb.c.engine.GetRedis(getRedisCodeForStream(eb.c.engine, stream)).xAdd(eb.c, stream, createEventSlice(body, meta))
 }
 
-func getRedisCodeForStream(engine *engineImplementation, stream string) string {
+func getRedisCodeForStream(engine Engine, stream string) string {
 	pool, has := engine.redisStreamPools[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
@@ -151,7 +151,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 }
 
 type eventConsumerBase struct {
-	c         *contextImplementation
+	c         Context
 	block     bool
 	blockTime time.Duration
 }

@@ -28,7 +28,7 @@ func SearchOne[E Entity](c Context, where *Where, references ...string) (entity 
 	return searchOne[E](c, where, references)
 }
 
-func prepareScan(schema *entitySchema) (pointers []interface{}) {
+func prepareScan(schema EntitySchema) (pointers []interface{}) {
 	count := len(schema.columnNames)
 	pointers = make([]interface{}, count)
 	prepareScanForFields(schema.fields, 0, pointers)
@@ -133,7 +133,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 }
 
 func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E) {
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := GetEntitySchema[E](c)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(c, where, schema)
 	}
@@ -162,7 +162,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	return
 }
 
-func runPluginInterfaceEntitySearch(c Context, where *Where, schema *entitySchema) *Where {
+func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema) *Where {
 	for _, plugin := range c.Engine().Registry().plugins {
 		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
 		if isInterfaceEntitySearch {
@@ -177,7 +177,7 @@ func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool,
 		pager = NewPager(1, 50000)
 	}
 	entities.SetLen(0)
-	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine().(*engineImplementation), entities.Type(), checkIsSlice)
+	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine(), entities.Type(), checkIsSlice)
 	if !hasSchema {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
@@ -218,7 +218,7 @@ func searchIDs[E Entity](c Context, where *Where, pager *Pager, withCount bool) 
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := GetEntitySchema[E](c)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
@@ -237,7 +237,7 @@ func searchIDs[E Entity](c Context, where *Where, pager *Pager, withCount bool) 
 	return result, totalRows
 }
 
-func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema *entitySchema, foundRows int) int {
+func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema EntitySchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows
@@ -255,7 +255,7 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 	return totalRows
 }
 
-func fillFromDBRow(c Context, schema *entitySchema, pointers []interface{}, entity Entity) {
+func fillFromDBRow(c Context, schema EntitySchema, pointers []interface{}, entity Entity) {
 	orm := initIfNeeded(schema, entity)
 	orm.inDB = true
 	orm.loaded = true
@@ -265,7 +265,7 @@ func fillFromDBRow(c Context, schema *entitySchema, pointers []interface{}, enti
 	orm.deserialize(c)
 }
 
-func fillFromBinary(c Context, schema *entitySchema, binary []byte, entity Entity) {
+func fillFromBinary(c Context, schema EntitySchema, binary []byte, entity Entity) {
 	orm := initIfNeeded(schema, entity)
 	orm.inDB = true
 	orm.loaded = true
@@ -273,7 +273,7 @@ func fillFromBinary(c Context, schema *entitySchema, binary []byte, entity Entit
 	orm.deserialize(c)
 }
 
-func getEntitySchemaForSlice(engine *engineImplementation, sliceType reflect.Type, checkIsSlice bool) (*entitySchema, bool, string) {
+func getEntitySchemaForSlice(engine Engine, sliceType reflect.Type, checkIsSlice bool) (EntitySchema, bool, string) {
 	name := sliceType.String()
 	if name[0] == 42 {
 		name = name[1:]

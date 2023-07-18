@@ -18,7 +18,7 @@ type Alter struct {
 }
 
 type TableSQLSchemaDefinition struct {
-	context        *contextImplementation
+	context        Context
 	EntitySchema   EntitySchema
 	EntityColumns  []*ColumnSchemaDefinition
 	EntityIndexes  []*IndexSchemaDefinition
@@ -100,8 +100,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
-	registry := c.Engine().(*engineImplementation)
-	for _, pool := range registry.mySQLServers {
+	for _, pool := range c.Engine().mySQLServers {
 		poolName := pool.GetPoolConfig().GetCode()
 		tablesInDB[poolName] = make(map[string]bool)
 		pool := c.Engine().GetMySQL(poolName)
@@ -112,23 +111,21 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 		tablesInEntities[poolName] = make(map[string]bool)
 	}
 	alters = make([]Alter, 0)
-	if registry.entities != nil {
-		for _, t := range registry.entities {
-			entitySchema := registry.entitySchemas[t]
-			tablesInEntities[entitySchema.mysqlPoolCode][entitySchema.tableName] = true
-			pre, middle, post := getSchemaChanges(c, entitySchema)
-			preAlters = append(preAlters, pre...)
-			alters = append(alters, middle...)
-			postAlters = append(postAlters, post...)
-		}
+	for _, t := range c.Engine().GetEntities() {
+		schema := c.Engine().GetEntitySchema(t)
+		tablesInEntities[schema.mysqlPoolCode][schema.tableName] = true
+		pre, middle, post := getSchemaChanges(c, schema)
+		preAlters = append(preAlters, pre...)
+		alters = append(alters, middle...)
+		postAlters = append(postAlters, post...)
 	}
 	for poolName, tables := range tablesInDB {
 		for tableName := range tables {
 			_, has := tablesInEntities[poolName][tableName]
 			if !has {
-				_, has = registry.registry.mysqlTables[poolName][tableName]
+				_, has = c.Engine().registry.mysqlTables[poolName][tableName]
 				if !has {
-					pool := registry.GetMySQL(poolName)
+					pool := c.Engine().GetMySQL(poolName)
 					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 					isEmpty := isTableEmptyInPool(c, poolName, tableName)
 					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
@@ -165,20 +162,20 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters, postAlters []Alter) {
+func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
-	columns, err := checkStruct(c.Engine().(*engineImplementation), entitySchema, entitySchema.t, indexes, nil, "")
+	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.t, indexes, nil, "")
 	checkError(err)
 	indexesSlice := make([]*IndexSchemaDefinition, 0)
 	for _, index := range indexes {
 		indexesSlice = append(indexesSlice, index)
 	}
-	engine := c.Engine().(*engineImplementation)
+	engine := c.Engine()
 	pool := engine.GetMySQL(entitySchema.mysqlPoolCode)
 	var skip string
 	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.tableName)), &skip)
 	sqlSchema := &TableSQLSchemaDefinition{
-		context:       c.(*contextImplementation),
+		context:       c,
 		EntitySchema:  entitySchema,
 		EntityIndexes: indexesSlice,
 		DBEncoding:    engine.registry.defaultEncoding,
@@ -440,7 +437,7 @@ func isTableEmpty(db sqlClient, tableName string) bool {
 	return !rows.Next()
 }
 
-func checkColumn(engine *engineImplementation, schema *entitySchema, field *reflect.StructField, indexes map[string]*IndexSchemaDefinition, prefix string) ([]*ColumnSchemaDefinition, error) {
+func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField, indexes map[string]*IndexSchemaDefinition, prefix string) ([]*ColumnSchemaDefinition, error) {
 	var definition string
 	var addNotNullIfNotSet bool
 	addDefaultNullIfNullable := true
@@ -623,7 +620,7 @@ func handleBlob(attributes map[string]string) (string, bool) {
 	return definition, false
 }
 
-func handleString(version int, engine *engineImplementation, attributes map[string]string, nullable bool) (string, bool, bool, string, error) {
+func handleString(version int, engine Engine, attributes map[string]string, nullable bool) (string, bool, bool, string, error) {
 	var definition string
 	enum, hasEnum := attributes["enum"]
 	if hasEnum {
@@ -665,7 +662,7 @@ func handleString(version int, engine *engineImplementation, attributes map[stri
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
 
-func handleSetEnum(version int, engine *engineImplementation, fieldType string, attribute string, nullable bool) (string, bool, bool, string, error) {
+func handleSetEnum(version int, engine Engine, fieldType string, attribute string, nullable bool) (string, bool, bool, string, error) {
 	if engine.enums == nil || engine.enums[attribute] == nil {
 		return "", false, false, "", fmt.Errorf("unregistered enum %s", attribute)
 	}
@@ -704,7 +701,7 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 	return "date", !nullable, true, defaultValue
 }
 
-func handleReferenceOne(version int, schema *entitySchema, attributes map[string]string) string {
+func handleReferenceOne(version int, schema EntitySchema, attributes map[string]string) string {
 	if schema.t.NumField() <= 1 {
 		return convertIntToSchema(version, "uint64", attributes)
 	}
@@ -783,7 +780,7 @@ type ColumnSchemaDefinition struct {
 	Definition string
 }
 
-func checkStruct(engine *engineImplementation, entitySchema *entitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
+func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
 	subField *reflect.StructField, subFieldPrefix string) ([]*ColumnSchemaDefinition, error) {
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {

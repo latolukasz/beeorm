@@ -43,13 +43,13 @@ type LocalCache interface {
 }
 
 type localCache struct {
-	engine *engineImplementation
+	engine Engine
 	config *localCachePoolConfig
 	mutex  sync.Mutex
 }
 
 type localCacheSetter struct {
-	engine    *engineImplementation
+	engine    Engine
 	code      string
 	setKeys   []interface{}
 	setValues []interface{}
@@ -90,7 +90,8 @@ func (lc *localCache) Get(c Context, key interface{}) (value interface{}, ok boo
 		defer lc.mutex.Unlock()
 		value, ok = lc.config.lru.Get(key)
 	}()
-	if c.(*contextImplementation).hasLocalCacheLogger {
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
 		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %v", key), !ok)
 	}
 	return
@@ -102,7 +103,8 @@ func (lc *localCache) Set(c Context, key interface{}, value interface{}) {
 		defer lc.mutex.Unlock()
 		lc.config.lru.Add(key, value)
 	}()
-	if c.(*contextImplementation).hasLocalCacheLogger {
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
 		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
@@ -133,7 +135,8 @@ func (lc *localCache) Remove(c Context, keys ...interface{}) {
 			lc.config.lru.Remove(v)
 		}()
 	}
-	if c.(*contextImplementation).hasLocalCacheLogger {
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
 		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %v", keys), false)
 	}
 }
@@ -162,7 +165,8 @@ func (lc *localCache) Clear(c Context) {
 	lc.mutex.Lock()
 	defer lc.mutex.Unlock()
 	lc.config.lru.Clear()
-	if c.(*contextImplementation).hasLocalCacheLogger {
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
 		lc.fillLogFields(c, "CLEAR", "CLEAR", false)
 	}
 }
@@ -174,5 +178,6 @@ func (lc *localCache) GetObjectsCount() int {
 }
 
 func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {
-	fillLogFields(c, c.(*contextImplementation).queryLoggersLocalCache, lc.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
+	_, loggers := c.getLocalCacheLoggers()
+	fillLogFields(c, loggers, lc.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }
