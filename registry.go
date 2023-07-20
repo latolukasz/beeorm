@@ -126,7 +126,7 @@ func (r *Registry) Validate() (Engine, error) {
 		e.entitySchemas[entityType] = schema
 		e.entities[name] = entityType
 		if schema.hasLocalCache {
-			r.localCachePools[schema.cachePrefix] = newLocalCacheConfig(schema.cachePrefix, schema.localCacheLimit)
+			r.localCachePools[schema.GetCacheKey()] = newLocalCacheConfig(schema.GetCacheKey(), schema.localCacheLimit)
 		}
 	}
 	for k, v := range r.localCachePools {

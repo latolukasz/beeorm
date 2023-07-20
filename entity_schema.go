@@ -112,6 +112,8 @@ type EntitySchema interface {
 	getTagBool(field, key string) bool
 	getFieldsQuery() string
 	getStructureHash() uint64
+	getTags() map[string]map[string]string
+	getUniqueIndexesGlobal() map[string][]string
 }
 
 type SettableEntitySchema interface {
@@ -254,6 +256,7 @@ func (entitySchema *entitySchema) GetColumns() []string {
 
 func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 	data := make(map[string][]string)
+
 	for k, v := range entitySchema.uniqueIndices {
 		data[k] = v
 	}
@@ -663,6 +666,10 @@ func (entitySchema *entitySchema) getFieldsQuery() string {
 
 func (entitySchema *entitySchema) getStructureHash() uint64 {
 	return entitySchema.structureHash
+}
+
+func (entitySchema *entitySchema) getTags() map[string]map[string]string {
+	return entitySchema.tags
 }
 
 func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {
@@ -1105,6 +1112,10 @@ func (entitySchema *entitySchema) getFields() *tableFields {
 
 func (entitySchema *entitySchema) getCachedIndexesTrackedFields() map[string]bool {
 	return entitySchema.cachedIndexesTrackedFields
+}
+
+func (entitySchema *entitySchema) getUniqueIndexesGlobal() map[string][]string {
+	return entitySchema.uniqueIndicesGlobal
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

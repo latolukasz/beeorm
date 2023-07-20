@@ -56,10 +56,10 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	createTableSQL += " PRIMARY KEY (`ID`)\n"
 	collate := ""
 	if pool.GetPoolConfig().GetVersion() == 8 {
-		collate += " COLLATE=" + td.context.engine.registry.defaultEncoding + "_" +
-			td.context.engine.registry.defaultCollate
+		collate += " COLLATE=" + td.context.Engine().Registry().defaultEncoding + "_" +
+			td.context.Engine().Registry().defaultCollate
 	}
-	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", td.context.engine.registry.defaultEncoding, collate)
+	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", td.context.Engine().Registry().defaultEncoding, collate)
 	return createTableSQL
 }
 
@@ -100,7 +100,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
-	for _, pool := range c.Engine().mySQLServers {
+	for _, pool := range c.Engine().GetMySQLPools() {
 		poolName := pool.GetPoolConfig().GetCode()
 		tablesInDB[poolName] = make(map[string]bool)
 		pool := c.Engine().GetMySQL(poolName)
@@ -113,7 +113,8 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	alters = make([]Alter, 0)
 	for _, t := range c.Engine().GetEntities() {
 		schema := c.Engine().GetEntitySchema(t)
-		tablesInEntities[schema.mysqlPoolCode][schema.tableName] = true
+		db := schema.GetMysql()
+		tablesInEntities[db.GetPoolConfig().GetCode()][schema.GetTableName()] = true
 		pre, middle, post := getSchemaChanges(c, schema)
 		preAlters = append(preAlters, pre...)
 		alters = append(alters, middle...)
@@ -123,7 +124,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 		for tableName := range tables {
 			_, has := tablesInEntities[poolName][tableName]
 			if !has {
-				_, has = c.Engine().registry.mysqlTables[poolName][tableName]
+				_, has = c.Engine().Registry().mysqlTables[poolName][tableName]
 				if !has {
 					pool := c.Engine().GetMySQL(poolName)
 					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
@@ -162,27 +163,27 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters, postAlters []Alter) {
+func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
-	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.t, indexes, nil, "")
+	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType(), indexes, nil, "")
 	checkError(err)
 	indexesSlice := make([]*IndexSchemaDefinition, 0)
 	for _, index := range indexes {
 		indexesSlice = append(indexesSlice, index)
 	}
 	engine := c.Engine()
-	pool := engine.GetMySQL(entitySchema.mysqlPoolCode)
+	pool := entitySchema.GetMysql()
 	var skip string
-	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.tableName)), &skip)
+	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.GetTableName())), &skip)
 	sqlSchema := &TableSQLSchemaDefinition{
 		context:       c,
 		EntitySchema:  entitySchema,
 		EntityIndexes: indexesSlice,
-		DBEncoding:    engine.registry.defaultEncoding,
+		DBEncoding:    engine.Registry().defaultEncoding,
 		EntityColumns: columns}
 	if hasTable {
 		sqlSchema.DBTableColumns = make([]*ColumnSchemaDefinition, 0)
-		pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.tableName)), &skip, &sqlSchema.DBCreateSchema)
+		pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.GetTableName())), &skip, &sqlSchema.DBCreateSchema)
 		lines := strings.Split(sqlSchema.DBCreateSchema, "\n")
 		for x := 1; x < len(lines); x++ {
 			if lines[x][2] != 96 {
@@ -201,7 +202,7 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 
 		var rows []indexDB
 		/* #nosec */
-		results, def := pool.Query(c, fmt.Sprintf("SHOW INDEXES FROM `%s`", entitySchema.tableName))
+		results, def := pool.Query(c, fmt.Sprintf("SHOW INDEXES FROM `%s`", entitySchema.GetTableName()))
 		defer def()
 		for results.Next() {
 			var row indexDB
@@ -229,10 +230,10 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 		}
 	}
 
-	for _, plugin := range engine.registry.plugins {
+	for _, plugin := range engine.Registry().plugins {
 		pluginInterfaceTableSQLSchemaDefinition, isPluginInterfaceTableSQLSchemaDefinition := plugin.(PluginInterfaceTableSQLSchemaDefinition)
 		if isPluginInterfaceTableSQLSchemaDefinition {
-			err = pluginInterfaceTableSQLSchemaDefinition.PluginInterfaceTableSQLSchemaDefinition(engine, sqlSchema)
+			err = pluginInterfaceTableSQLSchemaDefinition.PluginInterfaceTableSQLSchemaDefinition(c, sqlSchema)
 			checkError(err)
 		}
 	}
@@ -240,13 +241,13 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 		preAlters = append(preAlters, sqlSchema.PreAlters...)
 	}
 	if !hasTable {
-		alters = append(alters, Alter{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.mysqlPoolCode})
+		alters = append(alters, Alter{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
 		if sqlSchema.PostAlters != nil {
 			postAlters = append(postAlters, sqlSchema.PostAlters...)
 		}
 		return
 	}
-	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.registry.defaultEncoding
+	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.Registry().defaultEncoding
 	hasAlters := hasAlterEngineCharset
 	hasAlterNormal := false
 
@@ -356,7 +357,7 @@ OUTER:
 		return
 	}
 
-	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName)
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetPoolConfig().GetDatabase(), entitySchema.GetTableName())
 	newAlters := make([]string, 0)
 	comments := make([]string, 0)
 
@@ -409,17 +410,17 @@ OUTER:
 			safe = true
 		} else {
 			db := entitySchema.GetMysql()
-			isEmpty := isTableEmpty(db.client, entitySchema.tableName)
+			isEmpty := isTableEmpty(db.client, entitySchema.GetTableName())
 			safe = isEmpty
 		}
-		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.mysqlPoolCode})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
-			collate += " COLLATE=" + engine.registry.defaultEncoding + "_" + engine.registry.defaultCollate
+			collate += " COLLATE=" + engine.Registry().defaultEncoding + "_" + engine.Registry().defaultCollate
 		}
-		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.registry.defaultEncoding, collate)
-		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.mysqlPoolCode})
+		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.Registry().defaultEncoding, collate)
+		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
 	}
 	if sqlSchema.PostAlters != nil {
 		postAlters = append(postAlters, sqlSchema.PostAlters...)
@@ -445,7 +446,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 	var typeAsString = field.Type.String()
 	columnName := prefix + field.Name
 
-	attributes := schema.tags[columnName]
+	attributes := schema.getTags()[columnName]
 	version := schema.GetMysql().GetPoolConfig().GetVersion()
 
 	_, has := attributes["ignore"]
@@ -554,8 +555,8 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
-			subSchema, hasSchema := engine.entitySchemas[field.Type.Elem()]
-			if hasSchema {
+			subSchema := engine.GetEntitySchema(field.Type.Elem())
+			if subSchema != nil {
 				definition = handleReferenceOne(version, subSchema, attributes)
 				addNotNullIfNotSet = false
 				addDefaultNullIfNullable = true
@@ -642,8 +643,8 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 	if length == "max" {
 		definition = "mediumtext"
 		if version == 8 {
-			encoding := engine.registry.defaultEncoding
-			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + engine.registry.defaultCollate
+			encoding := engine.Registry().defaultEncoding
+			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + engine.Registry().defaultCollate
 		}
 		addDefaultNullIfNullable = false
 		defaultValue = "nil"
@@ -655,20 +656,20 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 		if version == 5 {
 			definition = fmt.Sprintf("varchar(%s)", strconv.Itoa(i))
 		} else {
-			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+engine.registry.defaultCollate, strconv.Itoa(i),
-				engine.registry.defaultEncoding, engine.registry.defaultEncoding)
+			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+engine.Registry().defaultCollate, strconv.Itoa(i),
+				engine.Registry().defaultEncoding, engine.Registry().defaultEncoding)
 		}
 	}
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
 
 func handleSetEnum(version int, engine Engine, fieldType string, attribute string, nullable bool) (string, bool, bool, string, error) {
-	if engine.enums == nil || engine.enums[attribute] == nil {
+	en := engine.GetEnum(attribute)
+	if en == nil {
 		return "", false, false, "", fmt.Errorf("unregistered enum %s", attribute)
 	}
-	enum := engine.enums[attribute]
 	var definition = fieldType + "("
-	for key, value := range enum.GetFields() {
+	for key, value := range en.GetFields() {
 		if key > 0 {
 			definition += ","
 		}
@@ -676,12 +677,12 @@ func handleSetEnum(version int, engine Engine, fieldType string, attribute strin
 	}
 	definition += ")"
 	if version == 8 {
-		encoding := engine.registry.defaultEncoding
+		encoding := engine.Registry().defaultEncoding
 		definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_0900_ai_ci"
 	}
 	defaultValue := "nil"
 	if !nullable {
-		defaultValue = fmt.Sprintf("'%s'", enum.GetDefault())
+		defaultValue = fmt.Sprintf("'%s'", en.GetDefault())
 	}
 	return definition, !nullable, true, defaultValue, nil
 }
@@ -702,10 +703,10 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 }
 
 func handleReferenceOne(version int, schema EntitySchema, attributes map[string]string) string {
-	if schema.t.NumField() <= 1 {
+	if schema.GetType().NumField() <= 1 {
 		return convertIntToSchema(version, "uint64", attributes)
 	}
-	return convertIntToSchema(version, schema.t.Field(1).Type.String(), attributes)
+	return convertIntToSchema(version, schema.GetType().Field(1).Type.String(), attributes)
 }
 
 func convertIntToSchema(version int, typeAsString string, attributes Meta) string {
@@ -797,7 +798,8 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 	for i := 0; i <= max; i++ {
 		field := t.Field(i)
 		if i == 0 && subField == nil {
-			for k, v := range entitySchema.uniqueIndicesGlobal {
+			entitySchema.GetUniqueIndexes()
+			for k, v := range entitySchema.getUniqueIndexesGlobal() {
 				current := &IndexSchemaDefinition{Name: k, Unique: true, columnsMap: map[int]string{}}
 				for i, l := range v {
 					current.columnsMap[i+1] = l
