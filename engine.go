@@ -20,6 +20,7 @@ type Engine interface {
 	GetEntities() map[string]reflect.Type
 	GetPlugins() []string
 	GetPlugin(code string) Plugin
+	getDefaultQueryLogger() LogHandler
 }
 
 type engineImplementation struct {
@@ -136,4 +137,8 @@ func (e *engineImplementation) GetEntitySchema(entity any) EntitySchema {
 
 func (e *engineImplementation) GetEnum(code string) Enum {
 	return e.enums[code]
+}
+
+func (e *engineImplementation) getDefaultQueryLogger() LogHandler {
+	return e.defaultQueryLogger
 }

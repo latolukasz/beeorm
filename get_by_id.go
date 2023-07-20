@@ -31,7 +31,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 	}
 	if hasRedis {
 		cacheKey = strconv.FormatUint(uint64(id), 10)
-		row, has := cacheRedis.HGet(c, schema.cachePrefix, cacheKey)
+		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
 		if has {
 			if row == cacheNilValue {
 				if hasLocalCache {
@@ -60,7 +60,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 			cacheLocal.Set(c, uint64(id), cacheNilValue)
 		}
 		if hasRedis {
-			cacheRedis.HSet(c, schema.cachePrefix, cacheKey, cacheNilValue)
+			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)
 		}
 		return
 	}
@@ -68,7 +68,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 		cacheLocal.Set(c, cacheKey, entity.getORM().value)
 	}
 	if hasRedis {
-		cacheRedis.HSet(c, schema.cachePrefix, cacheKey, string(entity.getORM().binary))
+		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(entity.getORM().binary))
 	}
 	return
 }

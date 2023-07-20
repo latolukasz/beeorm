@@ -110,6 +110,8 @@ type EntitySchema interface {
 	getFields() *tableFields
 	getCachedIndexesTrackedFields() map[string]bool
 	getTagBool(field, key string) bool
+	getFieldsQuery() string
+	getStructureHash() uint64
 }
 
 type SettableEntitySchema interface {
@@ -653,6 +655,14 @@ func (entitySchema *entitySchema) GetTag(field, key, trueValue, defaultValue str
 func (entitySchema *entitySchema) getTagBool(field, key string) bool {
 	tag := entitySchema.GetTag(field, key, "1", "")
 	return tag == "1"
+}
+
+func (entitySchema *entitySchema) getFieldsQuery() string {
+	return entitySchema.fieldsQuery
+}
+
+func (entitySchema *entitySchema) getStructureHash() uint64 {
+	return entitySchema.structureHash
 }
 
 func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {

@@ -86,7 +86,7 @@ func (orm *ORM) GetMetaData() Meta {
 
 func (orm *ORM) Clone() Entity {
 	newEntity := orm.entitySchema.NewEntity()
-	for i, field := range orm.entitySchema.fields.fields {
+	for i, field := range orm.entitySchema.getFields().fields {
 		if field.IsExported() {
 			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
 		} else {
@@ -120,24 +120,24 @@ func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
 func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *entitySQLFlush, has bool) {
 	serializer.Reset(orm.binary)
 	builder := newEntitySQLFlushBuilder(orm, forceFillOld)
-	builder.fill(serializer, orm.entitySchema.fields, orm.elem, true)
+	builder.fill(serializer, orm.entitySchema.getFields(), orm.elem, true)
 	has = !orm.inDB || orm.delete || len(builder.Update) > 0
 	return builder.entitySQLFlush, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {
-	orm.serializeFields(serializer, orm.entitySchema.fields, orm.elem, true)
+	orm.serializeFields(serializer, orm.entitySchema.getFields(), orm.elem, true)
 	orm.binary = serializer.Read()
 }
 
 func (orm *ORM) deserializeFromDB(serializer *serializer, pointers []interface{}) {
-	orm.deserializeStructFromDB(serializer, 0, orm.entitySchema.fields, pointers, true)
+	orm.deserializeStructFromDB(serializer, 0, orm.entitySchema.getFields(), pointers, true)
 	orm.binary = serializer.Read()
 }
 
 func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}, root bool) int {
 	if root {
-		serializer.SerializeUInteger(orm.entitySchema.structureHash)
+		serializer.SerializeUInteger(orm.entitySchema.getStructureHash())
 	}
 	for range fields.uintegers {
 		serializer.SerializeUInteger(*pointers[index].(*uint64))
@@ -272,7 +272,7 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 
 func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value, root bool) {
 	if root {
-		serialized.SerializeUInteger(orm.entitySchema.structureHash)
+		serialized.SerializeUInteger(orm.entitySchema.getStructureHash())
 	}
 	for _, i := range fields.uintegers {
 		v := elem.Field(i).Uint()
@@ -442,10 +442,10 @@ func (orm *ORM) deserialize(c Context) {
 	s := c.getSerializer()
 	s.Reset(orm.binary)
 	hash := s.DeserializeUInteger()
-	if !disableCacheHashCheck && hash != orm.entitySchema.structureHash {
-		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.t.String()))
+	if !disableCacheHashCheck && hash != orm.entitySchema.getStructureHash() {
+		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.GetType().String()))
 	}
-	orm.deserializeFields(c, orm.entitySchema.fields, orm.elem)
+	orm.deserializeFields(c, orm.entitySchema.getFields(), orm.elem)
 	orm.loaded = true
 }
 

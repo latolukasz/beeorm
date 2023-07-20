@@ -733,7 +733,7 @@ func (r *redisCache) MSet(c Context, pairs ...interface{}) {
 	checkError(err)
 }
 
-func (r *redisCacheSetter) MSet(c Context, pairs ...interface{}) {
+func (r *redisCacheSetter) MSet(_ Context, pairs ...interface{}) {
 	r.sets = append(r.sets, pairs...)
 }
 
@@ -1136,7 +1136,7 @@ func (r *redisCacheSetter) HSet(_ Context, key string, values ...interface{}) {
 	}
 }
 
-func (r *redisCacheSetter) HDel(c Context, key string, keys ...string) {
+func (r *redisCacheSetter) HDel(_ Context, key string, keys ...string) {
 	if len(keys) == 0 {
 		return
 	}

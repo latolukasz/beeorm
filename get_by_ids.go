@@ -51,7 +51,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 	}
 	if foundInCache < len(ids) && hasRedisCache {
 		redisHSetKeys := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
-		fromRedisAll := cacheRedis.hMGetUints(c, schema.cachePrefix, redisHSetKeys...)
+		fromRedisAll := cacheRedis.hMGetUints(c, schema.GetCacheKey(), redisHSetKeys...)
 		if foundInCache == 0 {
 			for i := range redisHSetKeys {
 				fromRedisCache := fromRedisAll[i]
@@ -98,7 +98,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 	if foundInCache < len(ids) {
 		dbIDs := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		idsQuery := strings.ReplaceAll(fmt.Sprintf("%v", dbIDs), " ", ",")[1:]
-		query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE `ID` IN (" + idsQuery[:len(idsQuery)-1] + ")"
+		query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (" + idsQuery[:len(idsQuery)-1] + ")"
 		results, def := schema.GetMysql().Query(c, query)
 		defer def()
 		foundInDB := 0
@@ -119,7 +119,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 			}
 			if hasRedisCache {
 				if len(ids) == 1 {
-					cacheRedis.HSet(c, schema.cachePrefix, id, string(entity.getORM().binary))
+					cacheRedis.HSet(c, schema.GetCacheKey(), id, string(entity.getORM().binary))
 				} else {
 					redisHSetValues = append(redisHSetValues, id, string(entity.getORM().binary))
 				}
@@ -127,7 +127,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 		}
 		def()
 		if redisHSetValues != nil {
-			cacheRedis.HSet(c, schema.cachePrefix, redisHSetValues...)
+			cacheRedis.HSet(c, schema.GetCacheKey(), redisHSetValues...)
 		}
 		if foundInDB < len(dbIDs) {
 			for i, id := range ids {
@@ -140,7 +140,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 						cacheLocal.Set(c, id, cacheNilValue)
 					}
 					if hasRedisCache {
-						cacheRedis.HSet(c, schema.cachePrefix, id, cacheNilValue)
+						cacheRedis.HSet(c, schema.GetCacheKey(), id, cacheNilValue)
 					}
 				}
 			}
