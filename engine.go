@@ -21,6 +21,7 @@ type Engine interface {
 	GetPlugins() []string
 	GetPlugin(code string) Plugin
 	getDefaultQueryLogger() LogHandler
+	getRedisStreamsForGroup(group string) []string
 }
 
 type engineImplementation struct {

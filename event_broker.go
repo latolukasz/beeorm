@@ -125,9 +125,9 @@ func (eb *eventBroker) Publish(stream string, body interface{}, meta Meta) (id s
 type EventConsumerHandler func(events []Event)
 
 type EventsConsumer interface {
-	Consume(c Context, count int, handler EventConsumerHandler) bool
-	ConsumeMany(c Context, nr, count int, handler EventConsumerHandler) bool
-	Claim(c Context, from, to int)
+	Consume(count int, handler EventConsumerHandler) bool
+	ConsumeMany(nr, count int, handler EventConsumerHandler) bool
+	Claim(from, to int)
 	SetBlockTime(seconds int)
 }
 
@@ -178,30 +178,30 @@ func (b *eventConsumerBase) SetBlockTime(seconds int) {
 	b.blockTime = time.Duration(seconds) * time.Second
 }
 
-func (r *eventsConsumer) Consume(c Context, count int, handler EventConsumerHandler) bool {
-	return r.ConsumeMany(c, 1, count, handler)
+func (r *eventsConsumer) Consume(count int, handler EventConsumerHandler) bool {
+	return r.ConsumeMany(1, count, handler)
 }
 
-func (r *eventsConsumer) ConsumeMany(c Context, nr, count int, handler EventConsumerHandler) bool {
-	return r.consume(c, r.getName(nr), count, handler)
+func (r *eventsConsumer) ConsumeMany(nr, count int, handler EventConsumerHandler) bool {
+	return r.consume(r.getName(nr), count, handler)
 }
 
-func (r *eventsConsumer) consume(c Context, name string, count int, handler EventConsumerHandler) (finished bool) {
+func (r *eventsConsumer) consume(name string, count int, handler EventConsumerHandler) (finished bool) {
 	lockKey := r.redis.config.GetNamespace() + r.group + "_" + name
 	locker := r.redis.GetLocker()
-	lock, has := locker.Obtain(c, lockKey, r.lockTTL, 0)
+	lock, has := locker.Obtain(r.c, lockKey, r.lockTTL, 0)
 	if !has {
 		return false
 	}
 	timer := time.NewTimer(r.lockTick)
 	defer func() {
-		lock.Release(c)
+		lock.Release(r.c)
 		timer.Stop()
 	}()
 	r.garbage()
 
 	for _, stream := range r.streams {
-		r.redis.XGroupCreateMkStream(c, stream, r.group, "0")
+		r.redis.XGroupCreateMkStream(r.c, stream, r.group, "0")
 	}
 
 	attributes := &consumeAttributes{
@@ -218,15 +218,15 @@ func (r *eventsConsumer) consume(c Context, name string, count int, handler Even
 	}
 	for {
 		select {
-		case <-c.Ctx().Done():
+		case <-r.c.Ctx().Done():
 			return true
 		case <-timer.C:
-			if !lock.Refresh(c, r.lockTTL) {
+			if !lock.Refresh(r.c, r.lockTTL) {
 				return false
 			}
 			timer.Reset(r.lockTick)
 		default:
-			if r.digest(c, attributes) {
+			if r.digest(r.c, attributes) {
 				return true
 			}
 		}
@@ -321,12 +321,12 @@ func (r *eventsConsumer) digestKeys(c Context, attributes *consumeAttributes) (f
 	return false
 }
 
-func (r *eventsConsumer) Claim(c Context, from, to int) {
+func (r *eventsConsumer) Claim(from, to int) {
 	for _, stream := range r.streams {
 		start := "-"
 		for {
 			xPendingArg := &redis.XPendingExtArgs{Stream: stream, Group: r.group, Start: start, End: "+", Consumer: r.getName(from), Count: 100}
-			pending := r.redis.XPendingExt(c, xPendingArg)
+			pending := r.redis.XPendingExt(r.c, xPendingArg)
 			l := len(pending)
 			if l == 0 {
 				break
@@ -337,7 +337,7 @@ func (r *eventsConsumer) Claim(c Context, from, to int) {
 			}
 			start = r.incrementID(ids[l-1])
 			arg := &redis.XClaimArgs{Consumer: r.getName(to), Stream: stream, Group: r.group, Messages: ids}
-			r.redis.XClaimJustID(c, arg)
+			r.redis.XClaimJustID(r.c, arg)
 			if l < 100 {
 				break
 			}

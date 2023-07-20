@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -16,18 +15,18 @@ type StreamGarbageCollectorConsumer struct {
 	consumer             *eventsConsumer
 }
 
-func NewStreamGarbageCollectorConsumer(engine Engine) *StreamGarbageCollectorConsumer {
-	c := &StreamGarbageCollectorConsumer{}
-	c.engine = engine
-	c.block = true
-	c.blockTime = time.Second * 30
-	return c
+func NewStreamGarbageCollectorConsumer(c Context) *StreamGarbageCollectorConsumer {
+	consumer := &StreamGarbageCollectorConsumer{}
+	consumer.c = c
+	consumer.block = true
+	consumer.blockTime = time.Second * 30
+	return consumer
 }
 
-func (r *StreamGarbageCollectorConsumer) Digest(ctx context.Context) bool {
-	r.consumer = r.engine.GetEventBroker().Consumer(StreamGarbageCollectorGroupName).(*eventsConsumer)
+func (r *StreamGarbageCollectorConsumer) Digest() bool {
+	r.consumer = r.c.EventBroker().Consumer(StreamGarbageCollectorGroupName).(*eventsConsumer)
 	r.consumer.eventConsumerBase = r.eventConsumerBase
-	return r.consumer.Consume(ctx, 500, func(events []Event) {
+	return r.consumer.Consume(500, func(events []Event) {
 		for _, e := range events {
 			switch e.Stream() {
 			case StreamGarbageCollectorChannelName:
@@ -40,16 +39,16 @@ func (r *StreamGarbageCollectorConsumer) Digest(ctx context.Context) bool {
 func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 	garbageEvent := &garbageCollectorEvent{}
 	event.Unserialize(garbageEvent)
-	engine := r.engine
+	engine := r.c.Engine()
 	redisGarbage := engine.GetRedis(garbageEvent.Pool).(*redisCache)
-	streams := engine.registry.getRedisStreamsForGroup(garbageEvent.Group)
-	if !redisGarbage.SetNX(garbageEvent.Group+"_gc", "1", 30*time.Second) {
-		event.delete()
+	streams := engine.getRedisStreamsForGroup(garbageEvent.Group)
+	if !redisGarbage.SetNX(r.c, garbageEvent.Group+"_gc", "1", 30*time.Second) {
+		event.delete(r.c)
 		return
 	}
-	def := engine.registry.redisStreamGroups[redisGarbage.GetPoolConfig().GetCode()]
+	def := engine.Registry().redisStreamGroups[redisGarbage.GetPoolConfig().GetCode()]
 	for _, stream := range streams {
-		info := redisGarbage.XInfoGroups(stream)
+		info := redisGarbage.XInfoGroups(r.c, stream)
 		ids := make(map[string][]int64)
 		for name := range def[stream] {
 			ids[name] = []int64{0, 0}
@@ -59,7 +58,7 @@ func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 			_, has := ids[group.Name]
 			if has && group.LastDeliveredID != "" {
 				lastDelivered := group.LastDeliveredID
-				pending := redisGarbage.XPending(stream, group.Name)
+				pending := redisGarbage.XPending(r.c, stream, group.Name)
 				if pending.Lower != "" {
 					lastDelivered = pending.Lower
 					inPending = true
@@ -101,17 +100,17 @@ func (r *StreamGarbageCollectorConsumer) handleEvent(event Event) {
 		}
 
 		for {
-			res, exists := redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
+			res, exists := redisGarbage.EvalSha(r.c, r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
 			if !exists {
 				r.setGCScript(redisGarbage)
-				res, _ = redisGarbage.EvalSha(r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
+				res, _ = redisGarbage.EvalSha(r.c, r.garbageCollectorSha1, []string{redisGarbage.addNamespacePrefix(stream)}, end)
 			}
 			if res == int64(1) {
 				break
 			}
 		}
 	}
-	event.delete()
+	event.delete(r.c)
 }
 
 func (r *StreamGarbageCollectorConsumer) setGCScript(redisGarbage RedisCache) {
@@ -139,5 +138,5 @@ func (r *StreamGarbageCollectorConsumer) setGCScript(redisGarbage RedisCache) {
 						end
 						return all
 						`
-	r.garbageCollectorSha1 = redisGarbage.ScriptLoad(script)
+	r.garbageCollectorSha1 = redisGarbage.ScriptLoad(r.c, script)
 }
