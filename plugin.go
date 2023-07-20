@@ -27,6 +27,6 @@ type PluginInterfaceEntitySearch interface {
 	PluginInterfaceEntitySearch(c Context, schema EntitySchema, where *Where) *Where
 }
 
-type PluginInterfaceContentCreated interface {
-	PluginInterfaceContentCreated(c Context)
+type PluginInterfaceContextCreated interface {
+	PluginInterfaceContextCreated(c Context)
 }

@@ -52,11 +52,11 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	if sqlSchema.EntitySchema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return nil
 	}
-	mySQLVersion := sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetVersion()
+	mySQLVersion := sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetVersion()
 	if mySQLVersion == 8 {
 		sqlSchema.EntityColumns[0].Definition = "`ID` bigint unsigned NOT NULL"
 	} else {
@@ -65,11 +65,11 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
+func (p *Plugin) PluginInterfaceEntityFlushing(c beeorm.Context, event beeorm.EventEntityFlushing) {
 	if !event.Type().Is(beeorm.Insert) || event.EntityID() > 0 {
 		return
 	}
-	schema := engine.Registry().GetEntitySchema(event.EntityName())
+	schema := c.Engine().GetEntitySchema(event.EntityName())
 	if schema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return
 	}

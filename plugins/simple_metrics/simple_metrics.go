@@ -93,20 +93,20 @@ func Init(options *Options) *Plugin {
 	return plugin
 }
 
-func SetTagName(engine beeorm.Engine, tag string) {
-	engine.SetMetaData(tagNameMetricsMetaData, tag)
+func SetTagName(c beeorm.Context, tag string) {
+	c.SetMetaData(tagNameMetricsMetaData, tag)
 }
 
-func DisableMetrics(engine beeorm.Engine) {
-	engine.SetMetaData(disableMetricsMetaData, "1")
+func DisableMetrics(c beeorm.Context) {
+	c.SetMetaData(disableMetricsMetaData, "1")
 }
 
 func (p *Plugin) GetCode() string {
 	return PluginCode
 }
 
-func (ml *mySQLLogHandler) Handle(engine beeorm.Engine, log map[string]interface{}) {
-	if engine.GetMetaData()[disableMetricsMetaData] == "1" {
+func (ml *mySQLLogHandler) Handle(c beeorm.Context, log map[string]interface{}) {
+	if c.GetMetaData()[disableMetricsMetaData] == "1" {
 		return
 	}
 	t := log["microseconds"].(int64)
@@ -325,8 +325,8 @@ func (p *Plugin) GetTags() []string {
 	return tags
 }
 
-func (p *Plugin) PluginInterfaceEngineCreated(engine beeorm.Engine) {
-	engine.RegisterQueryLogger(p.mySQLLogHandler, true, false, false)
+func (p *Plugin) PluginInterfaceContextCreated(c beeorm.Context) {
+	c.RegisterQueryLogger(p.mySQLLogHandler, true, false, false)
 }
 
 type mySqlSlowQueryTreeNode struct {

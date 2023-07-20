@@ -31,16 +31,16 @@ type RedisStreamConsumerStatistics struct {
 	Pending uint64
 }
 
-func (eb *eventBroker) GetStreamStatistics(c Context, stream string) *RedisStreamStatistics {
-	stats := eb.GetStreamsStatistics(c, stream)
+func (eb *eventBroker) GetStreamStatistics(stream string) *RedisStreamStatistics {
+	stats := eb.GetStreamsStatistics(stream)
 	if len(stats) > 0 {
 		return stats[0]
 	}
 	return nil
 }
 
-func (eb *eventBroker) GetStreamGroupStatistics(c Context, stream, group string) *RedisStreamGroupStatistics {
-	stats := eb.GetStreamStatistics(c, stream)
+func (eb *eventBroker) GetStreamGroupStatistics(stream, group string) *RedisStreamGroupStatistics {
+	stats := eb.GetStreamStatistics(stream)
 	for _, groupStats := range stats.Groups {
 		if groupStats.Group == group {
 			return groupStats
@@ -52,7 +52,7 @@ func (eb *eventBroker) GetStreamGroupStatistics(c Context, stream, group string)
 	}
 }
 
-func (eb *eventBroker) GetStreamsStatistics(c Context, stream ...string) []*RedisStreamStatistics {
+func (eb *eventBroker) GetStreamsStatistics(stream ...string) []*RedisStreamStatistics {
 	now := time.Now()
 	results := make([]*RedisStreamStatistics, 0)
 	for redisPool, channels := range eb.c.Engine().GetRedisStreams() {
@@ -73,16 +73,16 @@ func (eb *eventBroker) GetStreamsStatistics(c Context, stream ...string) []*Redi
 			stat := &RedisStreamStatistics{Stream: streamName, RedisPool: redisPool}
 			results = append(results, stat)
 			stat.Groups = make([]*RedisStreamGroupStatistics, 0)
-			stat.Len = uint64(r.XLen(c, streamName))
+			stat.Len = uint64(r.XLen(eb.c, streamName))
 			minPending := -1
-			for _, group := range r.XInfoGroups(c, streamName) {
+			for _, group := range r.XInfoGroups(eb.c, streamName) {
 				groupStats := &RedisStreamGroupStatistics{Group: group.Name, Pending: uint64(group.Pending)}
 				groupStats.LastDeliveredID = group.LastDeliveredID
 				groupStats.Lag = group.Lag
 				groupStats.LastDeliveredDuration, _ = idToSince(group.LastDeliveredID, now)
 				groupStats.Consumers = make([]*RedisStreamConsumerStatistics, 0)
 
-				pending := r.XPending(c, streamName, group.Name)
+				pending := r.XPending(eb.c, streamName, group.Name)
 				groupStats.LowerID = pending.Lower
 				if pending.Count > 0 {
 					lower, t := idToSince(pending.Lower, now)

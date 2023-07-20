@@ -56,22 +56,22 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, r
 	if logPoolName == "" {
 		return nil
 	}
-	tableName := fmt.Sprintf("_log_%s_%s", schema.GetMysqlPool(), schema.GetTableName())
+	tableName := fmt.Sprintf("_log_%s_%s", schema.GetMysql().GetPoolConfig().GetCode(), schema.GetTableName())
 	schema.SetPluginOption(PluginCode, poolOption, logPoolName)
 	schema.SetPluginOption(PluginCode, tableNameOption, tableName)
 	registry.RegisterMySQLTable(logPoolName, tableName)
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	poolName := sqlSchema.EntitySchema.GetPluginOption(PluginCode, poolOption)
 	if poolName == nil {
 		return nil
 	}
 	tableName := sqlSchema.EntitySchema.GetPluginOption(PluginCode, tableNameOption)
-	db := engine.GetMysql(poolName.(string))
+	db := c.Engine().GetMySQL(poolName.(string))
 	var tableDef string
-	hasLogTable := db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
+	hasLogTable := db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
 	var logEntitySchema string
 	if db.GetPoolConfig().GetVersion() == 5 {
 		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,\n  "+
@@ -82,20 +82,20 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 			"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 			"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-			db.GetPoolConfig().GetDatabase(), tableName, engine.Registry().GetSourceRegistry().GetDefaultCollate())
+			db.GetPoolConfig().GetDatabase(), tableName, c.Engine().Registry().GetDefaultCollate())
 	}
 
 	if !hasLogTable {
 		sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 	} else {
 		var skip, createTableDB string
-		db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
+		db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
 		createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", db.GetPoolConfig().GetDatabase()), 1) + ";"
 		re := regexp.MustCompile(" AUTO_INCREMENT=[0-9]+ ")
 		createTableDB = re.ReplaceAllString(createTableDB, " ")
 		if logEntitySchema != createTableDB {
-			db.QueryRow(beeorm.NewWhere("1"))
-			isEmpty := !db.QueryRow(beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
+			db.QueryRow(c, beeorm.NewWhere("1"))
+			isEmpty := !db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
 			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetPoolConfig().GetDatabase(), tableName)
 			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName.(string)})
 			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
@@ -104,13 +104,13 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	return nil
 }
 
-func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
+func NewEventHandler(c beeorm.Context) beeorm.EventConsumerHandler {
 	return func(events []beeorm.Event) {
 		values := make(map[string][]*crud_stream.CrudEvent)
 		for _, event := range events {
 			var data crud_stream.CrudEvent
 			event.Unserialize(&data)
-			schema := engine.Registry().GetEntitySchema(data.EntityName)
+			schema := c.Engine().GetEntitySchema(data.EntityName)
 			if schema == nil {
 				continue
 			}
@@ -121,7 +121,7 @@ func NewEventHandler(engine beeorm.Engine) beeorm.EventConsumerHandler {
 			}
 			values[poolName.(string)] = append(values[poolName.(string)], &data)
 		}
-		handleLogEvents(engine, values)
+		handleLogEvents(c, values)
 	}
 }
 
@@ -134,13 +134,13 @@ type EntityLog struct {
 	After    map[string]interface{}
 }
 
-func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
+func GetEntityLogs(c beeorm.Context, entitySchema beeorm.EntitySchema, entityID uint64, pager *beeorm.Pager, where *beeorm.Where) []EntityLog {
 	var results []EntityLog
 	poolName := entitySchema.GetPluginOption(PluginCode, poolOption)
 	if poolName == "" {
 		return results
 	}
-	db := engine.GetMysql(poolName.(string))
+	db := c.Engine().GetMySQL(poolName.(string))
 	if pager == nil {
 		pager = beeorm.NewPager(1, 1000)
 	}
@@ -151,7 +151,7 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 	fullQuery := "SELECT `id`, `added_at`, `meta`, `before`, `changes` FROM " + tableName.(string) + " WHERE "
 	fullQuery += "entity_id = " + strconv.FormatUint(entityID, 10) + " "
 	fullQuery += "AND " + where.String() + " " + pager.String()
-	rows, closeF := db.Query(fullQuery, where.GetParameters()...)
+	rows, closeF := db.Query(c, fullQuery, where.GetParameters()...)
 	defer closeF()
 	id := uint64(0)
 	addedAt := ""
@@ -187,16 +187,16 @@ func GetEntityLogs(engine beeorm.Engine, entitySchema beeorm.EntitySchema, entit
 	return results
 }
 
-func handleLogEvents(engine beeorm.Engine, values map[string][]*crud_stream.CrudEvent) {
+func handleLogEvents(c beeorm.Context, values map[string][]*crud_stream.CrudEvent) {
 	for poolName, rows := range values {
-		poolDB := engine.GetMysql(poolName)
+		poolDB := c.Engine().GetMySQL(poolName)
 		if len(rows) > 1 {
-			poolDB.Begin()
+			poolDB.Begin(c)
 		}
 		func() {
-			defer poolDB.Rollback()
+			defer poolDB.Rollback(c)
 			for _, value := range rows {
-				schema := engine.Registry().GetEntitySchema(value.EntityName)
+				schema := c.Engine().GetEntitySchema(value.EntityName)
 				tableName := schema.GetPluginOption(PluginCode, tableNameOption)
 				query := "INSERT INTO `" + tableName.(string) + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)
@@ -222,11 +222,11 @@ func handleLogEvents(engine beeorm.Engine, values map[string][]*crud_stream.Crud
 							panic(rec)
 						}
 					}()
-					poolDB.Exec(query, params...)
+					poolDB.Exec(c, query, params...)
 				}()
 			}
 			if poolDB.IsInTransaction() {
-				poolDB.Commit()
+				poolDB.Commit(c)
 			}
 		}()
 	}
