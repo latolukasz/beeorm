@@ -49,7 +49,7 @@ type EventEntityFlushing interface {
 	SetBefore(before Bind)
 	SetAfter(before Bind)
 	SetMetaData(key, value string)
-	SetField(field string, value interface{}) error
+	SetField(c Context, field string, value interface{}) error
 }
 
 func (e *entitySQLFlush) Type() FlushType {
@@ -109,10 +109,10 @@ func (e *entitySQLFlush) SetAfter(after Bind) {
 	e.Update = after
 }
 
-func (e *entitySQLFlush) SetField(field string, value interface{}) error {
+func (e *entitySQLFlush) SetField(c Context, field string, value interface{}) error {
 	e.Update[field] = value
 	if e.entity != nil {
-		return e.entity.SetField(field, value)
+		return e.entity.SetField(c, field, value)
 	}
 	return nil
 }

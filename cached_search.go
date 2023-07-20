@@ -12,11 +12,11 @@ import (
 
 const idsOnCachePage = 1000
 
-func CachedSearchOne[E Entity](c Context, indexName string, arguments ...interface{}) E {
+func CachedSearchOne[E Entity](c Context, indexName string, arguments ...interface{}) (entity E, found bool) {
 	return cachedSearchOne[E](c, indexName, arguments, nil)
 }
 
-func CachedSearchOneWithReferences[E Entity](c Context, indexName string, arguments []interface{}, references []string) E {
+func CachedSearchOneWithReferences[E Entity](c Context, indexName string, arguments []interface{}, references []string) (entity E, found bool) {
 	return cachedSearchOne[E](c, indexName, arguments, references)
 }
 
@@ -229,7 +229,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	return totalRows, idsToReturn
 }
 
-func cachedSearchOne[E Entity](c Context, indexName string, arguments []interface{}, references []string) (entity E) {
+func cachedSearchOne[E Entity](c Context, indexName string, arguments []interface{}, references []string) (entity E, found bool) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
 	schema := GetEntitySchema[E](c)
@@ -282,8 +282,9 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	}
 	if id > 0 {
 		entity = GetByID[E](c, id)
+		return entity, true
 	}
-	return entity
+	return entity, false
 }
 
 func getCacheKeySearch(entitySchema EntitySchema, indexName string, parameters ...interface{}) string {

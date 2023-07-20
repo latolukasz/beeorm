@@ -370,7 +370,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			e.Update = e.UpdateOnDuplicate
 			for column, value := range e.UpdateOnDuplicate {
 				if e.entity != nil {
-					err := e.entity.SetField(column, value)
+					err := e.entity.SetField(f.c, column, value)
 					checkError(err)
 				}
 			}
@@ -537,12 +537,14 @@ func (f *flusher) FlushWithFullCheck() error {
 			}
 		}()
 		f.flushTrackedEntities(false)
+		f.Clear()
 	}()
 	return err
 }
 
 func (f *flusher) FlushLazy() {
 	f.flushTrackedEntities(true)
+	f.Clear()
 }
 
 func (f *flusher) Clear() {
@@ -578,6 +580,7 @@ func (f *flusher) flushWithCheck() error {
 			}
 		}()
 		f.flushTrackedEntities(false)
+		f.Clear()
 	}()
 	return err
 }
