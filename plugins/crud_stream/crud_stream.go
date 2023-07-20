@@ -61,8 +61,8 @@ func (p *Plugin) PluginInterfaceInitRegistry(registry *beeorm.Registry) {
 	registry.RegisterRedisStream(ChannelName, p.options.DefaultRedisPool)
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
-	metaData := engine.GetMetaData()
+func (p *Plugin) PluginInterfaceEntityFlushing(c beeorm.Context, event beeorm.EventEntityFlushing) {
+	metaData := c.GetMetaData()
 	if metaData != nil {
 		for key, value := range metaData {
 			event.SetMetaData(key, value)
@@ -70,8 +70,8 @@ func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeor
 	}
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushed(engine beeorm.Engine, event beeorm.EventEntityFlushed, cacheFlusher beeorm.FlusherCacheSetter) {
-	entitySchema := engine.Registry().GetEntitySchema(event.EntityName())
+func (p *Plugin) PluginInterfaceEntityFlushed(c beeorm.Context, event beeorm.EventEntityFlushed, cacheFlusher beeorm.FlusherCacheSetter) {
+	entitySchema := c.Engine().GetEntitySchema(event.EntityName())
 	if entitySchema.GetPluginOption(PluginCode, hasCrudStreamOption) != true {
 		return
 	}
