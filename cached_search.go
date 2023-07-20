@@ -136,7 +136,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	}
 	if hasNil {
 		searchPager := NewPager(minPage, maxPage*pageSize)
-		results, total := searchIDs[E](c, where, searchPager, true)
+		results, total := searchIDs(c, schema.GetType(), where, searchPager, true)
 		totalRows = total
 		cacheFields := make([]interface{}, 0)
 		for key, ids := range fromCache {
@@ -261,7 +261,7 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	}
 	id := uint64(0)
 	if fromCache["1"] == nil {
-		results, _ := searchIDs[E](c, where, NewPager(1, 1), false)
+		results, _ := searchIDs(c, entityType, where, NewPager(1, 1), false)
 		l := len(results)
 		value := strconv.Itoa(l)
 		if l > 0 {

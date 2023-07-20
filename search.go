@@ -16,11 +16,13 @@ func Search(c Context, where *Where, pager *Pager, entities interface{}, referen
 }
 
 func SearchIDsWithCount[E Entity](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
-	return searchIDs[E](c, where, pager, true)
+	var entity E
+	return searchIDs(c, reflect.TypeOf(entity), where, pager, true)
 }
 
 func SearchIDs[E Entity](c Context, where *Where, pager *Pager) []uint64 {
-	ids, _ := searchIDs[E](c, where, pager, false)
+	var entity E
+	ids, _ := searchIDs(c, reflect.TypeOf(entity), where, pager, false)
 	return ids
 }
 
@@ -214,11 +216,11 @@ func searchOne[E Entity](c Context, where *Where, references []string) (entity E
 	return searchRow[E](c, where, nil, true, references)
 }
 
-func searchIDs[E Entity](c Context, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
+func searchIDs(c Context, entity reflect.Type, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := GetEntitySchema[E](c)
+	schema := c.Engine().GetEntitySchema(entity)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
