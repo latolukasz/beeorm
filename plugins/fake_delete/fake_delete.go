@@ -50,7 +50,7 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	if sqlSchema.EntitySchema.GetPluginOption(PluginCode, hasFakeDeleteOption) != true {
 		return nil
 	}
@@ -96,8 +96,8 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Engine, sqlSch
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceEntityFlushing(engine beeorm.Engine, event beeorm.EventEntityFlushing) {
-	schema := engine.Registry().GetEntitySchema(event.EntityName())
+func (p *Plugin) PluginInterfaceEntityFlushing(c beeorm.Context, event beeorm.EventEntityFlushing) {
+	schema := c.Engine().GetEntitySchema(event.EntityName())
 	if schema.GetPluginOption(PluginCode, hasFakeDeleteOption) != true {
 		return
 	}

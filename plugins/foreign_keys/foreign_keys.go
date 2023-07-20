@@ -72,15 +72,15 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 	return nil
 }
 
-func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
+func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition) error {
 	refs := sqlSchema.EntitySchema.GetPluginOption(PluginCode, fkColumnsOption)
 	addForeignKeys := make(map[string]*foreignIndex)
 	dropForeignKeys := make(map[string]*foreignIndex)
 	if refs != nil {
 		references := refs.([]beeorm.EntitySchemaReference)
 		for _, reference := range references {
-			refOneSchema := engine.Registry().GetEntitySchema(reference.EntityName)
-			pool := refOneSchema.GetMysql(engine)
+			refOneSchema := c.Engine().GetEntitySchema(reference.EntityName)
+			pool := refOneSchema.GetMysql()
 			fieldType := refOneSchema.GetType().Field(1).Type.String()
 			if fieldType == "uint" {
 				fieldType = "uint32"
@@ -105,7 +105,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	}
 	var dbForeignKeys map[string]*foreignIndex
 	if sqlSchema.DBCreateSchema != "" {
-		dbForeignKeys = getForeignKeys(engine, sqlSchema)
+		dbForeignKeys = getForeignKeys(c, sqlSchema)
 		for name, fk := range dbForeignKeys {
 			current, hasCurrent := addForeignKeys[name]
 			if !hasCurrent {
@@ -122,7 +122,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 	if len(addForeignKeys) == 0 && len(dropForeignKeys) == 0 {
 		return nil
 	}
-	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetMysql(engine).GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
 
 	if len(dropForeignKeys) > 0 {
 		oldForeignKeys := make([]string, 0)
@@ -142,7 +142,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		sqlSchema.PreAlters = append(sqlSchema.PreAlters, beeorm.Alter{
 			SQL:  dropForeignKeysSQL,
 			Safe: true,
-			Pool: sqlSchema.EntitySchema.GetMysqlPool(),
+			Pool: sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetCode(),
 		})
 	}
 
@@ -164,7 +164,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(engine beeorm.Engine, s
 		sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{
 			SQL:  addForeignKeysSQL,
 			Safe: true,
-			Pool: sqlSchema.EntitySchema.GetMysqlPool(),
+			Pool: sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetCode(),
 		})
 	}
 	return nil
@@ -179,13 +179,13 @@ func buildDropForeignKeySQL(keyName string) string {
 	return fmt.Sprintf("DROP FOREIGN KEY `%s`", keyName)
 }
 
-func getForeignKeys(engine beeorm.Engine, sqlSchema *beeorm.TableSQLSchemaDefinition) map[string]*foreignIndex {
+func getForeignKeys(c beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition) map[string]*foreignIndex {
 	var rows2 []foreignKeyDB
 	query := "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_TABLE_SCHEMA " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
 		"AND TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'"
-	pool := sqlSchema.EntitySchema.GetMysql(engine)
-	results, def := pool.Query(fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName()))
+	pool := sqlSchema.EntitySchema.GetMysql()
+	results, def := pool.Query(c, fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName()))
 	defer def()
 	for results.Next() {
 		var row foreignKeyDB
