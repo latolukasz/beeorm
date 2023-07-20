@@ -35,7 +35,7 @@ func (lfc *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyF
 func (lfc *LazyFlushConsumer) Digest() bool {
 	lfc.consumer = lfc.c.EventBroker().Consumer(LazyFlushGroupName).(*eventsConsumer)
 	lfc.consumer.eventConsumerBase = lfc.eventConsumerBase
-	return lfc.consumer.Consume(lfc.c, 500, func(events []Event) {
+	return lfc.consumer.Consume(500, func(events []Event) {
 		lazyEvents := make([]*entitySQLFlush, 0)
 		for _, e := range events {
 			var data []*entitySQLFlush
