@@ -141,7 +141,7 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	schema := orm.entitySchema
 	flushData := &entitySQLFlush{}
 	flushData.Action = action
-	flushData.Entity = schema.t.String()
+	flushData.Entity = schema.GetType().String()
 	flushData.ID = orm.GetID()
 	flushData.TempID = uint64(orm.value.Pointer())
 	b := &entityFlushBuilder{
@@ -205,7 +205,7 @@ type fieldDataProvider struct {
 func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
-		name := b.orm.entitySchema.columnNames[b.index]
+		name := b.orm.entitySchema.GetColumns()[b.index]
 		f := value.Field(i)
 		val := provider.fieldGetter(f)
 		if b.fillOld {
@@ -220,7 +220,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 			}
 			forceOld := b.forceFillOld
 			if same && !forceOld {
-				_, forceOld = b.orm.entitySchema.cachedIndexesTrackedFields[name]
+				_, forceOld = b.orm.entitySchema.getCachedIndexesTrackedFields()[name]
 			}
 			if forceOld || !same {
 				if provider.bindCompareAndSetter != nil {
@@ -249,7 +249,7 @@ func (b *entityFlushBuilder) build(serializer *serializer, fields *tableFields, 
 func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *tableFields, value reflect.Value, indexes []int, provider fieldDataProvider) {
 	for key, i := range indexes {
 		b.index++
-		name := b.orm.entitySchema.columnNames[b.index]
+		name := b.orm.entitySchema.GetColumns()[b.index]
 		f := value.Field(i)
 		isNil := f.IsNil()
 		var val interface{}
@@ -272,7 +272,7 @@ func (b *entityFlushBuilder) buildNullable(serializer *serializer, fields *table
 			}
 			forceOld := b.forceFillOld
 			if same && !forceOld {
-				_, forceOld = b.orm.entitySchema.cachedIndexesTrackedFields[name]
+				_, forceOld = b.orm.entitySchema.getCachedIndexesTrackedFields()[name]
 			}
 			if forceOld || !same {
 				if oldIsNil {
@@ -464,8 +464,8 @@ func (b *entityFlushBuilder) buildStrings(s *serializer, fields *tableFields, va
 			},
 			bindSetter: func(val interface{}, _ bool, _ reflect.Value) string {
 				str := val.(string)
-				name := b.orm.entitySchema.columnNames[b.index]
-				if str == "" && !b.orm.entitySchema.GetTagBool(name, "required") {
+				name := b.orm.entitySchema.GetColumns()[b.index]
+				if str == "" && !b.orm.entitySchema.getTagBool(name, "required") {
 					return nullBindValue
 				}
 				return str
@@ -504,8 +504,8 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 				}
 				str := val.(string)
 				if str == "" {
-					name := b.orm.entitySchema.columnNames[b.index]
-					if b.orm.entitySchema.GetTagBool(name, "required") {
+					name := b.orm.entitySchema.GetColumns()[b.index]
+					if b.orm.entitySchema.getTagBool(name, "required") {
 						if b.orm.inDB {
 							panic(fmt.Errorf("empty enum value for %s", name))
 						}
@@ -515,7 +515,7 @@ func (b *entityFlushBuilder) buildEnums(s *serializer, fields *tableFields, valu
 					return nullBindValue
 				}
 				if !fields.enums[k].Has(str) {
-					panic(errors.New("unknown enum value for " + b.orm.entitySchema.columnNames[b.index] + " - " + str))
+					panic(errors.New("unknown enum value for " + b.orm.entitySchema.GetColumns()[b.index] + " - " + str))
 				}
 				return str
 			},
@@ -583,7 +583,7 @@ func (b *entityFlushBuilder) buildSets(s *serializer, fields *tableFields, value
 			},
 			bindSetter: func(val interface{}, deserialized bool, _ reflect.Value) string {
 				if val == nil {
-					if b.orm.entitySchema.GetTagBool(b.orm.entitySchema.columnNames[b.index], "required") {
+					if b.orm.entitySchema.getTagBool(b.orm.entitySchema.GetColumns()[b.index], "required") {
 						return ""
 					}
 					return nullBindValue
@@ -643,7 +643,7 @@ func (b *entityFlushBuilder) buildDatesNullable(s *serializer, fields *tableFiel
 
 func (b *entityFlushBuilder) bindSetterForJSON(val interface{}, deserialized bool, field reflect.Value) string {
 	if val == nil || (!deserialized && field.IsNil()) {
-		if b.orm.entitySchema.GetTagBool(b.orm.entitySchema.columnNames[b.index], "required") {
+		if b.orm.entitySchema.getTagBool(b.orm.entitySchema.GetColumns()[b.index], "required") {
 			return ""
 		}
 		return nullBindValue

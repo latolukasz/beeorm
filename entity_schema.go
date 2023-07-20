@@ -104,7 +104,12 @@ type EntitySchema interface {
 	GetUsage(registry Engine) map[reflect.Type][]string
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetPluginOption(plugin, key string) interface{}
+	GetCacheKey() string
 	DisableCache(local, redis bool)
+	getCachedIndexes(one, all bool) map[string]*cachedQueryDefinition
+	getFields() *tableFields
+	getCachedIndexesTrackedFields() map[string]bool
+	getTagBool(field, key string) bool
 }
 
 type SettableEntitySchema interface {
@@ -134,7 +139,7 @@ type entitySchema struct {
 	redisCacheName             string
 	hasRedisCache              bool
 	searchCacheName            string
-	cachePrefix                string
+	cacheKey                   string
 	structureHash              uint64
 	skipLogs                   []string
 	mapBindToScanPointer       mapBindToScanPointer
@@ -227,14 +232,14 @@ func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetLocalCache(entitySchema.cachePrefix), true
+	return entitySchema.engine.GetLocalCache(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetRedis(entitySchema.cachePrefix), true
+	return entitySchema.engine.GetRedis(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
@@ -256,6 +261,18 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 	return data
 }
 
+func (entitySchema *entitySchema) NewEntity() Entity {
+	val := reflect.New(entitySchema.t)
+	e := val.Interface().(Entity)
+	orm := e.getORM()
+	orm.initialised = true
+	orm.entitySchema = entitySchema
+	orm.value = val
+	orm.elem = val.Elem()
+	orm.idElem = orm.elem.Field(1)
+	return e
+}
+
 func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
 	pre, alters, post := getSchemaChanges(c, entitySchema)
 	final := pre
@@ -269,7 +286,7 @@ func (entitySchema *entitySchema) GetUsage(engine Engine) map[reflect.Type][]str
 	if engine.GetEntities() != nil {
 		for _, t := range engine.GetEntities() {
 			schema := engine.GetEntitySchema(t)
-			entitySchema.getUsage(schema.fields, schema.GetType(), "", results)
+			entitySchema.getUsage(schema.getFields(), schema.GetType(), "", results)
 		}
 	}
 	return results
@@ -312,11 +329,11 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			return fmt.Errorf("redis pool '%s' not found", redisCacheName)
 		}
 	}
-	cachePrefix := ""
+	cacheKey := ""
 	if entitySchema.mysqlPoolCode != "default" {
-		cachePrefix = entitySchema.mysqlPoolCode
+		cacheKey = entitySchema.mysqlPoolCode
 	}
-	cachePrefix += entitySchema.tableName
+	cacheKey += entitySchema.tableName
 	cachedQueries := make(map[string]*cachedQueryDefinition)
 	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
 	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
@@ -479,10 +496,10 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	for i, name := range entitySchema.columnNames {
 		columnMapping[name] = i
 	}
-	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+entitySchema.fieldsQuery)))
-	cachePrefix = cachePrefix[0:5]
+	cacheKey = fmt.Sprintf("%x", sha256.Sum256([]byte(cacheKey+entitySchema.fieldsQuery)))
+	cacheKey = cacheKey[0:5]
 	h := fnv.New32a()
-	_, _ = h.Write([]byte(cachePrefix))
+	_, _ = h.Write([]byte(cacheKey))
 
 	entitySchema.structureHash = uint64(h.Sum32())
 	entitySchema.columnMapping = columnMapping
@@ -505,7 +522,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.redisCacheName = redisCacheName
 	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.references = references
-	entitySchema.cachePrefix = cachePrefix
+	entitySchema.cacheKey = cacheKey
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	entitySchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
 	for _, plugin := range registry.plugins {
@@ -633,7 +650,7 @@ func (entitySchema *entitySchema) GetTag(field, key, trueValue, defaultValue str
 	return defaultValue
 }
 
-func (entitySchema *entitySchema) GetTagBool(field, key string) bool {
+func (entitySchema *entitySchema) getTagBool(field, key string) bool {
 	tag := entitySchema.GetTag(field, key, "1", "")
 	return tag == "1"
 }
@@ -647,6 +664,10 @@ func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{
 		return nil
 	}
 	return values[key]
+}
+
+func (entitySchema *entitySchema) GetCacheKey() string {
+	return entitySchema.cacheKey
 }
 
 func (entitySchema *entitySchema) DisableCache(local, redis bool) {
@@ -1059,16 +1080,21 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) NewEntity() Entity {
-	val := reflect.New(entitySchema.t)
-	e := val.Interface().(Entity)
-	orm := e.getORM()
-	orm.initialised = true
-	orm.entitySchema = entitySchema
-	orm.value = val
-	orm.elem = val.Elem()
-	orm.idElem = orm.elem.Field(1)
-	return e
+func (entitySchema *entitySchema) getCachedIndexes(one, all bool) map[string]*cachedQueryDefinition {
+	if one {
+		return entitySchema.cachedIndexes
+	} else if all {
+		return entitySchema.cachedIndexesAll
+	}
+	return entitySchema.cachedIndexes
+}
+
+func (entitySchema *entitySchema) getFields() *tableFields {
+	return entitySchema.fields
+}
+
+func (entitySchema *entitySchema) getCachedIndexesTrackedFields() map[string]bool {
+	return entitySchema.cachedIndexesTrackedFields
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

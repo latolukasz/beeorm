@@ -10,6 +10,6 @@ func ClearCacheByIDs[E Entity](c Context, ids ...uint64) {
 	}
 	redisPool, has := schema.GetRedisCache()
 	if has {
-		redisPool.hDelUints(c, schema.cachePrefix, ids...)
+		redisPool.hDelUints(c, schema.GetCacheKey(), ids...)
 	}
 }

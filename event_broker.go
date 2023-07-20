@@ -115,15 +115,11 @@ func (c *contextImplementation) EventBroker() EventBroker {
 }
 
 func (eb *eventBroker) Publish(stream string, body interface{}, meta Meta) (id string) {
-	return eb.c.engine.GetRedis(getRedisCodeForStream(eb.c.engine, stream)).xAdd(eb.c, stream, createEventSlice(body, meta))
-}
-
-func getRedisCodeForStream(engine Engine, stream string) string {
-	pool, has := engine.redisStreamPools[stream]
+	pool, has := eb.c.Engine().GetRedisPools()[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
 	}
-	return pool
+	return pool.xAdd(eb.c, stream, createEventSlice(body, meta))
 }
 
 type EventConsumerHandler func(events []Event)
@@ -136,15 +132,21 @@ type EventsConsumer interface {
 }
 
 func (eb *eventBroker) Consumer(group string) EventsConsumer {
-	streams := eb.c.engine.getRedisStreamsForGroup(group)
+	streams := eb.c.Engine().GetRedisStreams()[group]
 	if len(streams) == 0 {
 		panic(fmt.Errorf("unregistered streams for group %s", group))
 	}
-	redisPool := eb.c.engine.registry.redisStreamPools[streams[0]]
+	codes := make([]string, len(streams))
+	i := 0
+	for code := range streams {
+		codes[i] = code
+		i++
+	}
+	redisPool := eb.c.Engine().Registry().redisStreamPools[codes[0]]
 	return &eventsConsumer{
 		eventConsumerBase: eventConsumerBase{c: eb.c, block: true, blockTime: time.Second * 30},
-		redis:             eb.c.engine.GetRedis(redisPool).(*redisCache),
-		streams:           streams,
+		redis:             eb.c.Engine().GetRedis(redisPool).(*redisCache),
+		streams:           codes,
 		group:             group,
 		lockTTL:           time.Second * 90,
 		lockTick:          time.Minute}

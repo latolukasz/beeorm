@@ -37,7 +37,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	if !hasSchema {
 		panic(fmt.Errorf("entity '%s' is not registered", name))
 	}
-	definition, has := schema.cachedIndexes[indexName]
+	definition, has := schema.getCachedIndexes(false, false)[indexName]
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))
 	}
@@ -51,7 +51,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	cacheLocal, hasLocalCache := schema.GetLocalCache()
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	if !hasLocalCache && !hasRedis {
-		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", schema.t.String()))
+		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", schema.GetType().String()))
 	}
 	where := NewWhere(definition.Query, arguments...)
 	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
@@ -236,7 +236,7 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", entityType.String()))
 	}
-	definition, has := schema.cachedIndexesOne[indexName]
+	definition, has := schema.getCachedIndexes(true, false)[indexName]
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))
 	}
@@ -287,5 +287,5 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 }
 
 func getCacheKeySearch(entitySchema EntitySchema, indexName string, parameters ...interface{}) string {
-	return entitySchema.cachePrefix + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
+	return entitySchema.GetCacheKey() + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
 }

@@ -162,7 +162,7 @@ func getAllTables(db sqlClient) []string {
 	return tables
 }
 
-func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
+func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
 	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.t, indexes, nil, "")
 	checkError(err)
