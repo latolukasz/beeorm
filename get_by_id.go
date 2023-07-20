@@ -54,8 +54,8 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 			return
 		}
 	}
-	entity = searchRow[E](c, NewWhere("`ID` = ?", id), nil, false, nil)
-	if entity != nil {
+	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false, nil)
+	if found {
 		if hasLocalCache {
 			cacheLocal.Set(c, uint64(id), cacheNilValue)
 		}

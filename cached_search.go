@@ -136,7 +136,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	}
 	if hasNil {
 		searchPager := NewPager(minPage, maxPage*pageSize)
-		results, total := searchIDs(c, where, searchPager, true)
+		results, total := searchIDs[E](c, where, searchPager, true)
 		totalRows = total
 		cacheFields := make([]interface{}, 0)
 		for key, ids := range fromCache {

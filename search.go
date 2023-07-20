@@ -24,7 +24,7 @@ func SearchIDs[E Entity](c Context, where *Where, pager *Pager) []uint64 {
 	return ids
 }
 
-func SearchOne[E Entity](c Context, where *Where, references ...string) (entity E) {
+func SearchOne[E Entity](c Context, where *Where, references ...string) (entity E, found bool) {
 	return searchOne[E](c, where, references)
 }
 
@@ -132,7 +132,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E) {
+func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E, found bool) {
 	schema := GetEntitySchema[E](c)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(c, where, schema)
@@ -145,7 +145,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 	if !results.Next() {
-		return
+		return entity, false
 	}
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
@@ -159,7 +159,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	//if len(references) > 0 {
 	//	warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
 	//}
-	return
+	return entity, true
 }
 
 func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema) *Where {
@@ -210,7 +210,7 @@ func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool,
 	return totalRows
 }
 
-func searchOne[E Entity](c Context, where *Where, references []string) E {
+func searchOne[E Entity](c Context, where *Where, references []string) (entity E, found bool) {
 	return searchRow[E](c, where, nil, true, references)
 }
 
