@@ -7,16 +7,16 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	engine := PrepareTables(t, &Registry{}, 5, 6, "")
-	source := engine.Registry().GetSourceRegistry()
+	c := PrepareTables(t, &Registry{}, 5, 6, "")
+	source := c.Engine().Registry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
-		engine.GetMysql("test")
+		c.Engine().GetMySQL("test")
 	})
 	assert.PanicsWithError(t, "unregistered local cache pool 'test'", func() {
-		engine.GetLocalCache("test")
+		c.Engine().GetLocalCache("test")
 	})
 	assert.PanicsWithError(t, "unregistered redis cache pool 'test'", func() {
-		engine.GetRedis("test")
+		c.Engine().GetRedis("test")
 	})
 }
