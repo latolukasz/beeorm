@@ -63,6 +63,7 @@ type Flusher interface {
 	FlusherCacheSetter
 	Track(entity ...Entity) Flusher
 	Flush()
+	FlushAndKeep()
 	FlushWithCheck() error
 	FlushWithFullCheck() error
 	FlushLazy()
@@ -513,6 +514,11 @@ func (f *flusher) PublishToStream(stream string, body interface{}, meta Meta) {
 }
 
 func (f *flusher) Flush() {
+	f.flushTrackedEntities(false)
+	f.Clear()
+}
+
+func (f *flusher) FlushAndKeep() {
 	f.flushTrackedEntities(false)
 }
 

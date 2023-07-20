@@ -29,7 +29,7 @@ type Entity interface {
 	markToDelete()
 	IsLoaded() bool
 	SetOnDuplicateKeyUpdate(bind Bind)
-	SetField(field string, value interface{}) error
+	SetField(c Context, field string, value interface{}) error
 	Clone() Entity
 	SetMetaData(key, value string)
 	GetMetaData() Meta

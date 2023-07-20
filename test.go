@@ -13,7 +13,7 @@ type MockLogHandler struct {
 	Logs []map[string]interface{}
 }
 
-func (h *MockLogHandler) Handle(_ Engine, log map[string]interface{}) {
+func (h *MockLogHandler) Handle(_ Context, log map[string]interface{}) {
 	h.Logs = append(h.Logs, log)
 }
 
