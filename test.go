@@ -21,7 +21,7 @@ func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (engine Engine) {
+func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (c Context) {
 	poolOptions := MySQLPoolOptions{}
 	if mySQLVersion == 5 {
 		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test", poolOptions)
@@ -44,7 +44,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	registry.RegisterLocalCache(1000, "second")
 
 	registry.RegisterEntity(entities...)
-	vRegistry, err := registry.Validate()
+	engine, err := registry.Validate()
 	if err != nil {
 		if t != nil {
 			assert.NoError(t, err)
@@ -53,56 +53,51 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		panic(err)
 	}
 
-	engine = vRegistry.CreateEngine()
-	if t != nil {
-		assert.Equal(t, engine.Registry(), vRegistry)
-	}
-	cacheRedis := engine.GetRedis()
-	cacheRedis.FlushDB()
+	c = engine.NewContext(context.Background())
+	cacheRedis := engine.GetRedis("")
+	cacheRedis.FlushDB(c)
 	cacheRedis = engine.GetRedis("default_queue")
-	cacheRedis.FlushDB()
+	cacheRedis.FlushDB(c)
 	redisSearch := engine.GetRedis("search")
-	redisSearch.FlushDB()
+	redisSearch.FlushDB(c)
 
-	alters := engine.GetAlters()
+	alters := GetAlters(c)
 	for _, alter := range alters {
-		alter.Exec(engine)
+		alter.Exec(c)
 	}
 
-	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 0")
+	engine.GetMySQL("").Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		eType := reflect.TypeOf(entity)
 		if eType.Kind() == reflect.Ptr {
 			eType = eType.Elem()
 		}
-		schema := vRegistry.GetEntitySchema(eType.String())
-		schema.TruncateTable(engine)
-		schema.UpdateSchema(engine)
-		cacheLocal, has := schema.GetLocalCache(engine)
+		schema := c.Engine().GetEntitySchema(eType)
+		schema.TruncateTable(c)
+		schema.UpdateSchema(c)
+		cacheLocal, has := schema.GetLocalCache()
 		if has {
-			cacheLocal.Clear()
+			cacheLocal.Clear(c)
 		}
 	}
-	engine.GetMysql().Exec("SET FOREIGN_KEY_CHECKS = 1")
-	RunLazyFlushConsumer(engine, true)
-
-	return engine
+	engine.GetMySQL("").Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
+	RunLazyFlushConsumer(c, true)
+	return c
 }
 
-func RunLazyFlushConsumer(engine Engine, garbage bool) {
-	consumer := NewLazyFlushConsumer(engine)
+func RunLazyFlushConsumer(c Context, garbage bool) {
+	consumer := NewLazyFlushConsumer(c)
 	consumer.SetBlockTime(0)
-	consumer.Digest(context.Background())
-
+	consumer.Digest()
 	if garbage {
-		RunStreamGarbageCollectorConsumer(engine)
+		RunStreamGarbageCollectorConsumer(c)
 	}
 }
 
-func RunStreamGarbageCollectorConsumer(engine Engine) {
-	garbageConsumer := NewStreamGarbageCollectorConsumer(engine)
+func RunStreamGarbageCollectorConsumer(c Context) {
+	garbageConsumer := NewStreamGarbageCollectorConsumer(c)
 	garbageConsumer.SetBlockTime(0)
-	garbageConsumer.Digest(context.Background())
+	garbageConsumer.Digest()
 }
 
 type MockDBClient struct {
