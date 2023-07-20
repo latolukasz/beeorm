@@ -29,9 +29,9 @@ func SearchOne[E Entity](c Context, where *Where, references ...string) (entity 
 }
 
 func prepareScan(schema EntitySchema) (pointers []interface{}) {
-	count := len(schema.columnNames)
+	count := len(schema.GetColumns())
 	pointers = make([]interface{}, count)
-	prepareScanForFields(schema.fields, 0, pointers)
+	prepareScanForFields(schema.getFields(), 0, pointers)
 	return pointers
 }
 
@@ -139,7 +139,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " LIMIT 1"
+	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 
 	pool := schema.GetMysql()
 	results, def := pool.Query(c, query, where.GetParameters()...)
@@ -185,7 +185,7 @@ func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool,
 
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT ID" + schema.fieldsQuery + " FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -222,7 +222,7 @@ func searchIDs[E Entity](c Context, where *Where, pager *Pager, withCount bool) 
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT `ID` FROM `" + schema.tableName + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetMysql()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -243,7 +243,7 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 		totalRows = foundRows
 		if totalRows == pager.GetPageSize() || (foundRows == 0 && pager.CurrentPage > 1) {
 			/* #nosec */
-			query := "SELECT count(1) FROM `" + schema.tableName + "` WHERE " + where.String()
+			query := "SELECT count(1) FROM `" + schema.GetTableName() + "` WHERE " + where.String()
 			var foundTotal string
 			pool := schema.GetMysql()
 			pool.QueryRow(c, NewWhere(query, where.GetParameters()...), &foundTotal)
@@ -283,9 +283,9 @@ func getEntitySchemaForSlice(engine Engine, sliceType reflect.Type, checkIsSlice
 	} else if checkIsSlice {
 		panic(fmt.Errorf("interface %s is not slice of beeorm.Entity", sliceType.String()))
 	}
-	t, has := engine.entities[name]
-	if !has {
+	schema := engine.GetEntitySchema(name)
+	if schema == nil {
 		return nil, false, name
 	}
-	return engine.entitySchemas[t], true, name
+	return schema, true, name
 }
