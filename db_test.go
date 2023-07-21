@@ -28,46 +28,46 @@ func (r *resultMock) RowsAffected() (int64, error) {
 
 func TestDB(t *testing.T) {
 	var entity *dbEntity
-	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity)
+	c := PrepareTables(t, &Registry{}, 5, 6, "", entity)
 	logger := &MockLogHandler{}
-	engine.RegisterQueryLogger(logger, true, false, false)
+	c.RegisterQueryLogger(logger, true, false, false)
 	testQueryLog := &MockLogHandler{}
-	engine.RegisterQueryLogger(testQueryLog, true, false, false)
+	c.RegisterQueryLogger(testQueryLog, true, false, false)
 
-	db := engine.GetMysql()
-	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
+	db := c.Engine().GetMySQL("")
+	row := db.Exec(c, "INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
 	assert.Equal(t, uint64(1), row.LastInsertId())
 	assert.Equal(t, uint64(1), row.RowsAffected())
 
 	var id uint64
 	var name string
-	found := db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
+	found := db.QueryRow(c, NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 1), &id, &name)
 	assert.True(t, found)
 	assert.Equal(t, uint64(1), id)
 	assert.Equal(t, "Tom", name)
 
 	assert.False(t, db.IsInTransaction())
-	db.Begin()
+	db.Begin(c)
 	assert.True(t, db.IsInTransaction())
-	db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
-	db.Rollback()
+	db.Exec(c, "INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
+	db.Rollback(c)
 	assert.False(t, db.IsInTransaction())
-	db.Rollback()
-	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	db.Rollback(c)
+	found = db.QueryRow(c, NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.False(t, found)
 
-	db.Begin()
-	db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
-	found = db.QueryRow(NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
+	db.Begin(c)
+	db.Exec(c, "INSERT INTO `dbEntity` VALUES(?, ?)", 2, "John")
+	found = db.QueryRow(c, NewWhere("SELECT * FROM `dbEntity` WHERE `ID` = ?", 2), &id, &name)
 	assert.True(t, found)
-	rows, def := db.Query("SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
+	rows, def := db.Query(c, "SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
 	assert.True(t, rows.Next())
 	assert.True(t, rows.Next())
 	def()
-	db.Commit()
+	db.Commit(c)
 	assert.False(t, db.IsInTransaction())
 
-	rows, def = db.Query("SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
+	rows, def = db.Query(c, "SELECT * FROM `dbEntity` WHERE `ID` > ? ORDER BY `ID`", 0)
 	assert.Equal(t, []string{"ID", "Name"}, rows.Columns())
 	assert.True(t, rows.Next())
 	rows.Scan(&id, &name)
@@ -82,27 +82,27 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
 	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())
 
-	preparedExec, def := db.Prepare("INSERT INTO `dbEntity` VALUES(?, ?)")
+	preparedExec, def := db.Prepare(c, "INSERT INTO `dbEntity` VALUES(?, ?)")
 	assert.NotNil(t, def)
-	res := preparedExec.Exec(3, "Ivona")
+	res := preparedExec.Exec(c, 3, "Ivona")
 	assert.Equal(t, uint64(3), res.LastInsertId())
 	assert.Equal(t, uint64(1), res.RowsAffected())
-	res = preparedExec.Exec(4, "Adam")
+	res = preparedExec.Exec(c, 4, "Adam")
 	assert.Equal(t, uint64(4), res.LastInsertId())
 	assert.Equal(t, uint64(1), res.RowsAffected())
 	def()
-	preparedExec, def = db.Prepare("SELECT * FROM `dbEntity` WHERE `ID` = ?")
-	found = preparedExec.QueryRow([]interface{}{1}, &id, &name)
+	preparedExec, def = db.Prepare(c, "SELECT * FROM `dbEntity` WHERE `ID` = ?")
+	found = preparedExec.QueryRow(c, []interface{}{1}, &id, &name)
 	assert.True(t, found)
 	assert.Equal(t, uint64(1), id)
 	assert.Equal(t, "Tom", name)
-	found = preparedExec.QueryRow([]interface{}{2}, &id, &name)
+	found = preparedExec.QueryRow(c, []interface{}{2}, &id, &name)
 	assert.True(t, found)
 	assert.Equal(t, uint64(2), id)
 	assert.Equal(t, "John", name)
 	def()
-	preparedExec, def = db.Prepare("SELECT * FROM `dbEntity` WHERE `ID` >= ?")
-	rows, c := preparedExec.Query(3)
+	preparedExec, def = db.Prepare(c, "SELECT * FROM `dbEntity` WHERE `ID` >= ?")
+	rows, cl := preparedExec.Query(c, 3)
 	assert.True(t, rows.Next())
 	rows.Scan(&id, &name)
 	assert.Equal(t, uint64(3), id)
@@ -112,25 +112,25 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, uint64(4), id)
 	assert.Equal(t, "Adam", name)
 	assert.False(t, rows.Next())
-	c()
+	cl()
 	def()
 }
 
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
-	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity)
-	db := engine.GetMysql()
+	c := PrepareTables(t, &Registry{}, 5, 6, "", entity)
+	db := c.Engine().GetMySQL("")
 	logger := &MockLogHandler{}
-	engine.RegisterQueryLogger(logger, true, false, false)
+	c.RegisterQueryLogger(logger, true, false, false)
 
 	assert.PanicsWithError(t, "transaction not started", func() {
-		db.Commit()
+		db.Commit(c)
 	})
-	db.Begin()
+	db.Begin(c)
 	assert.PanicsWithError(t, "transaction already started", func() {
-		db.Begin()
+		db.Begin(c)
 	})
-	db.Commit()
+	db.Commit(c)
 
 	mock := &MockDBClient{OriginDB: db.GetDBClient()}
 	db.SetMockDBClient(mock)
@@ -138,25 +138,25 @@ func TestDBErrors(t *testing.T) {
 		return nil, errors.Errorf("test error")
 	}
 	assert.PanicsWithError(t, "test error", func() {
-		db.Begin()
+		db.Begin(c)
 	})
 
 	mock.BeginMock = nil
 	mock.CommitMock = func() error {
 		return errors.Errorf("test error")
 	}
-	db.Begin()
+	db.Begin(c)
 	mock.TX = db.GetDBClientTX()
 	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
-		db.Commit()
+		db.Commit(c)
 	})
 	mock.RollbackMock = func() error {
 		return errors.Errorf("test error")
 	}
 	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
-		db.Rollback()
+		db.Rollback(c)
 	})
 
 	db.SetMockClientTX(mock)
@@ -164,32 +164,32 @@ func TestDBErrors(t *testing.T) {
 		return nil, errors.Errorf("test error")
 	}
 	assert.PanicsWithError(t, "test error", func() {
-		db.Exec("")
+		db.Exec(c, "")
 	})
 	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
-		db.Exec("")
+		db.Exec(c, "")
 	})
 
 	mock.QueryMock = func(query string, args ...interface{}) (*sql.Rows, error) {
 		return nil, errors.Errorf("test error")
 	}
 	assert.PanicsWithError(t, "test error", func() {
-		db.Query("")
+		db.Query(c, "")
 	})
 	db.SetMockClientTX(mock)
 	assert.PanicsWithError(t, "test error", func() {
-		db.Query("")
+		db.Query(c, "")
 	})
 
 	assert.PanicsWithError(t, "Error 1064 (42000): You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use near 'INVALID QUERY' at line 1", func() {
-		db.QueryRow(NewWhere("INVALID QUERY"))
+		db.QueryRow(c, NewWhere("INVALID QUERY"))
 	})
 
 	mock.ExecMock = func(query string, args ...interface{}) (sql.Result, error) {
 		return &resultMock{}, nil
 	}
-	row := db.Exec("INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
+	row := db.Exec(c, "INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
 	assert.PanicsWithError(t, "test error", func() {
 		row.LastInsertId()
 	})
