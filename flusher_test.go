@@ -549,15 +549,13 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	c.Flusher().Track(entity2).Flush()
 	assert.Equal(t, uint64(12), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
-	entity2 = &flushEntity{}
-	found = engine.LoadByID(100, entity2)
-	assert.False(t, found)
+	entity2 = GetByID[*flushEntity](c, 100)
+	assert.Nil(t, entity2)
 	entity2 = &flushEntity{ID: 100, Name: "Frank", Age: 1, EnumNotNull: "a"}
 	entity2.SetOnDuplicateKeyUpdate(Bind{"Age": 2})
 	c.Flusher().Track(entity2).Flush()
-	entity2 = &flushEntity{}
-	found = engine.LoadByID(100, entity2)
-	assert.True(t, found)
+	entity2 = GetByID[*flushEntity](c, 100)
+	assert.NotNil(t, entity2)
 	assert.Equal(t, 1, entity2.Age)
 
 	entity2 = &flushEntity{ID: 100, Age: 1, EnumNotNull: "a"}
@@ -566,66 +564,61 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint64(100), entity2.GetID())
 	assert.Equal(t, 2, entity2.Age)
 	entity2 = &flushEntity{}
-	found = engine.LoadByID(100, entity2)
-	assert.True(t, found)
+	entity2 = GetByID[*flushEntity](c, 100)
+	assert.NotNil(t, entity2)
 	assert.Equal(t, 2, entity2.Age)
 
 	flusher.Clear()
-	engine.LoadByID(6, entity)
+	entity = GetByID[*flushEntity](c, 6)
 	flusher.Delete(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(7, entity)
+	entity = GetByID[*flushEntity](c, 7)
 	flusher.Delete(entity)
 	flusher.Flush()
-	found = engine.LoadByID(6, entity)
-	assert.False(t, found)
-	found = engine.LoadByID(7, entity)
-	assert.False(t, found)
+	entity = GetByID[*flushEntity](c, 6)
+	assert.Nil(t, entity2)
+	entity = GetByID[*flushEntity](c, 7)
+	assert.Nil(t, entity)
 
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	entity = GetByID[*flushEntity](c, 100)
 	entity.Float64Default = 0.3
-	assert.True(t, engine.IsDirty(entity))
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	isDirty, _ = IsDirty(c, entity)
+	assert.True(t, isDirty)
+	c.Flusher().Track(entity).Flush()
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Equal(t, 0.3, entity.Float64Default)
 	entity.Float64Default = 0.4
 	entity.Float64Signed = -0.4
-	assert.True(t, engine.IsDirty(entity))
-	engine.Flush(entity)
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	isDirty, _ = IsDirty(c, entity)
+	assert.True(t, isDirty)
+	c.Flusher().Track(entity).Flush()
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Equal(t, 0.4, entity.Float64Default)
 	assert.Equal(t, -0.4, entity.Float64Signed)
 
 	entity.SetNullable = []string{}
 	c.Flusher().Track(entity).Flush()
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Nil(t, nil, entity.SetNullable)
 	entity.SetNullable = []string{"d"}
 	c.Flusher().Track(entity).Flush()
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Equal(t, []string{"d"}, entity.SetNullable)
 	entity.SetNullable = []string{"f"}
 	c.Flusher().Track(entity).Flush()
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Equal(t, []string{"f"}, entity.SetNullable)
 	entity.SetNullable = []string{"f", "d"}
 	c.Flusher().Track(entity).Flush()
-	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
+	entity = GetByID[*flushEntity](c, 100)
 	assert.Len(t, entity.SetNullable, 2)
-	assert.False(t, engine.IsDirty(entity))
+	isDirty, _ = IsDirty(c, entity)
+	assert.False(t, isDirty)
 	entity.SetNullable = []string{"f", "d"}
-	assert.False(t, engine.IsDirty(entity))
+	isDirty, _ = IsDirty(c, entity)
+	assert.False(t, isDirty)
 
 	date = time.Unix(1, 0).UTC()
-	entity = &flushEntity{}
-	engine.LoadByID(11, entity)
+	entity = GetByID[*flushEntity](c, 11)
 	entity.TimeWithTime = date
 	c.Flusher().Track(entity).Flush()
 	entity = &flushEntity{}
@@ -641,7 +634,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.TimeNullable = &n
 	entity.TimeWithTimeNullable = &n
 	entity.Interface = "ss"
-	engine.LoadByID(11, entity)
+	entity = GetByID[*flushEntity](c, 11)
 	assert.Equal(t, date, entity.TimeWithTime.UTC())
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.Int8Nullable)
@@ -652,26 +645,26 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Interface)
 
 	entity = &flushEntity{}
-	engine.LoadByID(100, entity)
-	engine.Delete(entity)
+	entity = GetByID[*flushEntity](c, 100)
+	c.Flusher().Delete(entity).Flush()
 	entity = &flushEntity{}
-	engine.GetLocalCache().Clear()
-	engine.GetRedis().FlushDB()
-	assert.False(t, engine.LoadByID(100, entity))
+	c.Engine().GetLocalCache("").Clear(c)
+	c.Engine().GetRedis("").FlushDB(c)
+	entity = GetByID[*flushEntity](c, 100)
+	assert.Nil(t, entity)
 
-	entity = &flushEntity{}
-	engine.LoadByID(1, entity)
-	engine.Delete(entity)
-	flusher = engine.NewFlusher()
+	entity = GetByID[*flushEntity](c, 1)
+	c.Flusher().Delete(entity).Flush()
+	flusher = c.Flusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntityReference{})
 	flusher.Flush()
-	flusher = engine.NewFlusher()
+	flusher = c.Flusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntity{})
 	flusher.Flush()
 
-	flusher = engine.NewFlusher()
+	flusher = c.Flusher()
 	flusher.Track(&flushEntityReference{})
 	flusher.Track(&flushEntity{Name: "Adam"})
 	err = flusher.FlushWithCheck()
@@ -681,18 +674,18 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.Name = "WithID"
 	entity.ID = 676
 	c.Flusher().Track(entity).Flush()
-	entity = &flushEntity{}
-	assert.True(t, engine.LoadByID(676, entity))
+	entity = GetByID[*flushEntity](c, 676)
+	assert.NotNil(t, entity)
 
-	entity = &flushEntity{}
-	engine.LoadByID(13, entity)
+	entity = GetByID[*flushEntity](c, 13)
 	entity.City = "Warsaw"
 	entity.SubName = "testSub"
 	c.Flusher().Track(entity).Flush()
 	clonedEntity := entity.Clone().(*flushEntity)
 	assert.Equal(t, uint64(0), clonedEntity.GetID())
 	assert.False(t, clonedEntity.IsLoaded())
-	assert.True(t, engine.IsDirty(clonedEntity))
+	isDirty, _ = IsDirty(c, clonedEntity)
+	assert.NotNil(t, isDirty)
 	assert.Equal(t, "Warsaw", clonedEntity.City)
 	assert.Equal(t, "test_transaction", clonedEntity.Name)
 	assert.Equal(t, "testSub", clonedEntity.SubName)
@@ -701,8 +694,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	clonedEntity.City = "Cracow"
 	clonedEntity.ReferenceOne = nil
 	c.Flusher().Track(clonedEntity).Flush()
-	entity = &flushEntity{}
-	assert.True(t, engine.LoadByID(677, entity))
+	entity = GetByID[*flushEntity](c, 677)
+	assert.NotNil(t, entity)
 	assert.Equal(t, 38, clonedEntity.Age)
 	assert.Equal(t, "testSub", clonedEntity.SubName)
 }
