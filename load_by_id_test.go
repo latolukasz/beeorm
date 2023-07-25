@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -84,20 +83,19 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	var reference2 *loadByIDReference2
 	var subReference2 *loadByIDSubReference2
 	var subReference *loadByIDSubReference
-	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
+	c := PrepareTables(t, &Registry{}, 5, 6, "", entity, entityRedis, entityLocal, entityNoCache, reference, subReference,
 		subReference2, reference2)
 
 	schemas := make([]EntitySchema, 0)
-	registry := engine.Registry()
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(entity))
-
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityRedis))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityLocal))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(entityNoCache))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(reference))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(reference2))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(subReference2))
-	schemas = append(schemas, registry.GetEntitySchemaForEntity(subReference))
+	registry := c.Engine()
+	schemas = append(schemas, registry.GetEntitySchema(entity))
+	schemas = append(schemas, registry.GetEntitySchema(entityRedis))
+	schemas = append(schemas, registry.GetEntitySchema(entityLocal))
+	schemas = append(schemas, registry.GetEntitySchema(entityNoCache))
+	schemas = append(schemas, registry.GetEntitySchema(reference))
+	schemas = append(schemas, registry.GetEntitySchema(reference2))
+	schemas = append(schemas, registry.GetEntitySchema(subReference2))
+	schemas = append(schemas, registry.GetEntitySchema(subReference))
 
 	for _, schema := range schemas {
 		schema.DisableCache(!local, !redis)
@@ -107,18 +105,16 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	e.ReferenceSecond = &loadByIDReference{Name: "r11", ReferenceTwo: &loadByIDSubReference{Name: "s1"},
 		ReferenceThree: &loadByIDSubReference2{Name: "s11", ReferenceTwo: &loadByIDSubReference{Name: "hello"}}}
 	e.ReferenceThird = &loadByIDReference2{Name: "r2A"}
-	engine.Flush(e,
+	c.Flusher().Track(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
-		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{})
-	engine.GetLocalCache().Clear()
+		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{}).Flush()
+	c.Engine().GetLocalCache("").Clear(c)
 
-	entity = &loadByIDEntity{}
 	id := e.GetID()
-	engine.EnableQueryDebug()
-	found := engine.LoadByID(id, entity, "ReferenceOne/ReferenceTwo",
+	c.EnableQueryDebug()
+	entity = GetByID[*loadByIDEntity](c, id, "ReferenceOne/ReferenceTwo",
 		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
-	return
-	assert.True(t, found)
+	assert.NotNil(t, entity)
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
@@ -127,26 +123,20 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.IsLoaded())
 	assert.True(t, entity.ReferenceSecond.ReferenceThree.ReferenceTwo.IsLoaded())
 
-	schema := engine.Registry().GetEntitySchemaForCachePrefix("6e009")
+	schema := GetEntitySchema[*loadByIDEntity](c)
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
-	schema = engine.Registry().GetEntitySchemaForCachePrefix("invalid")
-	assert.Nil(t, schema)
 
-	entity = &loadByIDEntity{}
-	engine.EnableQueryDebug()
-	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference).cachePrefix)
-	fmt.Printf("ID %d %v\n", id, engine.Registry().GetEntitySchemaForEntity(reference2).cachePrefix)
-	found = engine.LoadByID(id, entity, "ReferenceThird", "ReferenceOne")
-	return
-	assert.True(t, found)
+	c.EnableQueryDebug()
+	entity = GetByID[*loadByIDEntity](c, id, "ReferenceThird", "ReferenceOne")
+	assert.NotNil(t, entity)
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 
 	entity = &loadByIDEntity{}
-	found = engine.LoadByID(id, entity, "ReferenceOne/ReferenceTwo")
-	assert.True(t, found)
+	entity = GetByID[*loadByIDEntity](c, id, "ReferenceOne/ReferenceTwo")
+	assert.NotNil(t, entity)
 	assert.Equal(t, id, entity.GetID())
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
@@ -155,49 +145,44 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
 	entity = &loadByIDEntity{ID: id}
-	engine.Load(entity, "ReferenceOne/ReferenceTwo")
+	Load(c, entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-	engine.Load(entity, "ReferenceOne/ReferenceTwo")
+	Load(c, entity, "ReferenceOne/ReferenceTwo")
 	assert.Equal(t, "a", entity.Name)
 	assert.Equal(t, "r1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
 	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
 
-	entityNoCache = &loadByIDNoCacheEntity{}
-	found = engine.LoadByID(1, entityNoCache, "*")
-	assert.True(t, found)
+	entityNoCache = GetByID[*loadByIDNoCacheEntity](c, 1, "*")
+	assert.NotNil(t, entityNoCache)
 	assert.Equal(t, uint64(1), entityNoCache.GetID())
 	assert.Equal(t, "a", entityNoCache.Name)
 
-	found = engine.LoadByID(100, entity, "*")
-	assert.False(t, found)
-	found = engine.LoadByID(100, entity, "*")
-	assert.False(t, found)
-	entityRedis = &loadByIDRedisEntity{}
-	found = engine.LoadByID(100, entityRedis, "*")
-	assert.False(t, found)
-	found = engine.LoadByID(100, entityRedis, "*")
-	assert.False(t, found)
+	entity = GetByID[*loadByIDEntity](c, 100, "*")
+	assert.Nil(t, entity)
+	entityRedis = GetByID[*loadByIDRedisEntity](c, 100, "*")
+	assert.Nil(t, entityRedis)
 
-	entityLocalCache := &loadByIDLocalEntity{}
-	found = engine.LoadByID(1, entityLocalCache)
-	assert.True(t, found)
+	entityLocalCache := GetByID[*loadByIDLocalEntity](c, 1)
+	assert.NotNil(t, entityLocalCache)
 
 	if local && redis {
-		engine.LoadByID(999, entityLocalCache)
-		engine.GetLocalCache().Clear()
-		assert.True(t, engine.LoadByID(1, entityLocalCache))
-		assert.False(t, engine.LoadByID(999, entityLocalCache))
+		GetByID[*loadByIDLocalEntity](c, 999)
+		c.Engine().GetLocalCache("").Clear(c)
+		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 1)
+		assert.NotNil(t, entityLocalCache)
+		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 999)
+		assert.Nil(t, entityLocalCache)
 	}
 
-	engine = PrepareTables(t, &Registry{}, 5, 6, "")
+	c = PrepareTables(t, &Registry{}, 5, 6, "")
 	entity = &loadByIDEntity{}
 	assert.PanicsWithError(t, "entity 'beeorm.loadByIDEntity' is not registered", func() {
-		engine.LoadByID(1, entity)
+		GetByID[*loadByIDEntity](c, 1)
 	})
 }
