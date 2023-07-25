@@ -18,12 +18,12 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	entity := &loadByIDBenchmarkEntity{}
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
-	engine := PrepareTables(nil, registry, 5, 6, "", entity)
-	schema := engine.Registry().GetEntitySchemaForEntity(entity)
+	c := PrepareTables(nil, registry, 5, 6, "", entity)
+	schema := GetEntitySchema[*loadByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
 
 	const size = 1
-	f := engine.NewFlusher()
+	f := c.Flusher()
 	ids := make([]uint64, size)
 	for i := 0; i < size; i++ {
 		entity = &loadByIDBenchmarkEntity{}
@@ -36,10 +36,10 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	}
 	f.Flush()
 	var entities []*loadByIDBenchmarkEntity
-	_ = engine.LoadByIDs(ids, &entities)
+	_ = GetByIDs(c, ids, &entities)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = engine.LoadByIDs(ids, &entities)
+		_ = GetByIDs(c, ids, &entities)
 	}
 }
