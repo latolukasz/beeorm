@@ -123,44 +123,39 @@ func TestLazyFlush(t *testing.T) {
 	e = &lazyReceiverEntity{Name: "Adam", RefOne: &lazyReceiverReference{Name: "Test"}}
 	c.Flusher().Track(e).FlushLazy()
 	RunLazyFlushConsumer(c, false)
-	engine.LoadByID(5, e)
+	e = GetByID[*lazyReceiverEntity](c, 5)
 	assert.Equal(t, "Adam", e.Name)
 	assert.Equal(t, uint64(1), e.RefOne.GetID())
-	ref = &lazyReceiverReference{}
-	assert.True(t, engine.LoadByID(1, ref))
+	ref = GetByID[*lazyReceiverReference](c, 1)
+	assert.NotNil(t, ref)
 	assert.Equal(t, "Test", ref.Name)
 
-	e = &lazyReceiverEntity{}
-	engine.LoadByID(1, e)
-	engine.DeleteLazy(e)
-	RunLazyFlushConsumer(engine, false)
-	loaded = engine.LoadByID(1, e)
-	assert.False(t, loaded)
+	e = GetByID[*lazyReceiverEntity](c, 1)
+	c.Flusher().Delete(e).FlushLazy()
+	RunLazyFlushConsumer(c, false)
+	e = GetByID[*lazyReceiverEntity](c, 1)
+	assert.Nil(t, e)
 
 	e = &lazyReceiverEntity{ID: 100}
-	engine.Flush(e)
-	engine.DeleteLazy(e)
-	e = &lazyReceiverEntity{}
-	RunLazyFlushConsumer(engine, false)
-	engine.GetLocalCache().Clear()
-	engine.GetRedis().FlushDB()
-	assert.False(t, engine.LoadByID(100, e))
-	e2 = &lazyReceiverEntity{}
-	e3 = &lazyReceiverEntity{}
-	engine.LoadByID(2, e2)
-	engine.LoadByID(3, e3)
+	c.Flusher().Track(e).Flush()
+	c.Flusher().Delete(e).FlushLazy()
+	RunLazyFlushConsumer(c, false)
+	c.Engine().GetLocalCache("").Clear(c)
+	c.Engine().GetRedis("").FlushDB(c)
+	e = GetByID[*lazyReceiverEntity](c, 100)
+	assert.Nil(t, e)
+	e2 = GetByID[*lazyReceiverEntity](c, 2)
+	e3 = GetByID[*lazyReceiverEntity](c, 3)
 	e2.Name = "John"
 	e3.Name = "Ivona"
-	engine.GetMysql().Begin()
-	engine.FlushLazy(e2, e3)
-	engine.GetMysql().Commit()
-	RunLazyFlushConsumer(engine, false)
-	engine.GetLocalCache().Clear()
-	engine.GetRedis().FlushDB()
-	e2 = &lazyReceiverEntity{}
-	e3 = &lazyReceiverEntity{}
-	engine.LoadByID(2, e2)
-	engine.LoadByID(3, e3)
+	c.Engine().GetMySQL("").Begin(c)
+	c.Flusher().Track(e2, e3).FlushLazy()
+	c.Engine().GetMySQL("").Commit(c)
+	RunLazyFlushConsumer(c, false)
+	c.Engine().GetLocalCache("").Clear(c)
+	c.Engine().GetRedis("").FlushDB(c)
+	e2 = GetByID[*lazyReceiverEntity](c, 2)
+	e3 = GetByID[*lazyReceiverEntity](c, 3)
 	assert.Equal(t, "John", e2.Name)
 	assert.Equal(t, "Ivona", e3.Name)
 
