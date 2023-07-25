@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"context"
 	"testing"
 )
 
@@ -26,20 +25,20 @@ func BenchmarkLoadByIDRedisCache(b *testing.B) {
 }
 
 func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
-	entity := &loadByIDBenchmarkEntity{}
+	var entity *loadByIDBenchmarkEntity
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
-	engine := PrepareTables(nil, registry, 5, 6, "", entity)
-	schema := engine.Registry().GetEntitySchemaForEntity(entity)
+	c := PrepareTables(nil, registry, 5, 6, "", entity)
+	schema := GetEntitySchema[*loadByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
 
+	entity = &loadByIDBenchmarkEntity{}
 	entity.Name = "Name"
 	entity.Int = 1
 	entity.Float = 1.3
 	entity.Decimal = 12.23
-	engine.Flush(entity)
+	c.Flusher().Track(entity).Flush()
 
-	c := CreateContext(context.Background())
 	GetByID[*loadByIDBenchmarkEntity](c, 1)
 	b.ResetTimer()
 	b.ReportAllocs()
