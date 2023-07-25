@@ -59,6 +59,12 @@ type FlusherCacheSetter interface {
 	PublishToStream(stream string, body interface{}, meta Meta)
 }
 
+type FlushData interface {
+	Type() FlushType
+	Before() Bind
+	After() Bind
+}
+
 type Flusher interface {
 	FlusherCacheSetter
 	Track(entity ...Entity) Flusher
@@ -471,6 +477,15 @@ func (f *flusher) Delete(entity ...Entity) Flusher {
 	}
 	f.Track(entity...)
 	return f
+}
+
+func IsDirty(c Context, entity Entity) (dirty bool, data FlushData) {
+	orm := initIfNeeded(c.Engine().GetEntitySchema(entity), entity)
+	entitySQLFlushData, isDirty := orm.buildDirtyBind(c.getSerializer(), false)
+	if !isDirty {
+		return false, nil
+	}
+	return isDirty, entitySQLFlushData
 }
 
 func (f *flusher) GetLocalCacheSetter(code ...string) LocalCacheSetter {
