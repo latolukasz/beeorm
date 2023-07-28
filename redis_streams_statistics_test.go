@@ -64,7 +64,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	consumer.Consume(11000, func(events []Event) {
 		c.Engine().GetRedis("").Get(c, "hello")
 		c.Engine().GetRedis("").Get(c, "hello2")
-		c.Engine().GetMySQL("").Query(c, "SELECT 1")
+		c.Engine().GetMySQL().Query(c, "SELECT 1")
 		time.Sleep(time.Millisecond * 100)
 	})
 

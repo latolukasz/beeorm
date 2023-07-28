@@ -42,7 +42,7 @@ func TestMysqlMetrics(t *testing.T) {
 	entity = &simpleMetricsEntity{Name: "Two"}
 	c.Flusher().Track(entity).Flush()
 	val := ""
-	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &val)
+	c.Engine().GetMySQL().QueryRow(c, beeorm.NewWhere("SELECT 1"), &val)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 2)
 	assert.Equal(t, INSERT, dbStats[0].Operation)
@@ -96,27 +96,27 @@ func TestMysqlMetrics(t *testing.T) {
 
 	plugin.ClearMySQLStats()
 	date := ""
-	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT NOW();"), &date)
+	c.Engine().GetMySQL().QueryRow(c, beeorm.NewWhere("SELECT NOW();"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 	assert.Equal(t, "unknown", dbStats[0].Table)
 
 	plugin.ClearMySQLStats()
-	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
+	c.Engine().GetMySQL().QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 	assert.Equal(t, "unknown", dbStats[0].Table)
 	SetTagName(c, "my_tag")
-	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
+	c.Engine().GetMySQL().QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	assert.Len(t, plugin.GetTags(), 2)
 	assert.Equal(t, plugin.GetTags()[0], "")
 	assert.Equal(t, plugin.GetTags()[1], "my_tag")
 
 	plugin.ClearMySQLStats()
 	DisableMetrics(c)
-	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
+	c.Engine().GetMySQL().QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 0)
 }

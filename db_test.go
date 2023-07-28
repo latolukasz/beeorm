@@ -34,7 +34,7 @@ func TestDB(t *testing.T) {
 	testQueryLog := &MockLogHandler{}
 	c.RegisterQueryLogger(testQueryLog, true, false, false)
 
-	db := c.Engine().GetMySQL("")
+	db := c.Engine().GetMySQL()
 	row := db.Exec(c, "INSERT INTO `dbEntity` VALUES(?, ?)", 1, "Tom")
 	assert.Equal(t, uint64(1), row.LastInsertId())
 	assert.Equal(t, uint64(1), row.RowsAffected())
@@ -119,7 +119,7 @@ func TestDB(t *testing.T) {
 func TestDBErrors(t *testing.T) {
 	var entity *dbEntity
 	c := PrepareTables(t, &Registry{}, 5, 6, "", entity)
-	db := c.Engine().GetMySQL("")
+	db := c.Engine().GetMySQL()
 	logger := &MockLogHandler{}
 	c.RegisterQueryLogger(logger, true, false, false)
 

@@ -93,7 +93,7 @@ func (ti *IndexSchemaDefinition) SetColumns(columns []string) {
 }
 
 func (a Alter) Exec(c Context) {
-	c.Engine().GetMySQL(a.Pool).Exec(c, a.SQL)
+	c.Engine().GetMySQLByCode(a.Pool).Exec(c, a.SQL)
 }
 
 func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
@@ -103,7 +103,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	for _, pool := range c.Engine().GetMySQLPools() {
 		poolName := pool.GetPoolConfig().GetCode()
 		tablesInDB[poolName] = make(map[string]bool)
-		pool := c.Engine().GetMySQL(poolName)
+		pool := c.Engine().GetMySQLByCode(poolName)
 		tables := getAllTables(pool.client)
 		for _, table := range tables {
 			tablesInDB[poolName][table] = true
@@ -126,7 +126,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 			if !has {
 				_, has = c.Engine().Registry().mysqlTables[poolName][tableName]
 				if !has {
-					pool := c.Engine().GetMySQL(poolName)
+					pool := c.Engine().GetMySQLByCode(poolName)
 					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 					isEmpty := isTableEmptyInPool(c, poolName, tableName)
 					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
@@ -141,7 +141,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 }
 
 func isTableEmptyInPool(c Context, poolName string, tableName string) bool {
-	return isTableEmpty(c.Engine().GetMySQL(poolName).client, tableName)
+	return isTableEmpty(c.Engine().GetMySQLByCode(poolName).client, tableName)
 }
 
 func getAllTables(db sqlClient) []string {

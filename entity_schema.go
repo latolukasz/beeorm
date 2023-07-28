@@ -229,7 +229,7 @@ func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
 }
 
 func (entitySchema *entitySchema) GetMysql() *DB {
-	return entitySchema.engine.GetMySQL(entitySchema.mysqlPoolCode)
+	return entitySchema.engine.GetMySQLByCode(entitySchema.mysqlPoolCode)
 }
 
 func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {

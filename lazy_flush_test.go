@@ -148,9 +148,9 @@ func TestLazyFlush(t *testing.T) {
 	e3 = GetByID[*lazyReceiverEntity](c, 3)
 	e2.Name = "John"
 	e3.Name = "Ivona"
-	c.Engine().GetMySQL("").Begin(c)
+	c.Engine().GetMySQL().Begin(c)
 	c.Flusher().Track(e2, e3).FlushLazy()
-	c.Engine().GetMySQL("").Commit(c)
+	c.Engine().GetMySQL().Commit(c)
 	RunLazyFlushConsumer(c, false)
 	c.Engine().GetLocalCache("").Clear(c)
 	c.Engine().GetRedis("").FlushDB(c)

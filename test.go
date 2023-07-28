@@ -66,7 +66,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		alter.Exec(c)
 	}
 
-	engine.GetMySQL("").Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
+	engine.GetMySQL().Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		eType := reflect.TypeOf(entity)
 		if eType.Kind() == reflect.Ptr {
@@ -80,7 +80,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 			cacheLocal.Clear(c)
 		}
 	}
-	engine.GetMySQL("").Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
+	engine.GetMySQL().Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
 	RunLazyFlushConsumer(c, true)
 	return c
 }

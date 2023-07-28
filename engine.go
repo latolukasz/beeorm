@@ -5,13 +5,16 @@ import (
 	"reflect"
 )
 
+const defaultDatabaseSourceCode = "default"
+
 type Engine interface {
 	NewContext(parent context.Context) Context
 	GetEntitySchema(entity any) EntitySchema
 	Registry() *Registry
 	GetEnum(code string) Enum
 	GetRedisStreams() map[string]map[string][]string
-	GetMySQL(code string) *DB
+	GetMySQL() *DB
+	GetMySQLByCode(code string) *DB
 	GetMySQLPools() map[string]*DB
 	GetLocalCache(code string) LocalCache
 	GetLocalCachePools() map[string]LocalCache
@@ -96,7 +99,11 @@ func (e *engineImplementation) getRedisStreamsForGroup(group string) []string {
 	return streams
 }
 
-func (e *engineImplementation) GetMySQL(code string) *DB {
+func (e *engineImplementation) GetMySQL() *DB {
+	return e.mySQLServers[defaultDatabaseSourceCode]
+}
+
+func (e *engineImplementation) GetMySQLByCode(code string) *DB {
 	return e.mySQLServers[code]
 }
 
