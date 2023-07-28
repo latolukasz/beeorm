@@ -118,7 +118,7 @@ func (r *Registry) Validate() (Engine, error) {
 		e.enums[k] = v
 	}
 	for name, entityType := range r.entities {
-		schema := &entitySchema{}
+		schema := &entitySchema{engine: e}
 		err := schema.init(r, entityType)
 		if err != nil {
 			return nil, err
