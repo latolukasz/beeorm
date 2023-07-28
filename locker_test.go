@@ -22,11 +22,11 @@ func testLocker(t *testing.T, namespace string) {
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	testLogger := &MockLogHandler{}
 	c.RegisterQueryLogger(testLogger, false, true, false)
 
-	l := c.Engine().GetRedis("").GetLocker()
+	l := c.Engine().GetRedis().GetLocker()
 	lock, has := l.Obtain(c, "test_key", time.Second, 0)
 	assert.True(t, has)
 	assert.NotNil(t, lock)

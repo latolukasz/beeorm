@@ -54,11 +54,11 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 
 	c = engine.NewContext(context.Background())
-	cacheRedis := engine.GetRedis("")
+	cacheRedis := engine.GetRedis()
 	cacheRedis.FlushDB(c)
-	cacheRedis = engine.GetRedis("default_queue")
+	cacheRedis = engine.GetRedisByCode("default_queue")
 	cacheRedis.FlushDB(c)
-	redisSearch := engine.GetRedis("search")
+	redisSearch := engine.GetRedisByCode("search")
 	redisSearch.FlushDB(c)
 
 	alters := GetAlters(c)

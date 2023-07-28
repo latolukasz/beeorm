@@ -108,7 +108,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	c.Flusher().Track(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{}).Flush()
-	c.Engine().GetLocalCache("").Clear(c)
+	c.Engine().GetLocalCache().Clear(c)
 
 	id := e.GetID()
 	c.EnableQueryDebug()
@@ -173,7 +173,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 
 	if local && redis {
 		GetByID[*loadByIDLocalEntity](c, 999)
-		c.Engine().GetLocalCache("").Clear(c)
+		c.Engine().GetLocalCache().Clear(c)
 		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 1)
 		assert.NotNil(t, entityLocalCache)
 		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 999)

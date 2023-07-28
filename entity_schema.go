@@ -236,14 +236,14 @@ func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetLocalCache(entitySchema.cacheKey), true
+	return entitySchema.engine.GetLocalCacheByCode(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetRedis(entitySchema.cacheKey), true
+	return entitySchema.engine.GetRedisByCode(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {

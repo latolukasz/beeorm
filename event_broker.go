@@ -145,7 +145,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	redisPool := eb.c.Engine().Registry().redisStreamPools[codes[0]]
 	return &eventsConsumer{
 		eventConsumerBase: eventConsumerBase{c: eb.c, block: true, blockTime: time.Second * 30},
-		redis:             eb.c.Engine().GetRedis(redisPool).(*redisCache),
+		redis:             eb.c.Engine().GetRedisByCode(redisPool).(*redisCache),
 		streams:           codes,
 		group:             group,
 		lockTTL:           time.Second * 90,

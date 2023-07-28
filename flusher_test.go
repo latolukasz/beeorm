@@ -648,8 +648,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = GetByID[*flushEntity](c, 100)
 	c.Flusher().Delete(entity).Flush()
 	entity = &flushEntity{}
-	c.Engine().GetLocalCache("").Clear(c)
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetLocalCache().Clear(c)
+	c.Engine().GetRedis().FlushDB(c)
 	entity = GetByID[*flushEntity](c, 100)
 	assert.Nil(t, entity)
 

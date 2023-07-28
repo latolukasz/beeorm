@@ -56,7 +56,7 @@ func (eb *eventBroker) GetStreamsStatistics(stream ...string) []*RedisStreamStat
 	now := time.Now()
 	results := make([]*RedisStreamStatistics, 0)
 	for redisPool, channels := range eb.c.Engine().GetRedisStreams() {
-		r := eb.c.Engine().GetRedis(redisPool)
+		r := eb.c.Engine().GetRedisByCode(redisPool)
 		for streamName := range channels {
 			validName := len(stream) == 0
 			if !validName {

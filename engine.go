@@ -16,9 +16,11 @@ type Engine interface {
 	GetMySQL() *DB
 	GetMySQLByCode(code string) *DB
 	GetMySQLPools() map[string]*DB
-	GetLocalCache(code string) LocalCache
+	GetLocalCache() LocalCache
+	GetLocalCacheByCode(code string) LocalCache
 	GetLocalCachePools() map[string]LocalCache
-	GetRedis(code string) RedisCache
+	GetRedis() RedisCache
+	GetRedisByCode(code string) RedisCache
 	GetRedisPools() map[string]RedisCache
 	GetEntities() map[string]reflect.Type
 	GetPlugins() []string
@@ -111,7 +113,11 @@ func (e *engineImplementation) GetMySQLPools() map[string]*DB {
 	return e.mySQLServers
 }
 
-func (e *engineImplementation) GetLocalCache(code string) LocalCache {
+func (e *engineImplementation) GetLocalCache() LocalCache {
+	return e.localCacheServers[defaultDatabaseSourceCode]
+}
+
+func (e *engineImplementation) GetLocalCacheByCode(code string) LocalCache {
 	return e.localCacheServers[code]
 }
 
@@ -119,7 +125,11 @@ func (e *engineImplementation) GetLocalCachePools() map[string]LocalCache {
 	return e.localCacheServers
 }
 
-func (e *engineImplementation) GetRedis(code string) RedisCache {
+func (e *engineImplementation) GetRedis() RedisCache {
+	return e.redisServers[defaultDatabaseSourceCode]
+}
+
+func (e *engineImplementation) GetRedisByCode(code string) RedisCache {
 	return e.redisServers[code]
 }
 

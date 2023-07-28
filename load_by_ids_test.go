@@ -71,8 +71,8 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, "r2", rows[1].ReferenceOne.Name)
 	assert.Equal(t, "c", rows[2].Name)
 	assert.Nil(t, rows[3])
-	c.Engine().GetLocalCache("").Remove(c, "a25e2:3")
-	c.Engine().GetRedis("").Del(c, "a25e2:3")
+	c.Engine().GetLocalCache().Remove(c, "a25e2:3")
+	c.Engine().GetRedis().Del(c, "a25e2:3")
 	found = GetByIDs(c, []uint64{1, 2, 3, 4}, &rows, "*")
 	assert.False(t, found)
 	assert.Len(t, rows, 4)
@@ -104,7 +104,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	found = GetByIDs(c, []uint64{}, &rows)
 	assert.True(t, found)
 	assert.Len(t, rows, 0)
-	c.Engine().GetRedis("").Del(c, "a25e2:1")
+	c.Engine().GetRedis().Del(c, "a25e2:1")
 	found = GetByIDs(c, []uint64{2, 4, 4, 1, 1, 4}, &rows)
 	assert.False(t, found)
 	assert.Len(t, rows, 6)
@@ -128,7 +128,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, "c", rows[2].Name)
 	assert.Nil(t, rows[3])
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{1}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -146,7 +146,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{2}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -157,7 +157,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{3}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -168,7 +168,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{1}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -190,7 +190,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{2}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -201,7 +201,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Equal(t, uint64(3), rows[2].GetID())
 
-	c.Engine().GetRedis("").FlushDB(c)
+	c.Engine().GetRedis().FlushDB(c)
 	found = GetByIDs(c, []uint64{3}, &rows)
 	assert.True(t, found)
 	rows = make([]*loadByIdsEntity, 0)
@@ -234,10 +234,10 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Equal(t, "a", rows[2].Name)
 
 	if local && redis {
-		c.Engine().GetLocalCache("").Clear(c)
+		c.Engine().GetLocalCache().Clear(c)
 		rows = make([]*loadByIdsEntity, 0)
 		GetByIDs(c, []uint64{1, 2, 3}, &rows)
-		c.Engine().GetLocalCache("").Clear(c)
+		c.Engine().GetLocalCache().Clear(c)
 		rows = make([]*loadByIdsEntity, 0)
 		GetByIDs(c, []uint64{1, 2, 3}, &rows)
 		assert.Len(t, rows, 3)

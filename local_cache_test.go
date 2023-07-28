@@ -18,7 +18,7 @@ func TestLocalCache(t *testing.T) {
 	testQueryLog := &MockLogHandler{}
 	c.RegisterQueryLogger(testQueryLog, false, false, true)
 
-	lc := c.Engine().GetLocalCache("")
+	lc := c.Engine().GetLocalCache()
 	assert.Equal(t, "default", lc.GetPoolConfig().GetCode())
 	assert.Equal(t, 100, lc.GetPoolConfig().GetLimit())
 	val := lc.GetSet(c, "test_get_set", 10, func() interface{} {
@@ -44,7 +44,7 @@ func TestLocalCache(t *testing.T) {
 	c = validatedRegistry.NewContext(context.Background())
 	c.RegisterQueryLogger(testLogger, false, false, true)
 	c.RegisterQueryLogger(testQueryLog, false, false, true)
-	lc = c.Engine().GetLocalCache("")
+	lc = c.Engine().GetLocalCache()
 	val, has = lc.Get(c, "test_get")
 	assert.True(t, has)
 	assert.Equal(t, "hello", val)

@@ -196,7 +196,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, "Name 4", rows[1].ReferenceOne.Name)
 	assert.Equal(t, "Name 5", rows[2].ReferenceOne.Name)
 
-	c.Engine().GetLocalCache("").Clear(c)
+	c.Engine().GetLocalCache().Clear(c)
 	totalRows = CachedSearch(c, &rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 3, totalRows)
 
