@@ -37,14 +37,14 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(Init(nil))
-	engine := beeorm.PrepareTables(t, registry, mySQLVersion, 7, "", entity, ref)
-	assert.Len(t, engine.Registry().GetPlugins(), 1)
-	assert.Equal(t, PluginCode, engine.Registry().GetPlugins()[0])
-	engineDrop := beeorm.PrepareTables(t, &beeorm.Registry{}, mySQLVersion, 6, "")
-	for _, alter := range engineDrop.GetAlters() {
-		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
+	c := beeorm.PrepareTables(t, registry, mySQLVersion, 7, "", entity, ref)
+	assert.Len(t, c.Engine().GetPlugins(), 1)
+	assert.Equal(t, PluginCode, c.Engine().GetPlugins()[0])
+	cDrop := beeorm.PrepareTables(t, &beeorm.Registry{}, mySQLVersion, 6, "")
+	for _, alter := range beeorm.GetAlters(cDrop) {
+		cDrop.Engine().GetMySQL(alter.Pool).Exec(cDrop, alter.SQL)
 	}
-	alters := engine.GetAlters()
+	alters := beeorm.GetAlters(c)
 	assert.Len(t, alters, 3)
 	if mySQLVersion == 5 {
 		assert.Equal(t, "CREATE TABLE `test`.`foreignKeyReferenceEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) DEFAULT NULL,\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
@@ -56,46 +56,46 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT,\nADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;", alters[2].SQL)
 
 	for _, alter := range alters {
-		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
+		cDrop.Engine().GetMySQL(alter.Pool).Exec(cDrop, alter.SQL)
 	}
 
-	alters = engine.GetAlters()
+	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 0)
 
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
 
-	alters = engine.GetAlters()
+	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;", alters[0].SQL)
-	alters[0].Exec(engine)
-	assert.Len(t, engine.GetAlters(), 0)
+	alters[0].Exec(c)
+	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `abc` FOREIGN KEY (`MyRef`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `abc` FOREIGN KEY (`MyRef`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
+	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `abc`;", alters[0].SQL)
-	alters[0].Exec(engine)
-	assert.Len(t, engine.GetAlters(), 0)
+	alters[0].Exec(c)
+	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
+	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 2)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`;", alters[0].SQL)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;", alters[1].SQL)
-	alters[0].Exec(engine)
-	alters[1].Exec(engine)
-	assert.Len(t, engine.GetAlters(), 0)
+	alters[0].Exec(c)
+	alters[1].Exec(c)
+	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef`")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyReferenceEntity` CHANGE COLUMN `ID` `ID` int(10) unsigned NOT NULL AUTO_INCREMENT")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef` `MyRef` int(10) unsigned DEFAULT NULL")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef2` `MyRef2` int(10) unsigned DEFAULT NULL")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
-	engine.GetMysql().Exec("ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef`")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyReferenceEntity` CHANGE COLUMN `ID` `ID` int(10) unsigned NOT NULL AUTO_INCREMENT")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef` `MyRef` int(10) unsigned DEFAULT NULL")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef2` `MyRef2` int(10) unsigned DEFAULT NULL")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
 
-	alters = engine.GetAlters()
+	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 4)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`,\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef`;", alters[0].SQL)
 	if mySQLVersion == 5 {

@@ -1,7 +1,6 @@
 package log_table
 
 import (
-	"context"
 	"testing"
 
 	"github.com/latolukasz/beeorm/v3/plugins/crud_stream"
@@ -55,28 +54,28 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(crud_stream.Init(nil))
 	registry.RegisterPlugin(Init(nil))
-	engine := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
-	assert.Len(t, engine.GetAlters(), 0)
-	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity1`")
-	engine.GetMysql().Exec("TRUNCATE TABLE `_log_default_logReceiverEntity2`")
-	engine.GetMysql("log").Exec("TRUNCATE TABLE `_log_default_logReceiverEntity3`")
-	engine.GetRedis().FlushDB()
+	c := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
+	assert.Len(t, beeorm.GetAlters(c), 0)
+	c.Engine().GetMySQL("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity1`")
+	c.Engine().GetMySQL("").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity2`")
+	c.Engine().GetMySQL("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity3`")
+	c.Engine().GetRedis("").FlushDB(c)
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 	e2 := &logReceiverEntity2{Name: "Tom", Age: 18}
-	engine.Flush(e2)
+	c.Flusher().Track(e2).Flush()
 
-	consumer := engine.GetEventBroker().Consumer(ConsumerGroupName)
+	consumer := c.EventBroker().Consumer(ConsumerGroupName)
 	consumer.SetBlockTime(0)
-	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	consumer.Consume(100, NewEventHandler(c))
 
-	assert.Equal(t, int64(2), engine.GetRedis().XLen(crud_stream.ChannelName))
-	beeorm.RunStreamGarbageCollectorConsumer(engine)
-	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
+	assert.Equal(t, int64(2), c.Engine().GetRedis("").XLen(c, crud_stream.ChannelName))
+	beeorm.RunStreamGarbageCollectorConsumer(c)
+	assert.Equal(t, int64(0), c.Engine().GetRedis("").XLen(c, crud_stream.ChannelName))
 
-	schema := engine.Registry().GetEntitySchemaForEntity(entity1)
-	logs := GetEntityLogs(engine, schema, 1, nil, nil)
+	schema := beeorm.GetEntitySchema[*logReceiverEntity1](c)
+	logs := GetEntityLogs(c, schema, 1, nil, nil)
 	assert.Len(t, logs, 1)
 	assert.Nil(t, logs[0].MetaData)
 	assert.Nil(t, logs[0].Before)
@@ -86,11 +85,11 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "John", logs[0].After["Name"])
 	assert.Equal(t, "Poland", logs[0].After["Country"])
 	assert.Equal(t, "Smith", logs[0].After["LastName"])
-	beeorm.RunStreamGarbageCollectorConsumer(engine)
-	assert.Equal(t, int64(0), engine.GetRedis().XLen(crud_stream.ChannelName))
+	beeorm.RunStreamGarbageCollectorConsumer(c)
+	assert.Equal(t, int64(0), c.Engine().GetRedis("").XLen(c, crud_stream.ChannelName))
 
-	schema2 := engine.Registry().GetEntitySchemaForEntity(entity2)
-	logs = GetEntityLogs(engine, schema2, 1, nil, nil)
+	schema2 := beeorm.GetEntitySchema[*logReceiverEntity2](c)
+	logs = GetEntityLogs(c, schema2, 1, nil, nil)
 	assert.Len(t, logs, 1)
 	assert.Nil(t, logs[0].MetaData)
 	assert.Nil(t, logs[0].Before)
@@ -100,18 +99,18 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "18", logs[0].After["Age"])
 	assert.Equal(t, "Tom", logs[0].After["Name"])
 
-	engine.SetMetaData("user_id", "12")
-	engine.SetMetaData("country", "Poland")
-	flusher := engine.NewFlusher()
+	c.SetMetaData("user_id", "12")
+	c.SetMetaData("country", "Poland")
+	flusher := c.Flusher()
 	e := &logReceiverEntity1{Name: "John2"}
 	e3 := &logReceiverEntity1{Name: "John3"}
 	flusher.Track(e, e3)
 	flusher.Flush()
-	assert.Equal(t, int64(2), engine.GetRedis().XLen(crud_stream.ChannelName))
+	assert.Equal(t, int64(2), c.Engine().GetRedis("").XLen(c, crud_stream.ChannelName))
 
-	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	consumer.Consume(100, NewEventHandler(c))
 
-	logs = GetEntityLogs(engine, schema, e.GetID(), nil, nil)
+	logs = GetEntityLogs(c, schema, e.GetID(), nil, nil)
 	assert.Len(t, logs, 1)
 	assert.NotNil(t, logs[0].MetaData)
 	assert.Len(t, logs[0].MetaData, 2)
@@ -121,7 +120,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "12", logs[0].MetaData["user_id"])
 	assert.Equal(t, "Poland", logs[0].MetaData["country"])
 
-	logs = GetEntityLogs(engine, schema, e3.GetID(), nil, nil)
+	logs = GetEntityLogs(c, schema, e3.GetID(), nil, nil)
 	assert.Len(t, logs, 1)
 	assert.NotNil(t, logs[0].MetaData)
 	assert.Len(t, logs[0].MetaData, 2)
@@ -132,10 +131,10 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "Poland", logs[0].MetaData["country"])
 
 	e1.Country = "Germany"
-	engine.Flush(e1)
-	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+	c.Flusher().Track(e1).Flush()
+	consumer.Consume(100, NewEventHandler(c))
 
-	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	logs = GetEntityLogs(c, schema, e1.GetID(), nil, nil)
 	assert.Len(t, logs, 2)
 	assert.NotNil(t, logs[1].Before)
 	assert.NotNil(t, logs[1].After)
@@ -144,9 +143,9 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "Poland", logs[1].Before["Country"])
 	assert.Equal(t, "Germany", logs[1].After["Country"])
 
-	engine.Delete(e1)
-	consumer.Consume(context.Background(), 100, NewEventHandler(engine))
-	logs = GetEntityLogs(engine, schema, e1.GetID(), nil, nil)
+	c.Flusher().Delete(e1).Flush()
+	consumer.Consume(100, NewEventHandler(c))
+	logs = GetEntityLogs(c, schema, e1.GetID(), nil, nil)
 	assert.Len(t, logs, 3)
 	assert.NotNil(t, logs[2].Before)
 	assert.Nil(t, logs[2].After)
@@ -155,23 +154,23 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "John", logs[2].Before["Name"])
 	assert.Equal(t, "Smith", logs[2].Before["LastName"])
 
-	logs = GetEntityLogs(engine, schema, 1, nil, beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
+	logs = GetEntityLogs(c, schema, 1, nil, beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
 	assert.Len(t, logs, 2)
 	assert.Len(t, logs[0].Before, 4)
 	assert.Len(t, logs[1].Before, 1)
 
-	logs = GetEntityLogs(engine, schema, 1, beeorm.NewPager(2, 1), beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
+	logs = GetEntityLogs(c, schema, 1, beeorm.NewPager(2, 1), beeorm.NewWhere("`before`IS NOT NULL ORDER BY ID DESC"))
 	assert.Len(t, logs, 1)
 	assert.Len(t, logs[0].Before, 1)
 
-	logs = GetEntityLogs(engine, engine.Registry().GetEntitySchemaForEntity(entity3), 1, nil, nil)
+	logs = GetEntityLogs(c, beeorm.GetEntitySchema[*logReceiverEntity3](c), 1, nil, nil)
 	assert.Len(t, logs, 0)
 
-	engine.LoadByID(2, e1)
+	beeorm.GetByID[*logReceiverEntity1](c, 2)
 	e1.LastName = "Winter"
-	engine.Flush(e1)
-	engine.GetMysql("log").Exec("DROP TABLE `_log_default_logReceiverEntity1`")
+	c.Flusher().Track(e1).Flush()
+	c.Engine().GetMySQL("log").Exec(c, "DROP TABLE `_log_default_logReceiverEntity1`")
 	assert.NotPanics(t, func() {
-		consumer.Consume(context.Background(), 100, NewEventHandler(engine))
+		consumer.Consume(100, NewEventHandler(c))
 	})
 }

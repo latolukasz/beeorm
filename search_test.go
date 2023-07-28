@@ -23,52 +23,52 @@ type searchEntityReference struct {
 func TestSearch(t *testing.T) {
 	var entity *searchEntity
 	var reference *searchEntityReference
-	engine := PrepareTables(t, &Registry{}, 5, 6, "", entity, reference)
+	c := PrepareTables(t, &Registry{}, 5, 6, "", entity, reference)
 
 	for i := 1; i <= 10; i++ {
-		engine.Flush(&searchEntity{Name: fmt.Sprintf("name %d", i), ReferenceOne: &searchEntityReference{Name: fmt.Sprintf("name %d", i)}})
+		c.Flusher().Track(&searchEntity{Name: fmt.Sprintf("name %d", i), ReferenceOne: &searchEntityReference{Name: fmt.Sprintf("name %d", i)}})
 	}
+	c.Flusher().Flush()
 	entity = &searchEntity{ID: 1}
-	engine.Load(entity)
-	engine.Flush(entity)
+	Load(c, entity)
+	c.Flusher().Track(entity).Flush()
 
 	var rows []*searchEntity
-	engine.LoadByIDs([]uint64{1, 2, 20}, &rows)
+	GetByIDs(c, []uint64{1, 2, 20}, &rows)
 	assert.Len(t, rows, 3)
 	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Nil(t, rows[2])
 
-	entity = &searchEntity{}
-	found := engine.SearchOne(NewWhere("ID = ?", 1), entity, "ReferenceOne")
+	entity, found := SearchOne[*searchEntity](c, NewWhere("ID = ?", 1), "ReferenceOne")
 	assert.True(t, found)
 	assert.Equal(t, uint64(1), entity.GetID())
 	assert.Equal(t, "name 1", entity.Name)
 	assert.Equal(t, "name 1", entity.ReferenceOne.Name)
 	assert.True(t, entity.ReferenceOne.IsLoaded())
 
-	engine.Search(NewWhere("ID > 0"), nil, &rows, "ReferenceOne")
+	Search(c, NewWhere("ID > 0"), nil, &rows, "ReferenceOne")
 	assert.Len(t, rows, 10)
 	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Equal(t, "name 1", rows[0].Name)
 	assert.Equal(t, "name 1", rows[0].ReferenceOne.Name)
 	assert.True(t, rows[0].ReferenceOne.IsLoaded())
 
-	total := engine.SearchWithCount(NewWhere("ID > 2"), nil, &rows)
+	total := SearchWithCount(c, NewWhere("ID > 2"), nil, &rows)
 	assert.Equal(t, 8, total)
 	assert.Len(t, rows, 8)
 
-	ids, total := engine.SearchIDsWithCount(NewWhere("ID > 2"), nil, entity)
+	ids, total := SearchIDsWithCount[*searchEntity](c, NewWhere("ID > 2"), nil)
 	assert.Equal(t, 8, total)
 	assert.Len(t, ids, 8)
 	assert.Equal(t, uint64(3), ids[0])
 
-	ids = engine.SearchIDs(NewWhere("ID > 2"), nil, entity)
+	ids = SearchIDs[*searchEntity](c, NewWhere("ID > 2"), nil)
 	assert.Len(t, ids, 8)
 	assert.Equal(t, uint64(3), ids[0])
 
-	engine = PrepareTables(t, &Registry{}, 5, 6, "")
+	c = PrepareTables(t, &Registry{}, 5, 6, "")
 	assert.PanicsWithError(t, "entity 'beeorm.searchEntity' is not registered", func() {
-		engine.Search(NewWhere("ID > 0"), nil, &rows)
+		Search(c, NewWhere("ID > 0"), nil, &rows)
 	})
 }

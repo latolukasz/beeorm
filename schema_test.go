@@ -111,15 +111,15 @@ func testSchema(t *testing.T, version int) {
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.testEnum", testEnum, "b")
 	registry.RegisterMySQLTable("default", "TestDropTable")
-	engine := PrepareTables(t, registry, version, 6, "", entity, ref)
+	c := PrepareTables(t, registry, version, 6, "", entity, ref)
 
-	engineDrop := PrepareTables(t, &Registry{}, version, 6, "")
-	for _, alter := range engineDrop.GetAlters() {
-		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
+	cDrop := PrepareTables(t, &Registry{}, version, 6, "")
+	for _, alter := range GetAlters(cDrop) {
+		cDrop.Engine().GetMySQL(alter.Pool).Exec(cDrop, alter.SQL)
 	}
-	engineDrop.GetMysql().Exec("DROP TABLE IF EXISTS `TestDropTable`")
+	cDrop.Engine().GetMySQL("").Exec(cDrop, "DROP TABLE IF EXISTS `TestDropTable`")
 
-	alters := engine.GetAlters()
+	alters := GetAlters(cDrop)
 	assert.Len(t, alters, 2)
 	assert.True(t, alters[0].Safe)
 	assert.True(t, alters[1].Safe)
@@ -133,25 +133,25 @@ func testSchema(t *testing.T, version int) {
 	}
 
 	for _, alter := range alters {
-		engineDrop.GetMysql(alter.Pool).Exec(alter.SQL)
+		cDrop.Engine().GetMySQL(alter.Pool).Exec(c, alter.SQL)
 	}
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` ENGINE=InnoDB CHARSET=utf8")
-	alters = engine.GetAlters()
-	engine.GetMysql().Exec(alters[0].SQL)
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` ENGINE=InnoDB CHARSET=utf8")
+	alters = GetAlters(c)
+	c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 
-	alters = engine.GetAlters()
+	alters = GetAlters(c)
 	if version == 5 {
 		assert.Len(t, alters, 1)
 		assert.True(t, alters[0].Safe)
 		assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
-		engine.GetMysql().Exec(alters[0].SQL)
+		c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 	} else {
 		assert.Len(t, alters, 0)
 	}
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` DROP COLUMN `Name`")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` DROP COLUMN `Name`")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.True(t, alters[0].Safe)
 	if version == 5 {
@@ -159,31 +159,31 @@ func testSchema(t *testing.T, version int) {
 	} else {
 		assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    ADD COLUMN `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' AFTER `ID`,\n    CHANGE COLUMN `NameNullable` `NameNullable` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL AFTER `Name`,/*CHANGED ORDER*/\n    CHANGE COLUMN `NameMax` `NameMax` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci AFTER `NameNullable`,/*CHANGED ORDER*/\n    CHANGE COLUMN `NameMaxRequired` `NameMaxRequired` mediumtext CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL AFTER `NameMax`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Year` `Year` year DEFAULT NULL AFTER `NameMaxRequired`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Uint8` `Uint8` tinyint unsigned NOT NULL DEFAULT '0' AFTER `Year`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Uint16` `Uint16` smallint unsigned NOT NULL DEFAULT '0' AFTER `Uint8`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Uint32` `Uint32` int unsigned NOT NULL DEFAULT '0' AFTER `Uint16`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Uint32Medium` `Uint32Medium` mediumint unsigned NOT NULL DEFAULT '0' AFTER `Uint32`,/*CHANGED ORDER*/\n    CHANGE COLUMN `YearRequired` `YearRequired` year NOT NULL DEFAULT '0000' AFTER `Uint32Medium`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Uint64` `Uint64` bigint unsigned NOT NULL DEFAULT '0' AFTER `YearRequired`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int8` `Int8` tinyint NOT NULL DEFAULT '0' AFTER `Uint64`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int16` `Int16` smallint NOT NULL DEFAULT '0' AFTER `Int8`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int32` `Int32` int NOT NULL DEFAULT '0' AFTER `Int16`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int32Medium` `Int32Medium` mediumint NOT NULL DEFAULT '0' AFTER `Int32`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int64` `Int64` bigint NOT NULL DEFAULT '0' AFTER `Int32Medium`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Int` `Int` int NOT NULL DEFAULT '0' AFTER `Int64`,/*CHANGED ORDER*/\n    CHANGE COLUMN `IntNullable` `IntNullable` int DEFAULT NULL AFTER `Int`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Bool` `Bool` tinyint(1) NOT NULL DEFAULT '0' AFTER `IntNullable`,/*CHANGED ORDER*/\n    CHANGE COLUMN `BoolNullable` `BoolNullable` tinyint(1) DEFAULT NULL AFTER `Bool`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Interface` `Interface` json DEFAULT NULL AFTER `BoolNullable`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Float32` `Float32` float NOT NULL DEFAULT '0' AFTER `Interface`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Float32Nullable` `Float32Nullable` float DEFAULT NULL AFTER `Float32`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Float64` `Float64` double NOT NULL DEFAULT '0' AFTER `Float32Nullable`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Time` `Time` date NOT NULL DEFAULT '0001-01-01' AFTER `Float64`,/*CHANGED ORDER*/\n    CHANGE COLUMN `TimeFull` `TimeFull` datetime NOT NULL DEFAULT '1000-01-01 00:00:00' AFTER `Time`,/*CHANGED ORDER*/\n    CHANGE COLUMN `TimeNull` `TimeNull` date DEFAULT NULL AFTER `TimeFull`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Blob` `Blob` blob AFTER `TimeNull`,/*CHANGED ORDER*/\n    CHANGE COLUMN `MediumBlob` `MediumBlob` mediumblob AFTER `Blob`,/*CHANGED ORDER*/\n    CHANGE COLUMN `LongBlob` `LongBlob` longblob AFTER `MediumBlob`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructSubName` `SubStructSubName` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' AFTER `LongBlob`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructSubAge` `SubStructSubAge` decimal(9,5) NOT NULL DEFAULT '0.00000' AFTER `SubStructSubName`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructLevel2SubAge` `SubStructLevel2SubAge` bigint unsigned NOT NULL DEFAULT '0' AFTER `SubStructSubAge`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructLevel2SubSize` `SubStructLevel2SubSize` bigint unsigned NOT NULL DEFAULT '0' AFTER `SubStructLevel2SubAge`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructSubRefInStruct` `SubStructSubRefInStruct` bigint unsigned DEFAULT NULL AFTER `SubStructLevel2SubSize`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubStructIndexSubName` `SubStructIndexSubName` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci DEFAULT NULL AFTER `SubStructSubRefInStruct`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubName` `SubName` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '' AFTER `SubStructIndexSubName`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubAge` `SubAge` decimal(9,5) NOT NULL DEFAULT '0.00000' AFTER `SubName`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Level2SubAge` `Level2SubAge` bigint unsigned NOT NULL DEFAULT '0' AFTER `SubAge`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Level2SubSize` `Level2SubSize` bigint unsigned NOT NULL DEFAULT '0' AFTER `Level2SubAge`,/*CHANGED ORDER*/\n    CHANGE COLUMN `SubRefInStruct` `SubRefInStruct` bigint unsigned DEFAULT NULL AFTER `Level2SubSize`,/*CHANGED ORDER*/\n    CHANGE COLUMN `NameTranslated` `NameTranslated` json DEFAULT NULL AFTER `SubRefInStruct`,/*CHANGED ORDER*/\n    CHANGE COLUMN `RefOne` `RefOne` bigint unsigned DEFAULT NULL AFTER `NameTranslated`,/*CHANGED ORDER*/\n    CHANGE COLUMN `RefMany` `RefMany` json DEFAULT NULL AFTER `RefOne`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Decimal` `Decimal` decimal(10,2) NOT NULL DEFAULT '0.00' AFTER `RefMany`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Enum` `Enum` enum('a','b','c') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'b' AFTER `Decimal`,/*CHANGED ORDER*/\n    CHANGE COLUMN `Set` `Set` set('a','b','c') CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT 'b' AFTER `Enum`,/*CHANGED ORDER*/\n    DROP INDEX `TestIndex`,\n    ADD INDEX `TestIndex` (`Name`,`Uint16`);", alters[0].SQL)
 	}
-	engine.GetMysql().Exec(alters[0].SQL)
+	c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` CHANGE COLUMN `Year` `Year` varchar(255) NOT NULL DEFAULT ''")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` CHANGE COLUMN `Year` `Year` varchar(255) NOT NULL DEFAULT ''")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	if version == 5 {
 		assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    CHANGE COLUMN `Year` `Year` year(4) DEFAULT NULL AFTER `NameMaxRequired`;/*CHANGED FROM `Year` varchar(255) NOT NULL DEFAULT ''*/", alters[0].SQL)
 	} else {
 		assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    CHANGE COLUMN `Year` `Year` year DEFAULT NULL AFTER `NameMaxRequired`;/*CHANGED FROM `Year` varchar(255) NOT NULL DEFAULT ''*/", alters[0].SQL)
 	}
-	engine.GetMysql().Exec(alters[0].SQL)
+	c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` ADD COLUMN `Year2` varchar(255) NOT NULL DEFAULT ''")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` ADD COLUMN `Year2` varchar(255) NOT NULL DEFAULT ''")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    DROP COLUMN `Year2`;", alters[0].SQL)
-	engine.GetMysql().Exec(alters[0].SQL)
+	c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` DROP INDEX `TestIndex`")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` DROP INDEX `TestIndex`")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    ADD INDEX `TestIndex` (`Name`,`Uint16`);", alters[0].SQL)
-	engine.GetMysql().Exec(alters[0].SQL)
+	c.Engine().GetMySQL("").Exec(c, alters[0].SQL)
 
-	schema := engine.Registry().GetEntitySchemaForEntity(entity)
+	schema := GetEntitySchema[*schemaEntity](c)
 	assert.Equal(t, "beeorm.schemaEntity", schema.GetType().String())
 	references := schema.GetReferences()
 	assert.Len(t, references, 3)
@@ -208,25 +208,25 @@ func testSchema(t *testing.T, version int) {
 	columns := schema.GetColumns()
 	assert.Len(t, columns, 48)
 
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntity` ADD INDEX `TestIndex2` (`Name`);")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntity` ADD INDEX `TestIndex2` (`Name`);")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`schemaEntity`\n    DROP INDEX `TestIndex2`;", alters[0].SQL)
-	schema.UpdateSchema(engine)
+	schema.UpdateSchema(c)
 
-	engine.Flush(&schemaEntityRef{Name: "test"})
-	engine.GetMysql().Exec("ALTER TABLE `schemaEntityRef` ADD COLUMN `Year2` varchar(255) NOT NULL DEFAULT ''")
-	alters = engine.GetAlters()
+	c.Flusher().Track(&schemaEntityRef{Name: "test"}).Flush()
+	c.Engine().GetMySQL("").Exec(c, "ALTER TABLE `schemaEntityRef` ADD COLUMN `Year2` varchar(255) NOT NULL DEFAULT ''")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.False(t, alters[0].Safe)
 	assert.Equal(t, "ALTER TABLE `test`.`schemaEntityRef`\n    DROP COLUMN `Year2`;", alters[0].SQL)
-	engine.Registry().GetEntitySchemaForEntity(&schemaEntityRef{}).UpdateSchemaAndTruncateTable(engine)
-	alters = engine.GetAlters()
+	GetEntitySchema[*schemaEntityRef](c).UpdateSchemaAndTruncateTable(c)
+	alters = GetAlters(c)
 	assert.Len(t, alters, 0)
 
-	engine.GetMysql().Exec("CREATE TABLE `TestDropTable` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
-	engine.GetMysql().Exec("CREATE TABLE `invalid_table` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
-	alters = engine.GetAlters()
+	c.Engine().GetMySQL("").Exec(c, "CREATE TABLE `TestDropTable` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
+	c.Engine().GetMySQL("").Exec(c, "CREATE TABLE `invalid_table` (`field` int(11) unsigned NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;")
+	alters = GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "DROP TABLE IF EXISTS `test`.`invalid_table`;", alters[0].SQL)
 
@@ -260,10 +260,10 @@ func testSchema(t *testing.T, version int) {
 	_, err = registry.Validate()
 	assert.EqualError(t, err, "invalid entity struct 'beeorm.schemaEntity': unregistered enum beeorm.testEnum")
 
-	engine = PrepareTables(t, &Registry{}, 5, 6, "", &schemaToDropEntity{})
-	schema = engine.Registry().GetEntitySchemaForEntity(&schemaToDropEntity{})
-	schema.DropTable(engine)
-	has, alters := schema.GetSchemaChanges(engine)
+	c = PrepareTables(t, &Registry{}, 5, 6, "", &schemaToDropEntity{})
+	schema = GetEntitySchema[*schemaToDropEntity](c)
+	schema.DropTable(c)
+	has, alters := schema.GetSchemaChanges(c)
 	assert.True(t, has)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "CREATE TABLE `test`.`schemaToDropEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)

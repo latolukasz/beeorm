@@ -21,36 +21,36 @@ func testLocker(t *testing.T, namespace string) {
 	registry.RegisterRedis("localhost:6382", namespace, 15)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	engine := validatedRegistry.CreateEngine()
-	engine.GetRedis().FlushDB()
+	c := validatedRegistry.NewContext(context.Background())
+	c.Engine().GetRedis("").FlushDB(c)
 	testLogger := &MockLogHandler{}
-	engine.RegisterQueryLogger(testLogger, false, true, false)
+	c.RegisterQueryLogger(testLogger, false, true, false)
 
-	l := engine.GetRedis().GetLocker()
-	lock, has := l.Obtain(context.Background(), "test_key", time.Second, 0)
+	l := c.Engine().GetRedis("").GetLocker()
+	lock, has := l.Obtain(c, "test_key", time.Second, 0)
 	assert.True(t, has)
 	assert.NotNil(t, lock)
-	has = lock.Refresh(context.Background(), time.Second)
+	has = lock.Refresh(c, time.Second)
 	assert.True(t, has)
 
-	_, has = l.Obtain(context.Background(), "test_key", time.Second, time.Millisecond*100)
+	_, has = l.Obtain(c, "test_key", time.Second, time.Millisecond*100)
 	assert.False(t, has)
 
-	left := lock.TTL(context.Background())
+	left := lock.TTL(c)
 	assert.LessOrEqual(t, left.Microseconds(), time.Second.Microseconds())
 
-	_, has = l.Obtain(context.Background(), "test_key", time.Second*10, time.Second*10)
+	_, has = l.Obtain(c, "test_key", time.Second*10, time.Second*10)
 	assert.True(t, has)
 
-	lock.Release()
-	lock.Release()
-	has = lock.Refresh(context.Background(), time.Second)
+	lock.Release(c)
+	lock.Release(c)
+	has = lock.Refresh(c, time.Second)
 	assert.False(t, has)
 
 	assert.PanicsWithError(t, "ttl must be higher than zero", func() {
-		_, _ = l.Obtain(context.Background(), "test_key", 0, time.Millisecond)
+		_, _ = l.Obtain(c, "test_key", 0, time.Millisecond)
 	})
 	assert.PanicsWithError(t, "waitTimeout can't be higher than ttl", func() {
-		_, _ = l.Obtain(context.Background(), "test_key", time.Second, time.Second*2)
+		_, _ = l.Obtain(c, "test_key", time.Second, time.Second*2)
 	})
 }

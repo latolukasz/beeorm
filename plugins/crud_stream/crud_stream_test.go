@@ -23,17 +23,17 @@ func TestCrudStream(t *testing.T) {
 	registry := &beeorm.Registry{}
 	registry.RegisterPlugin(Init(nil))
 	registry.RegisterRedisStreamConsumerGroups(ChannelName, "test-consumer")
-	engine := beeorm.PrepareTables(t, registry, 8, 7, "", entity)
+	c := beeorm.PrepareTables(t, registry, 8, 7, "", entity)
 
 	e1 := &crudStreamEntity{Name: "John", LastName: "Smith", Country: "Germany"}
-	engine.Flush(e1)
+	c.Flusher().Track(e1)
 	e2 := &crudStreamEntity{Name: "Adam", LastName: "Kowalski", Country: "Poland"}
-	engine.Flush(e2)
+	c.Flusher().Track(e2).Flush()
 
-	consumer := engine.GetEventBroker().Consumer("test-consumer")
+	consumer := c.EventBroker().Consumer("test-consumer")
 	consumer.SetBlockTime(0)
 	valid := false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 2)
 		var crudEvent CrudEvent
@@ -64,10 +64,10 @@ func TestCrudStream(t *testing.T) {
 	assert.True(t, valid)
 
 	e1.Name = "Tom"
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 
 	valid = false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent
@@ -85,16 +85,16 @@ func TestCrudStream(t *testing.T) {
 	assert.True(t, valid)
 
 	e1.Country = "France"
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 	valid = false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 	})
 	assert.False(t, valid)
 
-	engine.Delete(e1)
+	c.Flusher().Delete(e1).Flush()
 	valid = false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent
@@ -114,10 +114,10 @@ func TestCrudStream(t *testing.T) {
 
 	e1 = &crudStreamEntity{Name: "Ivona", LastName: "Summer", Country: "France"}
 	e1.SetOnDuplicateKeyUpdate(beeorm.Bind{"LastName": "Spring"})
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 
 	valid = false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent
@@ -137,10 +137,10 @@ func TestCrudStream(t *testing.T) {
 
 	e1 = &crudStreamEntity{Name: "Ivona", LastName: "Summer", Country: "France"}
 	e1.SetOnDuplicateKeyUpdate(beeorm.Bind{"LastName": "Spring"})
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 
 	valid = false
-	consumer.Consume(context.Background(), 2, func(events []beeorm.Event) {
+	consumer.Consume(2, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent
@@ -156,12 +156,12 @@ func TestCrudStream(t *testing.T) {
 	})
 	assert.True(t, valid)
 
-	engine.SetMetaData("source", "test")
-	engine.SetMetaData("user", "me")
+	c.SetMetaData("source", "test")
+	c.SetMetaData("user", "me")
 	e1 = &crudStreamEntity{Name: "Hugo", LastName: "Winter", Country: "Poland"}
-	engine.Flush(e1)
+	c.Flusher().Track(e1).Flush()
 	valid = false
-	consumer.Consume(context.Background(), 1, func(events []beeorm.Event) {
+	consumer.Consume(1, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent
@@ -174,18 +174,18 @@ func TestCrudStream(t *testing.T) {
 	assert.True(t, valid)
 
 	e1 = &crudStreamEntity{Name: "Veronica", LastName: "Snow", Country: "Spain"}
-	engine.FlushLazy(e1)
+	c.Flusher().Track(e1).FlushLazy()
 	valid = false
-	consumer.Consume(context.Background(), 1, func(events []beeorm.Event) {
+	consumer.Consume(1, func(events []beeorm.Event) {
 		valid = true
 	})
 	assert.False(t, valid)
 
-	beeorm.RunLazyFlushConsumer(engine.Registry().CreateEngine(), true)
+	beeorm.RunLazyFlushConsumer(c.Engine().NewContext(context.Background()), true)
 	valid = false
-	consumer = engine.Registry().CreateEngine().GetEventBroker().Consumer("test-consumer")
+	consumer = c.Engine().NewContext(context.Background()).EventBroker().Consumer("test-consumer")
 	consumer.SetBlockTime(0)
-	consumer.Consume(context.Background(), 10, func(events []beeorm.Event) {
+	consumer.Consume(10, func(events []beeorm.Event) {
 		valid = true
 		assert.Len(t, events, 1)
 		var crudEvent CrudEvent

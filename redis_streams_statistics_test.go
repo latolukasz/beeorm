@@ -16,11 +16,11 @@ func TestRedisStreamsStatus(t *testing.T) {
 	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
-	engine := validatedRegistry.CreateEngine()
-	r := engine.GetRedis()
-	r.FlushDB()
+	c := validatedRegistry.NewContext(context.Background())
+	r := c.Engine().GetRedis("")
+	r.FlushDB(c)
 
-	stats := engine.GetEventBroker().GetStreamsStatistics()
+	stats := c.EventBroker().GetStreamsStatistics()
 	assert.Len(t, stats, 3)
 	valid := false
 	for _, stream := range stats {
@@ -34,8 +34,8 @@ func TestRedisStreamsStatus(t *testing.T) {
 	}
 	assert.True(t, valid)
 
-	r.XGroupCreateMkStream("test-stream", "test-group", "0")
-	flusher := engine.NewFlusher()
+	r.XGroupCreateMkStream(c, "test-stream", "test-group", "0")
+	flusher := c.Flusher()
 	type testEvent struct {
 		Name string
 	}
@@ -45,7 +45,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	flusher.Flush()
 	time.Sleep(time.Millisecond * 500)
 
-	stats = engine.GetEventBroker().GetStreamsStatistics("test-stream")
+	stats = c.EventBroker().GetStreamsStatistics("test-stream")
 	valid = false
 	for _, stream := range stats {
 		if stream.Stream == "test-stream" {
@@ -59,16 +59,16 @@ func TestRedisStreamsStatus(t *testing.T) {
 	}
 	assert.True(t, valid)
 
-	consumer := engine.GetEventBroker().Consumer("test-group")
+	consumer := c.EventBroker().Consumer("test-group")
 	consumer.SetBlockTime(0)
-	consumer.Consume(context.Background(), 11000, func(events []Event) {
-		engine.GetRedis().Get("hello")
-		engine.GetRedis().Get("hello2")
-		engine.GetMysql().Query("SELECT 1")
+	consumer.Consume(11000, func(events []Event) {
+		c.Engine().GetRedis("").Get(c, "hello")
+		c.Engine().GetRedis("").Get(c, "hello2")
+		c.Engine().GetMySQL("").Query(c, "SELECT 1")
 		time.Sleep(time.Millisecond * 100)
 	})
 
-	statsSingle := engine.GetEventBroker().GetStreamStatistics("test-stream")
+	statsSingle := c.EventBroker().GetStreamStatistics("test-stream")
 	assert.Equal(t, uint64(10001), statsSingle.Len)
 	assert.Len(t, statsSingle.Groups, 1)
 	assert.Equal(t, "test-group", statsSingle.Groups[0].Group)
@@ -78,12 +78,12 @@ func TestRedisStreamsStatus(t *testing.T) {
 	flusher.PublishToStream("test-stream", testEvent{"a"}, nil)
 	flusher.Flush()
 	assert.Panics(t, func() {
-		consumer.Consume(context.Background(), 10, func(events []Event) {
+		consumer.Consume(10, func(events []Event) {
 			panic("stop")
 		})
 	})
 	time.Sleep(time.Millisecond * 10)
-	stats = engine.GetEventBroker().GetStreamsStatistics()
+	stats = c.EventBroker().GetStreamsStatistics()
 	valid = false
 	for _, stream := range stats {
 		if stream.Stream == "test-stream" {

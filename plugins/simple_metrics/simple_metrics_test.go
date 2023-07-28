@@ -19,9 +19,9 @@ func TestMysqlMetrics(t *testing.T) {
 
 	plugin := Init(&Options{MySQLSlowQueriesLimit: 5})
 	registry.RegisterPlugin(plugin)
-	engine := beeorm.PrepareTables(t, registry, 8, 6, "", entity)
+	c := beeorm.PrepareTables(t, registry, 8, 6, "", entity)
 
-	plugin = engine.Registry().GetPlugin(PluginCode).(*Plugin)
+	plugin = c.Engine().GetPlugin(PluginCode).(*Plugin)
 	dbStats := plugin.GetMySQLQueriesStats("")
 	assert.NotEmpty(t, dbStats)
 	slowStats := plugin.GetMySQLSlowQueriesStats("")
@@ -38,11 +38,11 @@ func TestMysqlMetrics(t *testing.T) {
 	assert.Len(t, slowStats, 0)
 
 	entity = &simpleMetricsEntity{Name: "One"}
-	engine.Flush(entity)
+	c.Flusher().Track(entity).Flush()
 	entity = &simpleMetricsEntity{Name: "Two"}
-	engine.Flush(entity)
+	c.Flusher().Track(entity).Flush()
 	val := ""
-	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &val)
+	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &val)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 2)
 	assert.Equal(t, INSERT, dbStats[0].Operation)
@@ -57,8 +57,8 @@ func TestMysqlMetrics(t *testing.T) {
 	plugin.ClearMySQLStats()
 
 	entity = &simpleMetricsEntity{Name: "Three"}
-	engine.FlushLazy(entity)
-	beeorm.RunLazyFlushConsumer(engine, false)
+	c.Flusher().Track(entity).FlushLazy()
+	beeorm.RunLazyFlushConsumer(c, false)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 0)
 	dbStats = plugin.GetMySQLQueriesStats("lazy")
@@ -72,10 +72,10 @@ func TestMysqlMetrics(t *testing.T) {
 	assert.Len(t, slowStats, 1)
 
 	entity = &simpleMetricsEntity{}
-	engine.LoadByID(1, entity)
+	beeorm.GetByID[*simpleMetricsEntity](c, 1)
 	plugin.ClearMySQLStats()
 	entity.Name = "OneV2"
-	engine.Flush(entity)
+	c.Flusher().Track(entity).Flush()
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 1)
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
@@ -83,40 +83,40 @@ func TestMysqlMetrics(t *testing.T) {
 
 	plugin.ClearMySQLStats()
 
-	engine.Delete(entity)
+	c.Flusher().Delete(entity).Flush()
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, DELETE, dbStats[0].Operation)
 
 	plugin.ClearMySQLStats()
-	engine.LoadByID(2, entity)
+	beeorm.GetByID[*simpleMetricsEntity](c, 2)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 
 	plugin.ClearMySQLStats()
 	date := ""
-	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT NOW();"), &date)
+	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT NOW();"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 	assert.Equal(t, "unknown", dbStats[0].Table)
 
 	plugin.ClearMySQLStats()
-	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &date)
+	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Equal(t, uint64(1), dbStats[0].Counter)
 	assert.Equal(t, QUERY, dbStats[0].Operation)
 	assert.Equal(t, "unknown", dbStats[0].Table)
-	SetTagName(engine, "my_tag")
-	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &date)
+	SetTagName(c, "my_tag")
+	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	assert.Len(t, plugin.GetTags(), 2)
 	assert.Equal(t, plugin.GetTags()[0], "")
 	assert.Equal(t, plugin.GetTags()[1], "my_tag")
 
 	plugin.ClearMySQLStats()
-	DisableMetrics(engine)
-	engine.GetMysql().QueryRow(beeorm.NewWhere("SELECT 1"), &date)
+	DisableMetrics(c)
+	c.Engine().GetMySQL("").QueryRow(c, beeorm.NewWhere("SELECT 1"), &date)
 	dbStats = plugin.GetMySQLQueriesStats("")
 	assert.Len(t, dbStats, 0)
 }
