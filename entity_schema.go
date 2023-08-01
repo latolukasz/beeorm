@@ -16,7 +16,7 @@ type CachedQuery struct{}
 func GetEntitySchema[E Entity](c Context) EntitySchema {
 	var entity E
 	t := reflect.TypeOf(entity).Elem()
-	schema := c.Engine().GetEntitySchema(t)
+	schema := c.Engine().Registry().EntitySchema(t)
 	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
 	}
@@ -94,7 +94,7 @@ type EntitySchema interface {
 	TruncateTable(c Context)
 	UpdateSchema(c Context)
 	UpdateSchemaAndTruncateTable(c Context)
-	GetMysql() *DB
+	GetMysql() DB
 	GetLocalCache() (cache LocalCache, has bool)
 	GetRedisCache() (cache RedisCache, has bool)
 	GetReferences() []EntitySchemaReference
@@ -228,22 +228,22 @@ func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
 	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
-func (entitySchema *entitySchema) GetMysql() *DB {
-	return entitySchema.engine.GetMySQLByCode(entitySchema.mysqlPoolCode)
+func (entitySchema *entitySchema) GetMysql() DB {
+	return entitySchema.engine.DBByCode(entitySchema.mysqlPoolCode)
 }
 
 func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetLocalCacheByCode(entitySchema.cacheKey), true
+	return entitySchema.engine.LocalCacheByCode(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.GetRedisByCode(entitySchema.cacheKey), true
+	return entitySchema.engine.RedisByCode(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
@@ -288,11 +288,9 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 
 func (entitySchema *entitySchema) GetUsage(engine Engine) map[reflect.Type][]string {
 	results := make(map[reflect.Type][]string)
-	if engine.GetEntities() != nil {
-		for _, t := range engine.GetEntities() {
-			schema := engine.GetEntitySchema(t)
-			entitySchema.getUsage(schema.getFields(), schema.GetType(), "", results)
-		}
+	for _, t := range engine.Registry().Entities() {
+		schema := engine.Registry().EntitySchema(t)
+		entitySchema.getUsage(schema.getFields(), schema.GetType(), "", results)
 	}
 	return results
 }

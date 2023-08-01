@@ -45,12 +45,15 @@ func (r *Registry) Validate() (Engine, error) {
 	}
 	maxPoolLen := 0
 	e := &engineImplementation{}
-	e.registry = r
+	e.registry = &engineRegistryImplementation{engine: e}
 	l := len(r.entities)
-	e.entitySchemas = make(map[reflect.Type]*entitySchema, l)
-	e.entities = make(map[string]reflect.Type)
-	if e.mySQLServers == nil {
-		e.mySQLServers = make(map[string]*DB)
+	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
+	e.registry.entities = make(map[string]reflect.Type)
+	e.registry.defaultDBCollate = r.defaultCollate
+	e.registry.defaultDBEncoding = r.defaultEncoding
+	e.registry.dbTables = r.mysqlTables
+	if e.dbServers == nil {
+		e.dbServers = make(map[string]DB)
 	}
 	for k, v := range r.mysqlPools {
 		if len(k) > maxPoolLen {
@@ -96,7 +99,7 @@ func (r *Registry) Validate() (Engine, error) {
 		db.SetMaxIdleConns(maxIdle)
 		db.SetConnMaxLifetime(maxDuration)
 		v.(*mySQLPoolConfig).client = db
-		e.mySQLServers[k] = &DB{config: v, client: &standardSQLClient{db: v.getClient()}}
+		e.dbServers[k] = &dbImplementation{config: v, client: &standardSQLClient{db: v.getClient()}}
 	}
 	if e.localCacheServers == nil {
 		e.localCacheServers = make(map[string]LocalCache)
@@ -111,11 +114,11 @@ func (r *Registry) Validate() (Engine, error) {
 			maxPoolLen = len(k)
 		}
 	}
-	if e.enums == nil {
-		e.enums = make(map[string]Enum)
+	if e.registry.enums == nil {
+		e.registry.enums = make(map[string]Enum)
 	}
 	for k, v := range r.enums {
-		e.enums[k] = v
+		e.registry.enums[k] = v
 	}
 	for name, entityType := range r.entities {
 		schema := &entitySchema{engine: e}
@@ -123,8 +126,8 @@ func (r *Registry) Validate() (Engine, error) {
 		if err != nil {
 			return nil, err
 		}
-		e.entitySchemas[entityType] = schema
-		e.entities[name] = entityType
+		e.registry.entitySchemas[entityType] = schema
+		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCachePools[schema.GetCacheKey()] = newLocalCacheConfig(schema.GetCacheKey(), schema.localCacheLimit)
 		}
@@ -147,11 +150,11 @@ func (r *Registry) Validate() (Engine, error) {
 			r.RegisterRedisStreamConsumerGroups(StreamGarbageCollectorChannelName, StreamGarbageCollectorGroupName)
 		}
 	}
-	e.redisStreamGroups = r.redisStreamGroups
-	e.redisStreamPools = r.redisStreamPools
-	e.plugins = r.plugins
-	e.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
-	for _, schema := range e.entitySchemas {
+	e.registry.redisStreamGroups = r.redisStreamGroups
+	e.registry.redisStreamPools = r.redisStreamPools
+	e.registry.plugins = r.plugins
+	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
+	for _, schema := range e.registry.entitySchemas {
 		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())

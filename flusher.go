@@ -96,7 +96,8 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		return
 	}
 
-	for _, plugin := range f.c.Engine().Registry().plugins {
+	for _, pluginCode := range f.c.Engine().Registry().Plugins() {
+		plugin := f.c.Engine().Registry().Plugin(pluginCode)
 		interfaceEntityFlushing, isInterfaceEntityFlushing := plugin.(PluginInterfaceEntityFlushing)
 		if isInterfaceEntityFlushing {
 			for _, e := range f.events {
@@ -121,7 +122,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		return
 	}
 	checkReferences := true
-	startTransaction := make(map[*DB]bool)
+	startTransaction := make(map[DB]bool)
 	func() {
 		defer func() {
 			for db := range startTransaction {
@@ -132,7 +133,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 		}()
 		for checkReferences {
 			checkReferences = false
-			group := make(map[*DB]map[string]map[FlushType][]*entitySQLFlush)
+			group := make(map[DB]map[string]map[FlushType][]*entitySQLFlush)
 			for _, e := range f.events {
 				if e.flushed {
 					continue
@@ -140,7 +141,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 				if len(e.References) > 0 {
 					checkReferences = true
 				} else {
-					schema := f.c.Engine().GetEntitySchema(e.Entity)
+					schema := f.c.Engine().Registry().EntitySchema(e.Entity)
 					db := schema.GetMysql()
 					byDB, hasDB := group[db]
 					if !hasDB {
@@ -229,7 +230,7 @@ func (f *flusher) flushCacheSetters() {
 	f.redisCacheSetters = nil
 }
 
-func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush) {
+func (f *flusher) executeInserts(db DB, table string, events []*entitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("INSERT INTO `" + table + "`")
 	f.stringBuilder.WriteString("(")
@@ -279,7 +280,7 @@ func (f *flusher) executeInserts(db *DB, table string, events []*entitySQLFlush)
 	}
 }
 
-func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush) {
+func (f *flusher) executeUpdates(db DB, table string, events []*entitySQLFlush) {
 	l := len(events)
 	for i, e := range events {
 		if e.flushed {
@@ -328,7 +329,7 @@ func (f *flusher) executeUpdates(db *DB, table string, events []*entitySQLFlush)
 	}
 }
 
-func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, events []*entitySQLFlush) {
+func (f *flusher) executeInsertOnDuplicateKeyUpdates(db DB, table string, events []*entitySQLFlush) {
 	for _, e := range events {
 		args := make([]interface{}, len(e.Update)+len(e.UpdateOnDuplicate))
 		f.stringBuilder.Reset()
@@ -383,7 +384,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 			e.UpdateOnDuplicate = nil
 		} else if rowsAffected == 0 {
 			if e.entity != nil && e.ID == 0 {
-				schema := f.c.Engine().GetEntitySchema(e.entity)
+				schema := f.c.Engine().Registry().EntitySchema(e.entity)
 			OUTER:
 				for _, uniqueIndex := range schema.GetUniqueIndexes() {
 					fields := make([]string, 0)
@@ -426,7 +427,7 @@ func (f *flusher) executeInsertOnDuplicateKeyUpdates(db *DB, table string, event
 	}
 }
 
-func (f *flusher) executeDeletes(db *DB, table string, events []*entitySQLFlush) {
+func (f *flusher) executeDeletes(db DB, table string, events []*entitySQLFlush) {
 	f.stringBuilder.Reset()
 	f.stringBuilder.WriteString("DELETE FROM `" + table + "` WHERE ID IN(?")
 	f.stringBuilder.WriteString(strings.Repeat(",?", len(events)-1) + ")")
@@ -442,7 +443,8 @@ func (f *flusher) executeDeletes(db *DB, table string, events []*entitySQLFlush)
 }
 
 func (f *flusher) executePluginInterfaceEntityFlushed(e *entitySQLFlush) {
-	for _, plugin := range f.c.Engine().Registry().plugins {
+	for _, pluginCode := range f.c.Engine().Registry().Plugins() {
+		plugin := f.c.Engine().Registry().Plugin(pluginCode)
 		interfaceEntityFlushed, isInterfaceEntityFlushed := plugin.(PluginInterfaceEntityFlushed)
 		if isInterfaceEntityFlushed {
 			interfaceEntityFlushed.PluginInterfaceEntityFlushed(f.c, e, f)
@@ -452,7 +454,7 @@ func (f *flusher) executePluginInterfaceEntityFlushed(e *entitySQLFlush) {
 
 func (f *flusher) Track(entity ...Entity) Flusher {
 	for _, e := range entity {
-		initIfNeeded(f.c.Engine().GetEntitySchema(e), e)
+		initIfNeeded(f.c.Engine().Registry().EntitySchema(e), e)
 		address := e.getORM().value.Pointer()
 		if f.trackedEntities == nil {
 			f.trackedEntities = map[uintptr]Entity{address: e}
@@ -480,7 +482,7 @@ func (f *flusher) Delete(entity ...Entity) Flusher {
 }
 
 func IsDirty(c Context, entity Entity) (dirty bool, data FlushData) {
-	orm := initIfNeeded(c.Engine().GetEntitySchema(entity), entity)
+	orm := initIfNeeded(c.Engine().Registry().EntitySchema(entity), entity)
 	entitySQLFlushData, isDirty := orm.buildDirtyBind(c.getSerializer(), false)
 	if !isDirty {
 		return false, nil
@@ -521,7 +523,7 @@ func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
 }
 
 func (f *flusher) PublishToStream(stream string, body interface{}, meta Meta) {
-	pool, has := f.c.Engine().GetRedisPools()[stream]
+	pool, has := f.c.Engine().Registry().RedisPools()[stream]
 	if !has {
 		panic(fmt.Errorf("unregistered stream %s", stream))
 	}
@@ -603,7 +605,7 @@ func (f *flusher) flushWithCheck() error {
 func (f *flusher) buildFlushEvents(source map[uintptr]Entity, root bool) {
 	references := make(map[uintptr]Entity)
 	for _, entity := range source {
-		initIfNeeded(f.c.Engine().GetEntitySchema(entity), entity)
+		initIfNeeded(f.c.Engine().Registry().EntitySchema(entity), entity)
 		if !root {
 			_, has := f.trackedEntities[entity.getORM().value.Pointer()]
 			if has {
@@ -629,7 +631,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		if e.skip || e.ID == 0 {
 			continue
 		}
-		schema := f.c.Engine().GetEntitySchema(e.Entity)
+		schema := f.c.Engine().Registry().EntitySchema(e.Entity)
 		cacheLocal, hasLocalCache := schema.GetLocalCache()
 		cacheRedis, hasRedis := schema.GetRedisCache()
 		if !hasLocalCache && !hasRedis {
@@ -729,7 +731,7 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 		refValue := entity.getORM().elem.FieldByName(reference.ColumnName)
 		if refValue.IsValid() && !refValue.IsNil() {
 			refEntity := refValue.Interface().(Entity)
-			initIfNeeded(f.c.Engine().GetEntitySchema(refEntity), refEntity)
+			initIfNeeded(f.c.Engine().Registry().EntitySchema(refEntity), refEntity)
 			if refEntity.GetID() == 0 {
 				address := refValue.Pointer()
 				references[address] = refEntity

@@ -1170,7 +1170,7 @@ func (r *redisCacheSetter) flush(c Context) {
 	if commands == 0 {
 		return
 	}
-	cache := c.Engine().GetRedisByCode(r.code)
+	cache := c.Engine().RedisByCode(r.code)
 	usePipeLine := commands > 1
 	if !usePipeLine {
 		usePipeLine = len(r.xAdds) > 1 || len(r.setExpireKeys) > 1

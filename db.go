@@ -288,7 +288,7 @@ func (r *rowsStruct) Scan(dest ...interface{}) {
 
 type preparedStmtStruct struct {
 	stmt  *sql.Stmt
-	db    *DB
+	db    *dbImplementation
 	query string
 }
 
@@ -366,36 +366,52 @@ type SQLRow interface {
 	Scan(dest ...interface{}) error
 }
 
-type DB struct {
+type DB interface {
+	GetPoolConfig() MySQLPoolConfig
+	IsInTransaction() bool
+	GetDBClient() DBClient
+	GetDBClientTX() DBClientTX
+	SetMockDBClient(mock DBClient)
+	SetMockClientTX(mock DBClientTX)
+	Begin(c Context)
+	Commit(c Context)
+	Rollback(c Context)
+	Prepare(c Context, query string) (stmt PreparedStmt, close func())
+	Exec(c Context, query string, args ...interface{}) ExecResult
+	QueryRow(c Context, query *Where, toFill ...interface{}) (found bool)
+	Query(c Context, query string, args ...interface{}) (rows Rows, close func())
+}
+
+type dbImplementation struct {
 	client sqlClient
 	config MySQLPoolConfig
 }
 
-func (db *DB) GetPoolConfig() MySQLPoolConfig {
+func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
 	return db.config
 }
 
-func (db *DB) IsInTransaction() bool {
+func (db *dbImplementation) IsInTransaction() bool {
 	return db.client.(*standardSQLClient).tx != nil
 }
 
-func (db *DB) GetDBClient() DBClient {
+func (db *dbImplementation) GetDBClient() DBClient {
 	return db.client.(*standardSQLClient).db
 }
 
-func (db *DB) GetDBClientTX() DBClientTX {
+func (db *dbImplementation) GetDBClientTX() DBClientTX {
 	return db.client.(*standardSQLClient).tx
 }
 
-func (db *DB) SetMockDBClient(mock DBClient) {
+func (db *dbImplementation) SetMockDBClient(mock DBClient) {
 	db.client.(*standardSQLClient).db = mock
 }
 
-func (db *DB) SetMockClientTX(mock DBClientTX) {
+func (db *dbImplementation) SetMockClientTX(mock DBClientTX) {
 	db.client.(*standardSQLClient).tx = mock
 }
 
-func (db *DB) Begin(c Context) {
+func (db *dbImplementation) Begin(c Context) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.Begin()
@@ -405,7 +421,7 @@ func (db *DB) Begin(c Context) {
 	checkError(err)
 }
 
-func (db *DB) Commit(c Context) {
+func (db *dbImplementation) Commit(c Context) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.Commit()
@@ -415,7 +431,7 @@ func (db *DB) Commit(c Context) {
 	checkError(err)
 }
 
-func (db *DB) Rollback(c Context) {
+func (db *dbImplementation) Rollback(c Context) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	has, err := db.client.Rollback()
@@ -427,7 +443,7 @@ func (db *DB) Rollback(c Context) {
 	checkError(err)
 }
 
-func (db *DB) Prepare(c Context, query string) (stmt PreparedStmt, close func()) {
+func (db *dbImplementation) Prepare(c Context, query string) (stmt PreparedStmt, close func()) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Prepare(query)
@@ -443,13 +459,13 @@ func (db *DB) Prepare(c Context, query string) (stmt PreparedStmt, close func())
 	}
 }
 
-func (db *DB) Exec(c Context, query string, args ...interface{}) ExecResult {
+func (db *dbImplementation) Exec(c Context, query string, args ...interface{}) ExecResult {
 	results, err := db.exec(c, query, args...)
 	checkError(err)
 	return results
 }
 
-func (db *DB) exec(c Context, query string, args ...interface{}) (ExecResult, error) {
+func (db *dbImplementation) exec(c Context, query string, args ...interface{}) (ExecResult, error) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := db.client.Exec(query, args...)
@@ -463,7 +479,7 @@ func (db *DB) exec(c Context, query string, args ...interface{}) (ExecResult, er
 	return &execResult{r: rows}, err
 }
 
-func (db *DB) QueryRow(c Context, query *Where, toFill ...interface{}) (found bool) {
+func (db *dbImplementation) QueryRow(c Context, query *Where, toFill ...interface{}) (found bool) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)
@@ -493,7 +509,7 @@ func (db *DB) QueryRow(c Context, query *Where, toFill ...interface{}) (found bo
 	return true
 }
 
-func (db *DB) Query(c Context, query string, args ...interface{}) (rows Rows, close func()) {
+func (db *dbImplementation) Query(c Context, query string, args ...interface{}) (rows Rows, close func()) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Query(query, args...)
@@ -514,7 +530,7 @@ func (db *DB) Query(c Context, query string, args ...interface{}) (rows Rows, cl
 	}
 }
 
-func (db *DB) fillLogFields(c Context, operation, query string, start *time.Time, err error) {
+func (db *dbImplementation) fillLogFields(c Context, operation, query string, start *time.Time, err error) {
 	query = strings.ReplaceAll(query, "\n", " ")
 	_, loggers := c.getDBLoggers()
 	fillLogFields(c, loggers, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)

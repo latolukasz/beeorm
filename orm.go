@@ -461,7 +461,7 @@ func (orm *ORM) deserializeFields(c Context, fields *tableFields, elem reflect.V
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
-			e := c.Engine().GetEntitySchema(fields.refsTypes[k]).NewEntity()
+			e := c.Engine().Registry().EntitySchema(fields.refsTypes[k]).NewEntity()
 			o := e.getORM()
 			o.idElem.SetUint(id)
 			o.inDB = true
@@ -928,7 +928,7 @@ func (orm *ORM) SetField(c Context, field string, value interface{}) error {
 						if id == 0 {
 							f.Set(reflect.Zero(f.Type()))
 						} else {
-							newRef := c.Engine().GetEntitySchema(f.Type().Elem()).NewEntity()
+							newRef := c.Engine().Registry().EntitySchema(f.Type().Elem()).NewEntity()
 							newRef.getORM().idElem.SetUint(id)
 							f.Set(reflect.ValueOf(newRef))
 						}

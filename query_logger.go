@@ -85,7 +85,7 @@ func (c *contextImplementation) EnableQueryDebug() {
 }
 
 func (c *contextImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
-	c.RegisterQueryLogger(c.engine.getDefaultQueryLogger(), mysql, redis, local)
+	c.RegisterQueryLogger(c.engine.Registry().getDefaultQueryLogger(), mysql, redis, local)
 }
 
 func getNow(has bool) *time.Time {

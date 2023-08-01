@@ -56,10 +56,10 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	createTableSQL += " PRIMARY KEY (`ID`)\n"
 	collate := ""
 	if pool.GetPoolConfig().GetVersion() == 8 {
-		collate += " COLLATE=" + td.context.Engine().Registry().defaultEncoding + "_" +
-			td.context.Engine().Registry().defaultCollate
+		collate += " COLLATE=" + td.context.Engine().Registry().DefaultDBEncoding() + "_" +
+			td.context.Engine().Registry().DefaultDBCollate()
 	}
-	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", td.context.Engine().Registry().defaultEncoding, collate)
+	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", td.context.Engine().Registry().DefaultDBEncoding(), collate)
 	return createTableSQL
 }
 
@@ -93,26 +93,24 @@ func (ti *IndexSchemaDefinition) SetColumns(columns []string) {
 }
 
 func (a Alter) Exec(c Context) {
-	c.Engine().GetMySQLByCode(a.Pool).Exec(c, a.SQL)
+	c.Engine().DBByCode(a.Pool).Exec(c, a.SQL)
 }
 
 func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	tablesInDB := make(map[string]map[string]bool)
 	tablesInEntities := make(map[string]map[string]bool)
 
-	for _, pool := range c.Engine().GetMySQLPools() {
-		poolName := pool.GetPoolConfig().GetCode()
+	for poolName, pool := range c.Engine().Registry().DBPools() {
 		tablesInDB[poolName] = make(map[string]bool)
-		pool := c.Engine().GetMySQLByCode(poolName)
-		tables := getAllTables(pool.client)
+		tables := getAllTables(pool.GetDBClient())
 		for _, table := range tables {
 			tablesInDB[poolName][table] = true
 		}
 		tablesInEntities[poolName] = make(map[string]bool)
 	}
 	alters = make([]Alter, 0)
-	for _, t := range c.Engine().GetEntities() {
-		schema := c.Engine().GetEntitySchema(t)
+	for _, t := range c.Engine().Registry().Entities() {
+		schema := c.Engine().Registry().EntitySchema(t)
 		db := schema.GetMysql()
 		tablesInEntities[db.GetPoolConfig().GetCode()][schema.GetTableName()] = true
 		pre, middle, post := getSchemaChanges(c, schema)
@@ -124,9 +122,9 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 		for tableName := range tables {
 			_, has := tablesInEntities[poolName][tableName]
 			if !has {
-				_, has = c.Engine().Registry().mysqlTables[poolName][tableName]
+				_, has = c.Engine().Registry().getDBTables()[poolName][tableName]
 				if !has {
-					pool := c.Engine().GetMySQLByCode(poolName)
+					pool := c.Engine().DBByCode(poolName)
 					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 					isEmpty := isTableEmptyInPool(c, poolName, tableName)
 					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
@@ -141,10 +139,10 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 }
 
 func isTableEmptyInPool(c Context, poolName string, tableName string) bool {
-	return isTableEmpty(c.Engine().GetMySQLByCode(poolName).client, tableName)
+	return isTableEmpty(c.Engine().DBByCode(poolName).GetDBClient(), tableName)
 }
 
-func getAllTables(db sqlClient) []string {
+func getAllTables(db DBClient) []string {
 	tables := make([]string, 0)
 	results, err := db.Query("SHOW FULL TABLES WHERE Table_Type = 'BASE TABLE'")
 	checkError(err)
@@ -179,7 +177,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		context:       c,
 		EntitySchema:  entitySchema,
 		EntityIndexes: indexesSlice,
-		DBEncoding:    engine.Registry().defaultEncoding,
+		DBEncoding:    engine.Registry().DefaultDBEncoding(),
 		EntityColumns: columns}
 	if hasTable {
 		sqlSchema.DBTableColumns = make([]*ColumnSchemaDefinition, 0)
@@ -230,7 +228,8 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		}
 	}
 
-	for _, plugin := range engine.Registry().plugins {
+	for _, pluginCode := range engine.Registry().Plugins() {
+		plugin := engine.Registry().Plugin(pluginCode)
 		pluginInterfaceTableSQLSchemaDefinition, isPluginInterfaceTableSQLSchemaDefinition := plugin.(PluginInterfaceTableSQLSchemaDefinition)
 		if isPluginInterfaceTableSQLSchemaDefinition {
 			err = pluginInterfaceTableSQLSchemaDefinition.PluginInterfaceTableSQLSchemaDefinition(c, sqlSchema)
@@ -247,7 +246,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		}
 		return
 	}
-	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.Registry().defaultEncoding
+	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.Registry().DefaultDBEncoding()
 	hasAlters := hasAlterEngineCharset
 	hasAlterNormal := false
 
@@ -410,16 +409,16 @@ OUTER:
 			safe = true
 		} else {
 			db := entitySchema.GetMysql()
-			isEmpty := isTableEmpty(db.client, entitySchema.GetTableName())
+			isEmpty := isTableEmpty(db.GetDBClient(), entitySchema.GetTableName())
 			safe = isEmpty
 		}
 		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
-			collate += " COLLATE=" + engine.Registry().defaultEncoding + "_" + engine.Registry().defaultCollate
+			collate += " COLLATE=" + engine.Registry().DefaultDBEncoding() + "_" + engine.Registry().DefaultDBCollate()
 		}
-		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.Registry().defaultEncoding, collate)
+		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.Registry().DefaultDBEncoding(), collate)
 		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
 	}
 	if sqlSchema.PostAlters != nil {
@@ -428,7 +427,7 @@ OUTER:
 	return
 }
 
-func isTableEmpty(db sqlClient, tableName string) bool {
+func isTableEmpty(db DBClient, tableName string) bool {
 	/* #nosec */
 	rows, err := db.Query(fmt.Sprintf("SELECT * FROM `%s` LIMIT 1", tableName))
 	defer func() {
@@ -555,7 +554,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
-			subSchema := engine.GetEntitySchema(field.Type.Elem())
+			subSchema := engine.Registry().EntitySchema(field.Type.Elem())
 			if subSchema != nil {
 				definition = handleReferenceOne(version, subSchema, attributes)
 				addNotNullIfNotSet = false
@@ -643,8 +642,8 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 	if length == "max" {
 		definition = "mediumtext"
 		if version == 8 {
-			encoding := engine.Registry().defaultEncoding
-			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + engine.Registry().defaultCollate
+			encoding := engine.Registry().DefaultDBEncoding()
+			definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_" + engine.Registry().DefaultDBCollate()
 		}
 		addDefaultNullIfNullable = false
 		defaultValue = "nil"
@@ -656,15 +655,15 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 		if version == 5 {
 			definition = fmt.Sprintf("varchar(%s)", strconv.Itoa(i))
 		} else {
-			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+engine.Registry().defaultCollate, strconv.Itoa(i),
-				engine.Registry().defaultEncoding, engine.Registry().defaultEncoding)
+			definition = fmt.Sprintf("varchar(%s) CHARACTER SET %s COLLATE %s_"+engine.Registry().DefaultDBCollate(), strconv.Itoa(i),
+				engine.Registry().DefaultDBEncoding(), engine.Registry().DefaultDBEncoding())
 		}
 	}
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
 
 func handleSetEnum(version int, engine Engine, fieldType string, attribute string, nullable bool) (string, bool, bool, string, error) {
-	en := engine.GetEnum(attribute)
+	en := engine.Registry().Enum(attribute)
 	if en == nil {
 		return "", false, false, "", fmt.Errorf("unregistered enum %s", attribute)
 	}
@@ -677,7 +676,7 @@ func handleSetEnum(version int, engine Engine, fieldType string, attribute strin
 	}
 	definition += ")"
 	if version == 8 {
-		encoding := engine.Registry().defaultEncoding
+		encoding := engine.Registry().DefaultDBEncoding()
 		definition += " CHARACTER SET " + encoding + " COLLATE " + encoding + "_0900_ai_ci"
 	}
 	defaultValue := "nil"
