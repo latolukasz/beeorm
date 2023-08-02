@@ -22,6 +22,8 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 	if len(ids) == 0 {
 		return
 	}
+
+	//TODO slooooow!!
 	for i := range ids {
 		resultsSlice.Index(i).SetZero()
 	}

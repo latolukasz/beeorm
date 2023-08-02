@@ -22,7 +22,7 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	schema := GetEntitySchema[*loadByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	const size = 1
+	const size = 100
 	f := c.Flusher()
 	ids := make([]uint64, size)
 	for i := 0; i < size; i++ {
