@@ -4,12 +4,12 @@ import (
 	"testing"
 )
 
-// BenchmarkLoadByIDsLocalCache-10    	 3970012	       300.0 ns/op	     196 B/op	       2 allocs/op
+// BenchmarkLoadByIDsLocalCache-10    	21133597	        55.71 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkLoadByIDsLocalCache(b *testing.B) {
 	benchmarkLoadByIDsCache(b, true, false)
 }
 
-// BenchmarkLoadByIDsLocalCache-10    	21477957	        55.33 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkLoadByIDsRedisCache-10    	    1947	    611389 ns/op	     512 B/op	      13 allocs/op
 func BenchmarkLoadByIDsRedisCache(b *testing.B) {
 	benchmarkLoadByIDsCache(b, false, true)
 }
@@ -22,7 +22,7 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	schema := GetEntitySchema[*loadByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	const size = 10
+	const size = 1
 	f := c.Flusher()
 	ids := make([]uint64, size)
 	for i := 0; i < size; i++ {
