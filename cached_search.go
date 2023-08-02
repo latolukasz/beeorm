@@ -33,10 +33,7 @@ func CachedSearchWithReferences(c Context, entities interface{}, indexName strin
 func cachedSearch(c Context, entities interface{}, indexName string, pager *Pager,
 	arguments []interface{}, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)
-	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine(), value.Type(), true)
-	if !hasSchema {
-		panic(fmt.Errorf("entity '%s' is not registered", name))
-	}
+	schema := c.Engine().Registry().getEntitySchemaForSlice(value.Type())
 	definition, has := schema.getCachedIndexes(false, false)[indexName]
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))

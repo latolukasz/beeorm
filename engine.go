@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 )
 
@@ -29,6 +30,7 @@ type EngineRegistry interface {
 	getRedisStreamsForGroup(group string) []string
 	getRedisPoolForStream(stream string) string
 	getDBTables() map[string]map[string]bool
+	getEntitySchemaForSlice(t reflect.Type) EntitySchema
 }
 
 type Engine interface {
@@ -43,6 +45,7 @@ type engineRegistryImplementation struct {
 	engine             *engineImplementation
 	entities           map[string]reflect.Type
 	entitySchemas      map[reflect.Type]*entitySchema
+	entitySliceSchemas map[reflect.Type]*entitySchema
 	plugins            []Plugin
 	enums              map[string]Enum
 	defaultQueryLogger *defaultLogLogger
@@ -106,6 +109,14 @@ func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 		return er.entitySchemas[t]
 	}
 	return nil
+}
+
+func (er *engineRegistryImplementation) getEntitySchemaForSlice(t reflect.Type) EntitySchema {
+	schema, has := er.entitySliceSchemas[t]
+	if !has {
+		panic(fmt.Errorf("invalid slice of entities: %s", t))
+	}
+	return schema
 }
 
 func (er *engineRegistryImplementation) Plugins() []string {

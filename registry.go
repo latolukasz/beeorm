@@ -48,6 +48,7 @@ func (r *Registry) Validate() (Engine, error) {
 	e.registry = &engineRegistryImplementation{engine: e}
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
+	e.registry.entitySliceSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
 	e.registry.defaultDBCollate = r.defaultCollate
 	e.registry.defaultDBEncoding = r.defaultEncoding
@@ -127,6 +128,7 @@ func (r *Registry) Validate() (Engine, error) {
 			return nil, err
 		}
 		e.registry.entitySchemas[entityType] = schema
+		e.registry.entitySliceSchemas[reflect.PtrTo(reflect.SliceOf(reflect.PtrTo(entityType)))] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCachePools[schema.GetCacheKey()] = newLocalCacheConfig(schema.GetCacheKey(), schema.localCacheLimit)

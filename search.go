@@ -2,17 +2,16 @@ package beeorm
 
 import (
 	"database/sql"
-	"fmt"
 	"reflect"
 	"strconv"
 )
 
 func SearchWithCount(c Context, where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	return search(c, where, pager, true, true, reflect.ValueOf(entities), references...)
+	return search(c, where, pager, true, reflect.ValueOf(entities), references...)
 }
 
 func Search(c Context, where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(c, where, pager, false, true, reflect.ValueOf(entities), references...)
+	search(c, where, pager, false, reflect.ValueOf(entities), references...)
 }
 
 func SearchIDsWithCount[E Entity](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
@@ -175,15 +174,12 @@ func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema
 	return where
 }
 
-func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool, entities reflect.Value, references ...string) (totalRows int) {
+func search(c Context, where *Where, pager *Pager, withCount bool, entities reflect.Value, references ...string) (totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
 	entities.SetLen(0)
-	schema, hasSchema, name := getEntitySchemaForSlice(c.Engine(), entities.Type(), checkIsSlice)
-	if !hasSchema {
-		panic(fmt.Errorf("entity '%s' is not registered", name))
-	}
+	schema := c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 
 	whereQuery := where.String()
@@ -274,21 +270,4 @@ func fillFromBinary(c Context, schema EntitySchema, binary []byte, entity Entity
 	orm.loaded = true
 	orm.binary = binary
 	orm.deserialize(c)
-}
-
-func getEntitySchemaForSlice(engine Engine, sliceType reflect.Type, checkIsSlice bool) (EntitySchema, bool, string) {
-	name := sliceType.String()
-	if name[0] == 42 {
-		name = name[1:]
-	}
-	if name[0] == 91 {
-		name = name[3:]
-	} else if checkIsSlice {
-		panic(fmt.Errorf("interface %s is not slice of beeorm.Entity", sliceType.String()))
-	}
-	schema := engine.Registry().EntitySchema(name)
-	if schema == nil {
-		return nil, false, name
-	}
-	return schema, true, name
 }

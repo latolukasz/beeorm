@@ -12,10 +12,7 @@ func GetByIDs(c Context, ids []uint64, entities interface{}, references ...strin
 }
 
 func getByIDs(c Context, ids []uint64, entities reflect.Value, references []string) (schema EntitySchema, hasMissing bool) {
-	schema, has, name := getEntitySchemaForSlice(c.Engine(), entities.Type(), true)
-	if !has {
-		panic(fmt.Errorf("entity '%s' is not registered", name))
-	}
+	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
 	resultsSlice := entities.Elem()
 	diffCap := len(ids) - resultsSlice.Cap()
 	if diffCap > 0 {
@@ -38,11 +35,8 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 		for i, id := range ids {
 			fromLocalCache, hasInLocalCache := cacheLocal.Get(c, id)
 			if hasInLocalCache {
-				entity := schema.NewEntity()
-				resultsSlice.Index(i).Set(entity.getORM().value)
-				if fromLocalCache != cacheNilValue {
-					fillFromBinary(c, schema, fromLocalCache.([]byte), entity)
-				} else {
+				resultsSlice.Index(i).Set(fromLocalCache.(reflect.Value))
+				if fromLocalCache == cacheNilValue {
 					hasMissing = true
 					hasCacheNils = true
 				}
@@ -116,7 +110,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 				}
 			}
 			if hasLocalCache {
-				cacheLocal.Set(c, id, entity.getORM().copyBinary())
+				cacheLocal.Set(c, id, entity.getORM().value)
 			}
 			if hasRedisCache {
 				if len(ids) == 1 {
