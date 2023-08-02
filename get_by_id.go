@@ -12,12 +12,12 @@ func GetByID[E Entity, I ID](c Context, id I, references ...string) (entity E) {
 
 func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ...string) (entity E) {
 	schema := GetEntitySchema[E](c)
-
+	idUint64 := uint64(id)
 	cacheLocal, hasLocalCache := schema.GetLocalCache()
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	var cacheKey string
 	if hasLocalCache {
-		e, has := cacheLocal.Get(c, id)
+		e, has := cacheLocal.Get(c, idUint64)
 		if has {
 			if e == cacheNilValue {
 				return
@@ -30,12 +30,12 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 		}
 	}
 	if hasRedis {
-		cacheKey = strconv.FormatUint(uint64(id), 10)
+		cacheKey = strconv.FormatUint(idUint64, 10)
 		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
 		if has {
 			if row == cacheNilValue {
 				if hasLocalCache {
-					cacheLocal.Set(c, uint64(id), cacheNilValue)
+					cacheLocal.Set(c, idUint64, cacheNilValue)
 				}
 				return
 			}
@@ -49,15 +49,15 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 			//	warmUpReferences(c, schema, orm.value, references, false)
 			//}
 			if hasLocalCache {
-				cacheLocal.Set(c, uint64(id), entity.getORM().value)
+				cacheLocal.Set(c, idUint64, entity.getORM().value)
 			}
 			return
 		}
 	}
-	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false, nil)
+	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false, nil)
 	if found {
 		if hasLocalCache {
-			cacheLocal.Set(c, uint64(id), cacheNilValue)
+			cacheLocal.Set(c, idUint64, cacheNilValue)
 		}
 		if hasRedis {
 			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)

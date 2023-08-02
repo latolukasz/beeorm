@@ -79,7 +79,7 @@ func TestDB(t *testing.T) {
 	assert.Equal(t, "John", name)
 	def()
 
-	assert.Equal(t, "default", db.GetPoolConfig().GetCode())
+	assert.Equal(t, DefaultPoolCode, db.GetPoolConfig().GetCode())
 	assert.Equal(t, "test", db.GetPoolConfig().GetDatabase())
 
 	preparedExec, def := db.Prepare(c, "INSERT INTO `dbEntity` VALUES(?, ?)")

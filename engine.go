@@ -5,7 +5,7 @@ import (
 	"reflect"
 )
 
-const defaultDatabaseSourceCode = "default"
+const DefaultPoolCode = "default"
 
 type RedisStream struct {
 	Name      string
@@ -70,21 +70,21 @@ func (e *engineImplementation) Registry() EngineRegistry {
 
 func (e *engineImplementation) DB(code ...string) DB {
 	if len(code) == 0 {
-		return e.dbServers[defaultDatabaseSourceCode]
+		return e.dbServers[DefaultPoolCode]
 	}
 	return e.dbServers[code[0]]
 }
 
 func (e *engineImplementation) LocalCache(code ...string) LocalCache {
 	if len(code) == 0 {
-		return e.localCacheServers[defaultDatabaseSourceCode]
+		return e.localCacheServers[DefaultPoolCode]
 	}
 	return e.localCacheServers[code[0]]
 }
 
 func (e *engineImplementation) Redis(code ...string) RedisCache {
 	if len(code) == 0 {
-		return e.redisServers[defaultDatabaseSourceCode]
+		return e.redisServers[DefaultPoolCode]
 	}
 	return e.redisServers[code[0]]
 }

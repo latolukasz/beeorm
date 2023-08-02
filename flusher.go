@@ -491,13 +491,13 @@ func IsDirty(c Context, entity Entity) (dirty bool, data FlushData) {
 }
 
 func (f *flusher) GetLocalCacheSetter(code ...string) LocalCacheSetter {
-	dbCode := "default"
+	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
 	cache, has := f.localCacheSetters[dbCode]
 	if !has {
-		cache = &localCacheSetter{code: dbCode}
+		cache = &localCacheSetter{code: dbCode, engine: f.c.Engine()}
 		if f.localCacheSetters == nil {
 			f.localCacheSetters = make(map[string]*localCacheSetter)
 		}
@@ -507,7 +507,7 @@ func (f *flusher) GetLocalCacheSetter(code ...string) LocalCacheSetter {
 }
 
 func (f *flusher) GetRedisCacheSetter(code ...string) RedisCacheSetter {
-	dbCode := "default"
+	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]
 	}

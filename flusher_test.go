@@ -155,7 +155,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
 	var reference *flushEntityReference
 	registry := &Registry{}
-	registry.RegisterRedisStream("entity_changed", "default")
+	registry.RegisterRedisStream("entity_changed", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("entity_changed", "test-group-1")
 	registry.RegisterEnumStruct("beeorm.testEnum", testEnum)
 	registry.RegisterEnumStruct("beeorm.testSet", testSet)

@@ -13,7 +13,7 @@ import (
 func TestRedisPipeline(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", "", 15)
-	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStream("test-stream", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)

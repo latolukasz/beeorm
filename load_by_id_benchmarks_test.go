@@ -42,6 +42,7 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	GetByID[*loadByIDBenchmarkEntity](c, 1)
 	b.ResetTimer()
 	b.ReportAllocs()
+	c.EnableQueryDebug()
 	for n := 0; n < b.N; n++ {
 		GetByID[*loadByIDBenchmarkEntity](c, 1)
 	}

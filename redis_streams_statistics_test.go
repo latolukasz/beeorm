@@ -12,7 +12,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterRedis("localhost:6382", "", 11)
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test", MySQLPoolOptions{})
-	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStream("test-stream", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
@@ -26,7 +26,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	for _, stream := range stats {
 		if stream.Stream == "test-stream" {
 			assert.Equal(t, "test-stream", stream.Stream)
-			assert.Equal(t, "default", stream.RedisPool)
+			assert.Equal(t, DefaultPoolCode, stream.RedisPool)
 			assert.Equal(t, uint64(0), stream.Len)
 			assert.Len(t, stream.Groups, 0)
 			valid = true

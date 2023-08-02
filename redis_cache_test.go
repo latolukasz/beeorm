@@ -33,11 +33,11 @@ func testRedis(t *testing.T, namespace string, version int) {
 		url = "localhost:6381"
 	}
 	registry.RegisterRedis(url, namespace, 15)
-	registry.RegisterRedisStream("test-stream", "default")
+	registry.RegisterRedisStream("test-stream", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("test-stream", "test-group")
-	registry.RegisterRedisStream("test-stream-a", "default")
+	registry.RegisterRedisStream("test-stream-a", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("test-stream-a", "test-group")
-	registry.RegisterRedisStream("test-stream-b", "default")
+	registry.RegisterRedisStream("test-stream-b", DefaultPoolCode)
 	registry.RegisterRedisStreamConsumerGroups("test-stream-b", "test-group")
 
 	validatedRegistry, err := registry.Validate()

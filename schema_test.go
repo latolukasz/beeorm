@@ -110,7 +110,7 @@ func testSchema(t *testing.T, version int) {
 	ref := &schemaEntityRef{}
 	registry := &Registry{}
 	registry.RegisterEnumStruct("beeorm.testEnum", testEnum, "b")
-	registry.RegisterMySQLTable("default", "TestDropTable")
+	registry.RegisterMySQLTable(DefaultPoolCode, "TestDropTable")
 	c := PrepareTables(t, registry, version, 6, "", entity, ref)
 
 	cDrop := PrepareTables(t, &Registry{}, version, 6, "")
@@ -123,7 +123,7 @@ func testSchema(t *testing.T, version int) {
 	assert.Len(t, alters, 2)
 	assert.True(t, alters[0].Safe)
 	assert.True(t, alters[1].Safe)
-	assert.Equal(t, "default", alters[0].Pool)
+	assert.Equal(t, DefaultPoolCode, alters[0].Pool)
 	if version == 5 {
 		assert.Equal(t, "CREATE TABLE `test`.`schemaEntityRef` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) NOT NULL DEFAULT '',\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[0].SQL)
 		assert.Equal(t, "CREATE TABLE `test`.`schemaEntity` (\n  `ID` bigint(20) unsigned NOT NULL AUTO_INCREMENT,\n  `Name` varchar(255) NOT NULL DEFAULT '',\n  `NameNullable` varchar(255) DEFAULT NULL,\n  `NameMax` mediumtext,\n  `NameMaxRequired` mediumtext NOT NULL,\n  `Year` year(4) DEFAULT NULL,\n  `Uint8` tinyint(3) unsigned NOT NULL DEFAULT '0',\n  `Uint16` smallint(5) unsigned NOT NULL DEFAULT '0',\n  `Uint32` int(10) unsigned NOT NULL DEFAULT '0',\n  `Uint32Medium` mediumint(8) unsigned NOT NULL DEFAULT '0',\n  `YearRequired` year(4) NOT NULL DEFAULT '0000',\n  `Uint64` bigint(20) unsigned NOT NULL DEFAULT '0',\n  `Int8` tinyint(4) NOT NULL DEFAULT '0',\n  `Int16` smallint(6) NOT NULL DEFAULT '0',\n  `Int32` int(11) NOT NULL DEFAULT '0',\n  `Int32Medium` mediumint(9) NOT NULL DEFAULT '0',\n  `Int64` bigint(20) NOT NULL DEFAULT '0',\n  `Int` int(11) NOT NULL DEFAULT '0',\n  `IntNullable` int(11) DEFAULT NULL,\n  `Bool` tinyint(1) NOT NULL DEFAULT '0',\n  `BoolNullable` tinyint(1) DEFAULT NULL,\n  `Interface` json DEFAULT NULL,\n  `Float32` float NOT NULL DEFAULT '0',\n  `Float32Nullable` float DEFAULT NULL,\n  `Float64` double NOT NULL DEFAULT '0',\n  `Time` date NOT NULL DEFAULT '0001-01-01',\n  `TimeFull` datetime NOT NULL DEFAULT '1000-01-01 00:00:00',\n  `TimeNull` date DEFAULT NULL,\n  `Blob` blob,\n  `MediumBlob` mediumblob,\n  `LongBlob` longblob,\n  `SubStructSubName` varchar(255) NOT NULL DEFAULT '',\n  `SubStructSubAge` decimal(9,5) NOT NULL DEFAULT '0.00000',\n  `SubStructLevel2SubAge` bigint(20) unsigned NOT NULL DEFAULT '0',\n  `SubStructLevel2SubSize` bigint(20) unsigned NOT NULL DEFAULT '0',\n  `SubStructSubRefInStruct` bigint(20) unsigned DEFAULT NULL,\n  `SubStructIndexSubName` varchar(255) DEFAULT NULL,\n  `SubName` varchar(255) NOT NULL DEFAULT '',\n  `SubAge` decimal(9,5) NOT NULL DEFAULT '0.00000',\n  `Level2SubAge` bigint(20) unsigned NOT NULL DEFAULT '0',\n  `Level2SubSize` bigint(20) unsigned NOT NULL DEFAULT '0',\n  `SubRefInStruct` bigint(20) unsigned DEFAULT NULL,\n  `NameTranslated` json DEFAULT NULL,\n  `RefOne` bigint(20) unsigned DEFAULT NULL,\n  `RefMany` json DEFAULT NULL,\n  `Decimal` decimal(10,2) NOT NULL DEFAULT '0.00',\n  `Enum` enum('a','b','c') NOT NULL DEFAULT 'b',\n  `Set` set('a','b','c') NOT NULL DEFAULT 'b',\n  INDEX `TestIndex` (`Name`,`Uint16`),\n  INDEX `TestSubIndex` (`SubStructIndexSubName`),\n  UNIQUE INDEX `TestUniqueGlobal2` (`Uint32`),\n  UNIQUE INDEX `TestUniqueGlobal` (`Year`,`SubStructSubAge`),\n  UNIQUE INDEX `TestUniqueIndex` (`Int32`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;", alters[1].SQL)

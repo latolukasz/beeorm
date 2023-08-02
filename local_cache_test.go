@@ -19,7 +19,7 @@ func TestLocalCache(t *testing.T) {
 	c.RegisterQueryLogger(testQueryLog, false, false, true)
 
 	lc := c.Engine().LocalCache()
-	assert.Equal(t, "default", lc.GetPoolConfig().GetCode())
+	assert.Equal(t, DefaultPoolCode, lc.GetPoolConfig().GetCode())
 	assert.Equal(t, 100, lc.GetPoolConfig().GetLimit())
 	val := lc.GetSet(c, "test_get_set", 10, func() interface{} {
 		return "hello"

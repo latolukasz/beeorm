@@ -140,13 +140,13 @@ func (r *Registry) Validate() (Engine, error) {
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
 	if !has {
-		r.RegisterRedisStream(LazyFlushChannelName, "default")
+		r.RegisterRedisStream(LazyFlushChannelName, DefaultPoolCode)
 		r.RegisterRedisStreamConsumerGroups(LazyFlushChannelName, LazyFlushGroupName)
 	}
 	if len(r.redisStreamGroups) > 0 {
 		_, has = r.redisStreamPools[StreamGarbageCollectorChannelName]
 		if !has {
-			r.RegisterRedisStream(StreamGarbageCollectorChannelName, "default")
+			r.RegisterRedisStream(StreamGarbageCollectorChannelName, DefaultPoolCode)
 			r.RegisterRedisStreamConsumerGroups(StreamGarbageCollectorChannelName, StreamGarbageCollectorGroupName)
 		}
 	}
@@ -248,7 +248,7 @@ func (r *Registry) RegisterMySQLTable(pool string, tableName ...string) {
 }
 
 func (r *Registry) RegisterLocalCache(size int, code ...string) {
-	dbCode := "default"
+	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
@@ -344,7 +344,7 @@ func (r *Registry) HasRegisteredRedisPool(pool string) bool {
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
-	dbCode := "default"
+	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
@@ -359,7 +359,7 @@ func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolO
 }
 
 func (r *Registry) registerRedis(client *redis.Client, code []string, address, namespace string, db int) {
-	dbCode := "default"
+	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]
 	}

@@ -318,14 +318,14 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	references := make([]EntitySchemaReference, 0)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
-	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", "default")
+	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
 	_, has := registry.mysqlPools[entitySchema.mysqlPoolCode]
 	if !has {
 		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolCode)
 	}
 	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
-	localCacheLimit := entitySchema.getTag("localCache", "default", "")
-	redisCacheName := entitySchema.getTag("redisCache", "default", "")
+	localCacheLimit := entitySchema.getTag("localCache", DefaultPoolCode, "")
+	redisCacheName := entitySchema.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
 		_, has = registry.mysqlPools[redisCacheName]
 		if !has {
@@ -333,7 +333,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		}
 	}
 	cacheKey := ""
-	if entitySchema.mysqlPoolCode != "default" {
+	if entitySchema.mysqlPoolCode != DefaultPoolCode {
 		cacheKey = entitySchema.mysqlPoolCode
 	}
 	cacheKey += entitySchema.tableName
@@ -513,7 +513,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.hasLocalCache = localCacheLimit != ""
 	if entitySchema.hasLocalCache {
 		limit := 100000
-		if localCacheLimit != "default" {
+		if localCacheLimit != DefaultPoolCode {
 			userLimit, err := strconv.Atoi(localCacheLimit)
 			if err != nil || userLimit <= 0 {
 				return fmt.Errorf("invalid local cache limit for '%s'", entitySchema.t.String())
