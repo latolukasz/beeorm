@@ -142,7 +142,7 @@ func (f *flusher) execute(lazy, fromLazyConsumer bool) {
 					checkReferences = true
 				} else {
 					schema := f.c.Engine().Registry().EntitySchema(e.Entity)
-					db := schema.GetMysql()
+					db := schema.GetDB()
 					byDB, hasDB := group[db]
 					if !hasDB {
 						byDB = make(map[string]map[FlushType][]*entitySQLFlush)

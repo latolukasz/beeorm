@@ -39,7 +39,7 @@ func GetAlters(c Context) (alters []Alter) {
 }
 
 func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
-	pool := td.EntitySchema.GetMysql()
+	pool := td.EntitySchema.GetDB()
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), td.EntitySchema.GetTableName())
 	for _, value := range td.EntityColumns {
 		createTableSQL += fmt.Sprintf("  %s,\n", value.Definition)
@@ -111,7 +111,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	alters = make([]Alter, 0)
 	for _, t := range c.Engine().Registry().Entities() {
 		schema := c.Engine().Registry().EntitySchema(t)
-		db := schema.GetMysql()
+		db := schema.GetDB()
 		tablesInEntities[db.GetPoolConfig().GetCode()][schema.GetTableName()] = true
 		pre, middle, post := getSchemaChanges(c, schema)
 		preAlters = append(preAlters, pre...)
@@ -170,7 +170,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		indexesSlice = append(indexesSlice, index)
 	}
 	engine := c.Engine()
-	pool := entitySchema.GetMysql()
+	pool := entitySchema.GetDB()
 	var skip string
 	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.GetTableName())), &skip)
 	sqlSchema := &TableSQLSchemaDefinition{
@@ -240,7 +240,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		preAlters = append(preAlters, sqlSchema.PreAlters...)
 	}
 	if !hasTable {
-		alters = append(alters, Alter{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
+		alters = append(alters, Alter{SQL: sqlSchema.CreateTableSQL(), Safe: true, Pool: entitySchema.GetDB().GetPoolConfig().GetCode()})
 		if sqlSchema.PostAlters != nil {
 			postAlters = append(postAlters, sqlSchema.PostAlters...)
 		}
@@ -408,18 +408,18 @@ OUTER:
 		if len(droppedColumns) == 0 && len(changedColumns) == 0 {
 			safe = true
 		} else {
-			db := entitySchema.GetMysql()
+			db := entitySchema.GetDB()
 			isEmpty := isTableEmpty(db.GetDBClient(), entitySchema.GetTableName())
 			safe = isEmpty
 		}
-		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.GetDB().GetPoolConfig().GetCode()})
 	} else if hasAlterEngineCharset {
 		collate := ""
 		if pool.GetPoolConfig().GetVersion() == 8 {
 			collate += " COLLATE=" + engine.Registry().DefaultDBEncoding() + "_" + engine.Registry().DefaultDBCollate()
 		}
 		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.Registry().DefaultDBEncoding(), collate)
-		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.GetMysql().GetPoolConfig().GetCode()})
+		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.GetDB().GetPoolConfig().GetCode()})
 	}
 	if sqlSchema.PostAlters != nil {
 		postAlters = append(postAlters, sqlSchema.PostAlters...)
@@ -446,7 +446,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 	columnName := prefix + field.Name
 
 	attributes := schema.getTags()[columnName]
-	version := schema.GetMysql().GetPoolConfig().GetVersion()
+	version := schema.GetDB().GetPoolConfig().GetVersion()
 
 	_, has := attributes["ignore"]
 	if has {

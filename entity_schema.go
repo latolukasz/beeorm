@@ -93,7 +93,7 @@ type EntitySchema interface {
 	TruncateTable(c Context)
 	UpdateSchema(c Context)
 	UpdateSchemaAndTruncateTable(c Context)
-	GetMysql() DB
+	GetDB() DB
 	GetLocalCache() (cache LocalCache, has bool)
 	GetRedisCache() (cache RedisCache, has bool)
 	GetReferences() []EntitySchemaReference
@@ -200,18 +200,18 @@ func (entitySchema *entitySchema) GetType() reflect.Type {
 }
 
 func (entitySchema *entitySchema) DropTable(c Context) {
-	pool := entitySchema.GetMysql()
+	pool := entitySchema.GetDB()
 	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
 func (entitySchema *entitySchema) TruncateTable(c Context) {
-	pool := entitySchema.GetMysql()
+	pool := entitySchema.GetDB()
 	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
 func (entitySchema *entitySchema) UpdateSchema(c Context) {
-	pool := entitySchema.GetMysql()
+	pool := entitySchema.GetDB()
 	has, alters := entitySchema.GetSchemaChanges(c)
 	if has {
 		for _, alter := range alters {
@@ -222,12 +222,12 @@ func (entitySchema *entitySchema) UpdateSchema(c Context) {
 
 func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
 	entitySchema.UpdateSchema(c)
-	pool := entitySchema.GetMysql()
+	pool := entitySchema.GetDB()
 	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
 }
 
-func (entitySchema *entitySchema) GetMysql() DB {
+func (entitySchema *entitySchema) GetDB() DB {
 	return entitySchema.engine.DB(entitySchema.mysqlPoolCode)
 }
 

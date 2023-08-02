@@ -99,7 +99,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 		dbIDs := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		idsQuery := strings.ReplaceAll(fmt.Sprintf("%v", dbIDs), " ", ",")[1:]
 		query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (" + idsQuery[:len(idsQuery)-1] + ")"
-		results, def := schema.GetMysql().Query(c, query)
+		results, def := schema.GetDB().Query(c, query)
 		defer def()
 		foundInDB := 0
 		for results.Next() {

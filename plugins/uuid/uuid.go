@@ -56,7 +56,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Context, sqlSc
 	if sqlSchema.EntitySchema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return nil
 	}
-	mySQLVersion := sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetVersion()
+	mySQLVersion := sqlSchema.EntitySchema.GetDB().GetPoolConfig().GetVersion()
 	if mySQLVersion == 8 {
 		sqlSchema.EntityColumns[0].Definition = "`ID` bigint unsigned NOT NULL"
 	} else {
@@ -69,7 +69,7 @@ func (p *Plugin) PluginInterfaceEntityFlushing(c beeorm.Context, event beeorm.Ev
 	if !event.Type().Is(beeorm.Insert) || event.EntityID() > 0 {
 		return
 	}
-	schema := c.Engine().GetEntitySchema(event.EntityName())
+	schema := c.Engine().Registry().EntitySchema(event.EntityName())
 	if schema.GetPluginOption(PluginCode, hasUUIDOption) != true {
 		return
 	}

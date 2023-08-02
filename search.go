@@ -143,7 +143,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	/* #nosec */
 	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 
-	pool := schema.GetMysql()
+	pool := schema.GetDB()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 	if !results.Next() {
@@ -189,7 +189,7 @@ func search(c Context, where *Where, pager *Pager, withCount, checkIsSlice bool,
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
-	pool := schema.GetMysql()
+	pool := schema.GetDB()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 
@@ -226,7 +226,7 @@ func searchIDs(c Context, entity reflect.Type, where *Where, pager *Pager, withC
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
-	pool := schema.GetMysql()
+	pool := schema.GetDB()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 	result := make([]uint64, 0)
@@ -248,7 +248,7 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 			/* #nosec */
 			query := "SELECT count(1) FROM `" + schema.GetTableName() + "` WHERE " + where.String()
 			var foundTotal string
-			pool := schema.GetMysql()
+			pool := schema.GetDB()
 			pool.QueryRow(c, NewWhere(query, where.GetParameters()...), &foundTotal)
 			totalRows, _ = strconv.Atoi(foundTotal)
 		} else {

@@ -80,7 +80,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 		references := refs.([]beeorm.EntitySchemaReference)
 		for _, reference := range references {
 			refOneSchema := c.Engine().Registry().EntitySchema(reference.EntityName)
-			pool := refOneSchema.GetMysql()
+			pool := refOneSchema.GetDB()
 			fieldType := refOneSchema.GetType().Field(1).Type.String()
 			if fieldType == "uint" {
 				fieldType = "uint32"
@@ -122,7 +122,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 	if len(addForeignKeys) == 0 && len(dropForeignKeys) == 0 {
 		return nil
 	}
-	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", sqlSchema.EntitySchema.GetDB().GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName())
 
 	if len(dropForeignKeys) > 0 {
 		oldForeignKeys := make([]string, 0)
@@ -142,7 +142,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 		sqlSchema.PreAlters = append(sqlSchema.PreAlters, beeorm.Alter{
 			SQL:  dropForeignKeysSQL,
 			Safe: true,
-			Pool: sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetCode(),
+			Pool: sqlSchema.EntitySchema.GetDB().GetPoolConfig().GetCode(),
 		})
 	}
 
@@ -164,7 +164,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 		sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{
 			SQL:  addForeignKeysSQL,
 			Safe: true,
-			Pool: sqlSchema.EntitySchema.GetMysql().GetPoolConfig().GetCode(),
+			Pool: sqlSchema.EntitySchema.GetDB().GetPoolConfig().GetCode(),
 		})
 	}
 	return nil
@@ -184,7 +184,7 @@ func getForeignKeys(c beeorm.Context, sqlSchema *beeorm.TableSQLSchemaDefinition
 	query := "SELECT CONSTRAINT_NAME, COLUMN_NAME, REFERENCED_TABLE_NAME, REFERENCED_TABLE_SCHEMA " +
 		"FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_SCHEMA IS NOT NULL " +
 		"AND TABLE_SCHEMA = '%s' AND TABLE_NAME = '%s'"
-	pool := sqlSchema.EntitySchema.GetMysql()
+	pool := sqlSchema.EntitySchema.GetDB()
 	results, def := pool.Query(c, fmt.Sprintf(query, pool.GetPoolConfig().GetDatabase(), sqlSchema.EntitySchema.GetTableName()))
 	defer def()
 	for results.Next() {
