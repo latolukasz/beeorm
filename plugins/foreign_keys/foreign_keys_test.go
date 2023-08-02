@@ -62,7 +62,8 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 0)
 
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
 
 	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 1)
@@ -70,15 +71,18 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	alters[0].Exec(c)
 	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `abc` FOREIGN KEY (`MyRef`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `abc` FOREIGN KEY (`MyRef`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
 	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 1)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `abc`;", alters[0].SQL)
 	alters[0].Exec(c)
 	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `foreignKeyReferenceEntity` (`ID`) ON DELETE CASCADE")
 	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 2)
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nDROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`;", alters[0].SQL)
@@ -87,13 +91,20 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	alters[1].Exec(c)
 	assert.Len(t, beeorm.GetAlters(c), 0)
 
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef`")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyReferenceEntity` CHANGE COLUMN `ID` `ID` int(10) unsigned NOT NULL AUTO_INCREMENT")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef` `MyRef` int(10) unsigned DEFAULT NULL")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef2` `MyRef2` int(10) unsigned DEFAULT NULL")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
-	c.Engine().DB().Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` DROP FOREIGN KEY `test:foreignKeyEntity:MyRef2`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyReferenceEntity` CHANGE COLUMN `ID` `ID` int(10) unsigned NOT NULL AUTO_INCREMENT")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef` `MyRef` int(10) unsigned DEFAULT NULL")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` CHANGE COLUMN `MyRef2` `MyRef2` int(10) unsigned DEFAULT NULL")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "ALTER TABLE `foreignKeyEntity` ADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;")
 
 	alters = beeorm.GetAlters(c)
 	assert.Len(t, alters, 4)

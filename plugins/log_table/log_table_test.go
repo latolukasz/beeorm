@@ -57,9 +57,10 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	c := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
 	assert.Len(t, beeorm.GetAlters(c), 0)
 	c.Engine().DB("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity1`")
-	c.Engine().DB().Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity2`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity2`")
 	c.Engine().DB("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity3`")
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(beeorm.DefaultPoolCode).FlushDB(c)
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
 	c.Flusher().Track(e1).Flush()
@@ -70,9 +71,9 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	consumer.SetBlockTime(0)
 	consumer.Consume(100, NewEventHandler(c))
 
-	assert.Equal(t, int64(2), c.Engine().Redis().XLen(c, crud_stream.ChannelName))
+	assert.Equal(t, int64(2), c.Engine().Redis(beeorm.DefaultPoolCode).XLen(c, crud_stream.ChannelName))
 	beeorm.RunStreamGarbageCollectorConsumer(c)
-	assert.Equal(t, int64(0), c.Engine().Redis().XLen(c, crud_stream.ChannelName))
+	assert.Equal(t, int64(0), c.Engine().Redis(beeorm.DefaultPoolCode).XLen(c, crud_stream.ChannelName))
 
 	schema := beeorm.GetEntitySchema[*logReceiverEntity1](c)
 	logs := GetEntityLogs(c, schema, 1, nil, nil)
@@ -86,7 +87,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	assert.Equal(t, "Poland", logs[0].After["Country"])
 	assert.Equal(t, "Smith", logs[0].After["LastName"])
 	beeorm.RunStreamGarbageCollectorConsumer(c)
-	assert.Equal(t, int64(0), c.Engine().Redis().XLen(c, crud_stream.ChannelName))
+	assert.Equal(t, int64(0), c.Engine().Redis(beeorm.DefaultPoolCode).XLen(c, crud_stream.ChannelName))
 
 	schema2 := beeorm.GetEntitySchema[*logReceiverEntity2](c)
 	logs = GetEntityLogs(c, schema2, 1, nil, nil)
@@ -106,7 +107,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	e3 := &logReceiverEntity1{Name: "John3"}
 	flusher.Track(e, e3)
 	flusher.Flush()
-	assert.Equal(t, int64(2), c.Engine().Redis().XLen(c, crud_stream.ChannelName))
+	assert.Equal(t, int64(2), c.Engine().Redis(beeorm.DefaultPoolCode).XLen(c, crud_stream.ChannelName))
 
 	consumer.Consume(100, NewEventHandler(c))
 

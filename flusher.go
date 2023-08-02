@@ -642,7 +642,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			if lazy {
 				e.entity.getORM().serialize(f.c.getSerializer())
 				if hasLocalCache {
-					f.GetLocalCacheSetter(cacheLocal.GetPoolConfig().GetCode()).Set(f.c, e.ID, e.entity.getORM().copyBinary())
+					f.GetLocalCacheSetter(cacheLocal.GetPoolConfig().GetCode()).Set(f.c, e.ID, e.entity.getORM().value)
 				}
 				if hasRedis {
 					f.GetRedisCacheSetter(cacheRedis.GetCode()).HSet(f.c, schema.GetCacheKey(), strconv.FormatUint(e.ID, 10), e.entity.getORM().copyBinary())
@@ -654,7 +654,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 				if e.entity != nil {
 					e.entity.getORM().serialize(f.c.getSerializer())
-					setter.Set(f.c, e.ID, e.entity.getORM().copyBinary())
+					setter.Set(f.c, e.ID, e.entity.getORM().value)
 				} else {
 					setter.Remove(f.c, e.ID)
 				}
@@ -673,7 +673,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				if hasLocalCache {
 					setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 					e.entity.getORM().serialize(f.c.getSerializer())
-					setter.Set(f.c, e.ID, e.entity.getORM().copyBinary())
+					setter.Set(f.c, e.ID, e.entity.getORM().value)
 				}
 				break
 			}
@@ -683,7 +683,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 				if !fromLazyConsumer || e.clearLocalCache {
 					if e.entity != nil {
-						setter.Set(f.c, e.ID, e.entity.getORM().copyBinary())
+						setter.Set(f.c, e.ID, e.entity.getORM().value)
 					} else {
 						setter.Remove(f.c, e.ID)
 					}

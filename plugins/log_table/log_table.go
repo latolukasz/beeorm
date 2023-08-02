@@ -69,7 +69,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 		return nil
 	}
 	tableName := sqlSchema.EntitySchema.GetPluginOption(PluginCode, tableNameOption)
-	db := c.Engine().GetMySQL(poolName.(string))
+	db := c.Engine().DB(poolName.(string))
 	var tableDef string
 	hasLogTable := db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
 	var logEntitySchema string
@@ -82,7 +82,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(c beeorm.Context, sqlSc
 		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 			"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 			"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-			db.GetPoolConfig().GetDatabase(), tableName, c.Engine().Registry().GetDefaultCollate())
+			db.GetPoolConfig().GetDatabase(), tableName, c.Engine().Registry().DefaultDBCollate())
 	}
 
 	if !hasLogTable {
@@ -110,7 +110,7 @@ func NewEventHandler(c beeorm.Context) beeorm.EventConsumerHandler {
 		for _, event := range events {
 			var data crud_stream.CrudEvent
 			event.Unserialize(&data)
-			schema := c.Engine().GetEntitySchema(data.EntityName)
+			schema := c.Engine().Registry().EntitySchema(data.EntityName)
 			if schema == nil {
 				continue
 			}
@@ -140,7 +140,7 @@ func GetEntityLogs(c beeorm.Context, entitySchema beeorm.EntitySchema, entityID 
 	if poolName == "" {
 		return results
 	}
-	db := c.Engine().GetMySQL(poolName.(string))
+	db := c.Engine().DB(poolName.(string))
 	if pager == nil {
 		pager = beeorm.NewPager(1, 1000)
 	}
@@ -189,14 +189,14 @@ func GetEntityLogs(c beeorm.Context, entitySchema beeorm.EntitySchema, entityID 
 
 func handleLogEvents(c beeorm.Context, values map[string][]*crud_stream.CrudEvent) {
 	for poolName, rows := range values {
-		poolDB := c.Engine().GetMySQL(poolName)
+		poolDB := c.Engine().DB(poolName)
 		if len(rows) > 1 {
 			poolDB.Begin(c)
 		}
 		func() {
 			defer poolDB.Rollback(c)
 			for _, value := range rows {
-				schema := c.Engine().GetEntitySchema(value.EntityName)
+				schema := c.Engine().Registry().EntitySchema(value.EntityName)
 				tableName := schema.GetPluginOption(PluginCode, tableNameOption)
 				query := "INSERT INTO `" + tableName.(string) + "`(`entity_id`, `added_at`, `meta`, `before`, `changes`) VALUES(?, ?, ?, ?, ?)"
 				params := make([]interface{}, 5)

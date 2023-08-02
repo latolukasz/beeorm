@@ -15,10 +15,9 @@ type CachedQuery struct{}
 
 func GetEntitySchema[E Entity](c Context) EntitySchema {
 	var entity E
-	t := reflect.TypeOf(entity).Elem()
-	schema := c.Engine().Registry().EntitySchema(t)
+	schema := c.Engine().Registry().EntitySchema(entity)
 	if schema == nil {
-		panic(fmt.Errorf("entity '%s' is not registered", t.String()))
+		panic(fmt.Errorf("entity '%v' is not registered", entity))
 	}
 	return schema
 }

@@ -489,12 +489,12 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity4 = GetByID[*flushEntity](c, 12)
 	assert.Equal(t, []string{"d", "e"}, entity4.SetNullable)
 
-	c.Engine().DB().Begin(c)
+	c.Engine().DB(DefaultPoolCode).Begin(c)
 	entity5 := &flushEntity{Name: "test_transaction", EnumNotNull: "a"}
 	c.Flusher().Track(entity5).Flush()
 	entity5.Age = 38
 	c.Flusher().Track(entity5).Flush()
-	c.Engine().DB().Commit(c)
+	c.Engine().DB(DefaultPoolCode).Commit(c)
 	entity5 = GetByID[*flushEntity](c, 13)
 	assert.NotNil(t, entity5)
 	assert.Equal(t, "test_transaction", entity5.Name)
@@ -648,8 +648,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity = GetByID[*flushEntity](c, 100)
 	c.Flusher().Delete(entity).Flush()
 	entity = &flushEntity{}
-	c.Engine().LocalCache().Clear(c)
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	entity = GetByID[*flushEntity](c, 100)
 	assert.Nil(t, entity)
 

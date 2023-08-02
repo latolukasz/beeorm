@@ -50,8 +50,10 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
 	c := beeorm.PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
-	c.Engine().DB().Query(c, "DROP TABLE `uuidReferenceEntity`")
-	c.Engine().DB().Query(c, "DROP TABLE `uuidEntity`")
+	c.Engine().DB(DefaultPoolCode).
+		Query(c, "DROP TABLE `uuidReferenceEntity`")
+	c.Engine().DB(DefaultPoolCode).
+		Query(c, "DROP TABLE `uuidEntity`")
 	alters := beeorm.GetAlters(c)
 	assert.Len(t, alters, 2)
 	assert.Equal(t, "CREATE TABLE `test`.`uuidEntity` (\n  `ID` bigint unsigned NOT NULL,\n  `Name` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci NOT NULL DEFAULT '',\n  `Age` int NOT NULL DEFAULT '0',\n  UNIQUE INDEX `name` (`Name`),\n PRIMARY KEY (`ID`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;", alters[0].SQL)
@@ -114,7 +116,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	} else {
 		assert.Nil(t, beeorm.GetByID[*uuidEntity](c, id))
 	}
-	c.Engine().Redis().FlushAll(c)
+	c.Engine().Redis(DefaultPoolCode).FlushAll(c)
 	localCache, hasLocalCache := schema.GetLocalCache()
 	if hasLocalCache {
 		localCache.Clear(c)

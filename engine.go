@@ -33,9 +33,9 @@ type EngineRegistry interface {
 
 type Engine interface {
 	NewContext(parent context.Context) Context
-	DB(code ...string) DB
-	LocalCache(code ...string) LocalCache
-	Redis(code ...string) RedisCache
+	DB(code string) DB
+	LocalCache(code string) LocalCache
+	Redis(code string) RedisCache
 	Registry() EngineRegistry
 }
 
@@ -68,25 +68,16 @@ func (e *engineImplementation) Registry() EngineRegistry {
 	return e.registry
 }
 
-func (e *engineImplementation) DB(code ...string) DB {
-	if len(code) == 0 {
-		return e.dbServers[DefaultPoolCode]
-	}
-	return e.dbServers[code[0]]
+func (e *engineImplementation) DB(code string) DB {
+	return e.dbServers[code]
 }
 
-func (e *engineImplementation) LocalCache(code ...string) LocalCache {
-	if len(code) == 0 {
-		return e.localCacheServers[DefaultPoolCode]
-	}
-	return e.localCacheServers[code[0]]
+func (e *engineImplementation) LocalCache(code string) LocalCache {
+	return e.localCacheServers[code]
 }
 
-func (e *engineImplementation) Redis(code ...string) RedisCache {
-	if len(code) == 0 {
-		return e.redisServers[DefaultPoolCode]
-	}
-	return e.redisServers[code[0]]
+func (e *engineImplementation) Redis(code string) RedisCache {
+	return e.redisServers[code]
 }
 
 func (er *engineRegistryImplementation) RedisPools() map[string]RedisCache {
@@ -103,16 +94,16 @@ func (er *engineRegistryImplementation) DBPools() map[string]DB {
 
 func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 	switch entity.(type) {
+	case Entity:
+		return er.entitySchemas[reflect.TypeOf(entity).Elem()]
+	case reflect.Type:
+		return er.entitySchemas[entity.(reflect.Type)]
 	case string:
 		t, has := er.entities[entity.(string)]
 		if !has {
 			return nil
 		}
 		return er.entitySchemas[t]
-	case Entity:
-		return er.entitySchemas[reflect.TypeOf(entity).Elem()]
-	case reflect.Type:
-		return er.entitySchemas[entity.(reflect.Type)]
 	}
 	return nil
 }

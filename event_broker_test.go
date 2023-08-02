@@ -20,7 +20,7 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	c := validatedRegistry.NewContext(context.Background())
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	broker := c.EventBroker()
 	flusher := c.Flusher()
 	type testEvent struct {
@@ -38,13 +38,13 @@ func TestRedisStreamGroupConsumerClean(t *testing.T) {
 
 	consumer1.Consume(1, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
-	assert.Equal(t, int64(10), c.Engine().Redis().XLen(c, "test-stream"))
+	assert.Equal(t, int64(10), c.Engine().Redis(DefaultPoolCode).XLen(c, "test-stream"))
 
 	consumer2.Consume(1, func(events []Event) {})
 	time.Sleep(time.Millisecond * 20)
 
 	RunLazyFlushConsumer(c, true)
-	assert.Equal(t, int64(0), c.Engine().Redis().XLen(c, "test-stream"))
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).XLen(c, "test-stream"))
 
 	for i := 1; i <= 10; i++ {
 		flusher.PublishToStream("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
@@ -66,7 +66,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	c := validatedRegistry.NewContext(context.Background())
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	broker := c.EventBroker()
 
 	consumer := broker.Consumer("test-group")
@@ -77,7 +77,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 		Name string
 	}
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	for i := 1; i <= 10; i++ {
 		c.EventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
@@ -111,7 +111,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	assert.True(t, consumed1)
 	assert.False(t, consumed2)
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	for i := 1; i <= 10; i++ {
 		c.EventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
@@ -146,7 +146,7 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 	assert.True(t, consumed1)
 	assert.True(t, consumed2)
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	for i := 1; i <= 10; i++ {
 		c.EventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
@@ -157,12 +157,12 @@ func TestRedisStreamGroupConsumerAutoScaled(t *testing.T) {
 			panic(errors.New("stop"))
 		})
 	})
-	pending := c.Engine().Redis().XPending(c, "test-stream", "test-group")
+	pending := c.Engine().Redis(DefaultPoolCode).XPending(c, "test-stream", "test-group")
 	assert.Len(t, pending.Consumers, 1)
 	assert.Equal(t, int64(3), pending.Consumers["consumer-1"])
 
 	consumer.Claim(1, 2)
-	pending = c.Engine().Redis().XPending(c, "test-stream", "test-group")
+	pending = c.Engine().Redis(DefaultPoolCode).XPending(c, "test-stream", "test-group")
 	assert.Len(t, pending.Consumers, 1)
 	assert.Equal(t, int64(3), pending.Consumers["consumer-2"])
 	consumer.Claim(7, 2)
@@ -186,7 +186,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	c := validatedRegistry.NewContext(context.Background())
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	broker := c.EventBroker()
 
 	consumer := broker.Consumer("test-group")
@@ -233,8 +233,8 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	time.Sleep(time.Millisecond * 20)
 	RunLazyFlushConsumer(c, true)
 	time.Sleep(time.Second)
-	assert.Equal(t, int64(0), c.Engine().Redis().XLen(c, "test-stream"))
-	assert.Equal(t, int64(0), c.Engine().Redis().XInfoGroups(c, "test-stream")[0].Pending)
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).XLen(c, "test-stream"))
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).XInfoGroups(c, "test-stream")[0].Pending)
 	iterations = 0
 	consumer.Consume(10, func(events []Event) {
 		iterations++
@@ -242,7 +242,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.Equal(t, 0, iterations)
 
-	c.Engine().Redis().XTrim(c, "test-stream", 0)
+	c.Engine().Redis(DefaultPoolCode).XTrim(c, "test-stream", 0)
 	for i := 11; i <= 20; i++ {
 		c.EventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
@@ -259,11 +259,11 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		}
 	})
 	assert.Equal(t, 2, iterations)
-	assert.Equal(t, int64(10), c.Engine().Redis().XLen(c, "test-stream"))
-	assert.Equal(t, int64(0), c.Engine().Redis().XInfoGroups(c, "test-stream")[0].Pending)
+	assert.Equal(t, int64(10), c.Engine().Redis(DefaultPoolCode).XLen(c, "test-stream"))
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).XInfoGroups(c, "test-stream")[0].Pending)
 	iterations = 0
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	for i := 1; i <= 10; i++ {
 		c.EventBroker().Publish("test-stream", testEvent{fmt.Sprintf("a%d", i)}, nil)
 	}
@@ -283,7 +283,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	})
 	assert.Equal(t, 2, iterations)
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	iterations = 0
 	messages := 0
 	valid := false
@@ -303,7 +303,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	assert.Equal(t, 2, iterations)
 	assert.Equal(t, 10, messages)
 
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	c = validatedRegistry.NewContext(ctx)
 	broker = c.EventBroker()
 	consumer = broker.Consumer("test-group")
@@ -317,7 +317,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 		valid = false
 	})
 	assert.True(t, valid)
-	c.Engine().Redis().Del(c, "test-stream")
+	c.Engine().Redis(DefaultPoolCode).Del(c, "test-stream")
 
 	type testStructEvent struct {
 		Name string
@@ -369,7 +369,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	ctxCancel, stop := context.WithCancel(context.Background())
 	defer stop()
 	c = validatedRegistry.NewContext(ctxCancel)
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	flusher = c.Flusher()
 	for i := 0; i < 100; i++ {
 		flusher.PublishToStream("test-stream", "a", nil)
@@ -393,7 +393,7 @@ func TestRedisStreamGroupConsumer(t *testing.T) {
 	ctxCancel, stop2 := context.WithCancel(context.Background())
 	defer stop2()
 	c = validatedRegistry.NewContext(context.Background())
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	flusher = c.Flusher()
 	flusher.PublishToStream("test-stream", "a", nil)
 	flusher.Flush()

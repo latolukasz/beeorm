@@ -14,7 +14,7 @@ type loadByIDBenchmarkEntity struct {
 	Decimal float32 `orm:"decimal=10,2"`
 }
 
-// BenchmarkLoadByIDLocalCache-10    	 6440548	       183.9 ns/op	       4 B/op	       1 allocs/op
+// BenchmarkLoadByIDLocalCache-10    	45233376	        26.50 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkLoadByIDLocalCache(b *testing.B) {
 	benchmarkLoadByIDCache(b, true, false)
 }
@@ -38,11 +38,9 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	entity.Float = 1.3
 	entity.Decimal = 12.23
 	c.Flusher().Track(entity).Flush()
-
 	GetByID[*loadByIDBenchmarkEntity](c, 1)
 	b.ResetTimer()
 	b.ReportAllocs()
-	c.EnableQueryDebug()
 	for n := 0; n < b.N; n++ {
 		GetByID[*loadByIDBenchmarkEntity](c, 1)
 	}

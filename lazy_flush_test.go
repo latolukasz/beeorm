@@ -30,7 +30,7 @@ func TestLazyFlush(t *testing.T) {
 	registry := &Registry{}
 	registry.RegisterEnum("TestEnum", []string{"a", "b", "c"})
 	c := PrepareTables(t, registry, 5, 6, "", entity, ref)
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 
 	e := &lazyReceiverEntity{Name: "John", Age: 18}
 	c.Flusher().Track(e).FlushLazy()
@@ -40,7 +40,7 @@ func TestLazyFlush(t *testing.T) {
 
 	RunLazyFlushConsumer(c, false)
 
-	c.Engine().LocalCache().Clear(c)
+	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
 	e = GetByID[*lazyReceiverEntity](c, 1)
 	assert.NotNil(t, e)
 	assert.Equal(t, "John", e.Name)
@@ -57,7 +57,7 @@ func TestLazyFlush(t *testing.T) {
 	assert.Equal(t, "Tom", e.Name)
 	assert.Equal(t, uint64(30), e.Age)
 
-	c.Engine().LocalCache().Clear(c)
+	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
 	e = GetByID[*lazyReceiverEntity](c, 1)
 	assert.NotNil(t, e)
 	assert.Equal(t, "John", e.Name)
@@ -140,20 +140,20 @@ func TestLazyFlush(t *testing.T) {
 	c.Flusher().Track(e).Flush()
 	c.Flusher().Delete(e).FlushLazy()
 	RunLazyFlushConsumer(c, false)
-	c.Engine().LocalCache().Clear(c)
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	e = GetByID[*lazyReceiverEntity](c, 100)
 	assert.Nil(t, e)
 	e2 = GetByID[*lazyReceiverEntity](c, 2)
 	e3 = GetByID[*lazyReceiverEntity](c, 3)
 	e2.Name = "John"
 	e3.Name = "Ivona"
-	c.Engine().DB().Begin(c)
+	c.Engine().DB(DefaultPoolCode).Begin(c)
 	c.Flusher().Track(e2, e3).FlushLazy()
-	c.Engine().DB().Commit(c)
+	c.Engine().DB(DefaultPoolCode).Commit(c)
 	RunLazyFlushConsumer(c, false)
-	c.Engine().LocalCache().Clear(c)
-	c.Engine().Redis().FlushDB(c)
+	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
 	e2 = GetByID[*lazyReceiverEntity](c, 2)
 	e3 = GetByID[*lazyReceiverEntity](c, 3)
 	assert.Equal(t, "John", e2.Name)

@@ -37,8 +37,10 @@ func testFakeDelete(t *testing.T, mySQLVersion int) {
 	var entity *fakeDeleteEntity
 	var entityNoFakeDelete *noFakeDeleteEntity
 	c := beeorm.PrepareTables(t, registry, mySQLVersion, 6, "", entity, entityNoFakeDelete)
-	c.Engine().DB().Query(c, "DROP TABLE `fakeDeleteEntity`")
-	c.Engine().DB().Query(c, "DROP TABLE `noFakeDeleteEntity`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Query(c, "DROP TABLE `fakeDeleteEntity`")
+	c.Engine().DB(beeorm.DefaultPoolCode).
+		Query(c, "DROP TABLE `noFakeDeleteEntity`")
 	alters := beeorm.GetAlters(c)
 	assert.Len(t, alters, 2)
 	if mySQLVersion == 5 {

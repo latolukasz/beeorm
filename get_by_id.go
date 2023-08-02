@@ -14,8 +14,8 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 	schema := GetEntitySchema[E](c)
 	idUint64 := uint64(id)
 	cacheLocal, hasLocalCache := schema.GetLocalCache()
+	return
 	cacheRedis, hasRedis := schema.GetRedisCache()
-	var cacheKey string
 	if hasLocalCache {
 		e, has := cacheLocal.Get(c, idUint64)
 		if has {
@@ -29,6 +29,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 			return
 		}
 	}
+	var cacheKey string
 	if hasRedis {
 		cacheKey = strconv.FormatUint(idUint64, 10)
 		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
@@ -55,7 +56,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 		}
 	}
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false, nil)
-	if found {
+	if !found {
 		if hasLocalCache {
 			cacheLocal.Set(c, idUint64, cacheNilValue)
 		}

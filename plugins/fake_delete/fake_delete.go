@@ -97,7 +97,7 @@ func (p *Plugin) PluginInterfaceTableSQLSchemaDefinition(_ beeorm.Context, sqlSc
 }
 
 func (p *Plugin) PluginInterfaceEntityFlushing(c beeorm.Context, event beeorm.EventEntityFlushing) {
-	schema := c.Engine().GetEntitySchema(event.EntityName())
+	schema := c.Engine().Registry().EntitySchema(event.EntityName())
 	if schema.GetPluginOption(PluginCode, hasFakeDeleteOption) != true {
 		return
 	}

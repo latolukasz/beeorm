@@ -54,7 +54,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 
 	c = engine.NewContext(context.Background())
-	cacheRedis := engine.Redis()
+	cacheRedis := engine.Redis(DefaultPoolCode)
 	cacheRedis.FlushDB(c)
 	cacheRedis = engine.Redis("default_queue")
 	cacheRedis.FlushDB(c)
@@ -66,7 +66,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		alter.Exec(c)
 	}
 
-	engine.DB().Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
+	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		eType := reflect.TypeOf(entity)
 		if eType.Kind() == reflect.Ptr {
@@ -80,7 +80,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 			cacheLocal.Clear(c)
 		}
 	}
-	engine.DB().Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
+	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
 	RunLazyFlushConsumer(c, true)
 	return c
 }
