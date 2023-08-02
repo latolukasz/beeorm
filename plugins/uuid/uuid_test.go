@@ -50,9 +50,9 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	var entity *uuidEntity
 	var referenceEntity *uuidReferenceEntity
 	c := beeorm.PrepareTables(t, registry, 8, 6, "", entity, referenceEntity)
-	c.Engine().DB(DefaultPoolCode).
+	c.Engine().DB(beeorm.DefaultPoolCode).
 		Query(c, "DROP TABLE `uuidReferenceEntity`")
-	c.Engine().DB(DefaultPoolCode).
+	c.Engine().DB(beeorm.DefaultPoolCode).
 		Query(c, "DROP TABLE `uuidEntity`")
 	alters := beeorm.GetAlters(c)
 	assert.Len(t, alters, 2)
@@ -116,7 +116,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	} else {
 		assert.Nil(t, beeorm.GetByID[*uuidEntity](c, id))
 	}
-	c.Engine().Redis(DefaultPoolCode).FlushAll(c)
+	c.Engine().Redis(beeorm.DefaultPoolCode).FlushAll(c)
 	localCache, hasLocalCache := schema.GetLocalCache()
 	if hasLocalCache {
 		localCache.Clear(c)
