@@ -44,7 +44,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
 
-	r := c.Engine().GetRedis()
+	r := c.Engine().Redis()
 
 	testLogger := &MockLogHandler{}
 	c.RegisterQueryLogger(testLogger, false, true, false)
@@ -352,7 +352,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	testLogger = &MockLogHandler{}
 	c.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
-		c.Engine().GetRedis().Get(c, "invalid")
+		c.Engine().Redis().Get(c, "invalid")
 	})
 
 	registry = &Registry{}
@@ -361,6 +361,6 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Nil(t, err)
 	c = validatedRegistry.NewContext(context.Background())
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
-		c.Engine().GetRedis().Incr(c, "test")
+		c.Engine().Redis().Incr(c, "test")
 	})
 }

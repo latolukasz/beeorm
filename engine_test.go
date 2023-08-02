@@ -35,12 +35,12 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.NoError(t, err)
 	source := validated.Registry()
 	assert.NotNil(t, source)
-	entities := validated.GetEntities()
+	entities := validated.Registry().Entities()
 	assert.Len(t, entities, 1)
 	assert.Equal(t, reflect.TypeOf(validatedRegistryEntity{}), entities["beeorm.validatedRegistryEntity"])
-	assert.Nil(t, validated.GetEntitySchema("invalid"))
+	assert.Nil(t, validated.Registry().EntitySchema("invalid"))
 
-	enum := validated.GetEnum("enum_map")
+	enum := validated.Registry().Enum("enum_map")
 	assert.Equal(t, []string{"a", "b"}, enum.GetFields())
 	assert.Equal(t, "b", enum.GetDefault())
 	assert.True(t, enum.Has("a"))
@@ -49,13 +49,13 @@ func TestValidatedRegistry(t *testing.T) {
 	registry.RegisterEnum("enum_map", []string{"a", "b"})
 	validated, err = registry.Validate()
 	assert.NoError(t, err)
-	enum = validated.GetEnum("enum_map")
+	enum = validated.Registry().Enum("enum_map")
 	assert.Equal(t, []string{"a", "b"}, enum.GetFields())
 	assert.Equal(t, "a", enum.GetDefault())
 	assert.True(t, enum.Has("a"))
 	assert.False(t, enum.Has("c"))
 
-	mysqlPools := validated.GetMySQLPools()
+	mysqlPools := validated.Registry().DBPools()
 	assert.Len(t, mysqlPools, 1)
 	assert.NotNil(t, mysqlPools["default"])
 	assert.Equal(t, "default", mysqlPools["default"].GetPoolConfig().GetCode())
@@ -63,7 +63,7 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, 5, mysqlPools["default"].GetPoolConfig().GetVersion())
 	assert.Equal(t, "root:root@tcp(localhost:3311)/test", mysqlPools["default"].GetPoolConfig().GetDataSourceURI())
 
-	localCachePools := validated.GetLocalCachePools()
+	localCachePools := validated.Registry().LocalCachePools()
 	assert.Len(t, localCachePools, 2)
 	assert.NotNil(t, localCachePools["default"])
 	assert.NotNil(t, localCachePools["another"])
@@ -73,10 +73,10 @@ func TestValidatedRegistry(t *testing.T) {
 	assert.Equal(t, 50, localCachePools["another"].GetPoolConfig().GetLimit())
 
 	assert.PanicsWithError(t, "entity 'beeorm.validatedRegistryNotRegisteredEntity' is not registered", func() {
-		validated.GetEntitySchema(&validatedRegistryNotRegisteredEntity{})
+		validated.Registry().EntitySchema(&validatedRegistryNotRegisteredEntity{})
 	})
 
-	usage := validated.GetEntitySchema(entity).GetUsage(validated)
+	usage := validated.Registry().EntitySchema(entity).GetUsage(validated)
 	assert.NotNil(t, usage)
 	assert.Len(t, usage, 1)
 	for _, data := range usage {

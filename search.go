@@ -165,7 +165,8 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 }
 
 func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema) *Where {
-	for _, plugin := range c.Engine().Registry().plugins {
+	for _, pluginCode := range c.Engine().Registry().Plugins() {
+		plugin := c.Engine().Registry().Plugin(pluginCode)
 		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
 		if isInterfaceEntitySearch {
 			where = interfaceEntitySearch.PluginInterfaceEntitySearch(c, schema, where)
@@ -220,7 +221,7 @@ func searchIDs(c Context, entity reflect.Type, where *Where, pager *Pager, withC
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := c.Engine().GetEntitySchema(entity)
+	schema := c.Engine().Registry().EntitySchema(entity)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
@@ -285,7 +286,7 @@ func getEntitySchemaForSlice(engine Engine, sliceType reflect.Type, checkIsSlice
 	} else if checkIsSlice {
 		panic(fmt.Errorf("interface %s is not slice of beeorm.Entity", sliceType.String()))
 	}
-	schema := engine.GetEntitySchema(name)
+	schema := engine.Registry().EntitySchema(name)
 	if schema == nil {
 		return nil, false, name
 	}

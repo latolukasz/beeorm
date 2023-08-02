@@ -54,11 +54,11 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 	}
 
 	c = engine.NewContext(context.Background())
-	cacheRedis := engine.GetRedis()
+	cacheRedis := engine.Redis()
 	cacheRedis.FlushDB(c)
-	cacheRedis = engine.GetRedisByCode("default_queue")
+	cacheRedis = engine.RedisByCode("default_queue")
 	cacheRedis.FlushDB(c)
-	redisSearch := engine.GetRedisByCode("search")
+	redisSearch := engine.RedisByCode("search")
 	redisSearch.FlushDB(c)
 
 	alters := GetAlters(c)
@@ -66,13 +66,13 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 		alter.Exec(c)
 	}
 
-	engine.GetMySQL().Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
+	engine.DB().Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		eType := reflect.TypeOf(entity)
 		if eType.Kind() == reflect.Ptr {
 			eType = eType.Elem()
 		}
-		schema := c.Engine().GetEntitySchema(eType)
+		schema := c.Engine().Registry().EntitySchema(eType)
 		schema.TruncateTable(c)
 		schema.UpdateSchema(c)
 		cacheLocal, has := schema.GetLocalCache()
@@ -80,7 +80,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 			cacheLocal.Clear(c)
 		}
 	}
-	engine.GetMySQL().Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
+	engine.DB().Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
 	RunLazyFlushConsumer(c, true)
 	return c
 }

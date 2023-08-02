@@ -46,7 +46,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
 	c := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity)
-	schema := c.Engine().GetEntitySchema(entity)
+	schema := c.Engine().Registry().EntitySchema(entity)
 	assert.Equal(t, 2000, schema.(*entitySchema).localCacheLimit)
 	schema.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {
@@ -196,7 +196,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, "Name 4", rows[1].ReferenceOne.Name)
 	assert.Equal(t, "Name 5", rows[2].ReferenceOne.Name)
 
-	c.Engine().GetLocalCache().Clear(c)
+	c.Engine().LocalCache().Clear(c)
 	totalRows = CachedSearch(c, &rows, "IndexAge", nil, 10)
 	assert.EqualValues(t, 3, totalRows)
 

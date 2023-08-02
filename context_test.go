@@ -11,12 +11,12 @@ func TestEngine(t *testing.T) {
 	source := c.Engine().Registry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {
-		c.Engine().GetMySQLByCode("test")
+		c.Engine().DBByCode("test")
 	})
 	assert.PanicsWithError(t, "unregistered local cache pool 'test'", func() {
-		c.Engine().GetLocalCacheByCode("test")
+		c.Engine().LocalCacheByCode("test")
 	})
 	assert.PanicsWithError(t, "unregistered redis cache pool 'test'", func() {
-		c.Engine().GetRedisByCode("test")
+		c.Engine().RedisByCode("test")
 	})
 }

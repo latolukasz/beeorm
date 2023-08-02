@@ -16,8 +16,8 @@ func TestRegisterRedisSentinelWithOptions(t *testing.T) {
 	sentinels := []string{"127.0.0.1:23", "127.0.0.1:24"}
 
 	registry.RegisterRedisSentinelWithOptions("my_namespace", opt, 0, sentinels)
-	vRegistry, err := registry.Validate()
+	engine, err := registry.Validate()
 	assert.NoError(t, err)
-	pools := vRegistry.GetRedisPools()
+	pools := engine.Registry().RedisPools()
 	assert.Len(t, pools, 1)
 }

@@ -87,15 +87,15 @@ func testLoadByID(t *testing.T, local, redis bool) {
 		subReference2, reference2)
 
 	schemas := make([]EntitySchema, 0)
-	registry := c.Engine()
-	schemas = append(schemas, registry.GetEntitySchema(entity))
-	schemas = append(schemas, registry.GetEntitySchema(entityRedis))
-	schemas = append(schemas, registry.GetEntitySchema(entityLocal))
-	schemas = append(schemas, registry.GetEntitySchema(entityNoCache))
-	schemas = append(schemas, registry.GetEntitySchema(reference))
-	schemas = append(schemas, registry.GetEntitySchema(reference2))
-	schemas = append(schemas, registry.GetEntitySchema(subReference2))
-	schemas = append(schemas, registry.GetEntitySchema(subReference))
+	registry := c.Engine().Registry()
+	schemas = append(schemas, registry.EntitySchema(entity))
+	schemas = append(schemas, registry.EntitySchema(entityRedis))
+	schemas = append(schemas, registry.EntitySchema(entityLocal))
+	schemas = append(schemas, registry.EntitySchema(entityNoCache))
+	schemas = append(schemas, registry.EntitySchema(reference))
+	schemas = append(schemas, registry.EntitySchema(reference2))
+	schemas = append(schemas, registry.EntitySchema(subReference2))
+	schemas = append(schemas, registry.EntitySchema(subReference))
 
 	for _, schema := range schemas {
 		schema.DisableCache(!local, !redis)
@@ -108,7 +108,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	c.Flusher().Track(e,
 		&loadByIDEntity{Name: "b", ReferenceOne: &loadByIDReference{Name: "r2", ReferenceTwo: &loadByIDSubReference{Name: "s2"}}},
 		&loadByIDEntity{Name: "c"}, &loadByIDNoCacheEntity{Name: "a"}, &loadByIDLocalEntity{}).Flush()
-	c.Engine().GetLocalCache().Clear(c)
+	c.Engine().LocalCache().Clear(c)
 
 	id := e.GetID()
 	c.EnableQueryDebug()
@@ -173,7 +173,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 
 	if local && redis {
 		GetByID[*loadByIDLocalEntity](c, 999)
-		c.Engine().GetLocalCache().Clear(c)
+		c.Engine().LocalCache().Clear(c)
 		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 1)
 		assert.NotNil(t, entityLocalCache)
 		entityLocalCache = GetByID[*loadByIDLocalEntity](c, 999)

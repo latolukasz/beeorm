@@ -17,7 +17,7 @@ func TestRedisStreamsStatus(t *testing.T) {
 	validatedRegistry, err := registry.Validate()
 	assert.NoError(t, err)
 	c := validatedRegistry.NewContext(context.Background())
-	r := c.Engine().GetRedis()
+	r := c.Engine().Redis()
 	r.FlushDB(c)
 
 	stats := c.EventBroker().GetStreamsStatistics()
@@ -62,9 +62,9 @@ func TestRedisStreamsStatus(t *testing.T) {
 	consumer := c.EventBroker().Consumer("test-group")
 	consumer.SetBlockTime(0)
 	consumer.Consume(11000, func(events []Event) {
-		c.Engine().GetRedis().Get(c, "hello")
-		c.Engine().GetRedis().Get(c, "hello2")
-		c.Engine().GetMySQL().Query(c, "SELECT 1")
+		c.Engine().Redis().Get(c, "hello")
+		c.Engine().Redis().Get(c, "hello2")
+		c.Engine().DB().Query(c, "SELECT 1")
 		time.Sleep(time.Millisecond * 100)
 	})
 
