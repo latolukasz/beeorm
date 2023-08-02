@@ -115,7 +115,7 @@ func testSchema(t *testing.T, version int) {
 
 	cDrop := PrepareTables(t, &Registry{}, version, 6, "")
 	for _, alter := range GetAlters(cDrop) {
-		cDrop.Engine().DBByCode(alter.Pool).Exec(cDrop, alter.SQL)
+		cDrop.Engine().DB(alter.Pool).Exec(cDrop, alter.SQL)
 	}
 	cDrop.Engine().DB().Exec(cDrop, "DROP TABLE IF EXISTS `TestDropTable`")
 
@@ -133,7 +133,7 @@ func testSchema(t *testing.T, version int) {
 	}
 
 	for _, alter := range alters {
-		cDrop.Engine().DBByCode(alter.Pool).Exec(c, alter.SQL)
+		cDrop.Engine().DB(alter.Pool).Exec(c, alter.SQL)
 	}
 
 	c.Engine().DB().Exec(c, "ALTER TABLE `schemaEntity` ENGINE=InnoDB CHARSET=utf8")

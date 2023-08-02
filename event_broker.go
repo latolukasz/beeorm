@@ -119,7 +119,7 @@ func (eb *eventBroker) Publish(stream string, body interface{}, meta Meta) (id s
 	if code == "" {
 		panic(fmt.Errorf("unregistered stream %s", stream))
 	}
-	return eb.c.Engine().RedisByCode(code).xAdd(eb.c, stream, createEventSlice(body, meta))
+	return eb.c.Engine().Redis(code).xAdd(eb.c, stream, createEventSlice(body, meta))
 }
 
 type EventConsumerHandler func(events []Event)
@@ -139,7 +139,7 @@ func (eb *eventBroker) Consumer(group string) EventsConsumer {
 	redisPool := eb.c.Engine().Registry().getRedisPoolForStream(streams[0])
 	return &eventsConsumer{
 		eventConsumerBase: eventConsumerBase{c: eb.c, block: true, blockTime: time.Second * 30},
-		redis:             eb.c.Engine().RedisByCode(redisPool).(*redisCache),
+		redis:             eb.c.Engine().Redis(redisPool).(*redisCache),
 		streams:           streams,
 		group:             group,
 		lockTTL:           time.Second * 90,

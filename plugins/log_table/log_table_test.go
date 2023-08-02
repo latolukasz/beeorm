@@ -56,9 +56,9 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	registry.RegisterPlugin(Init(nil))
 	c := beeorm.PrepareTables(t, registry, MySQLVersion, 7, "", entity1, entity2, entity3, entity4)
 	assert.Len(t, beeorm.GetAlters(c), 0)
-	c.Engine().DBByCode("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity1`")
+	c.Engine().DB("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity1`")
 	c.Engine().DB().Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity2`")
-	c.Engine().DBByCode("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity3`")
+	c.Engine().DB("log").Exec(c, "TRUNCATE TABLE `_log_default_logReceiverEntity3`")
 	c.Engine().Redis().FlushDB(c)
 
 	e1 := &logReceiverEntity1{Name: "John", LastName: "Smith", Country: "Poland"}
@@ -169,7 +169,7 @@ func testLogReceiver(t *testing.T, MySQLVersion int) {
 	beeorm.GetByID[*logReceiverEntity1](c, 2)
 	e1.LastName = "Winter"
 	c.Flusher().Track(e1).Flush()
-	c.Engine().DBByCode("log").Exec(c, "DROP TABLE `_log_default_logReceiverEntity1`")
+	c.Engine().DB("log").Exec(c, "DROP TABLE `_log_default_logReceiverEntity1`")
 	assert.NotPanics(t, func() {
 		consumer.Consume(100, NewEventHandler(c))
 	})

@@ -93,7 +93,7 @@ func (ti *IndexSchemaDefinition) SetColumns(columns []string) {
 }
 
 func (a Alter) Exec(c Context) {
-	c.Engine().DBByCode(a.Pool).Exec(c, a.SQL)
+	c.Engine().DB(a.Pool).Exec(c, a.SQL)
 }
 
 func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
@@ -124,7 +124,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 			if !has {
 				_, has = c.Engine().Registry().getDBTables()[poolName][tableName]
 				if !has {
-					pool := c.Engine().DBByCode(poolName)
+					pool := c.Engine().DB(poolName)
 					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), tableName)
 					isEmpty := isTableEmptyInPool(c, poolName, tableName)
 					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
@@ -139,7 +139,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 }
 
 func isTableEmptyInPool(c Context, poolName string, tableName string) bool {
-	return isTableEmpty(c.Engine().DBByCode(poolName).GetDBClient(), tableName)
+	return isTableEmpty(c.Engine().DB(poolName).GetDBClient(), tableName)
 }
 
 func getAllTables(db DBClient) []string {

@@ -229,21 +229,21 @@ func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
 }
 
 func (entitySchema *entitySchema) GetMysql() DB {
-	return entitySchema.engine.DBByCode(entitySchema.mysqlPoolCode)
+	return entitySchema.engine.DB(entitySchema.mysqlPoolCode)
 }
 
 func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.LocalCacheByCode(entitySchema.cacheKey), true
+	return entitySchema.engine.LocalCache(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.RedisByCode(entitySchema.cacheKey), true
+	return entitySchema.engine.Redis(entitySchema.cacheKey), true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {

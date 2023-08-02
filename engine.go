@@ -33,12 +33,9 @@ type EngineRegistry interface {
 
 type Engine interface {
 	NewContext(parent context.Context) Context
-	DB() DB
-	DBByCode(code string) DB
-	LocalCache() LocalCache
-	LocalCacheByCode(code string) LocalCache
-	Redis() RedisCache
-	RedisByCode(code string) RedisCache
+	DB(code ...string) DB
+	LocalCache(code ...string) LocalCache
+	Redis(code ...string) RedisCache
 	Registry() EngineRegistry
 }
 
@@ -71,28 +68,25 @@ func (e *engineImplementation) Registry() EngineRegistry {
 	return e.registry
 }
 
-func (e *engineImplementation) DB() DB {
-	return e.dbServers[defaultDatabaseSourceCode]
+func (e *engineImplementation) DB(code ...string) DB {
+	if len(code) == 0 {
+		return e.dbServers[defaultDatabaseSourceCode]
+	}
+	return e.dbServers[code[0]]
 }
 
-func (e *engineImplementation) DBByCode(code string) DB {
-	return e.dbServers[code]
+func (e *engineImplementation) LocalCache(code ...string) LocalCache {
+	if len(code) == 0 {
+		return e.localCacheServers[defaultDatabaseSourceCode]
+	}
+	return e.localCacheServers[code[0]]
 }
 
-func (e *engineImplementation) LocalCache() LocalCache {
-	return e.localCacheServers[defaultDatabaseSourceCode]
-}
-
-func (e *engineImplementation) LocalCacheByCode(code string) LocalCache {
-	return e.localCacheServers[code]
-}
-
-func (e *engineImplementation) Redis() RedisCache {
-	return e.redisServers[defaultDatabaseSourceCode]
-}
-
-func (e *engineImplementation) RedisByCode(code string) RedisCache {
-	return e.redisServers[code]
+func (e *engineImplementation) Redis(code ...string) RedisCache {
+	if len(code) == 0 {
+		return e.redisServers[defaultDatabaseSourceCode]
+	}
+	return e.redisServers[code[0]]
 }
 
 func (er *engineRegistryImplementation) RedisPools() map[string]RedisCache {

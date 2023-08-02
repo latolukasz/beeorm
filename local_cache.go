@@ -149,7 +149,7 @@ func (lc *localCacheSetter) flush(c Context) {
 	if lc.setKeys == nil && lc.removes == nil {
 		return
 	}
-	cache := lc.engine.LocalCacheByCode(lc.code)
+	cache := lc.engine.LocalCache(lc.code)
 	for i, key := range lc.setKeys {
 		cache.Set(c, key, lc.setValues[i])
 	}

@@ -42,7 +42,7 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	assert.Equal(t, PluginCode, c.Engine().Registry().Plugins()[0])
 	cDrop := beeorm.PrepareTables(t, &beeorm.Registry{}, mySQLVersion, 6, "")
 	for _, alter := range beeorm.GetAlters(cDrop) {
-		cDrop.Engine().DBByCode(alter.Pool).Exec(cDrop, alter.SQL)
+		cDrop.Engine().DB(alter.Pool).Exec(cDrop, alter.SQL)
 	}
 	alters := beeorm.GetAlters(c)
 	assert.Len(t, alters, 3)
@@ -56,7 +56,7 @@ func testForeignKeys(t *testing.T, mySQLVersion int) {
 	assert.Equal(t, "ALTER TABLE `test`.`foreignKeyEntity`\nADD CONSTRAINT `test:foreignKeyEntity:MyRef2` FOREIGN KEY (`MyRef2`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT,\nADD CONSTRAINT `test:foreignKeyEntity:MyRef` FOREIGN KEY (`MyRef`) REFERENCES `test`.`foreignKeyReferenceEntity` (`ID`) ON DELETE RESTRICT;", alters[2].SQL)
 
 	for _, alter := range alters {
-		cDrop.Engine().DBByCode(alter.Pool).Exec(cDrop, alter.SQL)
+		cDrop.Engine().DB(alter.Pool).Exec(cDrop, alter.SQL)
 	}
 
 	alters = beeorm.GetAlters(c)
