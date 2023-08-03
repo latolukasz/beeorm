@@ -94,7 +94,7 @@ type EntitySchema interface {
 	UpdateSchema(c Context)
 	UpdateSchemaAndTruncateTable(c Context)
 	GetDB() DB
-	GetLocalCache() (cache LocalCache, has bool)
+	GetLocalCache() (cache LocalEntityCache, has bool)
 	GetRedisCache() (cache RedisCache, has bool)
 	GetReferences() []EntitySchemaReference
 	GetColumns() []string
@@ -138,7 +138,7 @@ type entitySchema struct {
 	uniqueIndicesGlobal        map[string][]string
 	references                 []EntitySchemaReference
 	hasLocalCache              bool
-	localCacheLimit            int
+	localCache                 *localEntityCache
 	redisCacheName             string
 	hasRedisCache              bool
 	searchCacheName            string
@@ -231,11 +231,11 @@ func (entitySchema *entitySchema) GetDB() DB {
 	return entitySchema.engine.DB(entitySchema.mysqlPoolCode)
 }
 
-func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
+func (entitySchema *entitySchema) GetLocalCache() (cache LocalEntityCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.LocalCache(entitySchema.cacheKey), true
+	return entitySchema.localCache, true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
@@ -519,7 +519,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 			limit = userLimit
 		}
-		entitySchema.localCacheLimit = limit
+		entitySchema.localCache = newLocalEntityCache(entitySchema, limit, limit)
 	}
 	entitySchema.redisCacheName = redisCacheName
 	entitySchema.hasRedisCache = redisCacheName != ""
@@ -686,7 +686,6 @@ func (entitySchema *entitySchema) GetCacheKey() string {
 
 func (entitySchema *entitySchema) DisableCache(local, redis bool) {
 	if local {
-		entitySchema.localCacheLimit = 0
 		entitySchema.hasLocalCache = false
 	}
 	if redis {

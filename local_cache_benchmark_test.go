@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -17,9 +18,13 @@ func BenchmarkLocalCacheGet(b *testing.B) {
 	lc := c.Engine().LocalCache(DefaultPoolCode)
 	lc.Set(c, 1, "test")
 
+	cache := map[uint64]reflect.Value{}
+	cache[1] = reflect.ValueOf(lc)
+
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
+		_ = cache[1]
 		lc.Get(c, 1)
 	}
 }

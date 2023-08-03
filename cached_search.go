@@ -73,7 +73,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	var nilsKeys []string
 	if hasLocalCache {
 		nilsKeys = make([]string, 0)
-		fromCacheLocal, hasInLocalCache := cacheLocal.Get(c, cacheKey)
+		fromCacheLocal, hasInLocalCache := cacheLocal.getQuery(c, cacheKey)
 		if hasInLocalCache {
 			fromCache = map[string]interface{}{"1": fromCacheLocal}
 		} else {
@@ -176,7 +176,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 			values = append(values, filledPages[v]...)
 			fields[v] = values
 		}
-		cacheLocal.Set(c, cacheKey, fields["1"])
+		cacheLocal.addQuery(c, cacheKey, fields["1"].([]uint64))
 	}
 
 	resultsIDs := make([]uint64, 0)
@@ -246,7 +246,7 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters()...)
 	var fromCache map[string]interface{}
 	if hasLocalCache {
-		fromLocalCache, hasInLocalCache := cacheLocal.Get(c, cacheKey)
+		fromLocalCache, hasInLocalCache := cacheLocal.getQuery(c, cacheKey)
 		if hasInLocalCache {
 			fromCache = map[string]interface{}{"1": fromLocalCache}
 		} else {
@@ -260,15 +260,15 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	if fromCache["1"] == nil {
 		results, _ := searchIDs(c, entityType, where, NewPager(1, 1), false)
 		l := len(results)
-		value := strconv.Itoa(l)
-		if l > 0 {
-			id = results[0]
-			value += " " + strconv.FormatUint(results[0], 10)
-		}
 		if hasLocalCache {
-			cacheLocal.Set(c, cacheKey, value)
+			cacheLocal.addQuery(c, cacheKey, results)
 		}
 		if hasRedis {
+			value := strconv.Itoa(l)
+			if l > 0 {
+				id = results[0]
+				value += " " + strconv.FormatUint(results[0], 10)
+			}
 			cacheRedis.HSet(c, cacheKey, "1", value)
 		}
 	} else {
