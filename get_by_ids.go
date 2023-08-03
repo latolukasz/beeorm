@@ -47,7 +47,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 			}
 		}
 	}
-	if foundInCache < len(ids) && hasRedisCache {
+	if hasRedisCache && foundInCache < len(ids) {
 		redisHSetKeys := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		fromRedisAll := cacheRedis.hMGetUints(c, schema.GetCacheKey(), redisHSetKeys...)
 		if foundInCache == 0 {
@@ -92,8 +92,8 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 			}
 		}
 	}
-	var redisHSetValues []interface{}
 	if foundInCache < len(ids) {
+		var redisHSetValues []interface{}
 		dbIDs := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		idsQuery := strings.ReplaceAll(fmt.Sprintf("%v", dbIDs), " ", ",")[1:]
 		query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (" + idsQuery[:len(idsQuery)-1] + ")"

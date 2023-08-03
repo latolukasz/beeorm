@@ -119,7 +119,7 @@ func testUUID(t *testing.T, local bool, redis bool) {
 	c.Engine().Redis(beeorm.DefaultPoolCode).FlushAll(c)
 	localCache, hasLocalCache := schema.GetLocalCache()
 	if hasLocalCache {
-		localCache.Clear()
+		localCache.Clear(c)
 	}
 	assert.Nil(t, beeorm.GetByID[*uuidEntity](c, id))
 

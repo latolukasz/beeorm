@@ -85,15 +85,13 @@ func (lc *localCache) GetSet(c Context, key interface{}, ttl time.Duration, prov
 }
 
 func (lc *localCache) Get(c Context, key interface{}) (value interface{}, ok bool) {
-	func() {
-		lc.mutex.Lock()
-		defer lc.mutex.Unlock()
-		value, ok = lc.config.lru.Get(key)
-	}()
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %v", key), !ok)
 	}
+	lc.mutex.Lock()
+	defer lc.mutex.Unlock()
+	value, ok = lc.config.lru.Get(key)
 	return
 }
 
