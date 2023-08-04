@@ -47,6 +47,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	var entityRef *cachedSearchRefEntity
 	c := PrepareTables(t, &Registry{}, 5, 6, "", entityRef, entity)
 	schema := c.Engine().Registry().EntitySchema(entity)
+	assert.Equal(t, 2000, schema.(*entitySchema).localCacheLimit)
 	schema.DisableCache(!localCache, !redisCache)
 	for i := 1; i <= 5; i++ {
 		c.Flusher().Track(&cachedSearchRefEntity{Name: "Name " + strconv.Itoa(i)}).Flush()

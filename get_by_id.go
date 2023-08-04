@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"reflect"
 	"strconv"
 )
 
@@ -13,14 +14,15 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 	schema := GetEntitySchema[E](c)
 	idUint64 := uint64(id)
 	cacheLocal, hasLocalCache := schema.GetLocalCache()
+	return
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	if hasLocalCache {
-		e, has := cacheLocal.get(c, idUint64)
+		e, has := cacheLocal.Get(c, idUint64)
 		if has {
-			if e.IsZero() {
+			if e == cacheNilValue {
 				return
 			}
-			entity = e.Interface().(E)
+			entity = e.(reflect.Value).Interface().(E)
 			//if len(references) > 0 {
 			//	warmUpReferences(c, schema, orm.value, references, false)
 			//}
@@ -34,7 +36,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 		if has {
 			if row == cacheNilValue {
 				if hasLocalCache {
-					cacheLocal.addNil(c, idUint64)
+					cacheLocal.Set(c, idUint64, cacheNilValue)
 				}
 				return
 			}
@@ -48,7 +50,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 			//	warmUpReferences(c, schema, orm.value, references, false)
 			//}
 			if hasLocalCache {
-				cacheLocal.add(c, idUint64, entity.getORM().value)
+				cacheLocal.Set(c, idUint64, entity.getORM().value)
 			}
 			return
 		}
@@ -56,7 +58,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false, nil)
 	if !found {
 		if hasLocalCache {
-			cacheLocal.addNil(c, idUint64)
+			cacheLocal.Set(c, idUint64, cacheNilValue)
 		}
 		if hasRedis {
 			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)
@@ -64,7 +66,7 @@ func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ..
 		return
 	}
 	if hasLocalCache {
-		cacheLocal.add(c, idUint64, entity.getORM().value)
+		cacheLocal.Set(c, cacheKey, entity.getORM().value)
 	}
 	if hasRedis {
 		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(entity.getORM().binary))
