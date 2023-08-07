@@ -35,10 +35,10 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 	hasCacheNils := false
 	if hasLocalCache {
 		for i, id := range ids {
-			fromLocalCache, hasInLocalCache := cacheLocal.Get(c, id)
+			fromLocalCache, hasInLocalCache := cacheLocal.getEntity(c, id)
 			if hasInLocalCache {
-				resultsSlice.Index(i).Set(fromLocalCache.(reflect.Value))
-				if fromLocalCache == cacheNilValue {
+				if fromLocalCache == emptyReflect {
+					resultsSlice.Index(i).Set(fromLocalCache)
 					hasMissing = true
 					hasCacheNils = true
 				}
@@ -75,13 +75,13 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 							if fromRedisCache != cacheNilValue {
 								fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
 								if hasLocalCache {
-									cacheLocal.Set(c, id, entity.getORM().copyBinary())
+									cacheLocal.setEntity(c, id, entity.getORM().value)
 								}
 							} else {
 								hasMissing = true
 								hasCacheNils = true
 								if hasLocalCache {
-									cacheLocal.Set(c, id, cacheNilValue)
+									cacheLocal.setEntity(c, id, emptyReflect)
 								}
 							}
 							foundInCache++
@@ -112,7 +112,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 				}
 			}
 			if hasLocalCache {
-				cacheLocal.Set(c, id, entity.getORM().value)
+				cacheLocal.setEntity(c, id, entity.getORM().value)
 			}
 			if hasRedisCache {
 				if len(ids) == 1 {
@@ -134,7 +134,7 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 						break
 					}
 					if hasLocalCache {
-						cacheLocal.Set(c, id, cacheNilValue)
+						cacheLocal.setEntity(c, id, emptyReflect)
 					}
 					if hasRedisCache {
 						cacheRedis.HSet(c, schema.GetCacheKey(), id, cacheNilValue)

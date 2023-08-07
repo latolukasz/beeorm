@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 )
 
 const DefaultPoolCode = "default"
@@ -98,11 +99,15 @@ func (er *engineRegistryImplementation) DBPools() map[string]DB {
 func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 	switch entity.(type) {
 	case Entity:
-		return er.entitySchemas[reflect.TypeOf(entity).Elem()]
+		return er.entitySchemas[reflect.TypeOf(entity)]
 	case reflect.Type:
 		return er.entitySchemas[entity.(reflect.Type)]
 	case string:
-		t, has := er.entities[entity.(string)]
+		name := entity.(string)
+		if strings.HasPrefix(name, "*") {
+			name = name[1:]
+		}
+		t, has := er.entities[name]
 		if !has {
 			return nil
 		}

@@ -5,7 +5,7 @@ func ClearCacheByIDs[E Entity](c Context, ids ...uint64) {
 	localPool, has := schema.GetLocalCache()
 	if has {
 		for _, id := range ids {
-			localPool.Remove(c, id)
+			localPool.removeEntity(c, id)
 		}
 	}
 	redisPool, has := schema.GetRedisCache()

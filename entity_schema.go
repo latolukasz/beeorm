@@ -14,10 +14,11 @@ import (
 type CachedQuery struct{}
 
 func GetEntitySchema[E Entity](c Context) EntitySchema {
+	ci := c.(*contextImplementation)
 	var entity E
-	schema := c.Engine().Registry().EntitySchema(entity)
-	if schema == nil {
-		panic(fmt.Errorf("entity '%v' is not registered", entity))
+	schema, has := ci.engine.registry.entitySchemas[reflect.TypeOf(entity)]
+	if !has {
+		panic(fmt.Errorf("entity '%T' is not registered", entity))
 	}
 	return schema
 }
@@ -138,6 +139,7 @@ type entitySchema struct {
 	uniqueIndicesGlobal        map[string][]string
 	references                 []EntitySchemaReference
 	hasLocalCache              bool
+	localCache                 *localCache
 	localCacheLimit            int
 	redisCacheName             string
 	hasRedisCache              bool
@@ -235,7 +237,7 @@ func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
 	if !entitySchema.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.engine.LocalCache(entitySchema.cacheKey), true
+	return entitySchema.localCache, true
 }
 
 func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
@@ -313,7 +315,7 @@ func (entitySchema *entitySchema) getUsage(fields *tableFields, t reflect.Type, 
 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
-	entitySchema.tags = extractTags(registry, entityType, "")
+	entitySchema.tags = extractTags(registry, entityType.Elem(), "")
 	references := make([]EntitySchemaReference, 0)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
@@ -322,7 +324,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	if !has {
 		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolCode)
 	}
-	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
+	entitySchema.tableName = entitySchema.getTag("table", entityType.Elem().Name(), entityType.Elem().Name())
 	localCacheLimit := entitySchema.getTag("localCache", DefaultPoolCode, "")
 	redisCacheName := entitySchema.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
@@ -489,7 +491,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 1, "", entitySchema.tags)
+	entitySchema.fields = entitySchema.buildTableFields(entityType.Elem(), registry, 1, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
 	if len(entitySchema.fieldsQuery) > 0 {
 		entitySchema.fieldsQuery = entitySchema.fieldsQuery[1:]

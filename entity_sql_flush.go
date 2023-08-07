@@ -141,7 +141,7 @@ func newEntitySQLFlushBuilder(orm *ORM, forceFillOld bool) *entityFlushBuilder {
 	schema := orm.entitySchema
 	flushData := &entitySQLFlush{}
 	flushData.Action = action
-	flushData.Entity = schema.GetType().String()
+	flushData.Entity = schema.GetType().Elem().String()
 	flushData.ID = orm.GetID()
 	flushData.TempID = uint64(orm.value.Pointer())
 	b := &entityFlushBuilder{

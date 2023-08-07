@@ -21,16 +21,6 @@ func TestLocalCache(t *testing.T) {
 	lc := c.Engine().LocalCache(DefaultPoolCode)
 	assert.Equal(t, DefaultPoolCode, lc.GetPoolConfig().GetCode())
 	assert.Equal(t, 100, lc.GetPoolConfig().GetLimit())
-	val := lc.GetSet(c, "test_get_set", 10, func() interface{} {
-		return "hello"
-	})
-	assert.Equal(t, "hello", val)
-	assert.Len(t, testLogger.Logs, 2)
-	val = lc.GetSet(c, "test_get_set", 10, func() interface{} {
-		return "hello2"
-	})
-	assert.Equal(t, "hello", val)
-	assert.Len(t, testLogger.Logs, 3)
 
 	val, has := lc.Get(c, "test_get")
 	assert.False(t, has)

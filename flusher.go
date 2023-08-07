@@ -642,7 +642,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			if lazy {
 				e.entity.getORM().serialize(f.c.getSerializer())
 				if hasLocalCache {
-					f.GetLocalCacheSetter(cacheLocal.GetPoolConfig().GetCode()).Set(f.c, e.ID, e.entity.getORM().value)
+					f.GetLocalCacheSetter(cacheLocal.GetPoolConfig().GetCode()).setEntity(f.c, e.ID, e.entity.getORM().value)
 				}
 				if hasRedis {
 					f.GetRedisCacheSetter(cacheRedis.GetCode()).HSet(f.c, schema.GetCacheKey(), strconv.FormatUint(e.ID, 10), e.entity.getORM().copyBinary())
@@ -654,9 +654,9 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 				if e.entity != nil {
 					e.entity.getORM().serialize(f.c.getSerializer())
-					setter.Set(f.c, e.ID, e.entity.getORM().value)
+					setter.setEntity(f.c, e.ID, e.entity.getORM().value)
 				} else {
-					setter.Remove(f.c, e.ID)
+					setter.removeEntity(f.c, e.ID)
 				}
 				for _, key := range keys {
 					setter.Remove(f.c, key)
@@ -673,7 +673,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				if hasLocalCache {
 					setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 					e.entity.getORM().serialize(f.c.getSerializer())
-					setter.Set(f.c, e.ID, e.entity.getORM().value)
+					setter.setEntity(f.c, e.ID, e.entity.getORM().value)
 				}
 				break
 			}
@@ -683,9 +683,9 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 				setter := f.GetLocalCacheSetter(schema.GetCacheKey())
 				if !fromLazyConsumer || e.clearLocalCache {
 					if e.entity != nil {
-						setter.Set(f.c, e.ID, e.entity.getORM().value)
+						setter.setEntity(f.c, e.ID, e.entity.getORM().value)
 					} else {
-						setter.Remove(f.c, e.ID)
+						setter.removeEntity(f.c, e.ID)
 					}
 				}
 				for _, key := range keysOld {
@@ -704,13 +704,13 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 			break
 		case Delete:
 			if lazy && hasLocalCache {
-				f.GetLocalCacheSetter(schema.GetCacheKey()).Set(f.c, e.ID, cacheNilValue)
+				f.GetLocalCacheSetter(schema.GetCacheKey()).setEntity(f.c, e.ID, emptyReflect)
 				break
 			}
 			keys := f.getCacheQueriesKeys(schema, e.Update, e.Old, true, true)
 			if hasLocalCache {
 				setter := f.GetLocalCacheSetter(schema.GetCacheKey())
-				setter.Set(f.c, e.ID, cacheNilValue)
+				setter.setEntity(f.c, e.ID, emptyReflect)
 				for _, key := range keys {
 					setter.Remove(f.c, key)
 				}

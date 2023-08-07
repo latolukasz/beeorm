@@ -21,7 +21,7 @@ import (
 type Registry struct {
 	mysqlPools        map[string]MySQLPoolConfig
 	mysqlTables       map[string]map[string]bool
-	localCachePools   map[string]LocalCachePoolConfig
+	localCaches       map[string]LocalCache
 	redisPools        map[string]RedisPoolConfig
 	entities          map[string]reflect.Type
 	enums             map[string]Enum
@@ -131,13 +131,18 @@ func (r *Registry) Validate() (Engine, error) {
 		e.registry.entitySliceSchemas[reflect.PtrTo(reflect.SliceOf(reflect.PtrTo(entityType)))] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
-			r.localCachePools[schema.GetCacheKey()] = newLocalCacheConfig(schema.GetCacheKey(), schema.localCacheLimit)
+			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, true)
 		}
 	}
-	for k, v := range r.localCachePools {
-		e.localCacheServers[k] = &localCache{engine: e, config: v.(*localCachePoolConfig)}
+	for k, v := range r.localCaches {
+		e.localCacheServers[k] = v
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
+		}
+	}
+	for _, schema := range e.registry.entitySchemas {
+		if schema.hasLocalCache {
+			schema.localCache = e.localCacheServers[schema.cacheKey].(*localCache)
 		}
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
@@ -157,7 +162,7 @@ func (r *Registry) Validate() (Engine, error) {
 	e.registry.plugins = r.plugins
 	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	for _, schema := range e.registry.entitySchemas {
-		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
+		_, err := checkStruct(e, schema, schema.t.Elem(), make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
@@ -192,10 +197,7 @@ func (r *Registry) RegisterEntity(entity ...Entity) {
 	}
 	for _, e := range entity {
 		t := reflect.TypeOf(e)
-		if t.Kind() == reflect.Ptr {
-			t = t.Elem()
-		}
-		r.entities[t.String()] = t
+		r.entities[t.Elem().String()] = t
 	}
 }
 
@@ -254,10 +256,10 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	if r.localCachePools == nil {
-		r.localCachePools = make(map[string]LocalCachePoolConfig)
+	if r.localCaches == nil {
+		r.localCaches = make(map[string]LocalCache)
 	}
-	r.localCachePools[dbCode] = newLocalCacheConfig(dbCode, size)
+	r.localCaches[dbCode] = newLocalCache(dbCode, size, false)
 }
 
 func (r *Registry) RegisterRedis(address, namespace string, db int, code ...string) {

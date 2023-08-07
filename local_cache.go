@@ -1,12 +1,14 @@
 package beeorm
 
 import (
+	"container/list"
 	"fmt"
-	"sync"
-	"time"
-
-	"github.com/golang/groupcache/lru"
+	"github.com/puzpuzpuz/xsync/v2"
+	"hash/maphash"
+	"reflect"
 )
+
+var emptyReflect reflect.Value
 
 type LocalCachePoolConfig interface {
 	GetCode() string
@@ -16,7 +18,6 @@ type LocalCachePoolConfig interface {
 type localCachePoolConfig struct {
 	code  string
 	limit int
-	lru   *lru.Cache
 }
 
 func (p *localCachePoolConfig) GetCode() string {
@@ -28,141 +29,144 @@ func (p *localCachePoolConfig) GetLimit() int {
 }
 
 type LocalCacheSetter interface {
-	Set(c Context, key interface{}, value interface{})
-	MSet(c Context, pairs ...interface{})
-	Remove(c Context, keys ...interface{})
+	Set(c Context, key string, value interface{})
+	Remove(c Context, key string)
+	setEntity(c Context, id uint64, value reflect.Value)
+	removeEntity(c Context, id uint64)
 }
 
 type LocalCache interface {
 	LocalCacheSetter
 	GetPoolConfig() LocalCachePoolConfig
-	GetSet(c Context, key interface{}, ttl time.Duration, provider func() interface{}) interface{}
-	Get(c Context, key interface{}) (value interface{}, ok bool)
+	Get(c Context, key string) (value interface{}, ok bool)
+	getEntity(c Context, id uint64) (value reflect.Value, ok bool)
 	Clear(c Context)
 	GetObjectsCount() int
 }
 
 type localCache struct {
-	engine Engine
-	config *localCachePoolConfig
-	mutex  sync.Mutex
+	config        *localCachePoolConfig
+	ll            *list.List
+	cache         *xsync.Map
+	cacheEntities *xsync.MapOf[uint64, reflect.Value]
+	storeEntities bool
 }
 
 type localCacheSetter struct {
-	engine    Engine
-	code      string
-	setKeys   []interface{}
-	setValues []interface{}
-	removes   []interface{}
+	engine            Engine
+	code              string
+	setKeys           []string
+	setEntities       []uint64
+	setValues         []interface{}
+	setValuesEntities []reflect.Value
+	removes           []string
+	removesEntities   []uint64
 }
 
-func newLocalCacheConfig(dbCode string, limit int) *localCachePoolConfig {
-	return &localCachePoolConfig{code: dbCode, limit: limit, lru: lru.New(limit)}
-}
-
-type ttlValue struct {
-	value interface{}
-	time  int64
+func newLocalCache(dbCode string, limit int, storeEntities bool) *localCache {
+	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}, storeEntities: storeEntities}
+	if limit > 0 {
+		c.ll = list.New()
+	}
+	c.cache = xsync.NewMap()
+	if storeEntities {
+		c.cacheEntities = xsync.NewTypedMapOf[uint64, reflect.Value](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+	}
+	return c
 }
 
 func (lc *localCache) GetPoolConfig() LocalCachePoolConfig {
 	return lc.config
 }
 
-func (lc *localCache) GetSet(c Context, key interface{}, ttl time.Duration, provider func() interface{}) interface{} {
-	val, has := lc.Get(c, key)
-	if has {
-		ttlVal := val.(ttlValue)
-		seconds := int64(ttl.Seconds())
-		if seconds == 0 || time.Now().Unix()-ttlVal.time <= seconds {
-			return ttlVal.value
-		}
-	}
-	userVal := provider()
-	val = ttlValue{value: userVal, time: time.Now().Unix()}
-	lc.Set(c, key, val)
-	return userVal
-}
-
-func (lc *localCache) Get(c Context, key interface{}) (value interface{}, ok bool) {
+func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
+	value, ok = lc.cache.Load(key)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %v", key), !ok)
 	}
-	lc.mutex.Lock()
-	defer lc.mutex.Unlock()
-	value, ok = lc.config.lru.Get(key)
 	return
 }
 
-func (lc *localCache) Set(c Context, key interface{}, value interface{}) {
-	func() {
-		lc.mutex.Lock()
-		defer lc.mutex.Unlock()
-		lc.config.lru.Add(key, value)
-	}()
+func (lc *localCache) getEntity(c Context, id uint64) (value reflect.Value, ok bool) {
+	value, ok = lc.cacheEntities.Load(id)
+	return
+}
+
+func (lc *localCache) Set(c Context, key string, value interface{}) {
+	lc.cache.Store(key, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
 
-func (lc *localCacheSetter) Set(_ Context, key interface{}, value interface{}) {
+func (lc *localCache) setEntity(c Context, id uint64, value reflect.Value) {
+	lc.cacheEntities.Store(id, value)
+}
+
+func (lc *localCacheSetter) Set(_ Context, key string, value interface{}) {
 	lc.setKeys = append(lc.setKeys, key)
 	lc.setValues = append(lc.setValues, value)
 }
 
-func (lc *localCache) MSet(c Context, pairs ...interface{}) {
-	for i := 0; i < len(pairs); i += 2 {
-		lc.Set(c, pairs[i], pairs[i+1])
-	}
+func (lc *localCacheSetter) setEntity(_ Context, id uint64, value reflect.Value) {
+	lc.setEntities = append(lc.setEntities, id)
+	lc.setValuesEntities = append(lc.setValuesEntities, value)
 }
 
-func (lc *localCacheSetter) MSet(_ Context, pairs ...interface{}) {
-	for i := 0; i < len(pairs); i += 2 {
-		lc.setKeys = append(lc.setKeys, pairs[i])
-		lc.setValues = append(lc.setValues, pairs[i+1])
-	}
-}
-
-func (lc *localCache) Remove(c Context, keys ...interface{}) {
-	for _, v := range keys {
-		func() {
-			lc.mutex.Lock()
-			defer lc.mutex.Unlock()
-			lc.config.lru.Remove(v)
-		}()
-	}
+func (lc *localCache) Remove(c Context, key string) {
+	lc.cache.Delete(key)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %v", keys), false)
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %s", key), false)
 	}
 }
 
-func (lc *localCacheSetter) Remove(_ Context, keys ...interface{}) {
-	lc.removes = append(lc.removes, keys...)
+func (lc *localCache) removeEntity(c Context, id uint64) {
+	lc.cacheEntities.Delete(id)
+}
+
+func (lc *localCacheSetter) Remove(_ Context, key string) {
+	lc.removes = append(lc.removes, key)
+}
+
+func (lc *localCacheSetter) removeEntity(_ Context, id uint64) {
+	lc.removesEntities = append(lc.removesEntities, id)
 }
 
 func (lc *localCacheSetter) flush(c Context) {
-	if lc.setKeys == nil && lc.removes == nil {
-		return
-	}
 	cache := lc.engine.LocalCache(lc.code)
 	for i, key := range lc.setKeys {
 		cache.Set(c, key, lc.setValues[i])
 	}
-	if lc.removes != nil {
-		cache.Remove(c, lc.removes...)
+	for i, key := range lc.setEntities {
+		cache.setEntity(c, key, lc.setValuesEntities[i])
+	}
+	for _, key := range lc.removes {
+		cache.Remove(c, key)
+	}
+	for _, key := range lc.removesEntities {
+		cache.removeEntity(c, key)
 	}
 	lc.setKeys = nil
 	lc.setValues = nil
+	lc.setEntities = nil
+	lc.setValuesEntities = nil
 	lc.removes = nil
+	lc.removesEntities = nil
 }
 
 func (lc *localCache) Clear(c Context) {
-	lc.mutex.Lock()
-	defer lc.mutex.Unlock()
-	lc.config.lru.Clear()
+	lc.cache.Clear()
+	if lc.storeEntities {
+		lc.cacheEntities.Clear()
+	}
+	if lc.config.limit > 0 {
+		lc.ll = list.New()
+	}
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "CLEAR", "CLEAR", false)
@@ -170,9 +174,11 @@ func (lc *localCache) Clear(c Context) {
 }
 
 func (lc *localCache) GetObjectsCount() int {
-	lc.mutex.Lock()
-	defer lc.mutex.Unlock()
-	return lc.config.lru.Len()
+	total := lc.cache.Size()
+	if lc.storeEntities {
+		total += lc.cacheEntities.Size()
+	}
+	return total
 }
 
 func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {

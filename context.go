@@ -27,7 +27,7 @@ type Context interface {
 
 type contextImplementation struct {
 	parent                 context.Context
-	engine                 Engine
+	engine                 *engineImplementation
 	flusher                Flusher
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler

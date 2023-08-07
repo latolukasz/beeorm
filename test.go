@@ -3,7 +3,6 @@ package beeorm
 import (
 	"context"
 	"database/sql"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -68,11 +67,7 @@ func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion 
 
 	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
-		eType := reflect.TypeOf(entity)
-		if eType.Kind() == reflect.Ptr {
-			eType = eType.Elem()
-		}
-		schema := c.Engine().Registry().EntitySchema(eType)
+		schema := c.Engine().Registry().EntitySchema(entity)
 		schema.TruncateTable(c)
 		schema.UpdateSchema(c)
 		cacheLocal, has := schema.GetLocalCache()
