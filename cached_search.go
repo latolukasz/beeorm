@@ -198,7 +198,7 @@ func cachedSearch(c Context, entities interface{}, indexName string, pager *Page
 	_, is := entities.(Entity)
 	if !is && len(idsToReturn) > 0 {
 		elem := value.Elem()
-		_, missing := getByIDs(c, idsToReturn, elem, references)
+		_, missing := getByIDs(c.(*contextImplementation), idsToReturn, elem, references)
 		if missing {
 			l := elem.Len()
 			missingCounter := 0

@@ -7,12 +7,12 @@ import (
 )
 
 func GetByIDs(c Context, ids []uint64, entities interface{}, references ...string) (found bool) {
-	_, hasMissing := getByIDs(c, ids, reflect.ValueOf(entities), references)
+	_, hasMissing := getByIDs(c.(*contextImplementation), ids, reflect.ValueOf(entities), references)
 	return !hasMissing
 }
 
-func getByIDs(c Context, ids []uint64, entities reflect.Value, references []string) (schema EntitySchema, hasMissing bool) {
-	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
+func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
+	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type()).(*entitySchema)
 	resultsSlice := entities.Elem()
 	diffCap := len(ids) - resultsSlice.Cap()
 	if diffCap > 0 {
@@ -23,13 +23,8 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 		return
 	}
 
-	//TODO slooooow!!
-	for i := range ids {
-		resultsSlice.Index(i).SetZero()
-	}
-
-	cacheLocal, hasLocalCache := schema.GetLocalCache()
-	cacheRedis, hasRedisCache := schema.GetRedisCache()
+	cacheLocal := schema.localCache
+	hasLocalCache := cacheLocal != nil
 
 	foundInCache := 0
 	hasCacheNils := false
@@ -38,14 +33,20 @@ func getByIDs(c Context, ids []uint64, entities reflect.Value, references []stri
 			fromLocalCache, hasInLocalCache := cacheLocal.getEntity(c, id)
 			if hasInLocalCache {
 				if fromLocalCache == emptyReflect {
-					resultsSlice.Index(i).Set(fromLocalCache)
 					hasMissing = true
 					hasCacheNils = true
+					resultsSlice.Index(i).SetZero()
+				} else {
+					resultsSlice.Index(i).Set(fromLocalCache)
 				}
 				foundInCache++
 			}
 		}
 	}
+	if foundInCache == len(ids) {
+		return
+	}
+	cacheRedis, hasRedisCache := schema.GetRedisCache()
 	if hasRedisCache && foundInCache < len(ids) {
 		redisHSetKeys := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
 		fromRedisAll := cacheRedis.hMGetUints(c, schema.GetCacheKey(), redisHSetKeys...)
