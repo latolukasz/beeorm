@@ -1,18 +1,20 @@
 package beeorm
 
 import (
+	"reflect"
 	"strconv"
 )
 
 func GetByID[E Entity, I ID](c Context, id I, references ...string) (entity E) {
-	entity = getByID[E, I](c, id, nil, references...)
+	entity = getByID[E, I](c.(*contextImplementation), id, nil, references...)
 	return
 }
 
-func getByID[E Entity, I ID](c Context, id I, entityToFill Entity, references ...string) (entity E) {
-	schema := GetEntitySchema[E](c)
+func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity, references ...string) (entity E) {
+	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
 	idUint64 := uint64(id)
-	cacheLocal, hasLocalCache := schema.GetLocalCache()
+	cacheLocal := schema.localCache
+	hasLocalCache := cacheLocal != nil
 	if hasLocalCache {
 		e, has := cacheLocal.getEntity(c, idUint64)
 		if has {

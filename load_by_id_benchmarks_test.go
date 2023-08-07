@@ -14,7 +14,7 @@ type loadByIDBenchmarkEntity struct {
 	Decimal float32 `orm:"decimal=10,2"`
 }
 
-// BenchmarkLoadByIDLocalCache-10    	55968843	        20.70 ns/op	       0 B/op	       0 allocs/op
+// BenchmarkLoadByIDLocalCache-10    	63629875	        18.75 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkLoadByIDLocalCache(b *testing.B) {
 	benchmarkLoadByIDCache(b, true, false)
 }
@@ -31,7 +31,6 @@ func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
 	c := PrepareTables(nil, registry, 5, 6, "", entity)
 	schema := GetEntitySchema[*loadByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
-
 	entity = &loadByIDBenchmarkEntity{}
 	entity.Name = "Name"
 	entity.Int = 1

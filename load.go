@@ -11,7 +11,7 @@ func Load(c Context, entity Entity, references ...string) bool {
 	orm := initIfNeeded(GetEntitySchema[Entity](c), entity)
 	id := orm.GetID()
 	if id > 0 {
-		return getByID[Entity](c, id, entity, references...) != nil
+		return getByID[Entity](c.(*contextImplementation), id, entity, references...) != nil
 	}
 	return false
 }
