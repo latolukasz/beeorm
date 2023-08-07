@@ -4,6 +4,7 @@ import (
 	"testing"
 )
 
+// BenchmarkReadByIDsdLocalCache-10    	   50936	     21584 ns/op	    8618 B/op	     109 allocs/op // OLD
 // BenchmarkLoadByIDsLocalCache-10    	 1068458	      1096 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkLoadByIDsLocalCache(b *testing.B) {
 	benchmarkLoadByIDsCache(b, true, false)
