@@ -128,7 +128,7 @@ func (r *Registry) Validate() (Engine, error) {
 			return nil, err
 		}
 		e.registry.entitySchemas[entityType] = schema
-		e.registry.entitySliceSchemas[reflect.PtrTo(reflect.SliceOf(reflect.PtrTo(entityType)))] = schema
+		e.registry.entitySliceSchemas[reflect.PtrTo(reflect.SliceOf(entityType))] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, true)
