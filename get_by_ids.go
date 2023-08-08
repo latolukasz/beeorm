@@ -12,7 +12,7 @@ func GetByIDs(c Context, ids []uint64, entities interface{}, references ...strin
 }
 
 func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
-	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type()).(*entitySchema)
+	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
 	resultsSlice := entities.Elem()
 	diffCap := len(ids) - resultsSlice.Cap()
 	if diffCap > 0 {
@@ -23,14 +23,11 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 		return
 	}
 
-	cacheLocal := schema.localCache
-	hasLocalCache := cacheLocal != nil
-
 	foundInCache := 0
 	hasCacheNils := false
-	if hasLocalCache {
+	if schema.hasLocalCache {
 		for i, id := range ids {
-			fromLocalCache, hasInLocalCache := cacheLocal.getEntity(c, id)
+			fromLocalCache, hasInLocalCache := schema.localCache.getEntity(c, id)
 			if hasInLocalCache {
 				if fromLocalCache == emptyReflect {
 					hasMissing = true
@@ -75,14 +72,14 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 							resultsSlice.Index(i).Set(entity.getORM().value)
 							if fromRedisCache != cacheNilValue {
 								fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
-								if hasLocalCache {
-									cacheLocal.setEntity(c, id, entity.getORM().value)
+								if schema.hasLocalCache {
+									schema.localCache.setEntity(c, id, entity.getORM().value)
 								}
 							} else {
 								hasMissing = true
 								hasCacheNils = true
-								if hasLocalCache {
-									cacheLocal.setEntity(c, id, emptyReflect)
+								if schema.hasLocalCache {
+									schema.localCache.setEntity(c, id, emptyReflect)
 								}
 							}
 							foundInCache++
@@ -112,8 +109,8 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 					resultsSlice.Index(i).Set(entity.getORM().value)
 				}
 			}
-			if hasLocalCache {
-				cacheLocal.setEntity(c, id, entity.getORM().value)
+			if schema.hasLocalCache {
+				schema.localCache.setEntity(c, id, entity.getORM().value)
 			}
 			if hasRedisCache {
 				if len(ids) == 1 {
@@ -131,11 +128,11 @@ func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, re
 			for i, id := range ids {
 				if resultsSlice.Index(i).IsZero() {
 					hasMissing = true
-					if !hasLocalCache && !hasRedisCache {
+					if !schema.hasLocalCache && !hasRedisCache {
 						break
 					}
-					if hasLocalCache {
-						cacheLocal.setEntity(c, id, emptyReflect)
+					if schema.hasLocalCache {
+						schema.localCache.setEntity(c, id, emptyReflect)
 					}
 					if hasRedisCache {
 						cacheRedis.HSet(c, schema.GetCacheKey(), id, cacheNilValue)

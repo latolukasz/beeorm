@@ -554,7 +554,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 			checkError(err)
 			return structFields, nil
 		} else if kind == "ptr" {
-			subSchema := engine.Registry().EntitySchema(field.Type.Elem())
+			subSchema := engine.Registry().EntitySchema(field.Type)
 			if subSchema != nil {
 				definition = handleReferenceOne(version, subSchema, attributes)
 				addNotNullIfNotSet = false
@@ -702,10 +702,10 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 }
 
 func handleReferenceOne(version int, schema EntitySchema, attributes map[string]string) string {
-	if schema.GetType().NumField() <= 1 {
+	if schema.GetType().Elem().NumField() <= 1 {
 		return convertIntToSchema(version, "uint64", attributes)
 	}
-	return convertIntToSchema(version, schema.GetType().Field(1).Type.String(), attributes)
+	return convertIntToSchema(version, schema.GetType().Elem().Field(1).Type.String(), attributes)
 }
 
 func convertIntToSchema(version int, typeAsString string, attributes Meta) string {

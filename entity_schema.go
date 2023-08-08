@@ -143,6 +143,7 @@ type entitySchema struct {
 	localCacheLimit            int
 	redisCacheName             string
 	hasRedisCache              bool
+	redisCache                 *redisCache
 	searchCacheName            string
 	cacheKey                   string
 	structureHash              uint64
@@ -244,7 +245,7 @@ func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	if !entitySchema.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.engine.Redis(entitySchema.cacheKey), true
+	return entitySchema.redisCache, true
 }
 
 func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {

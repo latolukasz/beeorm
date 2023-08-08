@@ -144,6 +144,9 @@ func (r *Registry) Validate() (Engine, error) {
 		if schema.hasLocalCache {
 			schema.localCache = e.localCacheServers[schema.cacheKey].(*localCache)
 		}
+		if schema.hasRedisCache {
+			schema.redisCache = e.redisServers[schema.redisCacheName].(*redisCache)
+		}
 	}
 	_, has := r.redisStreamPools[LazyFlushChannelName]
 	if !has {

@@ -13,10 +13,8 @@ func GetByID[E Entity, I ID](c Context, id I, references ...string) (entity E) {
 func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity, references ...string) (entity E) {
 	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
 	idUint64 := uint64(id)
-	cacheLocal := schema.localCache
-	hasLocalCache := cacheLocal != nil
-	if hasLocalCache {
-		e, has := cacheLocal.getEntity(c, idUint64)
+	if schema.hasLocalCache {
+		e, has := schema.localCache.getEntity(c, idUint64)
 		if has {
 			if e == emptyReflect {
 				return
@@ -35,8 +33,8 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
 		if has {
 			if row == cacheNilValue {
-				if hasLocalCache {
-					cacheLocal.setEntity(c, idUint64, emptyReflect)
+				if schema.hasLocalCache {
+					schema.localCache.setEntity(c, idUint64, emptyReflect)
 				}
 				return
 			}
@@ -49,24 +47,24 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 			//if len(references) > 0 {
 			//	warmUpReferences(c, schema, orm.value, references, false)
 			//}
-			if hasLocalCache {
-				cacheLocal.setEntity(c, idUint64, entity.getORM().value)
+			if schema.hasLocalCache {
+				schema.localCache.setEntity(c, idUint64, entity.getORM().value)
 			}
 			return
 		}
 	}
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false, nil)
 	if !found {
-		if hasLocalCache {
-			cacheLocal.setEntity(c, idUint64, emptyReflect)
+		if schema.hasLocalCache {
+			schema.localCache.setEntity(c, idUint64, emptyReflect)
 		}
 		if hasRedis {
 			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)
 		}
 		return
 	}
-	if hasLocalCache {
-		cacheLocal.setEntity(c, idUint64, entity.getORM().value)
+	if schema.hasLocalCache {
+		schema.localCache.setEntity(c, idUint64, entity.getORM().value)
 	}
 	if hasRedis {
 		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(entity.getORM().binary))

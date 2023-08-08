@@ -31,7 +31,7 @@ type EngineRegistry interface {
 	getRedisStreamsForGroup(group string) []string
 	getRedisPoolForStream(stream string) string
 	getDBTables() map[string]map[string]bool
-	getEntitySchemaForSlice(t reflect.Type) EntitySchema
+	getEntitySchemaForSlice(t reflect.Type) *entitySchema
 }
 
 type Engine interface {
@@ -116,7 +116,7 @@ func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 	return nil
 }
 
-func (er *engineRegistryImplementation) getEntitySchemaForSlice(t reflect.Type) EntitySchema {
+func (er *engineRegistryImplementation) getEntitySchemaForSlice(t reflect.Type) *entitySchema {
 	schema, has := er.entitySliceSchemas[t]
 	if !has {
 		panic(fmt.Errorf("invalid slice of entities: %s", t))

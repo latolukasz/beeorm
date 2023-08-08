@@ -749,7 +749,7 @@ func (f *flusher) getCacheQueriesKeys(schema EntitySchema, bind, current Bind, o
 	keys = make([]string, 0)
 	for indexName, definition := range schema.getCachedIndexes(false, true) {
 		if addedDeleted && len(definition.TrackedFields) == 0 {
-			keys = append(keys, getCacheKeySearch(schema, indexName))
+			keys = append(keys, getCacheKeySearch(schema, indexName, nil))
 		}
 		for _, trackedField := range definition.TrackedFields {
 			_, has := bind[trackedField]
@@ -762,7 +762,7 @@ func (f *flusher) getCacheQueriesKeys(schema EntitySchema, bind, current Bind, o
 					}
 					attributes = append(attributes, val)
 				}
-				keys = append(keys, getCacheKeySearch(schema, indexName, attributes...))
+				keys = append(keys, getCacheKeySearch(schema, indexName, attributes))
 				break
 			}
 		}
