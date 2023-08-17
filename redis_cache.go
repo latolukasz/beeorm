@@ -54,9 +54,11 @@ type RedisCache interface {
 	IncrWithExpire(key string, expire time.Duration) int64
 	Expire(key string, expiration time.Duration) bool
 	ZAdd(key string, members ...redis.Z) int64
+	ZRem(key string, members ...interface{}) int64
 	ZRevRange(key string, start, stop int64) []string
 	ZRevRangeWithScores(key string, start, stop int64) []redis.Z
 	ZRangeWithScores(key string, start, stop int64) []redis.Z
+	ZRangeArgs(args redis.ZRangeArgs) []string
 	ZCard(key string) int64
 	ZCount(key string, min, max string) int64
 	ZScore(key, member string) float64
@@ -547,6 +549,21 @@ func (r *redisCache) ZAdd(key string, members ...redis.Z) int64 {
 	return val
 }
 
+func (r *redisCache) ZRem(key string, members ...interface{}) int64 {
+	key = r.addNamespacePrefix(key)
+	start := getNow(r.engine.hasRedisLogger)
+	val, err := r.client.ZRem(context.Background(), key, members...).Result()
+	if r.engine.hasRedisLogger {
+		message := "ZREM " + key
+		for _, v := range members {
+			message += fmt.Sprintf("%v", v)
+		}
+		r.fillLogFields("ZREM", message, start, false, err)
+	}
+	checkError(err)
+	return val
+}
+
 func (r *redisCache) ZRevRange(key string, start, stop int64) []string {
 	key = r.addNamespacePrefix(key)
 	startTime := getNow(r.engine.hasRedisLogger)
@@ -578,6 +595,32 @@ func (r *redisCache) ZRangeWithScores(key string, start, stop int64) []redis.Z {
 	if r.engine.hasRedisLogger {
 		message := fmt.Sprintf("ZRANGESCORE %s %d %d", key, start, stop)
 		r.fillLogFields("ZRANGESCORE", message, startTime, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *redisCache) ZRangeArgs(args redis.ZRangeArgs) []string {
+	if r.config.HasNamespace() {
+		args.Key = r.addNamespacePrefix(args.Key)
+	}
+	startTime := getNow(r.engine.hasRedisLogger)
+	val, err := r.client.ZRangeArgs(context.Background(), args).Result()
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("ZRANGE %s %+v", args.Key, args)
+		r.fillLogFields("ZRANGE", message, startTime, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *redisCache) ZRemRangeByRank(key string, start, stop int64) int64 {
+	key = r.addNamespacePrefix(key)
+	startTime := getNow(r.engine.hasRedisLogger)
+	val, err := r.client.ZRemRangeByRank(context.Background(), key, start, stop).Result()
+	if r.engine.hasRedisLogger {
+		message := fmt.Sprintf("ZREMRANGEBYRANK %s %d %d", key, start, stop)
+		r.fillLogFields("ZREMRANGEBYRANK", message, startTime, false, err)
 	}
 	checkError(err)
 	return val

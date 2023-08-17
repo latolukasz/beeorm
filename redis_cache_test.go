@@ -160,6 +160,35 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Equal(t, float64(20), resZRange[0].Score)
 	assert.Equal(t, float64(10), resZRange[1].Score)
 
+	assert.Equal(t, int64(3), r.ZAdd("test_add_rem", redis.Z{Member: "a", Score: 20}, redis.Z{Member: "b", Score: 30}, redis.Z{Member: "c", Score: 10}))
+	assert.Equal(t, int64(2), r.ZRem("test_add_rem", "a", "c"))
+	assert.Equal(t, int64(0), r.ZCount("test_add_rem", "0", "20"))
+	assert.Equal(t, int64(1), r.ZCount("test_add_rem", "0", "30"))
+
+	assert.Equal(
+		t,
+		int64(4),
+		r.ZAdd(
+			"test_z_range_args",
+			redis.Z{Member: "c", Score: 30},
+			redis.Z{Member: "a", Score: 10},
+			redis.Z{Member: "b", Score: 20},
+			redis.Z{Member: "d", Score: 50},
+		),
+	)
+
+	resZRangeByArgs := r.ZRangeArgs(redis.ZRangeArgs{
+		Key:     "test_z_range_args",
+		Start:   0,
+		Stop:    30,
+		ByScore: true,
+	})
+
+	assert.Len(t, resZRangeByArgs, 3)
+	assert.Equal(t, "a", resZRangeByArgs[0])
+	assert.Equal(t, "b", resZRangeByArgs[1])
+	assert.Equal(t, "c", resZRangeByArgs[2])
+
 	assert.Equal(t, int64(2), r.ZCard("test_z"))
 	assert.Equal(t, int64(2), r.ZCount("test_z", "10", "20"))
 	assert.Equal(t, int64(1), r.ZCount("test_z", "11", "20"))
