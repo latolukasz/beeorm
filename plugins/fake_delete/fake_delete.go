@@ -1,6 +1,7 @@
 package fake_delete
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -47,6 +48,18 @@ func (p *Plugin) InterfaceInitEntitySchema(schema beeorm.SettableEntitySchema, _
 		return nil
 	}
 	schema.SetPluginOption(PluginCode, hasFakeDeleteOption, true)
+	for name, cacheQuery := range schema.GetCacheQueries() {
+		hasTrackedField := false
+		for _, field := range cacheQuery.TrackedFields {
+			if field == p.options.FieldName {
+				hasTrackedField = true
+				break
+			}
+		}
+		if !hasTrackedField {
+			return fmt.Errorf("missing :FakeDelete = ? in CacheQuery %s in %s entity", name, schema.GetEntityName())
+		}
+	}
 	return nil
 }
 
