@@ -23,7 +23,7 @@ func GetEntitySchema[E Entity](c Context) EntitySchema {
 	return schema
 }
 
-type cachedQueryDefinition struct {
+type CachedQueryDefinition struct {
 	Max           int
 	Query         string
 	TrackedFields []string
@@ -100,13 +100,14 @@ type EntitySchema interface {
 	GetReferences() []EntitySchemaReference
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
+	GetCacheQueries() map[string]*CachedQueryDefinition
 	GetSchemaChanges(c Context) (has bool, alters []Alter)
 	GetUsage(registry Engine) map[reflect.Type][]string
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetPluginOption(plugin, key string) interface{}
 	GetCacheKey() string
 	DisableCache(local, redis bool)
-	getCachedIndexes(one, all bool) map[string]*cachedQueryDefinition
+	getCachedIndexes(one, all bool) map[string]*CachedQueryDefinition
 	getFields() *tableFields
 	getCachedIndexesTrackedFields() map[string]bool
 	getTagBool(field, key string) bool
@@ -129,9 +130,9 @@ type entitySchema struct {
 	engine                     Engine
 	fieldsQuery                string
 	tags                       map[string]map[string]string
-	cachedIndexes              map[string]*cachedQueryDefinition
-	cachedIndexesOne           map[string]*cachedQueryDefinition
-	cachedIndexesAll           map[string]*cachedQueryDefinition
+	cachedIndexes              map[string]*CachedQueryDefinition
+	cachedIndexesOne           map[string]*CachedQueryDefinition
+	cachedIndexesAll           map[string]*CachedQueryDefinition
 	cachedIndexesTrackedFields map[string]bool
 	columnNames                []string
 	columnMapping              map[string]int
@@ -268,6 +269,10 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 	return data
 }
 
+func (entitySchema *entitySchema) GetCacheQueries() map[string]*CachedQueryDefinition {
+	return entitySchema.cachedIndexesAll
+}
+
 func (entitySchema *entitySchema) NewEntity() Entity {
 	val := reflect.New(entitySchema.t)
 	e := val.Interface().(Entity)
@@ -339,9 +344,9 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		cacheKey = entitySchema.mysqlPoolCode
 	}
 	cacheKey += entitySchema.tableName
-	cachedQueries := make(map[string]*cachedQueryDefinition)
-	cachedQueriesOne := make(map[string]*cachedQueryDefinition)
-	cachedQueriesAll := make(map[string]*cachedQueryDefinition)
+	cachedQueries := make(map[string]*CachedQueryDefinition)
+	cachedQueriesOne := make(map[string]*CachedQueryDefinition)
+	cachedQueriesAll := make(map[string]*CachedQueryDefinition)
 	cachedQueriesTrackedFields := make(map[string]bool)
 	for key, values := range entitySchema.tags {
 		isOne := false
@@ -395,11 +400,11 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 
 			if !isOne {
-				def := &cachedQueryDefinition{50000, query, fieldsTracked, fieldsQuery, fieldsOrder}
+				def := &CachedQueryDefinition{50000, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueries[key] = def
 				cachedQueriesAll[key] = def
 			} else {
-				def := &cachedQueryDefinition{1, query, fieldsTracked, fieldsQuery, fieldsOrder}
+				def := &CachedQueryDefinition{1, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueriesOne[key] = def
 				cachedQueriesAll[key] = def
 			}
@@ -1097,7 +1102,7 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) getCachedIndexes(one, all bool) map[string]*cachedQueryDefinition {
+func (entitySchema *entitySchema) getCachedIndexes(one, all bool) map[string]*CachedQueryDefinition {
 	if one {
 		return entitySchema.cachedIndexes
 	} else if all {
