@@ -19,7 +19,7 @@ func benchmarkCachedSearch(b *testing.B, localCache bool, redisCache bool) {
 	var entity *cachedSearchEntity
 	var entityRef *cachedSearchRefEntity
 	c := PrepareTables(nil, &Registry{}, 5, 6, "", entityRef, entity)
-	schema := c.Engine().Registry().EntitySchema(entity)
+	schema := c.Engine().Registry().EntitySchema(entity).(*entitySchema)
 	schema.DisableCache(!localCache, !redisCache)
 
 	for i := 1; i <= 10; i++ {

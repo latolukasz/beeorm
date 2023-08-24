@@ -2,12 +2,11 @@ package beeorm
 
 import (
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"math"
 	"reflect"
 	"strconv"
 	"strings"
-
-	"github.com/segmentio/fasthash/fnv1a"
 )
 
 const idsOnCachePage = 1000
@@ -34,7 +33,7 @@ func cachedSearch(c *contextImplementation, entities interface{}, indexName stri
 	arguments []interface{}, references []string) (totalRows int, ids []uint64) {
 	value := reflect.ValueOf(entities)
 	schema := c.engine.registry.getEntitySchemaForSlice(value.Type())
-	definition, has := schema.getCachedIndexes(false, false)[indexName]
+	definition, has := schema.cachedIndexes[indexName]
 	if !has {
 		panic(fmt.Errorf("index %s not found", indexName))
 	}
@@ -54,6 +53,7 @@ func cachedSearch(c *contextImplementation, entities interface{}, indexName stri
 	}
 	cacheKey := getCacheKeySearch(schema, indexName, arguments)
 
+	return
 	pageSize := idsOnCachePage
 	if schema.hasLocalCache {
 		pageSize = definition.Max
@@ -286,5 +286,7 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 }
 
 func getCacheKeySearch(entitySchema EntitySchema, indexName string, parameters []interface{}) string {
-	return entitySchema.GetCacheKey() + "_" + indexName + strconv.Itoa(int(fnv1a.HashString32(fmt.Sprintf("%v", parameters))))
+	asString, err := jsoniter.ConfigFastest.MarshalToString(parameters)
+	checkError(err)
+	return entitySchema.GetCacheKey() + indexName + asString
 }
