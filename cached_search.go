@@ -52,7 +52,7 @@ func cachedSearch[E Entity](c *contextImplementation, indexName string, argument
 func cachedSearchOne[E Entity](c Context, indexName string, arguments []interface{}) (entity E, found bool) {
 	value := reflect.ValueOf(entity)
 	entityType := value.Elem().Type()
-	schema := GetEntitySchema[E](c)
+	schema := GetEntitySchema[E](c).(*entitySchema)
 	if schema == nil {
 		panic(fmt.Errorf("entity '%s' is not registered", entityType.String()))
 	}
@@ -107,8 +107,8 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	return entity, false
 }
 
-func getCacheKeySearch(entitySchema EntitySchema, indexName string, parameters []interface{}) string {
+func getCacheKeySearch(entitySchema *entitySchema, indexName string, parameters []interface{}) string {
 	asString, err := jsoniter.ConfigFastest.MarshalToString(parameters)
 	checkError(err)
-	return entitySchema.GetCacheKey() + indexName + asString
+	return entitySchema.cacheKey + indexName + asString
 }

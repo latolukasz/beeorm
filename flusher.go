@@ -631,7 +631,7 @@ func (f *flusher) buildCache(lazy, fromLazyConsumer bool) {
 		if e.skip || e.ID == 0 {
 			continue
 		}
-		schema := f.c.Engine().Registry().EntitySchema(e.Entity)
+		schema := f.c.Engine().Registry().EntitySchema(e.Entity).(*entitySchema)
 		cacheLocal, hasLocalCache := schema.GetLocalCache()
 		cacheRedis, hasRedis := schema.GetRedisCache()
 		if !hasLocalCache && !hasRedis {
@@ -745,7 +745,7 @@ func (f *flusher) checkReferencesToInsert(entity Entity, entitySQLFlushData *ent
 	}
 }
 
-func (f *flusher) getCacheQueriesKeys(schema EntitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
+func (f *flusher) getCacheQueriesKeys(schema *entitySchema, bind, current Bind, old, addedDeleted bool) (keys []string) {
 	keys = make([]string, 0)
 	for indexName, definition := range schema.getCachedIndexes(false, true) {
 		if addedDeleted && len(definition.TrackedFields) == 0 {
