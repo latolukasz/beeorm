@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// BenchmarkCachedSearchLocal-10    	 6991419	       169.8 ns/op	      68 B/op	       4 allocs/op
+// BenchmarkCachedSearchLocal-10    	 6199995	       195.4 ns/op	      68 B/op	       4 allocs/op
 func BenchmarkCachedSearchLocal(b *testing.B) {
 	benchmarkCachedSearch(b, true, false)
 }
@@ -29,7 +29,7 @@ func benchmarkCachedSearch(b *testing.B, localCache bool, redisCache bool) {
 	c.Flusher().Flush()
 
 	rows := CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
-	assert.Equal(b, rows, 10)
+	assert.Len(b, rows, 10)
 
 	b.ResetTimer()
 	b.ReportAllocs()

@@ -36,11 +36,11 @@ func cachedSearch[E Entity](c *contextImplementation, indexName string, argument
 		// TODO
 	}
 	ids, _ := searchIDs(c, schema.GetType(), NewWhere(definition.Query, arguments...), nil, false)
-	entities := reflect.New(reflect.SliceOf(reflect.PtrTo(schema.t))).Interface().([]E)
+	entities := reflect.New(reflect.SliceOf(schema.t)).Elem().Interface().([]E)
 	if len(ids) > 0 {
 		GetByIDs(c, ids, &entities)
 		if schema.hasLocalCache {
-			schema.localCache.Set(c, cacheKey, &entities)
+			schema.localCache.Set(c, cacheKey, entities)
 		}
 		if schema.hasRedisCache {
 			// TODO
