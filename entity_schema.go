@@ -24,7 +24,7 @@ func GetEntitySchema[E Entity](c Context) EntitySchema {
 }
 
 type CachedQueryDefinition struct {
-	Max           int
+	One           bool
 	Query         string
 	TrackedFields []string
 	QueryFields   []string
@@ -400,11 +400,11 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 
 			if !isOne {
-				def := &CachedQueryDefinition{50000, query, fieldsTracked, fieldsQuery, fieldsOrder}
+				def := &CachedQueryDefinition{false, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueries[key] = def
 				cachedQueriesAll[key] = def
 			} else {
-				def := &CachedQueryDefinition{1, query, fieldsTracked, fieldsQuery, fieldsOrder}
+				def := &CachedQueryDefinition{true, query, fieldsTracked, fieldsQuery, fieldsOrder}
 				cachedQueriesOne[key] = def
 				cachedQueriesAll[key] = def
 			}

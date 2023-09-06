@@ -67,10 +67,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	}
 	c.Flusher().Flush()
 
-	pager := NewPager(1, 100)
-	var rows []*cachedSearchEntity
-	totalRows := CachedSearch(c, &rows, "IndexAge", nil, 10)
-	assert.EqualValues(t, 5, totalRows)
+	rows := CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
 	assert.Len(t, rows, 5)
 	assert.Equal(t, uint64(1), rows[0].ReferenceOne.GetID())
 	assert.Equal(t, uint64(2), rows[1].ReferenceOne.GetID())
@@ -78,8 +75,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint64(4), rows[3].ReferenceOne.GetID())
 	assert.Equal(t, uint64(5), rows[4].ReferenceOne.GetID())
 
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-	assert.Equal(t, 5, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 18)
 	assert.Len(t, rows, 5)
 
 	assert.Equal(t, uint64(6), rows[0].GetID())
@@ -90,8 +86,7 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 
 	dbLogger := &MockLogHandler{}
 	c.RegisterQueryLogger(dbLogger, true, false, false)
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-	assert.Equal(t, 5, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 18)
 	assert.Len(t, rows, 5)
 	assert.Equal(t, uint64(6), rows[0].GetID())
 	assert.Equal(t, uint64(7), rows[1].GetID())
@@ -100,68 +95,45 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint64(10), rows[4].GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
-	pager = NewPager(2, 4)
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-	assert.Equal(t, 5, totalRows)
-	assert.Len(t, rows, 1)
-	assert.Equal(t, uint64(10), rows[0].GetID())
-	assert.Len(t, dbLogger.Logs, 0)
-
-	pager = NewPager(1, 5)
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 10)
-	assert.Equal(t, 5, totalRows)
-	assert.Len(t, rows, 5)
-	assert.Equal(t, uint64(1), rows[0].GetID())
-	assert.Len(t, dbLogger.Logs, 0)
-
 	rows[0].Age = 18
 	c.Flusher().Track(rows[0]).Flush()
 
-	pager = NewPager(1, 10)
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-	assert.Equal(t, 6, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 18)
 	assert.Len(t, rows, 6)
 
 	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Equal(t, uint64(1), rows[0].ReferenceOne.ID)
 	assert.Equal(t, uint64(6), rows[1].GetID())
 
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 10)
-	assert.Equal(t, 4, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
 	assert.Len(t, rows, 4)
 	assert.Equal(t, uint64(2), rows[0].ID)
 
-	totalRows = CachedSearch(c, &rows, "IndexAll", pager)
-	assert.Equal(t, 10, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAll")
 	assert.Len(t, rows, 10)
 
 	// a00d4_IndexAll1947613349 a00d4_IndexAge598045226 a00d4_IndexName3949043050 a00d4_IndexReference1980761503
 	c.Flusher().Delete(rows[1]).Flush()
 
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 10)
-	assert.Equal(t, 3, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
 	assert.Len(t, rows, 3)
 	assert.Equal(t, uint64(3), rows[0].GetID())
 
-	totalRows = CachedSearch(c, &rows, "IndexAll", pager)
-	assert.Equal(t, 9, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAll")
 	assert.Len(t, rows, 9)
 
 	entity = &cachedSearchEntity{Name: "Name 11", Age: uint16(18)}
 	c.Flusher().Track(entity).Flush()
 
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-	assert.Equal(t, 7, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 18)
 	assert.Len(t, rows, 7)
 	assert.Equal(t, uint64(11), rows[6].GetID())
 
-	totalRows = CachedSearch(c, &rows, "IndexAll", pager)
-	assert.Equal(t, 10, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAll")
 	assert.Len(t, rows, 10)
 
 	ClearCacheByIDs[*cachedSearchEntity](c, 1, 3)
-	totalRows = CachedSearch(c, &rows, "IndexAll", pager)
-	assert.Equal(t, 10, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAll")
 	assert.Len(t, rows, 10)
 
 	row, has := CachedSearchOne[*cachedSearchEntity](c, "IndexName", "Name 6")
@@ -174,67 +146,38 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	assert.Equal(t, uint64(6), row.GetID())
 	assert.Len(t, dbLogger.Logs, 0)
 
-	row, has = CachedSearchOneWithReferences[*cachedSearchEntity](c, "IndexName", []interface{}{"Name 4"}, []string{"ReferenceOne"})
-	assert.True(t, has)
-	assert.Equal(t, uint64(4), row.GetID())
-	assert.NotNil(t, row.ReferenceOne)
-	assert.Equal(t, "Name 4", row.ReferenceOne.Name)
-
 	row, has = CachedSearchOne[*cachedSearchEntity](c, "IndexName", "Name 99")
 	assert.False(t, has)
 	assert.Nil(t, t, row)
 
-	pager = NewPager(49, 1000)
-	totalRows = CachedSearch(c, &rows, "IndexAll", pager)
-	assert.Equal(t, 10, totalRows)
-	totalRows = CachedSearch(c, &rows, "IndexAge", nil, 10)
-	assert.Equal(t, 3, totalRows)
-
-	totalRows = CachedSearchWithReferences(c, &rows, "IndexAge", nil, []interface{}{10}, []string{"ReferenceOne"})
-	assert.Equal(t, 3, totalRows)
-	assert.Equal(t, "Name 3", rows[0].ReferenceOne.Name)
-	assert.Equal(t, "Name 4", rows[1].ReferenceOne.Name)
-	assert.Equal(t, "Name 5", rows[2].ReferenceOne.Name)
-
 	c.Engine().LocalCache(DefaultPoolCode).Clear(c)
-	totalRows = CachedSearch(c, &rows, "IndexAge", nil, 10)
-	assert.EqualValues(t, 3, totalRows)
-
-	assert.PanicsWithError(t, "reference WrongReference in cachedSearchEntity is not valid", func() {
-		CachedSearchWithReferences(c, &rows, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
-	})
-	assert.PanicsWithError(t, "interface *beeorm.cachedSearchEntity is no slice of beeorm.Entity", func() {
-		CachedSearchWithReferences(c, entity, "IndexAge", nil, []interface{}{10}, []string{"WrongReference"})
-	})
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
+	assert.Len(t, rows, 3)
 
 	for i := 1; i <= 200; i++ {
 		e := &cachedSearchEntity{Name: "NameNew " + strconv.Itoa(i), Age: uint16(77)}
 		c.Flusher().Track(e)
 	}
 	c.Flusher().Flush()
-	pager = NewPager(30, 1000)
-	totalRows = CachedSearch(c, &rows, "IndexAge", pager, 77)
-	assert.Equal(t, 200, totalRows)
 
 	for i := 1; i <= 10; i++ {
 		e := &cachedSearchEntity{Name: "NameNew13 " + strconv.Itoa(i), Age: uint16(13)}
 		c.Flusher().Track(e)
 	}
 	c.Flusher().Flush()
-	totalRows = CachedSearch(c, &rows, "IndexAge", NewPager(3, 10), 13)
-	assert.Equal(t, 10, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 13)
+	assert.Len(t, row, 10)
 
 	if localCache {
-		pager = NewPager(1, 100)
 		//a00d4_IndexReference1980761503
-		totalRows = CachedSearch(c, &rows, "IndexReference", pager, 2)
-		assert.Equal(t, 0, totalRows)
+		rows = CachedSearch[*cachedSearchEntity](c, "IndexReference", 2)
+		assert.Len(t, rows, 2)
 		//a00d4_IndexAge598045226
-		totalRows = CachedSearch(c, &rows, "IndexAge", pager, 10)
-		assert.Equal(t, 3, totalRows)
+		rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
+		assert.Len(t, rows, 4)
 		//a00d4_IndexAge3820524834
-		totalRows = CachedSearch(c, &rows, "IndexAge", pager, 18)
-		assert.Equal(t, 7, totalRows)
+		rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 18)
+		assert.Equal(t, rows, 7)
 		rows[0].Age = 10
 		rows[1].Age = 10
 		c.Flusher().Track(rows[0], rows[1]).FlushLazy()
@@ -242,19 +185,19 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		rows[1].ReferenceOne = &cachedSearchRefEntity{ID: 2}
 		rows[2].ReferenceOne = &cachedSearchRefEntity{ID: 2}
 		c.Flusher().Track(rows[0], rows[1], rows[2]).FlushLazy()
-		assert.Equal(t, 7, CachedSearch(c, &rows, "IndexAge", pager, 18))
-		assert.Equal(t, 3, CachedSearch(c, &rows, "IndexAge", pager, 10))
-		assert.Equal(t, 0, CachedSearch(c, &rows, "IndexReference", pager, 2))
+		assert.Equal(t, 7, CachedSearch[*cachedSearchEntity](c, "IndexAge", 18))
+		assert.Equal(t, 3, CachedSearch[*cachedSearchEntity](c, "IndexAge", 10))
+		assert.Equal(t, 0, CachedSearch[*cachedSearchEntity](c, "IndexReference", 2))
 
 		RunLazyFlushConsumer(c, false)
-		assert.Equal(t, 5, CachedSearch(c, &rows, "IndexAge", pager, 18))
-		assert.Equal(t, 5, CachedSearch(c, &rows, "IndexAge", pager, 10))
-		assert.Equal(t, 3, CachedSearch(c, &rows, "IndexReference", pager, 2))
+		assert.Equal(t, 5, CachedSearch[*cachedSearchEntity](c, "IndexAge", 18))
+		assert.Equal(t, 5, CachedSearch[*cachedSearchEntity](c, "IndexAge", 10))
+		assert.Equal(t, 3, CachedSearch[*cachedSearchEntity](c, "IndexReference", 2))
 	}
 
 	//a00d4_IndexReference2048857717
-	totalRows = CachedSearch(c, &rows, "IndexReference", nil, 4)
-	assert.Equal(t, 1, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexReference", 4)
+	assert.Len(t, rows, 1)
 	assert.NotNil(t, rows[0])
 	e := &cachedSearchEntity{ID: 4}
 	Load(c, e)
@@ -262,8 +205,8 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 	c.Flusher().Track(e).FlushLazy()
 	c.Flusher().Delete(e).FlushLazy()
 	RunLazyFlushConsumer(c, false)
-	totalRows = CachedSearch(c, &rows, "IndexReference", nil, 4)
-	assert.Equal(t, 0, totalRows)
+	rows = CachedSearch[*cachedSearchEntity](c, "IndexReference", 4)
+	assert.Len(t, rows, 0)
 
 	if localCache {
 		f := c.Flusher()
@@ -274,16 +217,15 @@ func testCachedSearch(t *testing.T, localCache bool, redisCache bool) {
 		f.FlushLazy()
 		RunLazyFlushConsumer(c, false)
 		//a00d4_IndexAge1723156944
-		totalRows = CachedSearch(c, &rows, "IndexAge", nil, 45)
-		assert.Equal(t, 0, totalRows)
+		rows = CachedSearch[*cachedSearchEntity](c, "IndexAge", 45)
+		assert.Len(t, rows, 0)
 	}
 }
 
 func TestCachedSearchErrors(t *testing.T) {
 	c := PrepareTables(t, &Registry{}, 5, 6, "")
-	var rows []*cachedSearchEntity
 	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
-		_ = CachedSearch(c, &rows, "IndexAge", nil, 10)
+		_ = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
 	})
 	assert.PanicsWithError(t, "entity 'beeorm.cachedSearchEntity' is not registered", func() {
 		_, _ = CachedSearchOne[*cachedSearchEntity](c, "IndexName", 10)
@@ -293,21 +235,19 @@ func TestCachedSearchErrors(t *testing.T) {
 	var entityRef *cachedSearchRefEntity
 	c = PrepareTables(t, &Registry{}, 5, 6, "", entity, entityRef)
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
-		_ = CachedSearch(c, &rows, "InvalidIndex", nil, 10)
+		_ = CachedSearch[*cachedSearchEntity](c, "InvalidIndex", nil, 10)
 	})
 
 	assert.PanicsWithError(t, "index InvalidIndex not found", func() {
 		_, _ = CachedSearchOne[*cachedSearchEntity](c, "InvalidIndex", 10)
 	})
 
-	pager := NewPager(51, 1000)
 	assert.PanicsWithError(t, "max cache index page size (50000) exceeded IndexAge", func() {
-		_ = CachedSearch(c, &rows, "IndexAge", pager, 10)
+		_ = CachedSearch[*cachedSearchEntity](c, "IndexAge", 10)
 	})
 
-	var rows2 []*cachedSearchRefEntity
 	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'beeorm.cachedSearchRefEntity'", func() {
-		_ = CachedSearch(c, &rows2, "IndexAll", nil, 10)
+		_ = CachedSearch[*cachedSearchRefEntity](c, "IndexAll", 10)
 	})
 
 	assert.PanicsWithError(t, "cache search not allowed for entity without cache: 'beeorm.cachedSearchRefEntity'", func() {
