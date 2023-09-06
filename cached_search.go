@@ -25,7 +25,7 @@ func cachedSearch[E Entity](c *contextImplementation, indexName string, argument
 	if !schema.hasLocalCache && !schema.hasRedisCache {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", schema.GetType().String()))
 	}
-	cacheKey := getCacheKeySearch(schema, indexName, arguments)
+	cacheKey := getCacheKeySearch(indexName, arguments)
 	if schema.hasLocalCache {
 		fromCacheLocal, hasInLocalCache := schema.localCache.Get(c, cacheKey)
 		if hasInLocalCache {
@@ -66,7 +66,7 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	if !hasLocalCache && !hasRedis {
 		panic(fmt.Errorf("cache search not allowed for entity without cache: '%s'", entityType.String()))
 	}
-	cacheKey := getCacheKeySearch(schema, indexName, where.GetParameters())
+	cacheKey := getCacheKeySearch(indexName, where.GetParameters())
 	var fromCache map[string]interface{}
 	if hasLocalCache {
 		fromLocalCache, hasInLocalCache := cacheLocal.Get(c, cacheKey)
@@ -107,8 +107,8 @@ func cachedSearchOne[E Entity](c Context, indexName string, arguments []interfac
 	return entity, false
 }
 
-func getCacheKeySearch(entitySchema *entitySchema, indexName string, parameters []interface{}) string {
+func getCacheKeySearch(indexName string, parameters []interface{}) string {
 	asString, err := jsoniter.ConfigFastest.MarshalToString(parameters)
 	checkError(err)
-	return entitySchema.cacheKey + indexName + asString
+	return indexName + asString
 }

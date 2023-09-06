@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// BenchmarkCachedSearchLocal-10    	 6199995	       195.4 ns/op	      68 B/op	       4 allocs/op
+// BenchmarkCachedSearchLocal-10    	 6801566	       177.8 ns/op	      56 B/op	       4 allocs/op
 func BenchmarkCachedSearchLocal(b *testing.B) {
 	benchmarkCachedSearch(b, true, false)
 }
