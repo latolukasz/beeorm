@@ -33,28 +33,13 @@ func TestSearch(t *testing.T) {
 	Load(c, entity)
 	c.Flusher().Track(entity).Flush()
 
-	var rows []*searchEntity
-	GetByIDs(c, []uint64{1, 2, 20}, &rows)
+	rows := GetByIDs[*searchEntity](c, 1, 2, 20)
 	assert.Len(t, rows, 3)
 	assert.Equal(t, uint64(1), rows[0].GetID())
 	assert.Equal(t, uint64(2), rows[1].GetID())
 	assert.Nil(t, rows[2])
 
-	entity, found := SearchOne[*searchEntity](c, NewWhere("ID = ?", 1), "ReferenceOne")
-	assert.True(t, found)
-	assert.Equal(t, uint64(1), entity.GetID())
-	assert.Equal(t, "name 1", entity.Name)
-	assert.Equal(t, "name 1", entity.ReferenceOne.Name)
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-
-	Search(c, NewWhere("ID > 0"), nil, &rows, "ReferenceOne")
-	assert.Len(t, rows, 10)
-	assert.Equal(t, uint64(1), rows[0].GetID())
-	assert.Equal(t, "name 1", rows[0].Name)
-	assert.Equal(t, "name 1", rows[0].ReferenceOne.Name)
-	assert.True(t, rows[0].ReferenceOne.IsLoaded())
-
-	total := SearchWithCount(c, NewWhere("ID > 2"), nil, &rows)
+	rows, total := SearchWithCount[*searchEntity](c, NewWhere("ID > 2"), nil)
 	assert.Equal(t, 8, total)
 	assert.Len(t, rows, 8)
 
@@ -69,6 +54,6 @@ func TestSearch(t *testing.T) {
 
 	c = PrepareTables(t, &Registry{}, 5, 6, "")
 	assert.PanicsWithError(t, "entity 'beeorm.searchEntity' is not registered", func() {
-		Search(c, NewWhere("ID > 0"), nil, &rows)
+		_ = Search[*searchEntity](c, NewWhere("ID > 0"), nil)
 	})
 }

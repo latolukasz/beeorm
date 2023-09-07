@@ -6,23 +6,17 @@ import (
 	"strings"
 )
 
-func GetByIDs(c Context, ids []uint64, entities interface{}, references ...string) (found bool) {
-	_, hasMissing := getByIDs(c.(*contextImplementation), ids, reflect.ValueOf(entities), references)
-	return !hasMissing
+func GetByIDs[E Entity](c Context, ids ...uint64) []E {
+	results, _ := getByIDs[E](c.(*contextImplementation), ids)
+	return results
 }
 
-func getByIDs(c *contextImplementation, ids []uint64, entities reflect.Value, references []string) (schema *entitySchema, hasMissing bool) {
-	schema = c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
-	resultsSlice := entities.Elem()
-	diffCap := len(ids) - resultsSlice.Cap()
-	if diffCap > 0 {
-		resultsSlice.Grow(diffCap)
-	}
-	resultsSlice.SetLen(len(ids))
+func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, hasMissing bool) {
+	schema := GetEntitySchema[E](c).(*entitySchema)
+	resultsSlice := reflect.MakeSlice(reflect.SliceOf(schema.t), len(ids), len(ids))
 	if len(ids) == 0 {
-		return
+		return resultsSlice.Interface().([]E), true
 	}
-
 	foundInCache := 0
 	hasCacheNils := false
 	if schema.hasLocalCache {

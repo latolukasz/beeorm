@@ -5,12 +5,12 @@ import (
 	"strconv"
 )
 
-func GetByID[E Entity, I ID](c Context, id I, references ...string) (entity E) {
-	entity = getByID[E, I](c.(*contextImplementation), id, nil, references...)
+func GetByID[E Entity, I ID](c Context, id I) (entity E) {
+	entity = getByID[E, I](c.(*contextImplementation), id, nil)
 	return
 }
 
-func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity, references ...string) (entity E) {
+func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity) (entity E) {
 	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
 	idUint64 := uint64(id)
 	if schema.hasLocalCache {
@@ -20,9 +20,6 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 				return
 			}
 			entity = e.Interface().(E)
-			//if len(references) > 0 {
-			//	warmUpReferences(c, schema, orm.value, references, false)
-			//}
 			return
 		}
 	}
@@ -53,7 +50,7 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 			return
 		}
 	}
-	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false, nil)
+	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false)
 	if !found {
 		if schema.hasLocalCache {
 			schema.localCache.setEntity(c, idUint64, emptyReflect)

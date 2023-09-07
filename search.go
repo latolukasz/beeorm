@@ -6,12 +6,13 @@ import (
 	"strconv"
 )
 
-func SearchWithCount(c Context, where *Where, pager *Pager, entities interface{}, references ...string) (totalRows int) {
-	return search(c, where, pager, true, reflect.ValueOf(entities), references...)
+func SearchWithCount[E Entity](c Context, where *Where, pager *Pager) (results []E, totalRows int) {
+	return search[E](c, where, pager, true)
 }
 
-func Search(c Context, where *Where, pager *Pager, entities interface{}, references ...string) {
-	search(c, where, pager, false, reflect.ValueOf(entities), references...)
+func Search[E Entity](c Context, where *Where, pager *Pager) []E {
+	results, _ := search[E](c, where, pager, false)
+	return results
 }
 
 func SearchIDsWithCount[E Entity](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
@@ -25,8 +26,8 @@ func SearchIDs[E Entity](c Context, where *Where, pager *Pager) []uint64 {
 	return ids
 }
 
-func SearchOne[E Entity](c Context, where *Where, references ...string) (entity E, found bool) {
-	return searchOne[E](c, where, references)
+func SearchOne[E Entity](c Context, where *Where) (entity E, found bool) {
+	return searchOne[E](c, where)
 }
 
 func prepareScan(schema EntitySchema) (pointers []interface{}) {
@@ -133,7 +134,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool, references []string) (entity E, found bool) {
+func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool) (entity E, found bool) {
 	schema := GetEntitySchema[E](c)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(c, where, schema)
@@ -174,27 +175,27 @@ func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema
 	return where
 }
 
-func search(c Context, where *Where, pager *Pager, withCount bool, entities reflect.Value, references ...string) (totalRows int) {
+func search[E Entity](c Context, where *Where, pager *Pager, withCount bool) (results []E, totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	entities.SetLen(0)
-	schema := c.Engine().Registry().getEntitySchemaForSlice(entities.Type())
+	schema := GetEntitySchema[E](c).(*entitySchema)
+	entities := reflect.MakeSlice(reflect.SliceOf(schema.t), 0, 0)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetDB()
-	results, def := pool.Query(c, query, where.GetParameters()...)
+	queryResults, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 
 	valOrigin := entities
 	val := valOrigin
 	i := 0
-	for results.Next() {
+	for queryResults.Next() {
 		pointers := prepareScan(schema)
-		results.Scan(pointers...)
+		queryResults.Scan(pointers...)
 		entity := schema.NewEntity()
 		fillFromDBRow(c, schema, pointers, entity)
 		val = reflect.Append(val, reflect.ValueOf(entity))
@@ -206,11 +207,11 @@ func search(c Context, where *Where, pager *Pager, withCount bool, entities refl
 	//	warmUpReferences(serializer, engine, schema, val, references, true)
 	//}
 	valOrigin.Set(val)
-	return totalRows
+	return entities.Interface().([]E), totalRows
 }
 
-func searchOne[E Entity](c Context, where *Where, references []string) (entity E, found bool) {
-	return searchRow[E](c, where, nil, true, references)
+func searchOne[E Entity](c Context, where *Where) (entity E, found bool) {
+	return searchRow[E](c, where, nil, true)
 }
 
 func searchIDs(c Context, entity reflect.Type, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {

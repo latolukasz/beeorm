@@ -36,11 +36,10 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 		ids[i] = uint64(i + 1)
 	}
 	f.Flush()
-	var entities []*loadByIDBenchmarkEntity
-	_ = GetByIDs(c, ids, &entities)
+	_ = GetByIDs[*loadByIDBenchmarkEntity](c, ids...)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = GetByIDs(c, ids, &entities)
+		_ = GetByIDs[*loadByIDBenchmarkEntity](c, ids...)
 	}
 }

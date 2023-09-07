@@ -112,8 +112,7 @@ func testLoadByID(t *testing.T, local, redis bool) {
 
 	id := e.GetID()
 	c.EnableQueryDebug()
-	entity = GetByID[*loadByIDEntity](c, id, "ReferenceOne/ReferenceTwo",
-		"ReferenceSecond/ReferenceTwo", "ReferenceSecond/ReferenceThree/ReferenceTwo")
+	entity = GetByID[*loadByIDEntity](c, id)
 	assert.NotNil(t, entity)
 	assert.True(t, entity.IsLoaded())
 	assert.True(t, entity.ReferenceOne.IsLoaded())
@@ -126,47 +125,6 @@ func testLoadByID(t *testing.T, local, redis bool) {
 	schema := GetEntitySchema[*loadByIDEntity](c)
 	assert.NotNil(t, schema)
 	assert.Equal(t, "loadByIDEntity", schema.GetTableName())
-
-	c.EnableQueryDebug()
-	entity = GetByID[*loadByIDEntity](c, id, "ReferenceThird", "ReferenceOne")
-	assert.NotNil(t, entity)
-	assert.Equal(t, "a", entity.Name)
-	assert.Equal(t, "r2A", entity.ReferenceThird.Name)
-	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-
-	entity = &loadByIDEntity{}
-	entity = GetByID[*loadByIDEntity](c, id, "ReferenceOne/ReferenceTwo")
-	assert.NotNil(t, entity)
-	assert.Equal(t, id, entity.GetID())
-	assert.Equal(t, "a", entity.Name)
-	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-
-	entity = &loadByIDEntity{ID: id}
-	Load(c, entity, "ReferenceOne/ReferenceTwo")
-	assert.Equal(t, "a", entity.Name)
-	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-	Load(c, entity, "ReferenceOne/ReferenceTwo")
-	assert.Equal(t, "a", entity.Name)
-	assert.Equal(t, "r1", entity.ReferenceOne.Name)
-	assert.True(t, entity.ReferenceOne.IsLoaded())
-	assert.Equal(t, "s1", entity.ReferenceOne.ReferenceTwo.Name)
-	assert.True(t, entity.ReferenceOne.ReferenceTwo.IsLoaded())
-
-	entityNoCache = GetByID[*loadByIDNoCacheEntity](c, 1, "*")
-	assert.NotNil(t, entityNoCache)
-	assert.Equal(t, uint64(1), entityNoCache.GetID())
-	assert.Equal(t, "a", entityNoCache.Name)
-
-	entity = GetByID[*loadByIDEntity](c, 100, "*")
-	assert.Nil(t, entity)
-	entityRedis = GetByID[*loadByIDRedisEntity](c, 100, "*")
-	assert.Nil(t, entityRedis)
 
 	entityLocalCache := GetByID[*loadByIDLocalEntity](c, 1)
 	assert.NotNil(t, entityLocalCache)
