@@ -35,7 +35,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		}
 	}
 	if foundInCache == len(ids) {
-		return
+		return resultsSlice.Interface().([]E), hasMissing
 	}
 	cacheRedis, hasRedisCache := schema.GetRedisCache()
 	if hasRedisCache && foundInCache < len(ids) {
@@ -143,7 +143,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 			}
 		}
 	}
-	return
+	return resultsSlice.Interface().([]E), hasMissing
 }
 
 func getMissingIdsFromResults(ids []uint64, foundInCache int, slice reflect.Value) []uint64 {
