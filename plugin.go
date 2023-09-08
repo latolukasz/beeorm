@@ -17,10 +17,10 @@ type PluginInterfaceTableSQLSchemaDefinition interface {
 }
 
 type PluginInterfaceEntityFlushing interface {
-	PluginInterfaceEntityFlushing(c Context, event EventEntityFlushing)
+	PluginInterfaceEntityFlushing(c Context, event EntityFlushEvent)
 }
 type PluginInterfaceEntityFlushed interface {
-	PluginInterfaceEntityFlushed(c Context, event EventEntityFlushed, cacheFlusher FlusherCacheSetter)
+	PluginInterfaceEntityFlushed(c Context, event EntityFlushedEvent)
 }
 
 type PluginInterfaceEntitySearch interface {

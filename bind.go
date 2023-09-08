@@ -12,7 +12,7 @@ func (b Bind) Get(key string) interface{} {
 	return b[key]
 }
 
-func (m *insertableEntity[E]) GetUpdateBind() Bind {
+func (m *insertableEntity[E]) GetBind() Bind {
 	s := m.c.getSerializer()
 	o := m.entity.getORM()
 	o.serialize(s)
@@ -21,7 +21,7 @@ func (m *insertableEntity[E]) GetUpdateBind() Bind {
 	return bind
 }
 
-func (e *editableEntity[E]) GetUpdateBind() (new, old Bind) {
+func (e *editableEntity[E]) GetBind() (new, old Bind) {
 	s := e.c.getSerializer()
 	schema := GetEntitySchema[E](e.c)
 	if e.delete {

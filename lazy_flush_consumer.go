@@ -13,7 +13,6 @@ type LazyFlushConsumer struct {
 	eventConsumerBase
 	consumer                     *eventsConsumer
 	lazyFlushQueryErrorResolvers []LazyFlushQueryErrorResolver
-	flusher                      *flusher
 }
 
 func NewLazyFlushConsumer(c Context) *LazyFlushConsumer {
@@ -22,7 +21,6 @@ func NewLazyFlushConsumer(c Context) *LazyFlushConsumer {
 	lfc.c.SetMetaData("lazy", "1")
 	lfc.block = true
 	lfc.blockTime = time.Second * 30
-	lfc.flusher = &flusher{c: c}
 	return lfc
 }
 

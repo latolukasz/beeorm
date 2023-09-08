@@ -11,12 +11,16 @@ const (
 	Insert FlushType = iota
 	Update
 	Delete
-	InsertUpdate
 )
 
 type Meta map[string]string
 
-type flushInterface interface {
+type EntityFlushEvent interface {
+	FlushType() FlushType
+	GetMetaData() Meta
+}
+
+type EntityFlushedEvent interface {
 	FlushType() FlushType
 	GetMetaData() Meta
 }
@@ -29,18 +33,19 @@ type writableEntityInterface[E Entity] interface {
 	Entity() E
 	SetMetaData(key, value string)
 	GetMetaData() Meta
-	GetUpdateBind() Bind
 }
 
 type InsertableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	SetOnDuplicateKeyUpdate(bind Bind)
+	GetBind() Bind
 }
 
 type EditableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	Source() E
 	Delete()
+	GetBind() (new, old Bind)
 }
 
 type writableEntity[E Entity] struct {
@@ -133,8 +138,6 @@ func initNewEntity[E Entity](c Context) E {
 	val := reflect.New(schema.t)
 	e := val.Interface().(Entity)
 	orm := e.getORM()
-	orm.initialised = true
-	orm.entitySchema = schema
 	orm.value = val
 	orm.elem = val.Elem()
 	orm.idElem = orm.elem.Field(1)
