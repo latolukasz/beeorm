@@ -26,28 +26,15 @@ var disableCacheHashCheck bool
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
-	markToDelete()
 	IsLoaded() bool
-	SetOnDuplicateKeyUpdate(bind Bind)
-	SetField(c Context, field string, value interface{}) error
-	Clone() Entity
-	SetMetaData(key, value string)
-	GetMetaData() Meta
 }
 
 type ORM struct {
-	binary               []byte
-	entitySchema         EntitySchema
-	onDuplicateKeyUpdate Bind
-	meta                 Meta
-	initialised          bool
-	loaded               bool
-	inDB                 bool
-	delete               bool
-	lazy                 bool
-	value                reflect.Value
-	elem                 reflect.Value
-	idElem               reflect.Value
+	binary []byte
+	loaded bool
+	value  reflect.Value
+	elem   reflect.Value
+	idElem reflect.Value
 }
 
 func DisableCacheHashCheck() {
@@ -58,71 +45,12 @@ func (orm *ORM) getORM() *ORM {
 	return orm
 }
 
-func (orm *ORM) SetMetaData(key, value string) {
-	if orm.meta == nil {
-		if value != "" {
-			orm.meta = Meta{key: value}
-		}
-	} else if value == "" {
-		delete(orm.meta, key)
-	} else {
-		orm.meta[key] = value
-	}
-}
-
 func (orm *ORM) GetID() uint64 {
-	if orm.lazy {
-		panic(errors.New("getting ID from lazy flushed entity not allowed"))
-	}
-	if !orm.initialised {
-		panic(errors.New("getting ID from non initialised entity not allowed"))
-	}
 	return orm.idElem.Uint()
-}
-
-func (orm *ORM) GetMetaData() Meta {
-	return orm.meta
-}
-
-func (orm *ORM) Clone() Entity {
-	newEntity := orm.entitySchema.NewEntity()
-	for i, field := range orm.entitySchema.getFields().fields {
-		if field.IsExported() {
-			newEntity.getORM().elem.Field(i).Set(orm.getORM().elem.Field(i))
-		} else {
-			for k := 0; k < orm.getORM().elem.Field(i).Type().NumField(); k++ {
-				newEntity.getORM().elem.Field(i).Field(k).Set(orm.getORM().elem.Field(i).Field(k))
-			}
-		}
-	}
-	newEntity.getORM().idElem.SetUint(0)
-	return newEntity
-}
-
-func (orm *ORM) copyBinary() []byte {
-	b := make([]byte, len(orm.binary))
-	copy(b, orm.binary)
-	return b
-}
-
-func (orm *ORM) markToDelete() {
-	orm.delete = true
 }
 
 func (orm *ORM) IsLoaded() bool {
 	return orm.loaded
-}
-
-func (orm *ORM) SetOnDuplicateKeyUpdate(bind Bind) {
-	orm.onDuplicateKeyUpdate = bind
-}
-
-func (orm *ORM) buildDirtyBind(serializer *serializer, forceFillOld bool) (entitySQLFlushData *entitySQLFlush, has bool) {
-	serializer.Reset(orm.binary)
-	builder := newEntitySQLFlushBuilder(orm, forceFillOld)
-	builder.fill(serializer, orm.entitySchema.getFields(), orm.elem, true)
-	has = !orm.inDB || orm.delete || len(builder.Update) > 0
-	return builder.entitySQLFlush, has
 }
 
 func (orm *ORM) serialize(serializer *serializer) {

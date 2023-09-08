@@ -1,6 +1,6 @@
 module github.com/latolukasz/beeorm/v3
 
-go 1.20
+go 1.21
 
 require (
 	github.com/bsm/redislock v0.9.3

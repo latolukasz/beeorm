@@ -89,7 +89,6 @@ type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
 	GetType() reflect.Type
-	NewEntity() Entity
 	DropTable(c Context)
 	TruncateTable(c Context)
 	UpdateSchema(c Context)
@@ -184,7 +183,6 @@ type tableFields struct {
 	datesNullable           []int
 	times                   []int
 	dates                   []int
-	jsons                   []int
 	structs                 []int
 	structsFields           []*tableFields
 	refs                    []int
@@ -271,18 +269,6 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 
 func (entitySchema *entitySchema) GetCacheQueries() map[string]*CachedQueryDefinition {
 	return entitySchema.cachedIndexesAll
-}
-
-func (entitySchema *entitySchema) NewEntity() Entity {
-	val := reflect.New(entitySchema.t)
-	e := val.Interface().(Entity)
-	orm := e.getORM()
-	orm.initialised = true
-	orm.entitySchema = entitySchema
-	orm.value = val
-	orm.elem = val.Elem()
-	orm.idElem = orm.elem.Field(1)
-	return e
 }
 
 func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {

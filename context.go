@@ -9,8 +9,9 @@ import (
 type Context interface {
 	Ctx() context.Context
 	Clone() Context
-	Flusher() Flusher
 	Engine() Engine
+	Flush()
+	FlushLazy()
 	EventBroker() EventBroker
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
@@ -23,12 +24,13 @@ type Context interface {
 	getLocalCacheLoggers() (bool, []LogHandler)
 	getRedisLoggers() (bool, []LogHandler)
 	getSerializer() *serializer
+	getSerializer2() *serializer
 }
 
 type contextImplementation struct {
 	parent                 context.Context
 	engine                 *engineImplementation
-	flusher                Flusher
+	trackedEntities        []flushInterface
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
 	queryLoggersLocalCache []LogHandler
@@ -39,12 +41,8 @@ type contextImplementation struct {
 	options                map[string]map[string]interface{}
 	meta                   Meta
 	serializer             *serializer
+	serializer2            *serializer
 	sync.Mutex
-}
-
-func CreateContext(parent context.Context) Context {
-	c := &contextImplementation{parent: parent}
-	return c
 }
 
 func (c *contextImplementation) getSerializer() *serializer {
@@ -54,6 +52,15 @@ func (c *contextImplementation) getSerializer() *serializer {
 		c.serializer.buffer.Reset()
 	}
 	return c.serializer
+}
+
+func (c *contextImplementation) getSerializer2() *serializer {
+	if c.serializer2 == nil {
+		c.serializer2 = &serializer{buffer: new(bytes.Buffer)}
+	} else {
+		c.serializer2.buffer.Reset()
+	}
+	return c.serializer2
 }
 
 func (c *contextImplementation) Ctx() context.Context {
@@ -113,13 +120,6 @@ func (c *contextImplementation) GetMetaData() Meta {
 
 func (c *contextImplementation) Engine() Engine {
 	return c.engine
-}
-
-func (c *contextImplementation) Flusher() Flusher {
-	if c.flusher == nil {
-		c.flusher = &flusher{c: c}
-	}
-	return c.flusher
 }
 
 func (c *contextImplementation) getRedisLoggers() (bool, []LogHandler) {
