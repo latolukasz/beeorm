@@ -9,36 +9,19 @@ import (
 	"strings"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
-
 	"github.com/pkg/errors"
 )
 
-const TimeFormat = "2006-01-02 15:04:05"
-const DateFormat = "2006-01-02"
 const zeroDateSeconds = 31622400
 const timeStampSeconds = 62167219200
 
-var timeSupportedLayouts = []string{TimeFormat, DateFormat, time.RFC3339}
-
-var disableCacheHashCheck bool
-
-type Entity interface {
-	getORM() *ORM
-	GetID() uint64
-	IsLoaded() bool
-}
-
 type ORM struct {
-	binary []byte
-	loaded bool
-	value  reflect.Value
-	elem   reflect.Value
-	idElem reflect.Value
-}
-
-func DisableCacheHashCheck() {
-	disableCacheHashCheck = true
+	binary       []byte
+	loaded       bool
+	entitySchema EntitySchema
+	value        reflect.Value
+	elem         reflect.Value
+	idElem       reflect.Value
 }
 
 func (orm *ORM) getORM() *ORM {
@@ -51,6 +34,15 @@ func (orm *ORM) GetID() uint64 {
 
 func (orm *ORM) IsLoaded() bool {
 	return orm.loaded
+}
+
+func (orm *ORM) init(schema EntitySchema, entity Entity) {
+	value := reflect.ValueOf(entity)
+	elem := value.Elem()
+	orm.entitySchema = schema
+	orm.value = value
+	orm.elem = elem
+	orm.idElem = elem.Field(1)
 }
 
 func (orm *ORM) serialize(serializer *serializer) {
@@ -180,15 +172,6 @@ func (orm *ORM) deserializeStructFromDB(serializer *serializer, index int, field
 		if v.Valid {
 			unix := v.Int64
 			serializer.SerializeInteger(unix)
-		}
-		index++
-	}
-	for range fields.jsons {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			serializer.SerializeBytes([]byte(v.String))
-		} else {
-			serializer.SerializeBytes(nil)
 		}
 		index++
 	}
@@ -352,15 +335,6 @@ func (orm *ORM) serializeFields(serialized *serializer, fields *tableFields, ele
 			serialized.SerializeInteger(unix)
 		}
 	}
-	for _, i := range fields.jsons {
-		f := elem.Field(i)
-		if f.IsNil() {
-			serialized.SerializeBytes(nil)
-		} else {
-			encoded, _ := jsoniter.ConfigFastest.Marshal(f.Interface())
-			serialized.SerializeBytes(encoded)
-		}
-	}
 	for k, i := range fields.structs {
 		orm.serializeFields(serialized, fields.structsFields[k], elem.Field(i), false)
 	}
@@ -370,7 +344,7 @@ func (orm *ORM) deserialize(c Context) {
 	s := c.getSerializer()
 	s.Reset(orm.binary)
 	hash := s.DeserializeUInteger()
-	if !disableCacheHashCheck && hash != orm.entitySchema.getStructureHash() {
+	if hash != orm.entitySchema.getStructureHash() {
 		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.GetType().String()))
 	}
 	orm.deserializeFields(c, orm.entitySchema.getFields(), orm.elem)
@@ -556,24 +530,6 @@ func (orm *ORM) deserializeFields(c Context, fields *tableFields, elem reflect.V
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
-		}
-	}
-	for _, i := range fields.jsons {
-		bytes := serializer.DeserializeBytes()
-		f := elem.Field(i)
-		if bytes != nil {
-			t := f.Type()
-			if t.Kind().String() == "map" {
-				f.Set(reflect.MakeMap(t))
-				v := f.Addr().Interface()
-				_ = jsoniter.ConfigFastest.Unmarshal(bytes, v)
-			} else {
-				v := reflect.New(f.Type())
-				_ = jsoniter.ConfigFastest.Unmarshal(bytes, v.Interface())
-				f.Set(v.Elem())
-			}
-		} else if !f.IsNil() {
 			f.Set(reflect.Zero(f.Type()))
 		}
 	}
