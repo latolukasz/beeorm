@@ -51,6 +51,7 @@ type EditableEntity[E Entity] interface {
 type writableEntity[E Entity] struct {
 	c      Context
 	entity E
+	value  reflect.Value
 	meta   Meta
 }
 

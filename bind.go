@@ -6,6 +6,9 @@ import (
 	"time"
 )
 
+const zeroDateSeconds = 31622400
+const timeStampSeconds = 62167219200
+
 type Bind map[string]interface{}
 
 func (b Bind) Get(key string) interface{} {

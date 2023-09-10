@@ -7,7 +7,13 @@ type ID interface {
 type Entity interface {
 	getORM() *ORM
 	GetID() uint64
-	IsLoaded() bool
 }
 
-const cacheNilValue = ""
+type ORM struct {
+	binary []byte
+	loaded bool
+}
+
+func (orm *ORM) getORM() *ORM {
+	return orm
+}
