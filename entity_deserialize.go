@@ -8,9 +8,8 @@ import (
 	"time"
 )
 
-func deserializeFromDB(serializer *serializer, pointers []interface{}) {
-	orm.deserializeStructFromDB(serializer, 0, orm.entitySchema.getFields(), pointers, true)
-	orm.binary = s.Read()
+func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []interface{}) {
+	deserializeStructFromDB(elem, 0, fields, pointers)
 }
 
 func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Value) {
@@ -32,11 +31,8 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
-			e := c.Engine().Registry().EntitySchema(fields.refsTypes[k]).NewEntity()
-			o := e.getORM()
-			o.idElem.SetUint(id)
-			o.inDB = true
-			f.Set(o.value)
+			e := reflect.New(fields.refsTypes[k])
+			f.Set(e)
 		} else if !isNil {
 			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
 		}
@@ -207,128 +203,123 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	}
 }
 
-func deserializeStructFromDB(s *serializer, index int, fields *tableFields, pointers []interface{}, root bool) int {
-	if root {
-		s.SerializeUInteger(orm.entitySchema.getStructureHash())
-	}
-	for range fields.uintegers {
-		s.SerializeUInteger(*pointers[index].(*uint64))
+func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
+	for _, i := range fields.uintegers {
+		elem.Field(i).SetUint(*pointers[index].(*uint64))
 		index++
 	}
-	for range fields.refs {
+	for _, i := range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
-		s.SerializeUInteger(uint64(v.Int64))
-		index++
-	}
-	for range fields.integers {
-		s.SerializeInteger(*pointers[index].(*int64))
-		index++
-	}
-	for range fields.booleans {
-		s.SerializeBool(*pointers[index].(*uint64) > 0)
-		index++
-	}
-	for range fields.floats {
-		s.SerializeFloat(*pointers[index].(*float64))
-		index++
-	}
-	for range fields.times {
-		unix := *pointers[index].(*int64)
-		s.SerializeInteger(unix)
-		index++
-	}
-	for range fields.dates {
-		unix := *pointers[index].(*int64)
-		s.SerializeInteger(unix)
-		index++
-	}
-	for range fields.strings {
-		s.SerializeString(pointers[index].(*sql.NullString).String)
-		index++
-	}
-	for range fields.uintegersNullable {
-		v := pointers[index].(*sql.NullInt64)
-		s.SerializeBool(v.Valid)
 		if v.Valid {
-			s.SerializeUInteger(uint64(v.Int64))
-		}
-		index++
-	}
-	for range fields.integersNullable {
-		v := pointers[index].(*sql.NullInt64)
-		s.SerializeBool(v.Valid)
-		if v.Valid {
-			s.SerializeInteger(v.Int64)
-		}
-		index++
-	}
-	k := 0
-	for range fields.stringsEnums {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			s.SerializeUInteger(uint64(fields.enums[k].Index(v.String)))
+			f := elem.Field(i)
+			ref := reflect.New(f.Type())
+			ref.Interface().(Entity).SetID(uint64(v.Int64))
+			f.Set(ref)
 		} else {
-			s.SerializeUInteger(0)
+			elem.Field(i).SetZero()
 		}
 		index++
-		k++
 	}
-	for range fields.bytes {
-		s.SerializeBytes([]byte(pointers[index].(*sql.NullString).String))
+	for _, i := range fields.integers {
+		elem.Field(i).SetInt(*pointers[index].(*int64))
 		index++
 	}
-	k = 0
-	for range fields.sliceStringsSets {
+	for _, i := range fields.booleans {
+		elem.Field(i).SetBool(*pointers[index].(*int64) > 0)
+		index++
+	}
+	for _, i := range fields.floats {
+		elem.Field(i).SetFloat(*pointers[index].(*float64))
+		index++
+	}
+	for _, i := range fields.times {
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(*pointers[index].(*int64), 0)))
+		index++
+	}
+	for _, i := range fields.dates {
+		elem.Field(i).Set(reflect.ValueOf(time.Unix(*pointers[index].(*int64), 0)))
+		index++
+	}
+	for _, i := range fields.strings {
+		elem.Field(i).SetString(pointers[index].(*sql.NullString).String)
+		index++
+	}
+	for _, i := range fields.uintegersNullable {
+		v := pointers[index].(*sql.NullInt64)
+		if v.Valid {
+			elem.Field(i).SetUint(uint64(v.Int64))
+		} else {
+			elem.Field(i).SetZero()
+		}
+		index++
+	}
+	for _, i := range fields.integersNullable {
+		v := pointers[index].(*sql.NullInt64)
+		if v.Valid {
+			elem.Field(i).SetInt(v.Int64)
+		} else {
+			elem.Field(i).SetZero()
+		}
+		index++
+	}
+	for _, i := range fields.stringsEnums {
+		v := pointers[index].(*sql.NullString)
+		elem.Field(i).SetString(v.String)
+		index++
+	}
+	for _, i := range fields.bytes {
+		elem.Field(i).SetBytes([]byte(pointers[index].(*sql.NullString).String))
+		index++
+	}
+	for _, i := range fields.sliceStringsSets {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid && v.String != "" {
 			values := strings.Split(v.String, ",")
-			s.SerializeUInteger(uint64(len(values)))
-			enum := fields.sets[k]
-			for _, set := range values {
-				s.SerializeUInteger(uint64(enum.Index(set)))
-			}
+			elem.Field(i).Set(reflect.ValueOf(values))
 		} else {
-			s.SerializeUInteger(0)
+			elem.Field(i).SetZero()
 		}
-		k++
 		index++
 	}
-	for range fields.booleansNullable {
+	for _, i := range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
-		s.SerializeBool(v.Valid)
 		if v.Valid {
-			s.SerializeBool(v.Bool)
+			elem.Field(i).SetBool(v.Bool)
+		} else {
+			elem.Field(i).SetZero()
 		}
 		index++
 	}
-	for range fields.floatsNullable {
+	for _, i := range fields.floatsNullable {
 		v := pointers[index].(*sql.NullFloat64)
-		s.SerializeBool(v.Valid)
 		if v.Valid {
-			s.SerializeFloat(v.Float64)
+			elem.Field(i).SetFloat(v.Float64)
+		} else {
+			elem.Field(i).SetZero()
 		}
 		index++
 	}
-	for range fields.timesNullable {
+	for _, i := range fields.timesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		s.SerializeBool(v.Valid)
 		if v.Valid {
-			unix := v.Int64
-			s.SerializeInteger(unix)
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64, 0)))
+		} else {
+			elem.Field(i).SetZero()
 		}
 		index++
 	}
-	for range fields.datesNullable {
+	for _, i := range fields.datesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		s.SerializeBool(v.Valid)
 		if v.Valid {
-			unix := v.Int64
-			s.SerializeInteger(unix)
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64, 0)))
+		} else {
+			elem.Field(i).SetZero()
 		}
 		index++
 	}
-	for _, subField := range fields.structsFields {
-		index = orm.deserializeStructFromDB(serializer, index, subField, pointers, false)
+
+	for k, i := range fields.structs {
+		index = deserializeStructFromDB(elem.Field(i), index, fields.structsFields[k], pointers)
 	}
 	return index
 }
