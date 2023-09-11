@@ -5,15 +5,6 @@ type ID interface {
 }
 
 type Entity interface {
-	getORM() *ORM
 	GetID() uint64
-}
-
-type ORM struct {
-	binary []byte
-	loaded bool
-}
-
-func (orm *ORM) getORM() *ORM {
-	return orm
+	SetID(id uint64)
 }

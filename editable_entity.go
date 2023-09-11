@@ -41,6 +41,10 @@ type InsertableEntity[E Entity] interface {
 	GetBind() Bind
 }
 
+type RemovableEntity[E Entity] interface {
+	writableEntityInterface[E]
+}
+
 type EditableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	Source() E
@@ -85,24 +89,25 @@ func (m *insertableEntity[E]) FlushType() FlushType {
 }
 
 func (e *editableEntity[E]) FlushType() FlushType {
-	if e.delete {
-		return Delete
-	}
 	return Update
+}
+
+type removableEntity[E Entity] struct {
+	writableEntity[E]
+	delete bool
+}
+
+func (r *removableEntity[E]) FlushType() FlushType {
+	return Delete
 }
 
 type editableEntity[E Entity] struct {
 	writableEntity[E]
 	source E
-	delete bool
 }
 
 func (w *writableEntity[E]) Entity() E {
 	return w.entity
-}
-
-func (e *editableEntity[E]) Delete() {
-	e.delete = true
 }
 
 func (e *editableEntity[E]) Source() E {
