@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
+	"github.com/pkg/errors"
 	"hash/fnv"
 	"reflect"
 	"regexp"
@@ -775,7 +776,7 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			} else if k == "ptr" {
 				entitySchema.buildPointerField(attributes)
 			} else {
-				entitySchema.buildPointersSliceField(attributes)
+				panic(fmt.Errorf("field type %s is not supported", f.Type.String()))
 			}
 		}
 	}
@@ -885,7 +886,7 @@ func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAt
 		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
 		attributes.Fields.sets = append(attributes.Fields.sets, registry.enums[setCode])
 	} else {
-		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
+		panic(errors.New("field type string[] is not supported"))
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
@@ -1002,12 +1003,8 @@ func (entitySchema *entitySchema) buildPointerField(attributes schemaFieldAttrib
 		entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 		entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
 	} else {
-		attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
+		panic(fmt.Errorf("field type %s is not supported", attributes.Field.Type.String()))
 	}
-}
-
-func (entitySchema *entitySchema) buildPointersSliceField(attributes schemaFieldAttributes) {
-	attributes.Fields.jsons = append(attributes.Fields.jsons, attributes.Index)
 }
 
 func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {
@@ -1133,7 +1130,6 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.timesNullable...)
 	ids = append(ids, fields.datesNullable...)
 	timesNullableEnd := len(ids)
-	ids = append(ids, fields.jsons...)
 	for k, i := range ids {
 		name := subFieldPrefix + fields.fields[i].Name
 		columns = append(columns, name)
