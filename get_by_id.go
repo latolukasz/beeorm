@@ -5,8 +5,6 @@ import (
 	"strconv"
 )
 
-const cacheNilValue = ""
-
 func GetByID[E Entity, I ID](c Context, id I) (entity E) {
 	entity = getByID[E, I](c.(*contextImplementation), id, nil)
 	return
@@ -42,7 +40,7 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 			} else {
 				entity = entityToFill.(E)
 			}
-			fillFromBinary(c, schema, []byte(row), entity)
+			deserializeFromBinary(c.getSerializer(), schema, reflect.ValueOf(entity))
 			if schema.hasLocalCache {
 				schema.localCache.setEntity(c, idUint64, reflect.ValueOf(entity))
 			}

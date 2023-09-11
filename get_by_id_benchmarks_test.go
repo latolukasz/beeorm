@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-type loadByIDBenchmarkEntity struct {
+type getByIDBenchmarkEntity struct {
 	ORM     `orm:"localCache;redisCache"`
 	ID      uint
 	Name    string
@@ -14,18 +14,18 @@ type loadByIDBenchmarkEntity struct {
 	Decimal float32 `orm:"decimal=10,2"`
 }
 
-// BenchmarkLoadByIDLocalCache-10    	63629875	        18.75 ns/op	       0 B/op	       0 allocs/op
-func BenchmarkLoadByIDLocalCache(b *testing.B) {
-	benchmarkLoadByIDCache(b, true, false)
+// BenchmarkGetByIDLocalCache-10    	63629875	        18.75 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkGetByIDLocalCache(b *testing.B) {
+	benchmarkGetByIDCache(b, true, false)
 }
 
-// BenchmarkLoadByIDRedisCache-10    	    1966	    590329 ns/op	     272 B/op	      10 allocs/op
-func BenchmarkLoadByIDRedisCache(b *testing.B) {
-	benchmarkLoadByIDCache(b, false, true)
+// BenchmarkGetByIDRedisCache-10    	    1966	    590329 ns/op	     272 B/op	      10 allocs/op
+func BenchmarkGetByIDRedisCache(b *testing.B) {
+	benchmarkGetByIDCache(b, false, true)
 }
 
-func benchmarkLoadByIDCache(b *testing.B, local, redis bool) {
-	var entity *loadByIDBenchmarkEntity
+func benchmarkGetByIDCache(b *testing.B, local, redis bool) {
+	var entity *getByIDBenchmarkEntity
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
 	c := PrepareTables(nil, registry, 5, 6, "", entity)

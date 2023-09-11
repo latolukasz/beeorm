@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type loadByIDEntity struct {
+type getByIDEntity struct {
 	ORM             `orm:"localCache;redisCache"`
 	ID              uint64
 	Name            string `orm:"max=100"`
@@ -15,23 +15,23 @@ type loadByIDEntity struct {
 	ReferenceThird  *loadByIDReference2
 }
 
-type loadByIDRedisEntity struct {
+type getByIDRedisEntity struct {
 	ORM `orm:"redisCache"`
 	ID  uint64
 }
 
-type loadByIDLocalEntity struct {
+typegetByIDLocalEntity struct {
 	ORM `orm:"localCache"`
 	ID  uint64
 }
 
-type loadByIDNoCacheEntity struct {
+type getByIDNoCacheEntity struct {
 	ORM
 	ID   uint64
 	Name string
 }
 
-type loadByIDReference struct {
+type getByIDReference struct {
 	ORM            `orm:"localCache;redisCache"`
 	ID             uint64
 	Name           string
@@ -39,38 +39,38 @@ type loadByIDReference struct {
 	ReferenceThree *loadByIDSubReference2
 }
 
-type loadByIDReference2 struct {
+type getByIDReference2 struct {
 	ORM  `orm:"localCache;redisCache"`
 	ID   uint64
 	Name string
 }
 
-type loadByIDSubReference struct {
+type getByIDSubReference struct {
 	ORM  `orm:"localCache;redisCache"`
 	ID   uint64
 	Name string
 }
 
-type loadByIDSubReference2 struct {
+type getByIDSubReference2 struct {
 	ORM          `orm:"localCache"`
 	ID           uint64
 	Name         string
 	ReferenceTwo *loadByIDSubReference
 }
 
-func TestLoadByIdNoCache(t *testing.T) {
+func TestGetByIdNoCache(t *testing.T) {
 	testLoadByID(t, false, false)
 }
 
-func TestLoadByIdLocalCache(t *testing.T) {
+func TestGetByIdLocalCache(t *testing.T) {
 	testLoadByID(t, true, false)
 }
 
-func TestLoadByIdRedisCache(t *testing.T) {
+func TestGetByIdRedisCache(t *testing.T) {
 	testLoadByID(t, false, true)
 }
 
-func TestLoadByIdLocalRedisCache(t *testing.T) {
+func TestGetByIdLocalRedisCache(t *testing.T) {
 	testLoadByID(t, true, true)
 }
 

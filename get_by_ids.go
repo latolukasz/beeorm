@@ -45,8 +45,8 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 			for i := range redisHSetKeys {
 				fromRedisCache := fromRedisAll[i]
 				if fromRedisCache != nil {
-					entity := schema.NewEntity()
-					resultsSlice.Index(i).Set(entity.getORM().value)
+					entity := *new(E)
+					resultsSlice.Index(i).Set(reflect.ValueOf(entity))
 					if fromRedisCache != cacheNilValue {
 						fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
 					} else {
@@ -62,12 +62,13 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 				if fromRedisCache != nil {
 					for i, idOriginal := range ids {
 						if id == idOriginal {
-							entity := schema.NewEntity()
-							resultsSlice.Index(i).Set(entity.getORM().value)
+							entity := *new(E)
+							value := reflect.ValueOf(entity)
+							resultsSlice.Index(i).Set(value)
 							if fromRedisCache != cacheNilValue {
 								fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
 								if schema.hasLocalCache {
-									schema.localCache.setEntity(c, id, entity.getORM().value)
+									schema.localCache.setEntity(c, id, value)
 								}
 							} else {
 								hasMissing = true
@@ -95,22 +96,25 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 			foundInDB++
 			pointers := prepareScan(schema)
 			results.Scan(pointers...)
-			entity := schema.NewEntity()
+			entity := *new(E)
+			value := reflect.ValueOf(entity)
 			fillFromDBRow(c, schema, pointers, entity)
 			id := *pointers[0].(*uint64)
 			for i, originalID := range ids {
 				if id == originalID {
-					resultsSlice.Index(i).Set(entity.getORM().value)
+					resultsSlice.Index(i).Set(value)
 				}
 			}
 			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, id, entity.getORM().value)
+				schema.localCache.setEntity(c, id, value)
 			}
+			s := c.getSerializer()
+			serializeEntity(schema, value, s)
 			if hasRedisCache {
 				if len(ids) == 1 {
-					cacheRedis.HSet(c, schema.GetCacheKey(), id, string(entity.getORM().binary))
+					cacheRedis.HSet(c, schema.GetCacheKey(), id, string(s.Read()))
 				} else {
-					redisHSetValues = append(redisHSetValues, id, string(entity.getORM().binary))
+					redisHSetValues = append(redisHSetValues, id, string(s.Read()))
 				}
 			}
 		}

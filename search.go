@@ -123,11 +123,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for range fields.jsons {
-		v := sql.NullString{}
-		pointers[start] = &v
-		start++
-	}
 	for _, subFields := range fields.structsFields {
 		start = prepareScanForFields(subFields, start, pointers)
 	}
@@ -155,12 +150,9 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	if entityToFill != nil {
 		entity = entityToFill.(E)
 	} else {
-		entity = schema.NewEntity().(E)
+		entity = *new(E)
 	}
-	fillFromDBRow(c, schema, pointers, entity)
-	//if len(references) > 0 {
-	//	warmUpReferences(serializer, engine, schema, entity.getORM().value, references, false)
-	//}
+	deserializeFromDB(schema.getFields(), reflect.ValueOf(entity), pointers)
 	return entity, true
 }
 
@@ -196,16 +188,13 @@ func search[E Entity](c Context, where *Where, pager *Pager, withCount bool) (re
 	for queryResults.Next() {
 		pointers := prepareScan(schema)
 		queryResults.Scan(pointers...)
-		entity := schema.NewEntity()
-		fillFromDBRow(c, schema, pointers, entity)
+		entity := *new(E)
+		deserializeFromDB(schema.getFields(), reflect.ValueOf(entity), pointers)
 		val = reflect.Append(val, reflect.ValueOf(entity))
 		i++
 	}
 	def()
 	totalRows = getTotalRows(c, withCount, pager, where, schema, i)
-	//if len(references) > 0 && i > 0 {
-	//	warmUpReferences(serializer, engine, schema, val, references, true)
-	//}
 	valOrigin.Set(val)
 	return entities.Interface().([]E), totalRows
 }
@@ -253,22 +242,4 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 		}
 	}
 	return totalRows
-}
-
-func fillFromDBRow(c Context, schema EntitySchema, pointers []interface{}, entity Entity) {
-	orm := initIfNeeded(schema, entity)
-	orm.inDB = true
-	orm.loaded = true
-	s := c.getSerializer()
-	s.Reset(nil)
-	orm.deserializeFromDB(s, pointers)
-	orm.deserialize(c)
-}
-
-func fillFromBinary(c Context, schema EntitySchema, binary []byte, entity Entity) {
-	orm := initIfNeeded(schema, entity)
-	orm.inDB = true
-	orm.loaded = true
-	orm.binary = binary
-	orm.deserialize(c)
 }
