@@ -9,7 +9,6 @@ import (
 func serializeEntity(schema EntitySchema, elem reflect.Value, serializer *serializer) {
 	serializer.SerializeUInteger(schema.getStructureHash())
 	serializeFields(serializer, schema.getFields(), elem)
-	//orm.binary = serializer.Read()
 }
 
 func serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value) {

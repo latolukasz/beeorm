@@ -5,6 +5,8 @@ import (
 	"strconv"
 )
 
+const cacheNilValue = ""
+
 func GetByID[E Entity, I ID](c Context, id I) (entity E) {
 	entity = getByID[E, I](c.(*contextImplementation), id, nil)
 	return
@@ -36,16 +38,13 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 				return
 			}
 			if entityToFill == nil {
-				entity = schema.NewEntity().(E)
+				entity = *new(E)
 			} else {
 				entity = entityToFill.(E)
 			}
 			fillFromBinary(c, schema, []byte(row), entity)
-			//if len(references) > 0 {
-			//	warmUpReferences(c, schema, orm.value, references, false)
-			//}
 			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, idUint64, entity.getORM().value)
+				schema.localCache.setEntity(c, idUint64, reflect.ValueOf(entity))
 			}
 			return
 		}
@@ -61,10 +60,12 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 		return
 	}
 	if schema.hasLocalCache {
-		schema.localCache.setEntity(c, idUint64, entity.getORM().value)
+		schema.localCache.setEntity(c, idUint64, reflect.ValueOf(entity))
 	}
 	if hasRedis {
-		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(entity.getORM().binary))
+		s := c.getSerializer()
+		serializeEntity(schema, reflect.ValueOf(entity), s)
+		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(s.Read()))
 	}
 	return
 }

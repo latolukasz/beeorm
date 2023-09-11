@@ -13,6 +13,15 @@ import (
 	"github.com/pkg/errors"
 )
 
+type DuplicatedKeyError struct {
+	Message string
+	Index   string
+}
+
+func (err *DuplicatedKeyError) Error() string {
+	return err.Message
+}
+
 type MySQLPoolConfig interface {
 	GetCode() string
 	GetDatabase() string
