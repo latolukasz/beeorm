@@ -27,10 +27,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 			case "mysqlCollate":
 				valAsString := validateOrmString(value, key)
 				r.SetDefaultCollate(valAsString)
-			case "disableCacheHashCheck":
-				if value.(bool) {
-					DisableCacheHashCheck()
-				}
 			case "local_cache":
 				number := validateOrmInt(value, key)
 				r.RegisterLocalCache(number, key)
