@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-func serializeEntity(serializer *serializer) {
-	serializer.SerializeUInteger(orm.entitySchema.getStructureHash())
-	serializeFields(serializer, orm.entitySchema.getFields(), orm.elem, true)
+func serializeEntity(schema EntitySchema, elem reflect.Value, serializer *serializer) {
+	serializer.SerializeUInteger(schema.getStructureHash())
+	serializeFields(serializer, schema.getFields(), elem)
 	//orm.binary = serializer.Read()
 }
 

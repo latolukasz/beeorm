@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"reflect"
-	"slices"
 )
 
 type FlushType int
@@ -48,7 +47,6 @@ type RemovableEntity[E Entity] interface {
 type EditableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	Source() E
-	Delete()
 	GetBind() (new, old Bind)
 }
 
@@ -116,36 +114,37 @@ func (e *editableEntity[E]) Source() E {
 
 func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	newEntity := &insertableEntity[E]{}
-	newEntity.entity = initNewEntity[E](c)
+	newEntity.entity = *new(E)
+	newEntity.value = reflect.ValueOf(newEntity.entity)
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, newEntity)
 	return newEntity
 }
 
+func RemoveEntity[E Entity](c Context, source E) RemovableEntity[E] {
+	toRemove := &removableEntity[E]{}
+	toRemove.c = c
+	toRemove.entity = source
+	return toRemove
+}
+
 func CloneForEdit[E Entity](c Context, source E) EditableEntity[E] {
-	cloned := Copy[E](c, source)
-	writable := &editableEntity[E]{}
-	writable.entity = cloned
+	writable := Copy[E](c, source).(*editableEntity[E])
 	writable.source = source
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, writable)
 	return writable
 }
 
-func Copy[E Entity](c Context, source E) E {
-	cloned := initNewEntity[E](c)
-	cloned.getORM().binary = slices.Clone(source.getORM().binary)
-	cloned.getORM().deserialize(c)
-	return cloned
-}
-
-func initNewEntity[E Entity](c Context) E {
-	schema := GetEntitySchema[E](c).(*entitySchema)
-	val := reflect.New(schema.t)
-	e := val.Interface().(Entity)
-	orm := e.getORM()
-	orm.value = val
-	orm.elem = val.Elem()
-	orm.idElem = orm.elem.Field(1)
-	return e.(E)
+func Copy[E Entity](c Context, source E) EditableEntity[E] {
+	cloned := *new(E)
+	writable := &editableEntity[E]{}
+	writable.c = c
+	writable.entity = cloned
+	writable.value = reflect.ValueOf(writable.entity)
+	schema := GetEntitySchema[E](c)
+	s := c.getSerializer()
+	serializeEntity(schema, reflect.ValueOf(source), s)
+	deserializeFromBinary(s, schema, writable.value)
+	return writable
 }

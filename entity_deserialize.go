@@ -10,29 +10,25 @@ import (
 
 func deserializeFromDB(serializer *serializer, pointers []interface{}) {
 	orm.deserializeStructFromDB(serializer, 0, orm.entitySchema.getFields(), pointers, true)
-	orm.binary = serializer.Read()
+	orm.binary = s.Read()
 }
 
-func deserializeFromBinary(c Context) {
-	s := c.getSerializer()
-	s.Reset(orm.binary)
+func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Value) {
 	hash := s.DeserializeUInteger()
-	if hash != orm.entitySchema.getStructureHash() {
-		panic(fmt.Errorf("%s entity cache data use wrong hash", orm.entitySchema.GetType().String()))
+	if hash != schema.getStructureHash() {
+		panic(fmt.Errorf("%s entity cache data use wrong hash", schema.GetType().String()))
 	}
-	orm.deserializeFields(c, orm.entitySchema.getFields(), orm.elem)
-	orm.loaded = true
+	deserializeFields(s, schema.getFields(), elem)
 }
 
-func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
-	serializer := c.getSerializer()
+func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.uintegers {
-		v := serializer.DeserializeUInteger()
+		v := s.DeserializeUInteger()
 		elem.Field(i).SetUint(v)
 	}
 	k := 0
 	for _, i := range fields.refs {
-		id := serializer.DeserializeUInteger()
+		id := s.DeserializeUInteger()
 		f := elem.Field(i)
 		isNil := f.IsNil()
 		if id > 0 {
@@ -47,17 +43,17 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		k++
 	}
 	for _, i := range fields.integers {
-		elem.Field(i).SetInt(serializer.DeserializeInteger())
+		elem.Field(i).SetInt(s.DeserializeInteger())
 	}
 	for _, i := range fields.booleans {
-		elem.Field(i).SetBool(serializer.DeserializeBool())
+		elem.Field(i).SetBool(s.DeserializeBool())
 	}
 	for _, i := range fields.floats {
-		elem.Field(i).SetFloat(serializer.DeserializeFloat())
+		elem.Field(i).SetFloat(s.DeserializeFloat())
 	}
 	for _, i := range fields.times {
 		f := elem.Field(i)
-		unix := serializer.DeserializeInteger()
+		unix := s.DeserializeInteger()
 		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
@@ -66,7 +62,7 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 	}
 	for _, i := range fields.dates {
 		f := elem.Field(i)
-		unix := serializer.DeserializeInteger()
+		unix := s.DeserializeInteger()
 		if unix == zeroDateSeconds {
 			f.Set(reflect.Zero(f.Type()))
 		} else {
@@ -74,11 +70,11 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for _, i := range fields.strings {
-		elem.Field(i).SetString(serializer.DeserializeString())
+		elem.Field(i).SetString(s.DeserializeString())
 	}
 	for k, i := range fields.uintegersNullable {
-		if serializer.DeserializeBool() {
-			v := serializer.DeserializeUInteger()
+		if s.DeserializeBool() {
+			v := s.DeserializeUInteger()
 			switch fields.uintegersNullableSize[k] {
 			case 0:
 				val := uint(v)
@@ -103,8 +99,8 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for k, i := range fields.integersNullable {
-		if serializer.DeserializeBool() {
-			v := serializer.DeserializeInteger()
+		if s.DeserializeBool() {
+			v := s.DeserializeInteger()
 			switch fields.integersNullableSize[k] {
 			case 0:
 				val := int(v)
@@ -129,7 +125,7 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for z, i := range fields.stringsEnums {
-		index := serializer.DeserializeUInteger()
+		index := s.DeserializeUInteger()
 		if index == 0 {
 			elem.Field(i).SetString("")
 		} else {
@@ -137,11 +133,11 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for _, i := range fields.bytes {
-		elem.Field(i).SetBytes(serializer.DeserializeBytes())
+		elem.Field(i).SetBytes(s.DeserializeBytes())
 	}
 	k = 0
 	for _, i := range fields.sliceStringsSets {
-		l := int(serializer.DeserializeUInteger())
+		l := int(s.DeserializeUInteger())
 		f := elem.Field(i)
 		if l == 0 {
 			if !f.IsNil() {
@@ -151,15 +147,15 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 			enum := fields.sets[k]
 			v := make([]string, l)
 			for j := 0; j < l; j++ {
-				v[j] = enum.GetFields()[serializer.DeserializeUInteger()-1]
+				v[j] = enum.GetFields()[s.DeserializeUInteger()-1]
 			}
 			f.Set(reflect.ValueOf(v))
 		}
 		k++
 	}
 	for _, i := range fields.booleansNullable {
-		if serializer.DeserializeBool() {
-			v := serializer.DeserializeBool()
+		if s.DeserializeBool() {
+			v := s.DeserializeBool()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -169,8 +165,8 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for k, i := range fields.floatsNullable {
-		if serializer.DeserializeBool() {
-			v := serializer.DeserializeFloat()
+		if s.DeserializeBool() {
+			v := s.DeserializeFloat()
 			if fields.floatsNullableSize[k] == 32 {
 				val := float32(v)
 				elem.Field(i).Set(reflect.ValueOf(&val))
@@ -185,8 +181,8 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for _, i := range fields.timesNullable {
-		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
+		if s.DeserializeBool() {
+			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -196,8 +192,8 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for _, i := range fields.datesNullable {
-		if serializer.DeserializeBool() {
-			v := time.Unix(serializer.DeserializeInteger()-timeStampSeconds, 0)
+		if s.DeserializeBool() {
+			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0)
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -207,62 +203,62 @@ func deserializeFields(c Context, fields *tableFields, elem reflect.Value) {
 		}
 	}
 	for k, i := range fields.structs {
-		orm.deserializeFields(c, fields.structsFields[k], elem.Field(i))
+		deserializeFields(s, fields.structsFields[k], elem.Field(i))
 	}
 }
 
-func deserializeStructFromDB(serializer *serializer, index int, fields *tableFields, pointers []interface{}, root bool) int {
+func deserializeStructFromDB(s *serializer, index int, fields *tableFields, pointers []interface{}, root bool) int {
 	if root {
-		serializer.SerializeUInteger(orm.entitySchema.getStructureHash())
+		s.SerializeUInteger(orm.entitySchema.getStructureHash())
 	}
 	for range fields.uintegers {
-		serializer.SerializeUInteger(*pointers[index].(*uint64))
+		s.SerializeUInteger(*pointers[index].(*uint64))
 		index++
 	}
 	for range fields.refs {
 		v := pointers[index].(*sql.NullInt64)
-		serializer.SerializeUInteger(uint64(v.Int64))
+		s.SerializeUInteger(uint64(v.Int64))
 		index++
 	}
 	for range fields.integers {
-		serializer.SerializeInteger(*pointers[index].(*int64))
+		s.SerializeInteger(*pointers[index].(*int64))
 		index++
 	}
 	for range fields.booleans {
-		serializer.SerializeBool(*pointers[index].(*uint64) > 0)
+		s.SerializeBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
 	for range fields.floats {
-		serializer.SerializeFloat(*pointers[index].(*float64))
+		s.SerializeFloat(*pointers[index].(*float64))
 		index++
 	}
 	for range fields.times {
 		unix := *pointers[index].(*int64)
-		serializer.SerializeInteger(unix)
+		s.SerializeInteger(unix)
 		index++
 	}
 	for range fields.dates {
 		unix := *pointers[index].(*int64)
-		serializer.SerializeInteger(unix)
+		s.SerializeInteger(unix)
 		index++
 	}
 	for range fields.strings {
-		serializer.SerializeString(pointers[index].(*sql.NullString).String)
+		s.SerializeString(pointers[index].(*sql.NullString).String)
 		index++
 	}
 	for range fields.uintegersNullable {
 		v := pointers[index].(*sql.NullInt64)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeUInteger(uint64(v.Int64))
+			s.SerializeUInteger(uint64(v.Int64))
 		}
 		index++
 	}
 	for range fields.integersNullable {
 		v := pointers[index].(*sql.NullInt64)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeInteger(v.Int64)
+			s.SerializeInteger(v.Int64)
 		}
 		index++
 	}
@@ -270,15 +266,15 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 	for range fields.stringsEnums {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			serializer.SerializeUInteger(uint64(fields.enums[k].Index(v.String)))
+			s.SerializeUInteger(uint64(fields.enums[k].Index(v.String)))
 		} else {
-			serializer.SerializeUInteger(0)
+			s.SerializeUInteger(0)
 		}
 		index++
 		k++
 	}
 	for range fields.bytes {
-		serializer.SerializeBytes([]byte(pointers[index].(*sql.NullString).String))
+		s.SerializeBytes([]byte(pointers[index].(*sql.NullString).String))
 		index++
 	}
 	k = 0
@@ -286,48 +282,48 @@ func deserializeStructFromDB(serializer *serializer, index int, fields *tableFie
 		v := pointers[index].(*sql.NullString)
 		if v.Valid && v.String != "" {
 			values := strings.Split(v.String, ",")
-			serializer.SerializeUInteger(uint64(len(values)))
+			s.SerializeUInteger(uint64(len(values)))
 			enum := fields.sets[k]
 			for _, set := range values {
-				serializer.SerializeUInteger(uint64(enum.Index(set)))
+				s.SerializeUInteger(uint64(enum.Index(set)))
 			}
 		} else {
-			serializer.SerializeUInteger(0)
+			s.SerializeUInteger(0)
 		}
 		k++
 		index++
 	}
 	for range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeBool(v.Bool)
+			s.SerializeBool(v.Bool)
 		}
 		index++
 	}
 	for range fields.floatsNullable {
 		v := pointers[index].(*sql.NullFloat64)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
-			serializer.SerializeFloat(v.Float64)
+			s.SerializeFloat(v.Float64)
 		}
 		index++
 	}
 	for range fields.timesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
 			unix := v.Int64
-			serializer.SerializeInteger(unix)
+			s.SerializeInteger(unix)
 		}
 		index++
 	}
 	for range fields.datesNullable {
 		v := pointers[index].(*sql.NullInt64)
-		serializer.SerializeBool(v.Valid)
+		s.SerializeBool(v.Valid)
 		if v.Valid {
 			unix := v.Int64
-			serializer.SerializeInteger(unix)
+			s.SerializeInteger(unix)
 		}
 		index++
 	}
