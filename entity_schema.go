@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"fmt"
-	"github.com/pkg/errors"
 	"hash/fnv"
 	"reflect"
 	"regexp"
@@ -30,54 +29,6 @@ type CachedQueryDefinition struct {
 	TrackedFields []string
 	QueryFields   []string
 	OrderFields   []string
-}
-
-type Enum interface {
-	GetFields() []string
-	GetDefault() string
-	Has(value string) bool
-	Index(value string) int
-}
-
-type enum struct {
-	fields       []string
-	mapping      map[string]int
-	defaultValue string
-}
-
-func (enum *enum) GetFields() []string {
-	return enum.fields
-}
-
-func (enum *enum) GetDefault() string {
-	return enum.defaultValue
-}
-
-func (enum *enum) Has(value string) bool {
-	_, has := enum.mapping[value]
-	return has
-}
-
-func (enum *enum) Index(value string) int {
-	return enum.mapping[value]
-}
-
-func initEnum(ref interface{}, defaultValue ...string) *enum {
-	enum := &enum{}
-	e := reflect.ValueOf(ref)
-	enum.mapping = make(map[string]int)
-	enum.fields = make([]string, 0)
-	for i := 0; i < e.Type().NumField(); i++ {
-		name := e.Field(i).String()
-		enum.fields = append(enum.fields, name)
-		enum.mapping[name] = i + 1
-	}
-	if len(defaultValue) > 0 {
-		enum.defaultValue = defaultValue[0]
-	} else {
-		enum.defaultValue = enum.fields[0]
-	}
-	return enum
 }
 
 type EntitySchemaReference struct {
@@ -169,9 +120,9 @@ type tableFields struct {
 	integersNullableSize    []int
 	strings                 []int
 	stringsEnums            []int
-	enums                   []Enum
+	enums                   []*enumDefinition
 	sliceStringsSets        []int
-	sets                    []Enum
+	sets                    []*enumDefinition
 	bytes                   []int
 	booleans                []int
 	booleansNullable        []int
@@ -749,8 +700,6 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			entitySchema.buildIntPointerField(attributes)
 		case "string":
 			entitySchema.buildStringField(attributes, registry)
-		case "[]string":
-			entitySchema.buildStringSliceField(attributes, registry)
 		case "[]uint8":
 			fields.bytes = append(fields.bytes, i)
 		case "bool":
@@ -775,6 +724,13 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 				entitySchema.buildStructField(attributes, registry, schemaTags)
 			} else if k == "ptr" {
 				entitySchema.buildPointerField(attributes)
+			} else if f.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+				definition := reflect.New(f.Type).Interface().(EnumValues).EnumValues()
+				if f.Type.Kind().String() == "string" {
+					entitySchema.buildEnumField(attributes, definition)
+				} else {
+					entitySchema.buildStringSliceField(attributes, definition)
+				}
 			} else {
 				panic(fmt.Errorf("field type %s is not supported", f.Type.String()))
 			}
@@ -858,15 +814,11 @@ func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAtt
 	entitySchema.mapPointerToValue[columnName] = pointerIntNullableScan
 }
 
-func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes, registry *Registry) {
-	enumCode, hasEnum := attributes.Tags["enum"]
+func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
 	columnName := attributes.GetColumnName()
-	if hasEnum {
-		attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
-		attributes.Fields.enums = append(attributes.Fields.enums, registry.enums[enumCode])
-	} else {
-		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
-	}
+	attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
+	def := initEnumDefinition(definition)
+	attributes.Fields.enums = append(attributes.Fields.enums, def)
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
 	}
@@ -879,15 +831,25 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 	}
 }
 
-func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, registry *Registry) {
-	setCode, hasSet := attributes.Tags["set"]
+func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes, registry *Registry) {
 	columnName := attributes.GetColumnName()
-	if hasSet {
-		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
-		attributes.Fields.sets = append(attributes.Fields.sets, registry.enums[setCode])
-	} else {
-		panic(errors.New("field type string[] is not supported"))
+	attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
+	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+		return &sql.NullString{}
 	}
+	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		v := val.(*sql.NullString)
+		if v.Valid {
+			return v.String
+		}
+		return nil
+	}
+}
+
+func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
+	columnName := attributes.GetColumnName()
+	attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
+	attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition))
 	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
 }

@@ -24,7 +24,6 @@ type Registry struct {
 	localCaches       map[string]LocalCache
 	redisPools        map[string]RedisPoolConfig
 	entities          map[string]reflect.Type
-	enums             map[string]Enum
 	defaultEncoding   string
 	defaultCollate    string
 	redisStreamGroups map[string]map[string]map[string]bool
@@ -114,12 +113,6 @@ func (r *Registry) Validate() (Engine, error) {
 			maxPoolLen = len(k)
 		}
 	}
-	if e.registry.enums == nil {
-		e.registry.enums = make(map[string]Enum)
-	}
-	for k, v := range r.enums {
-		e.registry.enums[k] = v
-	}
 	for name, entityType := range r.entities {
 		schema := &entitySchema{engine: e}
 		err := schema.init(r, entityType)
@@ -200,31 +193,6 @@ func (r *Registry) RegisterEntity(entity ...Entity) {
 		t := reflect.TypeOf(e)
 		r.entities[t.Elem().String()] = t
 	}
-}
-
-func (r *Registry) RegisterEnumStruct(code string, val interface{}, defaultValue ...string) {
-	enum := initEnum(val, defaultValue...)
-	if r.enums == nil {
-		r.enums = make(map[string]Enum)
-	}
-	r.enums[code] = enum
-}
-
-func (r *Registry) RegisterEnum(code string, values []string, defaultValue ...string) {
-	e := enum{}
-	e.fields = values
-	e.defaultValue = values[0]
-	if len(defaultValue) > 0 {
-		e.defaultValue = defaultValue[0]
-	}
-	e.mapping = make(map[string]int)
-	for i, name := range values {
-		e.mapping[name] = i + 1
-	}
-	if r.enums == nil {
-		r.enums = make(map[string]Enum)
-	}
-	r.enums[code] = &e
 }
 
 type MySQLPoolOptions struct {

@@ -125,7 +125,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		if index == 0 {
 			elem.Field(i).SetString("")
 		} else {
-			elem.Field(i).SetString(fields.enums[z].GetFields()[index-1])
+			elem.Field(i).SetString(string(fields.enums[z].GetFields()[index-1]))
 		}
 	}
 	for _, i := range fields.bytes {

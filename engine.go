@@ -16,7 +16,6 @@ type RedisStream struct {
 
 type EngineRegistry interface {
 	EntitySchema(entity any) EntitySchema
-	Enum(code string) Enum
 	RedisStreams() []RedisStream
 	DBPools() map[string]DB
 	LocalCachePools() map[string]LocalCache
@@ -45,7 +44,6 @@ type engineRegistryImplementation struct {
 	entities           map[string]reflect.Type
 	entitySchemas      map[reflect.Type]*entitySchema
 	plugins            []Plugin
-	enums              map[string]Enum
 	defaultQueryLogger *defaultLogLogger
 	redisStreamGroups  map[string]map[string]map[string]bool
 	redisStreamPools   map[string]string
@@ -175,10 +173,6 @@ func (er *engineRegistryImplementation) DefaultDBCollate() string {
 
 func (er *engineRegistryImplementation) DefaultDBEncoding() string {
 	return er.defaultDBEncoding
-}
-
-func (er *engineRegistryImplementation) Enum(code string) Enum {
-	return er.enums[code]
 }
 
 func (er *engineRegistryImplementation) getDefaultQueryLogger() LogHandler {

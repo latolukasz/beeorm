@@ -525,7 +525,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"
 	case "*bool":
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", false, "nil"
-	case "string", "[]string":
+	case "string":
 		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleString(version, engine, attributes, !isRequired)
 		if err != nil {
 			return nil, err
@@ -560,10 +560,20 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 				addNotNullIfNotSet = false
 				addDefaultNullIfNullable = true
 			} else {
-				definition = "json"
+				return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
+			}
+		} else if field.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+			fieldType := "ENUM"
+			if field.Type.Kind().String() == "slice" {
+				fieldType = "SET"
+			}
+			def := reflect.New(field.Type).Interface().(EnumValues)
+			definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum(version, fieldType, engine, def, !isRequired)
+			if err != nil {
+				return nil, err
 			}
 		} else {
-			definition = "json"
+			return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
 		}
 	}
 	isNotNull := false
@@ -622,14 +632,6 @@ func handleBlob(attributes map[string]string) (string, bool) {
 
 func handleString(version int, engine Engine, attributes map[string]string, nullable bool) (string, bool, bool, string, error) {
 	var definition string
-	enum, hasEnum := attributes["enum"]
-	if hasEnum {
-		return handleSetEnum(version, engine, "enum", enum, nullable)
-	}
-	set, haSet := attributes["set"]
-	if haSet {
-		return handleSetEnum(version, engine, "set", set, nullable)
-	}
 	length, hasLength := attributes["length"]
 	if !hasLength {
 		length = "255"
@@ -661,14 +663,10 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 	}
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
-
-func handleSetEnum(version int, engine Engine, fieldType string, attribute string, nullable bool) (string, bool, bool, string, error) {
-	en := engine.Registry().Enum(attribute)
-	if en == nil {
-		return "", false, false, "", fmt.Errorf("unregistered enum %s", attribute)
-	}
+func handleSetEnum(version int, fieldType string, engine Engine, def EnumValues, nullable bool) (string, bool, bool, string, error) {
+	enumDef := initEnumDefinition(def.EnumValues())
 	var definition = fieldType + "("
-	for key, value := range en.GetFields() {
+	for key, value := range enumDef.GetFields() {
 		if key > 0 {
 			definition += ","
 		}
@@ -681,7 +679,7 @@ func handleSetEnum(version int, engine Engine, fieldType string, attribute strin
 	}
 	defaultValue := "nil"
 	if !nullable {
-		defaultValue = fmt.Sprintf("'%s'", en.GetDefault())
+		defaultValue = fmt.Sprintf("'%s'", enumDef.GetDefault())
 	}
 	return definition, !nullable, true, defaultValue, nil
 }
@@ -785,7 +783,7 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {
 		f, hasID := t.FieldByName("ID")
-		if !hasID || len(f.Index) != 1 || f.Index[0] != 1 {
+		if !hasID || len(f.Index) != 1 || f.Index[0] != 0 {
 			return nil, errors.New("field ID on position 1 is missing")
 		}
 		idType := f.Type.String()
