@@ -14,8 +14,9 @@ const (
 
 type Meta map[string]string
 
-type EntityFlushEvent interface {
+type EntityFlush interface {
 	FlushType() FlushType
+	Schema() *entitySchema
 	GetMetaData() Meta
 }
 
@@ -52,6 +53,7 @@ type EditableEntity[E Entity] interface {
 
 type writableEntity[E Entity] struct {
 	c      Context
+	schema *entitySchema
 	entity E
 	value  reflect.Value
 	meta   Meta
@@ -67,6 +69,10 @@ func (w *writableEntity[E]) SetMetaData(key, value string) {
 	} else {
 		w.meta[key] = value
 	}
+}
+
+func (w *writableEntity[E]) Schema() *entitySchema {
+	return w.schema
 }
 
 func (w *writableEntity[E]) GetMetaData() Meta {
@@ -114,8 +120,11 @@ func (e *editableEntity[E]) Source() E {
 
 func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	newEntity := &insertableEntity[E]{}
-	newEntity.entity = *new(E)
-	newEntity.value = reflect.ValueOf(newEntity.entity)
+	schema := GetEntitySchema[E](c).(*entitySchema)
+	newEntity.schema = schema
+	value := reflect.New(schema.GetType().Elem())
+	newEntity.entity = value.Interface().(E)
+	newEntity.value = value
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, newEntity)
 	return newEntity

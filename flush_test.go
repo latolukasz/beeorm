@@ -148,4 +148,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	schema.DisableCache(!local, !redis)
 	schema2.DisableCache(!local, !redis)
 
+	newEntity := NewEntity[*flushEntity](c)
+	newEntity.Entity().Name = "Hello"
+	c.Flush()
 }

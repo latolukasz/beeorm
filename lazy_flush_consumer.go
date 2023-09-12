@@ -24,7 +24,7 @@ func NewLazyFlushConsumer(c Context) *LazyFlushConsumer {
 	return lfc
 }
 
-type LazyFlushQueryErrorResolver func(c Context, event EntityFlushEvent, queryError *mysql.MySQLError) error
+type LazyFlushQueryErrorResolver func(c Context, event EntityFlush, queryError *mysql.MySQLError) error
 
 func (lfc *LazyFlushConsumer) RegisterLazyFlushQueryErrorResolver(resolver LazyFlushQueryErrorResolver) {
 	lfc.lazyFlushQueryErrorResolvers = append(lfc.lazyFlushQueryErrorResolvers, resolver)

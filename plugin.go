@@ -17,7 +17,7 @@ type PluginInterfaceTableSQLSchemaDefinition interface {
 }
 
 type PluginInterfaceEntityFlushing interface {
-	PluginInterfaceEntityFlushing(c Context, event EntityFlushEvent)
+	PluginInterfaceEntityFlushing(c Context, event EntityFlush)
 }
 type PluginInterfaceEntityFlushed interface {
 	PluginInterfaceEntityFlushed(c Context, event EntityFlushedEvent)

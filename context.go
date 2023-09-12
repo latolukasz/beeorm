@@ -30,7 +30,7 @@ type Context interface {
 type contextImplementation struct {
 	parent                 context.Context
 	engine                 *engineImplementation
-	trackedEntities        []EntityFlushEvent
+	trackedEntities        []EntityFlush
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
 	queryLoggersLocalCache []LogHandler
