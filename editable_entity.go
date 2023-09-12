@@ -30,13 +30,13 @@ func (m Meta) Get(key string) string {
 }
 
 type writableEntityInterface[E Entity] interface {
-	Entity() E
 	SetMetaData(key, value string)
 	GetMetaData() Meta
 }
 
 type InsertableEntity[E Entity] interface {
 	writableEntityInterface[E]
+	TrackedEntity() E
 	SetOnDuplicateKeyUpdate(bind Bind)
 	GetBind() Bind
 }
@@ -47,15 +47,14 @@ type RemovableEntity[E Entity] interface {
 
 type EditableEntity[E Entity] interface {
 	writableEntityInterface[E]
-	Source() E
+	TrackedEntity() E
+	SourceEntity() E
 	GetBind() (new, old Bind)
 }
 
 type writableEntity[E Entity] struct {
 	c      Context
 	schema *entitySchema
-	entity E
-	value  reflect.Value
 	meta   Meta
 }
 
@@ -81,11 +80,17 @@ func (w *writableEntity[E]) GetMetaData() Meta {
 
 type insertableEntity[E Entity] struct {
 	writableEntity[E]
+	entity               E
+	value                reflect.Value
 	onDuplicateKeyUpdate Bind
 }
 
 func (m *insertableEntity[E]) SetOnDuplicateKeyUpdate(bind Bind) {
 	m.onDuplicateKeyUpdate = bind
+}
+
+func (m *insertableEntity[E]) TrackedEntity() E {
+	return m.entity
 }
 
 func (m *insertableEntity[E]) FlushType() FlushType {
@@ -98,6 +103,7 @@ func (e *editableEntity[E]) FlushType() FlushType {
 
 type removableEntity[E Entity] struct {
 	writableEntity[E]
+	source E
 	delete bool
 }
 
@@ -107,14 +113,16 @@ func (r *removableEntity[E]) FlushType() FlushType {
 
 type editableEntity[E Entity] struct {
 	writableEntity[E]
+	entity E
+	value  reflect.Value
 	source E
 }
 
-func (w *writableEntity[E]) Entity() E {
-	return w.entity
+func (e *editableEntity[E]) TrackedEntity() E {
+	return e.entity
 }
 
-func (e *editableEntity[E]) Source() E {
+func (e *editableEntity[E]) SourceEntity() E {
 	return e.source
 }
 
@@ -133,7 +141,7 @@ func NewEntity[E Entity](c Context) InsertableEntity[E] {
 func RemoveEntity[E Entity](c Context, source E) RemovableEntity[E] {
 	toRemove := &removableEntity[E]{}
 	toRemove.c = c
-	toRemove.entity = source
+	toRemove.source = source
 	return toRemove
 }
 

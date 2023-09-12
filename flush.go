@@ -2,6 +2,7 @@ package beeorm
 
 import "fmt"
 
+type sqlOperations map[sqlPool]map[tableName]map[FlushType][]EntityFlush
 type sqlPool string
 type tableName string
 
@@ -10,7 +11,16 @@ func (c *contextImplementation) Flush() {
 		return
 	}
 	fmt.Printf("1\n")
-	sqlGroup := make(map[sqlPool]map[tableName]map[FlushType][]EntityFlush)
+	sqlGroup := c.groupSQLOperations()
+	fmt.Printf("2 %v\n", sqlGroup)
+}
+
+func (c *contextImplementation) FlushLazy() {
+	//TODO
+}
+
+func (c *contextImplementation) groupSQLOperations() sqlOperations {
+	sqlGroup := make(sqlOperations)
 	for _, val := range c.trackedEntities {
 		schema := val.Schema()
 		mysqlPoolCode := sqlPool(schema.mysqlPoolCode)
@@ -27,8 +37,5 @@ func (c *contextImplementation) Flush() {
 		}
 		tableSQLGroup[val.FlushType()] = append(tableSQLGroup[val.FlushType()], val)
 	}
-}
-
-func (c *contextImplementation) FlushLazy() {
-	//TODO
+	return sqlGroup
 }
