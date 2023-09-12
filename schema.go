@@ -791,8 +791,8 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 			return nil, errors.New("invalid type of ID column")
 		}
 	}
-	max := t.NumField() - 1
-	for i := 0; i <= max; i++ {
+	maxFields := t.NumField() - 1
+	for i := 0; i <= maxFields; i++ {
 		field := t.Field(i)
 		if i == 0 && subField == nil {
 			entitySchema.GetUniqueIndexes()
@@ -803,7 +803,6 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 				}
 				indexes[k] = current
 			}
-			continue
 		}
 		prefix := subFieldPrefix
 		if subField != nil && !subField.Anonymous {
