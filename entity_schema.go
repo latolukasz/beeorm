@@ -57,7 +57,6 @@ type EntitySchema interface {
 	GetUniqueIndexes() map[string][]string
 	GetCacheQueries() map[string]*CachedQueryDefinition
 	GetSchemaChanges(c Context) (has bool, alters []Alter)
-	GetUsage(registry Engine) map[reflect.Type][]string
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetPluginOption(plugin, key string) interface{}
 	GetCacheKey() string
@@ -144,8 +143,6 @@ type tableFields struct {
 	dates                   []int
 	structs                 []int
 	structsFields           []*tableFields
-	refs                    []int
-	refsTypes               []reflect.Type
 }
 
 func (entitySchema *entitySchema) GetTableName() string {
@@ -236,32 +233,6 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 	final = append(final, alters...)
 	final = append(final, post...)
 	return len(final) > 0, final
-}
-
-func (entitySchema *entitySchema) GetUsage(engine Engine) map[reflect.Type][]string {
-	results := make(map[reflect.Type][]string)
-	for _, t := range engine.Registry().Entities() {
-		schema := engine.Registry().EntitySchema(t)
-		entitySchema.getUsage(schema.getFields(), schema.GetType(), "", results)
-	}
-	return results
-}
-
-func (entitySchema *entitySchema) getUsage(fields *tableFields, t reflect.Type, prefix string, results map[reflect.Type][]string) {
-	tName := entitySchema.t.String()
-	for i, fieldID := range fields.refs {
-		if fields.refsTypes[i].String() == tName {
-			results[t] = append(results[t], prefix+fields.t.Field(fieldID).Name)
-		}
-	}
-	for i, k := range fields.structs {
-		f := fields.t.Field(k)
-		subPrefix := prefix
-		if !f.Anonymous {
-			subPrefix += f.Name
-		}
-		entitySchema.getUsage(fields.structsFields[i], t, subPrefix, results)
-	}
 }
 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
@@ -733,8 +704,6 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			k := f.Type.Kind().String()
 			if k == "struct" {
 				entitySchema.buildStructField(attributes, registry, schemaTags)
-			} else if k == "ptr" {
-				entitySchema.buildPointerField(attributes)
 			} else if f.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				definition := reflect.New(f.Type).Interface().(EnumValues).EnumValues()
 				if f.Type.Kind().String() == "string" {
@@ -967,19 +936,6 @@ func (entitySchema *entitySchema) buildStructField(attributes schemaFieldAttribu
 	attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
 }
 
-func (entitySchema *entitySchema) buildPointerField(attributes schemaFieldAttributes) {
-	columnName := attributes.GetColumnName()
-	modelType := reflect.TypeOf((*Entity)(nil)).Elem()
-	if attributes.Field.Type.Implements(modelType) {
-		attributes.Fields.refs = append(attributes.Fields.refs, attributes.Index)
-		attributes.Fields.refsTypes = append(attributes.Fields.refsTypes, attributes.Field.Type.Elem())
-		entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
-		entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
-	} else {
-		panic(fmt.Errorf("field type %s is not supported", attributes.Field.Type.String()))
-	}
-}
-
 func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {
 	fields = make(map[string]map[string]string)
 	for i := 0; i < entityType.NumField(); i++ {
@@ -1083,7 +1039,6 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	fieldsQuery := ""
 	columns := make([]string, 0)
 	ids := fields.uintegers
-	ids = append(ids, fields.refs...)
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
 	ids = append(ids, fields.floats...)

@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/go-sql-driver/mysql"
-
-	"github.com/pkg/errors"
 )
 
 type MySQLPoolConfig interface {
@@ -90,9 +88,6 @@ func (e *execResult) RowsAffected() uint64 {
 }
 
 type sqlClient interface {
-	Begin() error
-	Commit() error
-	Rollback() (bool, error)
 	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
@@ -114,64 +109,13 @@ type DBClientQuery interface {
 
 type DBClient interface {
 	DBClientQuery
-	Begin() (*sql.Tx, error)
-}
-
-type DBClientTX interface {
-	DBClientQuery
-	Commit() error
-	Rollback() error
 }
 
 type standardSQLClient struct {
 	db DBClient
-	tx DBClientTX
-}
-
-func (db *standardSQLClient) Begin() error {
-	if db.tx != nil {
-		return errors.New("transaction already started")
-	}
-	tx, err := db.db.Begin()
-	if err != nil {
-		return err
-	}
-	db.tx = tx
-	return nil
-}
-
-func (db *standardSQLClient) Commit() error {
-	if db.tx == nil {
-		return errors.New("transaction not started")
-	}
-	err := db.tx.Commit()
-	if err != nil {
-		return err
-	}
-	db.tx = nil
-	return nil
-}
-
-func (db *standardSQLClient) Rollback() (bool, error) {
-	if db.tx == nil {
-		return false, nil
-	}
-	err := db.tx.Rollback()
-	if err != nil {
-		return true, err
-	}
-	db.tx = nil
-	return true, nil
 }
 
 func (db *standardSQLClient) Prepare(query string) (*sql.Stmt, error) {
-	if db.tx != nil {
-		res, err := db.tx.Prepare(query)
-		if err != nil {
-			return nil, err
-		}
-		return res, nil
-	}
 	res, err := db.db.Prepare(query)
 	if err != nil {
 		return nil, err
@@ -180,13 +124,6 @@ func (db *standardSQLClient) Prepare(query string) (*sql.Stmt, error) {
 }
 
 func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result, error) {
-	if db.tx != nil {
-		res, err := db.tx.Exec(query, args...)
-		if err != nil {
-			return nil, err
-		}
-		return res, nil
-	}
 	res, err := db.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
@@ -195,13 +132,6 @@ func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result
 }
 
 func (db *standardSQLClient) ExecContext(context context.Context, query string, args ...interface{}) (sql.Result, error) {
-	if db.tx != nil {
-		res, err := db.tx.ExecContext(context, query, args...)
-		if err != nil {
-			return nil, err
-		}
-		return res, nil
-	}
 	res, err := db.db.ExecContext(context, query, args...)
 	if err != nil {
 		return nil, err
@@ -210,27 +140,14 @@ func (db *standardSQLClient) ExecContext(context context.Context, query string, 
 }
 
 func (db *standardSQLClient) QueryRow(query string, args ...interface{}) SQLRow {
-	if db.tx != nil {
-		return db.tx.QueryRow(query, args...)
-	}
 	return db.db.QueryRow(query, args...)
 }
 
 func (db *standardSQLClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow {
-	if db.tx != nil {
-		return db.tx.QueryRowContext(ctx, query, args...)
-	}
 	return db.db.QueryRowContext(ctx, query, args...)
 }
 
 func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, error) {
-	if db.tx != nil {
-		rows, err := db.tx.Query(query, args...)
-		if err != nil {
-			return nil, err
-		}
-		return rows, nil
-	}
 	rows, err := db.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -239,13 +156,6 @@ func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, 
 }
 
 func (db *standardSQLClient) QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error) {
-	if db.tx != nil {
-		rows, err := db.tx.QueryContext(ctx, query, args...)
-		if err != nil {
-			return nil, err
-		}
-		return rows, nil
-	}
 	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -368,14 +278,8 @@ type SQLRow interface {
 
 type DB interface {
 	GetPoolConfig() MySQLPoolConfig
-	IsInTransaction() bool
 	GetDBClient() DBClient
-	GetDBClientTX() DBClientTX
 	SetMockDBClient(mock DBClient)
-	SetMockClientTX(mock DBClientTX)
-	Begin(c Context)
-	Commit(c Context)
-	Rollback(c Context)
 	Prepare(c Context, query string) (stmt PreparedStmt, close func())
 	Exec(c Context, query string, args ...interface{}) ExecResult
 	QueryRow(c Context, query *Where, toFill ...interface{}) (found bool)
@@ -391,56 +295,12 @@ func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
 	return db.config
 }
 
-func (db *dbImplementation) IsInTransaction() bool {
-	return db.client.(*standardSQLClient).tx != nil
-}
-
 func (db *dbImplementation) GetDBClient() DBClient {
 	return db.client.(*standardSQLClient).db
 }
 
-func (db *dbImplementation) GetDBClientTX() DBClientTX {
-	return db.client.(*standardSQLClient).tx
-}
-
 func (db *dbImplementation) SetMockDBClient(mock DBClient) {
 	db.client.(*standardSQLClient).db = mock
-}
-
-func (db *dbImplementation) SetMockClientTX(mock DBClientTX) {
-	db.client.(*standardSQLClient).tx = mock
-}
-
-func (db *dbImplementation) Begin(c Context) {
-	hasLogger, _ := c.getDBLoggers()
-	start := getNow(hasLogger)
-	err := db.client.Begin()
-	if hasLogger {
-		db.fillLogFields(c, "BEGIN", "START TRANSACTION", start, err)
-	}
-	checkError(err)
-}
-
-func (db *dbImplementation) Commit(c Context) {
-	hasLogger, _ := c.getDBLoggers()
-	start := getNow(hasLogger)
-	err := db.client.Commit()
-	if hasLogger {
-		db.fillLogFields(c, "COMMIT", "COMMIT", start, err)
-	}
-	checkError(err)
-}
-
-func (db *dbImplementation) Rollback(c Context) {
-	hasLogger, _ := c.getDBLoggers()
-	start := getNow(hasLogger)
-	has, err := db.client.Rollback()
-	if has {
-		if hasLogger {
-			db.fillLogFields(c, "ROLLBACK", "ROLLBACK", start, err)
-		}
-	}
-	checkError(err)
 }
 
 func (db *dbImplementation) Prepare(c Context, query string) (stmt PreparedStmt, close func()) {

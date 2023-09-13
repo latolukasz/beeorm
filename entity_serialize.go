@@ -16,14 +16,6 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 		v := elem.Field(i).Uint()
 		serialized.SerializeUInteger(v)
 	}
-	for _, i := range fields.refs {
-		f := elem.Field(i)
-		id := uint64(0)
-		if !f.IsNil() {
-			id = f.Interface().(Entity).GetID()
-		}
-		serialized.SerializeUInteger(id)
-	}
 	for _, i := range fields.integers {
 		serialized.SerializeInteger(elem.Field(i).Int())
 	}

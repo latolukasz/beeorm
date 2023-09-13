@@ -67,10 +67,8 @@ type flushEntity struct {
 	Year                 uint16  `orm:"year"`
 	YearNullable         *uint16 `orm:"year"`
 	BoolNullable         *bool
-	FloatNullable        *float64              `orm:"precision=10"`
-	Float32Nullable      *float32              `orm:"precision=4"`
-	ReferenceOne         *flushEntityReference `orm:"unique=ReferenceOne"`
-	ReferenceTwo         *flushEntityReference `orm:"unique=ReferenceTwo"`
+	FloatNullable        *float64 `orm:"precision=10"`
+	Float32Nullable      *float32 `orm:"precision=4"`
 	SetNullable          testSet
 	SetNotNull           testSet `orm:"required"`
 	EnumNullable         testEnum
@@ -104,16 +102,6 @@ func (e *flushEntity) GetID() uint64 {
 	return e.ID
 }
 
-type flushEntityReference struct {
-	ID   uint64 `orm:"localCache;redisCache"`
-	Name string
-	Age  int
-}
-
-func (e *flushEntityReference) GetID() uint64 {
-	return e.ID
-}
-
 func TestFlushLocalRedis(t *testing.T) {
 	testFlush(t, true, true)
 }
@@ -132,14 +120,11 @@ func TestFlushRedis(t *testing.T) {
 
 func testFlush(t *testing.T, local bool, redis bool) {
 	var entity *flushEntity
-	var reference *flushEntityReference
 	registry := &Registry{}
-	c := PrepareTables(t, registry, 5, 6, "", entity, reference)
+	c := PrepareTables(t, registry, 5, 6, "", entity)
 
 	schema := GetEntitySchema[*flushEntity](c)
-	schema2 := GetEntitySchema[*flushEntityReference](c)
 	schema.DisableCache(!local, !redis)
-	schema2.DisableCache(!local, !redis)
 
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)

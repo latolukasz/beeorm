@@ -3,6 +3,7 @@ package beeorm
 import (
 	"bytes"
 	"context"
+	"strings"
 	"sync"
 )
 
@@ -42,6 +43,7 @@ type contextImplementation struct {
 	meta                   Meta
 	serializer             *serializer
 	serializer2            *serializer
+	stringBuilder          *strings.Builder
 	sync.Mutex
 }
 
@@ -61,6 +63,15 @@ func (c *contextImplementation) getSerializer2() *serializer {
 		c.serializer2.buffer.Reset()
 	}
 	return c.serializer2
+}
+
+func (c *contextImplementation) getStringBuilder() *strings.Builder {
+	if c.stringBuilder == nil {
+		c.stringBuilder = &strings.Builder{}
+	} else {
+		c.stringBuilder.Reset()
+	}
+	return c.stringBuilder
 }
 
 func (c *contextImplementation) Ctx() context.Context {

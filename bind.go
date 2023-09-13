@@ -23,7 +23,7 @@ func (m *insertableEntity[E]) GetBind() Bind {
 	if m.entity.GetID() > 0 {
 		bind["Id"] = m.entity.GetID()
 	}
-	fillBindFromOneSource(m.c, bind, m.value, GetEntitySchema[E](m.c).getFields())
+	fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields())
 	return bind
 }
 
@@ -38,14 +38,6 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.uintegers {
 		bind[fields.fields[i].Name] = source.Field(i).Uint()
 	}
-	for _, i := range fields.refs {
-		v := source.Field(i).Uint()
-		if v > 0 {
-			bind[fields.fields[i].Name] = v
-		} else {
-			bind[fields.fields[i].Name] = nil
-		}
-	}
 	for _, i := range fields.integers {
 		bind[fields.fields[i].Name] = source.Field(i).Int()
 	}
@@ -59,17 +51,15 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		v := source.Field(i).Interface().(time.Time).UTC()
 		if v.IsZero() {
 			panic(errors.New("zero time for required time not allowed"))
-		} else {
-			bind[fields.fields[i].Name] = v.Format(time.DateTime)
 		}
+		bind[fields.fields[i].Name] = v.Format(time.DateTime)
 	}
 	for _, i := range fields.dates {
 		v := source.Field(i).Interface().(time.Time).UTC()
 		if v.IsZero() {
 			panic(errors.New("zero time for required time not allowed"))
-		} else {
-			bind[fields.fields[i].Name] = v.Format(time.DateOnly)
 		}
+		bind[fields.fields[i].Name] = v.Format(time.DateOnly)
 	}
 	for _, i := range fields.strings {
 		bind[fields.fields[i].Name] = source.Field(i).String()
@@ -126,9 +116,8 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			t := f.Elem().Interface().(time.Time)
 			if t.IsZero() {
 				panic(errors.New("zero time for required time not allowed"))
-			} else {
-				bind[fields.fields[i].Name] = t.Format(time.DateTime)
 			}
+			bind[fields.fields[i].Name] = t.Format(time.DateTime)
 			continue
 		}
 		bind[fields.fields[i].Name] = nil
@@ -139,15 +128,14 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			t := f.Elem().Interface().(time.Time)
 			if t.IsZero() {
 				panic(errors.New("zero time for required time not allowed"))
-			} else {
-				bind[fields.fields[i].Name] = t.Format(time.DateOnly)
 			}
+			bind[fields.fields[i].Name] = t.Format(time.DateOnly)
 			continue
 		}
 		bind[fields.fields[i].Name] = nil
 	}
 	for j := range fields.structs {
-		fillBindFromOneSource(c, bind, source, fields.structsFields[j])
+		fillBindFromOneSource(c, bind, reflect.ValueOf(source.Field(j)), fields.structsFields[j])
 	}
 }
 
@@ -158,20 +146,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1 != v2 {
 			bind[fields.fields[i].Name] = v1
 			oldBind[fields.fields[i].Name] = v2
-		}
-	}
-	for _, i := range fields.refs {
-		v1 := source.Field(i).Uint()
-		v2 := before.Field(i).Uint()
-		if v1 != v2 {
-			bind[fields.fields[i].Name] = v1
-			if v1 == 0 {
-				bind[fields.fields[i].Name] = nil
-			}
-			oldBind[fields.fields[i].Name] = v2
-			if v2 == 0 {
-				oldBind[fields.fields[i].Name] = nil
-			}
 		}
 	}
 	for _, i := range fields.integers {

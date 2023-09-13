@@ -26,18 +26,6 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		elem.Field(i).SetUint(v)
 	}
 	k := 0
-	for _, i := range fields.refs {
-		id := s.DeserializeUInteger()
-		f := elem.Field(i)
-		isNil := f.IsNil()
-		if id > 0 {
-			e := reflect.New(fields.refsTypes[k])
-			f.Set(e)
-		} else if !isNil {
-			elem.Field(i).Set(reflect.Zero(reflect.PtrTo(fields.refsTypes[k])))
-		}
-		k++
-	}
 	for _, i := range fields.integers {
 		elem.Field(i).SetInt(s.DeserializeInteger())
 	}
@@ -206,18 +194,6 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
 	for _, i := range fields.uintegers {
 		elem.Field(i).SetUint(*pointers[index].(*uint64))
-		index++
-	}
-	for _, i := range fields.refs {
-		v := pointers[index].(*sql.NullInt64)
-		if v.Valid {
-			f := elem.Field(i)
-			ref := reflect.New(f.Type())
-			//ref.Interface().(Entity).SetID(uint64(v.Int64))
-			f.Set(ref)
-		} else {
-			elem.Field(i).SetZero()
-		}
 		index++
 	}
 	for _, i := range fields.integers {

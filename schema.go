@@ -816,9 +816,6 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 			columns = append(columns, fieldColumns...)
 		}
 	}
-	if subField == nil {
-		columns[0].Definition += " AUTO_INCREMENT"
-	}
 	return columns, nil
 }
 

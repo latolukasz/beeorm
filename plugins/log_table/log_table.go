@@ -194,7 +194,6 @@ func handleLogEvents(c beeorm.Context, values map[string][]*crud_stream.CrudEven
 			poolDB.Begin(c)
 		}
 		func() {
-			defer poolDB.Rollback(c)
 			for _, value := range rows {
 				schema := c.Engine().Registry().EntitySchema(value.EntityName)
 				tableName := schema.GetPluginOption(PluginCode, tableNameOption)
@@ -224,9 +223,6 @@ func handleLogEvents(c beeorm.Context, values map[string][]*crud_stream.CrudEven
 					}()
 					poolDB.Exec(c, query, params...)
 				}()
-			}
-			if poolDB.IsInTransaction() {
-				poolDB.Commit(c)
 			}
 		}()
 	}

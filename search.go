@@ -43,11 +43,6 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for range fields.refs {
-		v := sql.NullInt64{}
-		pointers[start] = &v
-		start++
-	}
 	for range fields.integers {
 		v := int64(0)
 		pointers[start] = &v

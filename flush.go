@@ -2,17 +2,72 @@ package beeorm
 
 import "fmt"
 
-type sqlOperations map[sqlPool]map[tableName]map[FlushType][]EntityFlush
-type sqlPool string
-type tableName string
+type entitySqlOperations map[FlushType][]EntityFlush
+type schemaSqlOperations map[EntitySchema]entitySqlOperations
+type sqlOperations map[DB]schemaSqlOperations
 
 func (c *contextImplementation) Flush() {
 	if len(c.trackedEntities) == 0 {
 		return
 	}
-	fmt.Printf("1\n")
 	sqlGroup := c.groupSQLOperations()
-	fmt.Printf("2 %v\n", sqlGroup)
+	for db, operations := range sqlGroup {
+		for schema, queryOperations := range operations {
+			deletes, has := queryOperations[Delete]
+			if has {
+				c.executeInserts(db, schema, deletes)
+			}
+			inserts, has := queryOperations[Insert]
+			if has {
+				c.executeInserts(db, schema, inserts)
+			}
+			updates, has := queryOperations[Update]
+			if has {
+				c.executeUpdates(db, schema, updates)
+			}
+		}
+	}
+
+}
+
+func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) {
+	//TODO
+}
+
+func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) {
+	columns := schema.GetColumns()
+	args := make([]interface{}, 0, len(operations)*len(columns)+len(operations))
+	s := c.getStringBuilder()
+	s.WriteString("INSERT INTO `")
+	s.WriteString(schema.GetTableName())
+	s.WriteString("`(`ID`")
+	for _, column := range columns {
+		s.WriteString(",`")
+		s.WriteString(column)
+		s.WriteString("`")
+	}
+	s.WriteString(") VALUES")
+	for i, operation := range operations {
+		insert := operation.(EntityFlushInsert)
+		bind := insert.GetBind()
+		fmt.Printf("%v\n", bind)
+		if i > 0 {
+			s.WriteString(",(?")
+		}
+		s.WriteString("(?")
+		args = append(args, "ID")
+		for _, column := range columns {
+			args = append(args, column)
+			s.WriteString(",?")
+		}
+		s.WriteString(")")
+	}
+	fmt.Println(s.String())
+	db.Exec(c, s.String(), args...)
+}
+
+func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) {
+	//TODO
 }
 
 func (c *contextImplementation) FlushLazy() {
@@ -23,17 +78,16 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	sqlGroup := make(sqlOperations)
 	for _, val := range c.trackedEntities {
 		schema := val.Schema()
-		mysqlPoolCode := sqlPool(schema.mysqlPoolCode)
-		poolSQLGroup, has := sqlGroup[mysqlPoolCode]
+		db := c.engine.DB(schema.mysqlPoolCode)
+		poolSQLGroup, has := sqlGroup[db]
 		if !has {
-			poolSQLGroup = make(map[tableName]map[FlushType][]EntityFlush)
-			sqlGroup[mysqlPoolCode] = poolSQLGroup
+			poolSQLGroup = make(schemaSqlOperations)
+			sqlGroup[db] = poolSQLGroup
 		}
-		table := tableName(schema.tableName)
-		tableSQLGroup, has := poolSQLGroup[table]
+		tableSQLGroup, has := poolSQLGroup[schema]
 		if !has {
 			tableSQLGroup = make(map[FlushType][]EntityFlush)
-			poolSQLGroup[table] = tableSQLGroup
+			poolSQLGroup[schema] = tableSQLGroup
 		}
 		tableSQLGroup[val.FlushType()] = append(tableSQLGroup[val.FlushType()], val)
 	}
