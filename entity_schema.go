@@ -9,7 +9,11 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync/atomic"
+	"time"
 )
+
+var codeStartTime = uint64(time.Now().Unix())
 
 type CachedQuery struct{}
 
@@ -66,6 +70,7 @@ type EntitySchema interface {
 	getStructureHash() uint64
 	getTags() map[string]map[string]string
 	getUniqueIndexesGlobal() map[string][]string
+	uuid() uint64
 }
 
 type SettableEntitySchema interface {
@@ -103,6 +108,8 @@ type entitySchema struct {
 	mapBindToScanPointer       mapBindToScanPointer
 	mapPointerToValue          mapPointerToValue
 	options                    map[string]map[string]interface{}
+	uuidServerID               uint64
+	uuidCounter                uint64
 }
 
 type mapBindToScanPointer map[string]func() interface{}
@@ -613,6 +620,10 @@ func (entitySchema *entitySchema) getStructureHash() uint64 {
 
 func (entitySchema *entitySchema) getTags() map[string]map[string]string {
 	return entitySchema.tags
+}
+
+func (entitySchema *entitySchema) uuid() uint64 {
+	return (entitySchema.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&entitySchema.uuidCounter, 1)
 }
 
 func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {

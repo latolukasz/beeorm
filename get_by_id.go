@@ -5,16 +5,15 @@ import (
 	"strconv"
 )
 
-func GetByID[E Entity, I ID](c Context, id I) (entity E) {
-	entity = getByID[E, I](c.(*contextImplementation), id, nil)
+func GetByID[E Entity](c Context, id uint64) (entity E) {
+	entity = getByID[E](c.(*contextImplementation), id, nil)
 	return
 }
 
-func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity) (entity E) {
+func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity) (entity E) {
 	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
-	idUint64 := uint64(id)
 	if schema.hasLocalCache {
-		e, has := schema.localCache.getEntity(c, idUint64)
+		e, has := schema.localCache.getEntity(c, id)
 		if has {
 			if e == emptyReflect {
 				return
@@ -26,12 +25,12 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	var cacheKey string
 	if hasRedis {
-		cacheKey = strconv.FormatUint(idUint64, 10)
+		cacheKey = strconv.FormatUint(id, 10)
 		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
 		if has {
 			if row == cacheNilValue {
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, idUint64, emptyReflect)
+					schema.localCache.setEntity(c, id, emptyReflect)
 				}
 				return
 			}
@@ -42,15 +41,15 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 			}
 			deserializeFromBinary(c.getSerializer(), schema, reflect.ValueOf(entity))
 			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, idUint64, reflect.ValueOf(entity))
+				schema.localCache.setEntity(c, id, reflect.ValueOf(entity))
 			}
 			return
 		}
 	}
-	entity, found := searchRow[E](c, NewWhere("`ID` = ?", idUint64), nil, false)
+	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
 	if !found {
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, idUint64, emptyReflect)
+			schema.localCache.setEntity(c, id, emptyReflect)
 		}
 		if hasRedis {
 			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)
@@ -58,7 +57,7 @@ func getByID[E Entity, I ID](c *contextImplementation, id I, entityToFill Entity
 		return
 	}
 	if schema.hasLocalCache {
-		schema.localCache.setEntity(c, idUint64, reflect.ValueOf(entity))
+		schema.localCache.setEntity(c, id, reflect.ValueOf(entity))
 	}
 	if hasRedis {
 		s := c.getSerializer()

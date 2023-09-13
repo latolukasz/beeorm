@@ -132,6 +132,7 @@ func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	newEntity.schema = schema
 	value := reflect.New(schema.GetType().Elem())
 	newEntity.entity = value.Interface().(E)
+	value.Elem().Field(0).SetUint(schema.uuid())
 	newEntity.value = value
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, newEntity)

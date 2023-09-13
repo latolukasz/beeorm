@@ -213,7 +213,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		if v.Valid {
 			f := elem.Field(i)
 			ref := reflect.New(f.Type())
-			ref.Interface().(Entity).SetID(uint64(v.Int64))
+			//ref.Interface().(Entity).SetID(uint64(v.Int64))
 			f.Set(ref)
 		} else {
 			elem.Field(i).SetZero()

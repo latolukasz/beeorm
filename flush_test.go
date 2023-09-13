@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
 )
@@ -99,10 +100,6 @@ type flushEntity struct {
 	flushStructAnonymous
 }
 
-func (e *flushEntity) SetID(id uint64) {
-	e.ID = id
-}
-
 func (e *flushEntity) GetID() uint64 {
 	return e.ID
 }
@@ -111,10 +108,6 @@ type flushEntityReference struct {
 	ID   uint64 `orm:"localCache;redisCache"`
 	Name string
 	Age  int
-}
-
-func (e *flushEntityReference) SetID(id uint64) {
-	e.ID = id
 }
 
 func (e *flushEntityReference) GetID() uint64 {
@@ -149,6 +142,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	schema2.DisableCache(!local, !redis)
 
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
+	assert.NotEmpty(t, newEntity.ID)
 	newEntity.Name = "Hello"
 	c.Flush()
 }
