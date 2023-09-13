@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"bytes"
-	"github.com/pkg/errors"
 	"reflect"
 	"slices"
 	"strings"
@@ -23,7 +22,7 @@ func (m *insertableEntity[E]) GetBind() Bind {
 	if m.entity.GetID() > 0 {
 		bind["Id"] = m.entity.GetID()
 	}
-	fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields())
+	fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields(), "")
 	return bind
 }
 
@@ -34,40 +33,34 @@ func (e *editableEntity[E]) GetBind() (new, old Bind) {
 	return
 }
 
-func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields) {
+func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) {
 	for _, i := range fields.uintegers {
-		bind[fields.fields[i].Name] = source.Field(i).Uint()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).Uint()
 	}
 	for _, i := range fields.integers {
-		bind[fields.fields[i].Name] = source.Field(i).Int()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).Int()
 	}
 	for _, i := range fields.booleans {
-		bind[fields.fields[i].Name] = source.Field(i).Bool()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).Bool()
 	}
 	for _, i := range fields.floats {
-		bind[fields.fields[i].Name] = source.Field(i).Float()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).Float()
 	}
 	for _, i := range fields.times {
 		v := source.Field(i).Interface().(time.Time).UTC()
-		if v.IsZero() {
-			panic(errors.New("zero time for required time not allowed"))
-		}
-		bind[fields.fields[i].Name] = v.Format(time.DateTime)
+		bind[prefix+fields.fields[i].Name] = v.Format(time.DateTime)
 	}
 	for _, i := range fields.dates {
 		v := source.Field(i).Interface().(time.Time).UTC()
-		if v.IsZero() {
-			panic(errors.New("zero time for required time not allowed"))
-		}
-		bind[fields.fields[i].Name] = v.Format(time.DateOnly)
+		bind[prefix+fields.fields[i].Name] = v.Format(time.DateOnly)
 	}
 	for _, i := range fields.strings {
-		bind[fields.fields[i].Name] = source.Field(i).String()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).String()
 	}
 	for _, i := range fields.uintegersNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[fields.fields[i].Name] = f.Elem().Uint()
+			bind[prefix+fields.fields[i].Name] = f.Elem().Uint()
 			continue
 		}
 		bind[fields.fields[i].Name] = nil
@@ -75,67 +68,62 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.integersNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[fields.fields[i].Name] = f.Elem().Int()
+			bind[prefix+fields.fields[i].Name] = f.Elem().Int()
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nil
 	}
 	for _, i := range fields.stringsEnums {
-		bind[fields.fields[i].Name] = source.Field(i).String()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).String()
 	}
 	for _, i := range fields.bytes {
-		bind[fields.fields[i].Name] = source.Field(i).Bytes()
+		bind[prefix+fields.fields[i].Name] = source.Field(i).Bytes()
 	}
 	for _, i := range fields.sliceStringsSets {
 		f := source.Field(i)
 		if f.IsNil() {
-			bind[fields.fields[i].Name] = nil
+			bind[prefix+fields.fields[i].Name] = nil
 		} else {
-			bind[fields.fields[i].Name] = strings.Join(f.Interface().([]string), ",")
+			bind[prefix+fields.fields[i].Name] = strings.Join(f.Interface().([]string), ",")
 		}
 	}
 	for _, i := range fields.booleansNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[fields.fields[i].Name] = f.Elem().Bool()
+			bind[prefix+fields.fields[i].Name] = f.Elem().Bool()
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nil
 	}
 	for _, i := range fields.floatsNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[fields.fields[i].Name] = f.Elem().Float()
+			bind[prefix+fields.fields[i].Name] = f.Elem().Float()
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nil
 	}
 	for _, i := range fields.timesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
 			t := f.Elem().Interface().(time.Time)
-			if t.IsZero() {
-				panic(errors.New("zero time for required time not allowed"))
-			}
-			bind[fields.fields[i].Name] = t.Format(time.DateTime)
+			bind[prefix+fields.fields[i].Name] = t.Format(time.DateTime)
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nil
 	}
 	for _, i := range fields.datesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
 			t := f.Elem().Interface().(time.Time)
-			if t.IsZero() {
-				panic(errors.New("zero time for required time not allowed"))
-			}
-			bind[fields.fields[i].Name] = t.Format(time.DateOnly)
+			bind[prefix+fields.fields[i].Name] = t.Format(time.DateOnly)
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nil
 	}
-	for j := range fields.structs {
-		fillBindFromOneSource(c, bind, reflect.ValueOf(source.Field(j)), fields.structsFields[j])
+	for j, i := range fields.structs {
+		sub := fields.structsFields[j]
+		fillBindFromOneSource(c, bind, source.Field(i), sub, prefix+sub.prefix)
 	}
 }
 
@@ -175,9 +163,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	for _, i := range fields.times {
 		v1 := source.Field(i).Interface().(time.Time).UTC()
 		v2 := before.Field(i).Interface().(time.Time).UTC()
-		if v1.IsZero() {
-			panic(errors.New("zero time for required time not allowed"))
-		}
 		if v1.Unix() != v2.Unix() {
 			bind[fields.fields[i].Name] = v1.Format(time.DateTime)
 			oldBind[fields.fields[i].Name] = v2.Format(time.DateTime)
@@ -185,9 +170,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	}
 	for _, i := range fields.dates {
 		v1 := source.Field(i).Interface().(time.Time).UTC()
-		if v1.IsZero() {
-			panic(errors.New("zero time for required time not allowed"))
-		}
 		v1 = time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
 		v2 := before.Field(i).Interface().(time.Time).UTC()
 		v2 = time.Date(v2.Year(), v2.Month(), v2.Day(), 0, 0, 0, 0, time.UTC)
