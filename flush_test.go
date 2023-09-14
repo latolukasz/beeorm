@@ -105,9 +105,8 @@ func TestFlushRedis(t *testing.T) {
 }
 
 func testFlush(t *testing.T, local bool, redis bool) {
-	var entity *flushEntity
 	registry := &Registry{}
-	c := PrepareTables(t, registry, 5, 6, "", entity)
+	c := PrepareTables(t, registry, 5, 6, "", &flushEntity{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
@@ -127,7 +126,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
 	c.Flush()
 
-	entity = GetByID[*flushEntity](c, newEntity.ID)
+	entity := GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "", entity.City)
@@ -182,7 +181,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.UintNullable = &uintNullable
 	intNullable := -45
 	newEntity.IntNullable = &intNullable
-	entity.Year = 2023
+	newEntity.Year = 2023
 	yearNullable := uint16(2025)
 	newEntity.YearNullable = &yearNullable
 	boolNullable := true
@@ -191,47 +190,47 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.FloatNullable = &floatNullable
 	float32Nullable := float32(12.23)
 	newEntity.Float32Nullable = &float32Nullable
-	entity.SetNullable = testSet{testEnumDefinition.B, testEnumDefinition.C}
-	entity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
-	entity.EnumNullable = testEnumDefinition.C
-	entity.EnumNotNull = testEnumDefinition.A
-	entity.Blob = []byte("test binary")
-	entity.Bool = true
-	entity.Float64 = 986.2322
-	entity.Decimal = 78.2357
+	newEntity.SetNullable = testSet{testEnumDefinition.B, testEnumDefinition.C}
+	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
+	newEntity.EnumNullable = testEnumDefinition.C
+	newEntity.EnumNotNull = testEnumDefinition.A
+	newEntity.Blob = []byte("test binary")
+	newEntity.Bool = true
+	newEntity.Float64 = 986.2322
+	newEntity.Decimal = 78.2357
 	decimalNullable := 1223452.2320932
-	entity.DecimalNullable = &decimalNullable
-	entity.Float64Default = 8932.299423
-	entity.Float64Signed = -352.120321
-	entity.Time = time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC)
-	entity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC)
+	newEntity.DecimalNullable = &decimalNullable
+	newEntity.Float64Default = 8932.299423
+	newEntity.Float64Signed = -352.120321
+	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC)
+	newEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC)
 	timeNullable := time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)
-	entity.TimeNullable = &timeNullable
+	newEntity.TimeNullable = &timeNullable
 	timeWithTimeNullable := time.Date(2025, 11, 4, 21, 0, 5, 6, time.UTC)
-	entity.TimeWithTimeNullable = &timeWithTimeNullable
-	entity.FlushStruct.Name2 = "Tom"
-	entity.FlushStruct.Age = 23
-	entity.FlushStruct.Sub.Name3 = "Zoya"
-	entity.FlushStruct.Sub.Age3 = 18
+	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	newEntity.FlushStruct.Name2 = "Tom"
+	newEntity.FlushStruct.Age = 23
+	newEntity.FlushStruct.Sub.Name3 = "Zoya"
+	newEntity.FlushStruct.Sub.Age3 = 18
 	testTime := time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
-	entity.FlushStruct.TestTime = &testTime
+	newEntity.FlushStruct.TestTime = &testTime
 	int8Nullable := int8(23)
-	entity.Int8Nullable = &int8Nullable
+	newEntity.Int8Nullable = &int8Nullable
 	int16Nullable := int16(-29)
-	entity.Int16Nullable = &int16Nullable
+	newEntity.Int16Nullable = &int16Nullable
 	int32Nullable := int32(-2923)
-	entity.Int32Nullable = &int32Nullable
+	newEntity.Int32Nullable = &int32Nullable
 	int64Nullable := int64(98872)
-	entity.Int64Nullable = &int64Nullable
+	newEntity.Int64Nullable = &int64Nullable
 	uint8Nullable := uint8(23)
-	entity.Uint8Nullable = &uint8Nullable
+	newEntity.Uint8Nullable = &uint8Nullable
 	uint16Nullable := uint16(29)
-	entity.Uint16Nullable = &uint16Nullable
+	newEntity.Uint16Nullable = &uint16Nullable
 	uint32Nullable := uint32(2923)
-	entity.Uint32Nullable = &uint32Nullable
+	newEntity.Uint32Nullable = &uint32Nullable
 	uint64Nullable := uint64(98872)
-	entity.Uint64Nullable = &uint64Nullable
-	entity.SubName = "sub name"
-	entity.SubAge = 123
+	newEntity.Uint64Nullable = &uint64Nullable
+	newEntity.SubName = "sub name"
+	newEntity.SubAge = 123
 	c.Flush()
 }
