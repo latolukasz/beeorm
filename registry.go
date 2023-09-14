@@ -7,7 +7,6 @@ import (
 	"math"
 	"os"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -60,10 +59,7 @@ func (r *Registry) Validate() (Engine, error) {
 		}
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
 		checkError(err)
-		var version string
-		err = db.QueryRow("SELECT VERSION()").Scan(&version)
 		checkError(err)
-		v.(*mySQLPoolConfig).version, _ = strconv.Atoi(strings.Split(version, ".")[0])
 
 		var autoincrement uint64
 		var maxConnections int

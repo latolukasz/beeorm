@@ -15,7 +15,6 @@ type MySQLPoolConfig interface {
 	GetCode() string
 	GetDatabase() string
 	GetDataSourceURI() string
-	GetVersion() int
 	getClient() *sql.DB
 	getAutoincrement() uint64
 	getPoolOptions() MySQLPoolOptions
@@ -27,7 +26,6 @@ type mySQLPoolConfig struct {
 	databaseName   string
 	client         *sql.DB
 	autoincrement  uint64
-	version        int
 	options        MySQLPoolOptions
 }
 
@@ -41,10 +39,6 @@ func (p *mySQLPoolConfig) GetDatabase() string {
 
 func (p *mySQLPoolConfig) GetDataSourceURI() string {
 	return p.dataSourceName
-}
-
-func (p *mySQLPoolConfig) GetVersion() int {
-	return p.version
 }
 
 func (p *mySQLPoolConfig) getClient() *sql.DB {

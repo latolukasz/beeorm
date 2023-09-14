@@ -20,25 +20,13 @@ func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *Registry, mySQLVersion, redisVersion int, redisNamespace string, entities ...Entity) (c Context) {
+func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, entities ...Entity) (c Context) {
 	poolOptions := MySQLPoolOptions{}
-	if mySQLVersion == 5 {
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test", poolOptions)
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3311)/test_log", poolOptions, "log")
-	} else {
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test", poolOptions)
-		registry.RegisterMySQLPool("root:root@tcp(localhost:3312)/test_log", poolOptions, "log")
-	}
-	if redisVersion == 6 {
-		registry.RegisterRedis("localhost:6382", redisNamespace, 15)
-		registry.RegisterRedis("localhost:6382", redisNamespace, 14, "default_queue")
-		registry.RegisterRedis("localhost:6382", redisNamespace, 0, "search")
-	} else {
-		registry.RegisterRedis("localhost:6381", redisNamespace, 15)
-		registry.RegisterRedis("localhost:6381", redisNamespace, 14, "default_queue")
-		registry.RegisterRedis("localhost:6381", redisNamespace, 0, "search")
-	}
-
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test", poolOptions)
+	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test_log", poolOptions, "log")
+	registry.RegisterRedis("localhost:6385", redisNamespace, 15)
+	registry.RegisterRedis("localhost:6385", redisNamespace, 14, "default_queue")
+	registry.RegisterRedis("localhost:6385", redisNamespace, 0, "search")
 	registry.RegisterLocalCache(1000)
 	registry.RegisterLocalCache(1000, "second")
 
