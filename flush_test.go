@@ -215,9 +215,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.FlushStruct.Sub.Age3 = 18
 	testTime := time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
 	entity.FlushStruct.TestTime = &testTime
+	int8Nullable := int8(23)
+	entity.Int8Nullable = &int8Nullable
+	int16Nullable := int16(-29)
+	entity.Int16Nullable = &int16Nullable
 
-	assert.Nil(t, entity.Int8Nullable)
-	assert.Nil(t, entity.Int16Nullable)
 	assert.Nil(t, entity.Int32Nullable)
 	assert.Nil(t, entity.Int64Nullable)
 	assert.Nil(t, entity.Uint8Nullable)
