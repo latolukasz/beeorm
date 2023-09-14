@@ -134,6 +134,7 @@ type tableFields struct {
 	booleansNullable        []int
 	floats                  []int
 	floatsPrecision         []int
+	floatsSize              []int
 	floatsNullable          []int
 	floatsNullablePrecision []int
 	floatsNullableSize      []int
@@ -853,6 +854,9 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 	precision := 8
 	if attributes.TypeName == "float32" {
 		precision = 4
+		attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
+	} else {
+		attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
 	}
 	precisionAttribute, has := attributes.Tags["precision"]
 	if has {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"time"
 )
 
@@ -43,8 +44,9 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.booleans {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Bool()
 	}
-	for _, i := range fields.floats {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).Float()
+	for k, i := range fields.floats {
+		v := strconv.FormatFloat(source.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		bind[prefix+fields.fields[i].Name] = v
 	}
 	for _, i := range fields.times {
 		v := source.Field(i).Interface().(time.Time).UTC()
@@ -124,10 +126,11 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		}
 		bind[prefix+fields.fields[i].Name] = nil
 	}
-	for _, i := range fields.floatsNullable {
+	for k, i := range fields.floatsNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = f.Elem().Float()
+			v := strconv.FormatFloat(f.Elem().Float(), 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			bind[prefix+fields.fields[i].Name] = v
 			continue
 		}
 		bind[prefix+fields.fields[i].Name] = nil
@@ -181,9 +184,9 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			oldBind[fields.fields[i].Name] = v2
 		}
 	}
-	for _, i := range fields.floats {
-		v1 := source.Field(i).Float()
-		v2 := before.Field(i).Float()
+	for k, i := range fields.floats {
+		v1 := strconv.FormatFloat(source.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		v2 := strconv.FormatFloat(before.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		if v1 != v2 {
 			bind[fields.fields[i].Name] = v1
 			oldBind[fields.fields[i].Name] = v2
@@ -327,18 +330,18 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	for _, i := range fields.floatsNullable {
-		v1 := float64(0)
-		v2 := float64(0)
+	for k, i := range fields.floatsNullable {
+		v1 := ""
+		v2 := ""
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = f1.Float()
+			v1 = strconv.FormatFloat(f1.Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		}
 		if !v2IsNil {
-			v2 = f2.Float()
+			v2 = strconv.FormatFloat(f2.Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[fields.fields[i].Name] = v1

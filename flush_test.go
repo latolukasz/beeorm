@@ -198,7 +198,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.Bool = true
 	newEntity.Float64 = 986.2322
 	newEntity.Decimal = 78.2357
-	decimalNullable := 1223452.2320932
+	decimalNullable := 123.2320932
 	newEntity.DecimalNullable = &decimalNullable
 	newEntity.Float64Default = 8932.299423
 	newEntity.Float64Signed = -352.120321
@@ -233,4 +233,48 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.SubName = "sub name"
 	newEntity.SubAge = 123
 	c.Flush()
+	entity = GetByID[*flushEntity](c, newEntity.ID)
+	assert.NotNil(t, entity)
+	assert.Equal(t, newEntity.ID, entity.ID)
+	assert.Equal(t, "", entity.City)
+	assert.Equal(t, "", entity.Name)
+	assert.Equal(t, 0, entity.Age)
+	assert.Equal(t, uint(0), entity.Uint)
+	assert.Nil(t, entity.UintNullable)
+	assert.Nil(t, entity.IntNullable)
+	assert.Equal(t, uint16(0), entity.Year)
+	assert.Nil(t, entity.YearNullable)
+	assert.Nil(t, entity.BoolNullable)
+	assert.Nil(t, entity.FloatNullable)
+	assert.Nil(t, entity.Float32Nullable)
+	assert.Nil(t, entity.SetNullable)
+	assert.Equal(t, testSet{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
+	assert.Equal(t, testEnum(""), entity.EnumNullable)
+	assert.Equal(t, testEnumDefinition.B, entity.EnumNotNull)
+	assert.Nil(t, entity.Blob)
+	assert.False(t, entity.Bool)
+	assert.Equal(t, 0.0, entity.Float64)
+	assert.Equal(t, 0.0, entity.Decimal)
+	assert.Nil(t, entity.DecimalNullable)
+	assert.Equal(t, 0.0, entity.Float64Default)
+	assert.Equal(t, 0.0, entity.Float64Signed)
+	assert.Equal(t, new(time.Time).UTC(), entity.Time)
+	assert.Equal(t, new(time.Time).UTC(), entity.TimeWithTime)
+	assert.Nil(t, entity.TimeNullable)
+	assert.Nil(t, entity.TimeWithTimeNullable)
+	assert.Equal(t, "", entity.FlushStruct.Name2)
+	assert.Equal(t, 0, entity.FlushStruct.Age)
+	assert.Equal(t, "", entity.FlushStruct.Sub.Name3)
+	assert.Equal(t, 0, entity.FlushStruct.Sub.Age3)
+	assert.Nil(t, entity.FlushStruct.TestTime)
+	assert.Nil(t, entity.Int8Nullable)
+	assert.Nil(t, entity.Int16Nullable)
+	assert.Nil(t, entity.Int32Nullable)
+	assert.Nil(t, entity.Int64Nullable)
+	assert.Nil(t, entity.Uint8Nullable)
+	assert.Nil(t, entity.Uint16Nullable)
+	assert.Nil(t, entity.Uint32Nullable)
+	assert.Nil(t, entity.Uint64Nullable)
+	assert.Equal(t, "", entity.SubName)
+	assert.Equal(t, float32(0), entity.SubAge)
 }
