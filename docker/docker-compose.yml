@@ -3,11 +3,12 @@ services:
   mysql:
     image: mysql/mysql-server:8.0
     volumes:
-      - orm_3_mysql:/var/lib/mysql
+      - orm_volume_mysql:/var/lib/mysql
     ports:
       - ${LOCAL_IP}:${MYSQL_PORT}:3306
     environment:
       MYSQL_ROOT_PASSWORD: root
+      MYSQL_ROOT_HOST: "%"
   dragonfly:
     image: docker.dragonflydb.io/dragonflydb/dragonfly
     ulimits:
@@ -15,7 +16,7 @@ services:
     ports:
       - ${LOCAL_IP}:${DRAGONFLY_PORT}:6379
     volumes:
-      - orm_3_dragonfly:/data
+      - orm_volume_dragonfly:/data
 volumes:
-  orm_3_mysql: {}
-  orm_3_dragonfly: {}
+  orm_volume_mysql: {}
+  orm_volume_dragonfly: {}

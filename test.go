@@ -23,12 +23,8 @@ func (h *MockLogHandler) Clear() {
 func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, entities ...Entity) (c Context) {
 	poolOptions := MySQLPoolOptions{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test", poolOptions)
-	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test_log", poolOptions, "log")
-	registry.RegisterRedis("localhost:6385", redisNamespace, 15)
-	registry.RegisterRedis("localhost:6385", redisNamespace, 14, "default_queue")
-	registry.RegisterRedis("localhost:6385", redisNamespace, 0, "search")
+	registry.RegisterRedis("localhost:6385", redisNamespace, 0)
 	registry.RegisterLocalCache(1000)
-	registry.RegisterLocalCache(1000, "second")
 
 	registry.RegisterEntity(entities...)
 	engine, err := registry.Validate()
@@ -43,10 +39,6 @@ func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, enti
 	c = engine.NewContext(context.Background())
 	cacheRedis := engine.Redis(DefaultPoolCode)
 	cacheRedis.FlushDB(c)
-	cacheRedis = engine.Redis("default_queue")
-	cacheRedis.FlushDB(c)
-	redisSearch := engine.Redis("search")
-	redisSearch.FlushDB(c)
 
 	alters := GetAlters(c)
 	for _, alter := range alters {
@@ -64,23 +56,7 @@ func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, enti
 		}
 	}
 	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
-	RunLazyFlushConsumer(c, true)
 	return c
-}
-
-func RunLazyFlushConsumer(c Context, garbage bool) {
-	consumer := NewLazyFlushConsumer(c)
-	consumer.SetBlockTime(0)
-	consumer.Digest()
-	if garbage {
-		RunStreamGarbageCollectorConsumer(c)
-	}
-}
-
-func RunStreamGarbageCollectorConsumer(c Context) {
-	garbageConsumer := NewStreamGarbageCollectorConsumer(c)
-	garbageConsumer.SetBlockTime(0)
-	garbageConsumer.Digest()
 }
 
 type MockDBClient struct {
