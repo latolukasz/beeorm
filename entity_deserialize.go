@@ -233,7 +233,10 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.uintegersNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
-			elem.Field(i).SetUint(uint64(v.Int64))
+			f := elem.Field(i)
+			val := reflect.New(f.Type().Elem())
+			val.Elem().SetUint(uint64(v.Int64))
+			f.Set(val)
 		} else {
 			elem.Field(i).SetZero()
 		}
@@ -242,7 +245,10 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.integersNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
-			elem.Field(i).SetInt(v.Int64)
+			f := elem.Field(i)
+			val := reflect.New(f.Type().Elem())
+			val.Elem().SetInt(v.Int64)
+			f.Set(val)
 		} else {
 			elem.Field(i).SetZero()
 		}
