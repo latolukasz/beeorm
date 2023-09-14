@@ -7,6 +7,8 @@ import (
 type Enum string
 type Set []Enum
 
+var typeOfSet = reflect.TypeOf((Set)(nil))
+
 type EnumValues interface {
 	EnumValues() interface{}
 }
@@ -16,17 +18,13 @@ type EnumDefault interface {
 }
 
 type enumDefinition struct {
-	fields       []string
-	mapping      map[string]int
-	defaultValue string
+	fields   []string
+	mapping  map[string]int
+	required bool
 }
 
 func (d *enumDefinition) GetFields() []string {
 	return d.fields
-}
-
-func (d *enumDefinition) GetDefault() string {
-	return d.defaultValue
 }
 
 func (d *enumDefinition) Has(value string) bool {
@@ -38,8 +36,8 @@ func (d *enumDefinition) Index(value string) int {
 	return d.mapping[value]
 }
 
-func initEnumDefinition(def interface{}) *enumDefinition {
-	enum := &enumDefinition{}
+func initEnumDefinition(def interface{}, required bool) *enumDefinition {
+	enum := &enumDefinition{required: required}
 	e := reflect.ValueOf(def)
 	enum.mapping = make(map[string]int)
 	enum.fields = make([]string, 0)
@@ -47,13 +45,6 @@ func initEnumDefinition(def interface{}) *enumDefinition {
 		name := e.Field(i).String()
 		enum.fields = append(enum.fields, name)
 		enum.mapping[name] = i + 1
-	}
-	enum.defaultValue = enum.fields[0]
-	defaultInterface, isDefault := def.(EnumDefault)
-	if isDefault {
-		enum.defaultValue = defaultInterface.Default()
-	} else {
-
 	}
 	return enum
 }

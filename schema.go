@@ -664,7 +664,10 @@ func handleString(version int, engine Engine, attributes map[string]string, null
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
 func handleSetEnum(version int, fieldType string, engine Engine, def EnumValues, nullable bool) (string, bool, bool, string, error) {
-	enumDef := initEnumDefinition(def.EnumValues())
+	enumDef := initEnumDefinition(def.EnumValues(), !nullable)
+	if len(enumDef.GetFields()) == 0 {
+		return "", false, false, "", errors.New("empty enum not allowed")
+	}
 	var definition = fieldType + "("
 	for key, value := range enumDef.GetFields() {
 		if key > 0 {
@@ -679,7 +682,7 @@ func handleSetEnum(version int, fieldType string, engine Engine, def EnumValues,
 	}
 	defaultValue := "nil"
 	if !nullable {
-		defaultValue = fmt.Sprintf("'%s'", enumDef.GetDefault())
+		defaultValue = fmt.Sprintf("'%s'", enumDef.GetFields()[0])
 	}
 	return definition, !nullable, true, defaultValue, nil
 }

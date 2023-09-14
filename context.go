@@ -26,6 +26,8 @@ type Context interface {
 	getRedisLoggers() (bool, []LogHandler)
 	getSerializer() *serializer
 	getSerializer2() *serializer
+	getStringBuilder() *strings.Builder
+	getStringBuilder2() *strings.Builder
 }
 
 type contextImplementation struct {
@@ -44,6 +46,7 @@ type contextImplementation struct {
 	serializer             *serializer
 	serializer2            *serializer
 	stringBuilder          *strings.Builder
+	stringBuilder2         *strings.Builder
 	sync.Mutex
 }
 
@@ -72,6 +75,15 @@ func (c *contextImplementation) getStringBuilder() *strings.Builder {
 		c.stringBuilder.Reset()
 	}
 	return c.stringBuilder
+}
+
+func (c *contextImplementation) getStringBuilder2() *strings.Builder {
+	if c.stringBuilder2 == nil {
+		c.stringBuilder2 = &strings.Builder{}
+	} else {
+		c.stringBuilder2.Reset()
+	}
+	return c.stringBuilder2
 }
 
 func (c *contextImplementation) Ctx() context.Context {

@@ -797,7 +797,7 @@ func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAtt
 func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
-	def := initEnumDefinition(definition)
+	def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
 	attributes.Fields.enums = append(attributes.Fields.enums, def)
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
@@ -829,7 +829,7 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
-	attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition))
+	attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition, attributes.Tags["required"] == "true"))
 	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
 }

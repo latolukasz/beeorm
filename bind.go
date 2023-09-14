@@ -2,9 +2,9 @@ package beeorm
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
 	"slices"
-	"strings"
 	"time"
 )
 
@@ -20,7 +20,7 @@ func (b Bind) Get(key string) interface{} {
 func (m *insertableEntity[E]) GetBind() Bind {
 	bind := Bind{}
 	if m.entity.GetID() > 0 {
-		bind["Id"] = m.entity.GetID()
+		bind["ID"] = m.entity.GetID()
 	}
 	fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields(), "")
 	return bind
@@ -73,18 +73,47 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		}
 		bind[prefix+fields.fields[i].Name] = nil
 	}
-	for _, i := range fields.stringsEnums {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).String()
+	for k, i := range fields.stringsEnums {
+		val := source.Field(i).String()
+		def := fields.enums[k]
+		if val == "" {
+			if def.required {
+				panic(fmt.Errorf("enum %s cannot be empty", prefix+fields.fields[i].Name))
+			} else {
+				bind[prefix+fields.fields[i].Name] = nil
+			}
+			continue
+		}
+		if !slices.Contains(def.GetFields(), val) {
+			panic(fmt.Errorf("invalid enum %s value: %s", prefix+fields.fields[i].Name, val))
+		}
+		bind[prefix+fields.fields[i].Name] = val
 	}
 	for _, i := range fields.bytes {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Bytes()
 	}
-	for _, i := range fields.sliceStringsSets {
+	for k, i := range fields.sliceStringsSets {
 		f := source.Field(i)
-		if f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = nil
+		def := fields.sets[k]
+		val := f.Convert(typeOfSet).Interface().(Set)
+		if f.IsNil() || len(val) == 0 {
+			if def.required {
+				panic(fmt.Errorf("set %s cannot be empty", prefix+fields.fields[i].Name))
+			} else {
+				bind[prefix+fields.fields[i].Name] = nil
+			}
 		} else {
-			bind[prefix+fields.fields[i].Name] = strings.Join(f.Interface().([]string), ",")
+			s := c.getStringBuilder()
+			for j, v := range val {
+				if !slices.Contains(def.GetFields(), string(v)) {
+					panic(fmt.Errorf("invalid set %s value: %s", prefix+fields.fields[i].Name, v))
+				}
+				if j > 0 {
+					s.WriteString(",")
+				}
+				s.WriteString(string(v))
+			}
+			bind[prefix+fields.fields[i].Name] = s.String()
 		}
 	}
 	for _, i := range fields.booleansNullable {

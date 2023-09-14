@@ -39,9 +39,6 @@ type testSet Set
 func (s testEnum) EnumValues() interface{} {
 	return testEnumDefinition
 }
-func (s testEnum) Default() string {
-	return string(testEnumDefinition.B)
-}
 func (s testSet) EnumValues() interface{} {
 	return testEnumDefinition
 }
@@ -129,5 +126,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)
 	newEntity.Name = "Hello"
+	newEntity.EnumNotNull = testEnumDefinition.B
+	newEntity.SetNotNull = testSet{Enum(testEnumDefinition.A), Enum(testEnumDefinition.C)}
 	c.Flush()
 }

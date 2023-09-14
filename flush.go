@@ -37,7 +37,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) {
 	columns := schema.GetColumns()
 	args := make([]interface{}, 0, len(operations)*len(columns)+len(operations))
-	s := c.getStringBuilder()
+	s := c.getStringBuilder2()
 	s.WriteString("INSERT INTO `")
 	s.WriteString(schema.GetTableName())
 	s.WriteString("`(`ID`")
@@ -55,9 +55,9 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 			s.WriteString(",(?")
 		}
 		s.WriteString("(?")
-		args = append(args, "ID")
+		args = append(args, bind["ID"])
 		for _, column := range columns {
-			args = append(args, column)
+			args = append(args, bind[column])
 			s.WriteString(",?")
 		}
 		s.WriteString(")")
