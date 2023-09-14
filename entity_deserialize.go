@@ -286,7 +286,10 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
 		if v.Valid {
-			elem.Field(i).SetBool(v.Bool)
+			f := elem.Field(i)
+			val := reflect.New(f.Type().Elem())
+			val.Elem().SetBool(v.Bool)
+			f.Set(val)
 		} else {
 			elem.Field(i).SetZero()
 		}
@@ -295,7 +298,10 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.floatsNullable {
 		v := pointers[index].(*sql.NullFloat64)
 		if v.Valid {
-			elem.Field(i).SetFloat(v.Float64)
+			f := elem.Field(i)
+			val := reflect.New(f.Type().Elem())
+			val.Elem().SetFloat(v.Float64)
+			f.Set(val)
 		} else {
 			elem.Field(i).SetZero()
 		}
@@ -307,7 +313,8 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			if v.Int64 == zeroDateSeconds {
 				elem.Field(i).SetZero()
 			} else {
-				elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64-timeStampSeconds, 0)))
+				t := time.Unix(v.Int64-timeStampSeconds, 0)
+				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
 			elem.Field(i).SetZero()
@@ -320,7 +327,8 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			if v.Int64 == zeroDateSeconds {
 				elem.Field(i).SetZero()
 			} else {
-				elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64-timeStampSeconds, 0)))
+				t := time.Unix(v.Int64-timeStampSeconds, 0)
+				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
 			elem.Field(i).SetZero()
