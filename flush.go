@@ -1,7 +1,5 @@
 package beeorm
 
-import "fmt"
-
 type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
@@ -27,7 +25,7 @@ func (c *contextImplementation) Flush() {
 			}
 		}
 	}
-
+	c.trackedEntities = c.trackedEntities[0:0]
 }
 
 func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) {
@@ -36,12 +34,12 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 
 func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) {
 	columns := schema.GetColumns()
-	args := make([]interface{}, 0, len(operations)*len(columns)+len(operations))
+	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
 	s.WriteString("INSERT INTO `")
 	s.WriteString(schema.GetTableName())
 	s.WriteString("`(`ID`")
-	for _, column := range columns {
+	for _, column := range columns[1:] {
 		s.WriteString(",`")
 		s.WriteString(column)
 		s.WriteString("`")
@@ -50,19 +48,17 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 	for i, operation := range operations {
 		insert := operation.(EntityFlushInsert)
 		bind := insert.GetBind()
-		fmt.Printf("%v\n", bind)
 		if i > 0 {
 			s.WriteString(",(?")
 		}
 		s.WriteString("(?")
 		args = append(args, bind["ID"])
-		for _, column := range columns {
+		for _, column := range columns[1:] {
 			args = append(args, bind[column])
 			s.WriteString(",?")
 		}
 		s.WriteString(")")
 	}
-	fmt.Println(s.String())
 	db.Exec(c, s.String(), args...)
 }
 

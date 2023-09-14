@@ -201,7 +201,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		index++
 	}
 	for _, i := range fields.booleans {
-		elem.Field(i).SetBool(*pointers[index].(*int64) > 0)
+		elem.Field(i).SetBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
 	for _, i := range fields.floats {

@@ -131,7 +131,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
+	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 
 	pool := schema.GetDB()
 	results, def := pool.Query(c, query, where.GetParameters()...)
@@ -142,12 +142,15 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
 	def()
+	var value reflect.Value
 	if entityToFill != nil {
 		entity = entityToFill.(E)
+		value = reflect.ValueOf(entity)
 	} else {
-		entity = *new(E)
+		value = reflect.New(schema.GetType().Elem())
+		entity = value.Interface().(E)
 	}
-	deserializeFromDB(schema.getFields(), reflect.ValueOf(entity), pointers)
+	deserializeFromDB(schema.getFields(), value.Elem(), pointers)
 	return entity, true
 }
 

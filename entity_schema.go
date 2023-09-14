@@ -413,7 +413,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	entitySchema.fields = entitySchema.buildTableFields(entityType.Elem(), registry, 1, "", entitySchema.tags)
+	entitySchema.fields = entitySchema.buildTableFields(entityType.Elem(), registry, 0, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
 	if len(entitySchema.fieldsQuery) > 0 {
 		entitySchema.fieldsQuery = entitySchema.fieldsQuery[1:]

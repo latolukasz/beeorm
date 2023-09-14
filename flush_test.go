@@ -123,10 +123,23 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
 
+	c.EnableQueryDebug()
+
+	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)
-	newEntity.Name = "Hello"
+	assert.PanicsWithError(t, "enum EnumNotNull cannot be empty", func() {
+		c.Flush()
+	})
 	newEntity.EnumNotNull = testEnumDefinition.B
+	assert.PanicsWithError(t, "set SetNotNull cannot be empty", func() {
+		c.Flush()
+	})
 	newEntity.SetNotNull = testSet{Enum(testEnumDefinition.A), Enum(testEnumDefinition.C)}
+	newEntity.Name = "Hello"
 	c.Flush()
+
+	entity = GetByID[*flushEntity](c, newEntity.ID)
+	assert.NotNil(t, entity)
+
 }
