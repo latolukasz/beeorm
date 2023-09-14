@@ -6,8 +6,6 @@ import (
 
 type Enum string
 
-var typeOfSet = reflect.TypeOf(([]Enum)(nil))
-
 type EnumValues interface {
 	EnumValues() interface{}
 }

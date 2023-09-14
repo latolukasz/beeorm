@@ -23,16 +23,6 @@ type flushStructAnonymous struct {
 	SubAge  float32 `orm:"decimal=9,5;unsigned=false"`
 }
 
-var testSetDefinition = struct {
-	D testEnum
-	E testEnum
-	F testEnum
-}{
-	D: "d",
-	E: "e",
-	F: "f",
-}
-
 type testEnum Enum
 type testSet []testEnum
 
@@ -136,10 +126,10 @@ func testFlush(t *testing.T, local bool, redis bool) {
 		c.Flush()
 	})
 	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
-	newEntity.Name = "Hello"
 	c.Flush()
 
 	entity = GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
+	assert.Equal(t, newEntity.ID, entity.ID)
 
 }
