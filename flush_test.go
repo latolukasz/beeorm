@@ -171,4 +171,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Uint64Nullable)
 	assert.Equal(t, "", entity.SubName)
 	assert.Equal(t, float32(0), entity.SubAge)
+
+	// Adding full entity
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 }
