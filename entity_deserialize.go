@@ -113,7 +113,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		if index == 0 {
 			elem.Field(i).SetString("")
 		} else {
-			elem.Field(i).SetString(string(fields.enums[z].GetFields()[index-1]))
+			elem.Field(i).SetString(fields.enums[z].GetFields()[index-1])
 		}
 	}
 	for _, i := range fields.bytes {
@@ -244,7 +244,12 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		index++
 	}
 	for _, i := range fields.bytes {
-		elem.Field(i).SetBytes([]byte(pointers[index].(*sql.NullString).String))
+		v := pointers[index].(*sql.NullString)
+		if v.Valid {
+			elem.Field(i).SetBytes([]byte(v.String))
+		} else {
+			elem.Field(i).SetZero()
+		}
 		index++
 	}
 	for _, i := range fields.sliceStringsSets {

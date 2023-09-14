@@ -68,7 +68,6 @@ type flushEntity struct {
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
 	Float64Default       float64  `orm:"unsigned"`
 	Float64Signed        float64
-	CachedQuery          *CachedQuery
 	Time                 time.Time
 	TimeWithTime         time.Time `orm:"time"`
 	TimeNullable         *time.Time
@@ -147,4 +146,11 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, testEnum(""), entity.EnumNullable)
 	assert.Equal(t, testEnumDefinition.B, entity.EnumNotNull)
 	assert.Nil(t, entity.Blob)
+	assert.False(t, entity.Bool)
+	assert.Equal(t, 0.0, entity.Float64)
+	assert.Equal(t, 0.0, entity.Decimal)
+	assert.Nil(t, entity.DecimalNullable)
+	assert.Equal(t, 0.0, entity.Float64Default)
+	assert.Equal(t, 0.0, entity.Float64Signed)
+	assert.Equal(t, new(time.Time).UTC(), entity.Time)
 }
