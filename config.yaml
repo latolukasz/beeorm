@@ -20,9 +20,6 @@ another:
       - :26379
       - 192.156.23.11:26379
       - 192.156.23.12:26379
-  streams:
-    stream-3:
-      - test-group-1
 third:
   sentinel:
     master2:2:second_namespace:

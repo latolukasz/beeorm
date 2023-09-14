@@ -13,7 +13,6 @@ type Context interface {
 	Engine() Engine
 	Flush()
 	FlushLazy()
-	EventBroker() EventBroker
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
@@ -40,7 +39,6 @@ type contextImplementation struct {
 	hasRedisLogger         bool
 	hasDBLogger            bool
 	hasLocalCacheLogger    bool
-	eventBroker            *eventBroker
 	options                map[string]map[string]interface{}
 	meta                   Meta
 	serializer             *serializer

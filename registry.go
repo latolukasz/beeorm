@@ -18,16 +18,14 @@ import (
 )
 
 type Registry struct {
-	mysqlPools        map[string]MySQLPoolConfig
-	mysqlTables       map[string]map[string]bool
-	localCaches       map[string]LocalCache
-	redisPools        map[string]RedisPoolConfig
-	entities          map[string]reflect.Type
-	defaultEncoding   string
-	defaultCollate    string
-	redisStreamGroups map[string]map[string]map[string]bool
-	redisStreamPools  map[string]string
-	plugins           []Plugin
+	mysqlPools      map[string]MySQLPoolConfig
+	mysqlTables     map[string]map[string]bool
+	localCaches     map[string]LocalCache
+	redisPools      map[string]RedisPoolConfig
+	entities        map[string]reflect.Type
+	defaultEncoding string
+	defaultCollate  string
+	plugins         []Plugin
 }
 
 func NewRegistry() *Registry {
@@ -135,20 +133,6 @@ func (r *Registry) Validate() (Engine, error) {
 			schema.redisCache = e.redisServers[schema.redisCacheName].(*redisCache)
 		}
 	}
-	_, has := r.redisStreamPools[LazyFlushChannelName]
-	if !has {
-		r.RegisterRedisStream(LazyFlushChannelName, DefaultPoolCode)
-		r.RegisterRedisStreamConsumerGroups(LazyFlushChannelName, LazyFlushGroupName)
-	}
-	if len(r.redisStreamGroups) > 0 {
-		_, has = r.redisStreamPools[StreamGarbageCollectorChannelName]
-		if !has {
-			r.RegisterRedisStream(StreamGarbageCollectorChannelName, DefaultPoolCode)
-			r.RegisterRedisStreamConsumerGroups(StreamGarbageCollectorChannelName, StreamGarbageCollectorGroupName)
-		}
-	}
-	e.registry.redisStreamGroups = r.redisStreamGroups
-	e.registry.redisStreamPools = r.redisStreamPools
 	e.registry.plugins = r.plugins
 	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	for _, schema := range e.registry.entitySchemas {
@@ -271,40 +255,6 @@ func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis
 	}
 	client := redis.NewFailoverClient(&opts)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
-}
-
-func (r *Registry) RegisterRedisStream(name string, redisPool string) {
-	if r.redisStreamGroups == nil {
-		r.redisStreamGroups = make(map[string]map[string]map[string]bool)
-		r.redisStreamPools = make(map[string]string)
-	}
-	_, has := r.redisStreamPools[name]
-	if !has {
-		r.redisStreamPools[name] = redisPool
-	}
-	if r.redisStreamGroups[redisPool] == nil {
-		r.redisStreamGroups[redisPool] = make(map[string]map[string]bool)
-	}
-	if r.redisStreamGroups[redisPool][name] == nil {
-		r.redisStreamGroups[redisPool][name] = make(map[string]bool)
-	}
-}
-
-func (r *Registry) RegisterRedisStreamConsumerGroups(stream string, groups ...string) {
-	if len(groups) == 0 {
-		return
-	}
-	if r.redisStreamPools == nil || len(r.redisStreamPools[stream]) == 0 {
-		panic(fmt.Errorf("redis stream %s is not registered", stream))
-	}
-	list, has := r.redisStreamGroups[r.redisStreamPools[stream]][stream]
-	if !has {
-		list = make(map[string]bool)
-		r.redisStreamGroups[r.redisStreamPools[stream]][stream] = list
-	}
-	for _, name := range groups {
-		list[name] = true
-	}
 }
 
 func (r *Registry) HasRegisteredRedisPool(pool string) bool {

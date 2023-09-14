@@ -19,8 +19,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 				validateRedisURI(r, value, key)
 			case "sentinel":
 				validateSentinel(r, value, key)
-			case "streams":
-				validateStreams(r, value, key)
 			case "mysqlEncoding":
 				valAsString := validateOrmString(value, key)
 				r.SetDefaultEncoding(valAsString)
@@ -53,22 +51,6 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 		}
 	}
 	registry.RegisterMySQLPool(uri, options, key)
-}
-
-func validateStreams(registry *Registry, value interface{}, key string) {
-	def := fixYamlMap(value, key)
-	for name, groups := range def {
-		registry.RegisterRedisStream(name, key)
-		asSlice, ok := groups.([]interface{})
-		if !ok {
-			panic(fmt.Errorf("streams '%v' is not valid", groups))
-		}
-		asString := make([]string, len(asSlice))
-		for i, val := range asSlice {
-			asString[i] = fmt.Sprintf("%v", val)
-		}
-		registry.RegisterRedisStreamConsumerGroups(name, asString...)
-	}
 }
 
 func validateRedisURI(registry *Registry, value interface{}, key string) {
