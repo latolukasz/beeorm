@@ -95,8 +95,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.sliceStringsSets {
 		f := source.Field(i)
 		def := fields.sets[k]
-		val := f.Convert(typeOfSet).Interface().(Set)
-		if f.IsNil() || len(val) == 0 {
+		if f.IsNil() || f.Len() == 0 {
 			if def.required {
 				panic(fmt.Errorf("set %s cannot be empty", prefix+fields.fields[i].Name))
 			} else {
@@ -104,8 +103,9 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			}
 		} else {
 			s := c.getStringBuilder()
-			for j, v := range val {
-				if !slices.Contains(def.GetFields(), string(v)) {
+			for j := 0; j < f.Len(); j++ {
+				v := f.Index(j).String()
+				if !slices.Contains(def.GetFields(), v) {
 					panic(fmt.Errorf("invalid set %s value: %s", prefix+fields.fields[i].Name, v))
 				}
 				if j > 0 {

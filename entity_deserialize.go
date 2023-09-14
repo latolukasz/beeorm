@@ -250,8 +250,13 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.sliceStringsSets {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid && v.String != "" {
+			f := elem.Field(i)
 			values := strings.Split(v.String, ",")
-			elem.Field(i).Set(reflect.ValueOf(values))
+			setValues := reflect.MakeSlice(f.Type(), len(values), len(values))
+			for j, val := range strings.Split(v.String, ",") {
+				setValues.Index(j).SetString(val)
+			}
+			f.Set(setValues)
 		} else {
 			elem.Field(i).SetZero()
 		}

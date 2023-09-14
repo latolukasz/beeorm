@@ -34,7 +34,7 @@ var testSetDefinition = struct {
 }
 
 type testEnum Enum
-type testSet Set
+type testSet []testEnum
 
 func (s testEnum) EnumValues() interface{} {
 	return testEnumDefinition
@@ -135,7 +135,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.PanicsWithError(t, "set SetNotNull cannot be empty", func() {
 		c.Flush()
 	})
-	newEntity.SetNotNull = testSet{Enum(testEnumDefinition.A), Enum(testEnumDefinition.C)}
+	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
 	newEntity.Name = "Hello"
 	c.Flush()
 
