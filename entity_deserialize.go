@@ -39,7 +39,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		f := elem.Field(i)
 		unix := s.DeserializeInteger()
 		if unix == zeroDateSeconds {
-			f.Set(reflect.Zero(f.Type()))
+			f.SetZero()
 		} else {
 			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
 		}
@@ -48,7 +48,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		f := elem.Field(i)
 		unix := s.DeserializeInteger()
 		if unix == zeroDateSeconds {
-			f.Set(reflect.Zero(f.Type()))
+			f.SetZero()
 		} else {
 			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
 		}
@@ -209,11 +209,21 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		index++
 	}
 	for _, i := range fields.times {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(*pointers[index].(*int64), 0)))
+		v := *pointers[index].(*int64)
+		if v == zeroDateSeconds {
+			elem.Field(i).SetZero()
+		} else {
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0)))
+		}
 		index++
 	}
 	for _, i := range fields.dates {
-		elem.Field(i).Set(reflect.ValueOf(time.Unix(*pointers[index].(*int64), 0)))
+		v := *pointers[index].(*int64)
+		if v == zeroDateSeconds {
+			elem.Field(i).SetZero()
+		} else {
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0)))
+		}
 		index++
 	}
 	for _, i := range fields.strings {
@@ -288,7 +298,11 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.timesNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64, 0)))
+			if v.Int64 == zeroDateSeconds {
+				elem.Field(i).SetZero()
+			} else {
+				elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64-timeStampSeconds, 0)))
+			}
 		} else {
 			elem.Field(i).SetZero()
 		}
@@ -297,7 +311,11 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 	for _, i := range fields.datesNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64, 0)))
+			if v.Int64 == zeroDateSeconds {
+				elem.Field(i).SetZero()
+			} else {
+				elem.Field(i).Set(reflect.ValueOf(time.Unix(v.Int64-timeStampSeconds, 0)))
+			}
 		} else {
 			elem.Field(i).SetZero()
 		}
