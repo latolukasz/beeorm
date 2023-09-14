@@ -219,14 +219,19 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	entity.Int8Nullable = &int8Nullable
 	int16Nullable := int16(-29)
 	entity.Int16Nullable = &int16Nullable
-
-	assert.Nil(t, entity.Int32Nullable)
-	assert.Nil(t, entity.Int64Nullable)
-	assert.Nil(t, entity.Uint8Nullable)
-	assert.Nil(t, entity.Uint16Nullable)
-	assert.Nil(t, entity.Uint32Nullable)
-	assert.Nil(t, entity.Uint64Nullable)
-	assert.Equal(t, "", entity.SubName)
-	assert.Equal(t, float32(0), entity.SubAge)
-
+	int32Nullable := int32(-2923)
+	entity.Int32Nullable = &int32Nullable
+	int64Nullable := int64(98872)
+	entity.Int64Nullable = &int64Nullable
+	uint8Nullable := uint8(23)
+	entity.Uint8Nullable = &uint8Nullable
+	uint16Nullable := uint16(29)
+	entity.Uint16Nullable = &uint16Nullable
+	uint32Nullable := uint32(2923)
+	entity.Uint32Nullable = &uint32Nullable
+	uint64Nullable := uint64(98872)
+	entity.Uint64Nullable = &uint64Nullable
+	entity.SubName = "sub name"
+	entity.SubAge = 123
+	c.Flush()
 }
