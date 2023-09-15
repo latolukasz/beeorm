@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/pkg/errors"
+	"math"
 	"reflect"
 	"slices"
 	"strconv"
@@ -46,8 +47,13 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Bool()
 	}
 	for k, i := range fields.floats {
-		v := strconv.FormatFloat(source.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
-		bind[prefix+fields.fields[i].Name] = v
+		f := source.Field(i)
+		v := f.Float()
+		roundV := roundFloat(v, fields.floatsPrecision[k])
+		bind[prefix+fields.fields[i].Name] = strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		if v != roundV {
+			f.SetFloat(roundV)
+		}
 	}
 	for _, i := range fields.times {
 		f := source.Field(i)
@@ -140,8 +146,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.floatsNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			v := strconv.FormatFloat(f.Elem().Float(), 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
-			bind[prefix+fields.fields[i].Name] = v
+			v := f.Elem().Float()
+			roundV := roundFloat(v, fields.floatsNullablePrecision[k])
+			bind[prefix+fields.fields[i].Name] = strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			if v != roundV {
+				f.Elem().SetFloat(roundV)
+			}
 			continue
 		}
 		bind[prefix+fields.fields[i].Name] = nil
@@ -433,4 +443,9 @@ func checkTimeIsUTC(t time.Time) time.Time {
 		panic(errors.New("time must be UTC"))
 	}
 	return t
+}
+
+func roundFloat(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
 }
