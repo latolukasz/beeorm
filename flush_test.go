@@ -294,5 +294,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *newEntity.TimeNullable)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), *newEntity.TimeWithTimeNullable)
 
+	// changing dates location
+
 	// rounding floats
 }
