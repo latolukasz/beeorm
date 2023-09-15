@@ -295,4 +295,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	decimalNullable = 1.126
 	newEntity.DecimalNullable = &decimalNullable
 	c.Flush()
+	assert.Equal(t, 1.12346, newEntity.Float64)
+	assert.Equal(t, 1.12, newEntity.Decimal)
+	assert.Equal(t, 1.123, *newEntity.FloatNullable)
+	assert.Equal(t, 1.13, *newEntity.DecimalNullable)
 }
