@@ -10,14 +10,11 @@ type EnumValues interface {
 	EnumValues() interface{}
 }
 
-type EnumDefault interface {
-	Default() string
-}
-
 type enumDefinition struct {
-	fields   []string
-	mapping  map[string]int
-	required bool
+	fields       []string
+	mapping      map[string]int
+	required     bool
+	defaultValue string
 }
 
 func (d *enumDefinition) GetFields() []string {
@@ -43,5 +40,6 @@ func initEnumDefinition(def interface{}, required bool) *enumDefinition {
 		enum.fields = append(enum.fields, name)
 		enum.mapping[name] = i + 1
 	}
+	enum.defaultValue = enum.fields[0]
 	return enum
 }

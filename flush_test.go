@@ -54,7 +54,7 @@ type flushEntity struct {
 	Year                 uint16  `orm:"year"`
 	YearNullable         *uint16 `orm:"year"`
 	BoolNullable         *bool
-	FloatNullable        *float64 `orm:"precision=10"`
+	FloatNullable        *float64 `orm:"precision=3"`
 	Float32Nullable      *float32 `orm:"precision=4"`
 	SetNullable          testSet
 	SetNotNull           testSet `orm:"required"`
@@ -63,7 +63,7 @@ type flushEntity struct {
 	Ignored              []string `orm:"ignore"`
 	Blob                 []uint8
 	Bool                 bool
-	Float64              float64  `orm:"precision=10"`
+	Float64              float64  `orm:"precision=5"`
 	Decimal              float64  `orm:"decimal=5,2"`
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
 	Float64Default       float64  `orm:"unsigned"`
@@ -114,14 +114,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)
-	assert.PanicsWithError(t, "enum EnumNotNull cannot be empty", func() {
-		c.Flush()
-	})
-	newEntity.EnumNotNull = testEnumDefinition.B
-	assert.PanicsWithError(t, "set SetNotNull cannot be empty", func() {
-		c.Flush()
-	})
-	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
 	c.Flush()
 
 	entity := GetByID[*flushEntity](c, newEntity.ID)
@@ -139,9 +131,9 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.FloatNullable)
 	assert.Nil(t, entity.Float32Nullable)
 	assert.Nil(t, entity.SetNullable)
-	assert.Equal(t, testSet{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
+	assert.Equal(t, testSet{testEnumDefinition.A}, entity.SetNotNull)
 	assert.Equal(t, testEnum(""), entity.EnumNullable)
-	assert.Equal(t, testEnumDefinition.B, entity.EnumNotNull)
+	assert.Equal(t, testEnumDefinition.A, entity.EnumNotNull)
 	assert.Nil(t, entity.Blob)
 	assert.False(t, entity.Bool)
 	assert.Equal(t, 0.0, entity.Float64)
@@ -280,8 +272,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "rounding dates"
 	newEntity.City = "rounding dates"
-	newEntity.EnumNotNull = testEnumDefinition.B
-	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
 	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	newEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
@@ -295,5 +285,14 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), *newEntity.TimeWithTimeNullable)
 
 	// rounding floats
-
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "rounding floats"
+	newEntity.City = "rounding floats"
+	newEntity.Float64 = 1.123456
+	newEntity.Decimal = 1.123
+	floatNullable = 1.1234
+	newEntity.FloatNullable = &floatNullable
+	decimalNullable = 1.126
+	newEntity.DecimalNullable = &decimalNullable
+	c.Flush()
 }

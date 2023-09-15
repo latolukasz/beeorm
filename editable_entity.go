@@ -137,8 +137,10 @@ func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	schema := GetEntitySchema[E](c).(*entitySchema)
 	newEntity.schema = schema
 	value := reflect.New(schema.GetType().Elem())
+	elem := value.Elem()
+	initNewEntity(elem, schema.fields)
 	newEntity.entity = value.Interface().(E)
-	value.Elem().Field(0).SetUint(schema.uuid())
+	elem.Field(0).SetUint(schema.uuid())
 	newEntity.value = value
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, newEntity)
@@ -171,4 +173,22 @@ func Copy[E Entity](c Context, source E) EditableEntity[E] {
 	serializeEntity(schema, reflect.ValueOf(source), s)
 	deserializeFromBinary(s, schema, writable.value)
 	return writable
+}
+
+func initNewEntity(elem reflect.Value, fields *tableFields) {
+	for k, i := range fields.stringsEnums {
+		def := fields.enums[k]
+		if def.required {
+			elem.Field(i).SetString(def.defaultValue)
+		}
+	}
+	for k, i := range fields.sliceStringsSets {
+		def := fields.enums[k]
+		if def.required {
+			f := elem.Field(i)
+			setValues := reflect.MakeSlice(f.Type(), 1, 1)
+			setValues.Index(0).SetString(def.defaultValue)
+			f.Set(setValues)
+		}
+	}
 }
