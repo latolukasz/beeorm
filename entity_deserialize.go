@@ -41,7 +41,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		if unix == zeroDateSeconds {
 			f.SetZero()
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
 		}
 	}
 	for _, i := range fields.dates {
@@ -50,7 +50,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		if unix == zeroDateSeconds {
 			f.SetZero()
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0)))
+			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
 		}
 	}
 	for _, i := range fields.strings {
@@ -166,7 +166,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	}
 	for _, i := range fields.timesNullable {
 		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0)
+			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -177,7 +177,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	}
 	for _, i := range fields.datesNullable {
 		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0)
+			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
@@ -213,7 +213,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		if v == zeroDateSeconds {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0)))
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0).UTC()))
 		}
 		index++
 	}
@@ -222,7 +222,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		if v == zeroDateSeconds {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0)))
+			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0).UTC()))
 		}
 		index++
 	}
@@ -313,7 +313,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			if v.Int64 == zeroDateSeconds {
 				elem.Field(i).SetZero()
 			} else {
-				t := time.Unix(v.Int64-timeStampSeconds, 0)
+				t := time.Unix(v.Int64-timeStampSeconds, 0).UTC()
 				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
@@ -327,7 +327,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			if v.Int64 == zeroDateSeconds {
 				elem.Field(i).SetZero()
 			} else {
-				t := time.Unix(v.Int64-timeStampSeconds, 0)
+				t := time.Unix(v.Int64-timeStampSeconds, 0).UTC()
 				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
