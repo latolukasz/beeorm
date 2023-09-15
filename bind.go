@@ -49,12 +49,22 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		bind[prefix+fields.fields[i].Name] = v
 	}
 	for _, i := range fields.times {
-		v := source.Field(i).Interface().(time.Time).UTC()
-		bind[prefix+fields.fields[i].Name] = v.Format(time.DateTime)
+		f := source.Field(i)
+		v := f.Interface().(time.Time).UTC()
+		v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
+		if v != v2 {
+			f.Set(reflect.ValueOf(v2))
+		}
+		bind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 	}
 	for _, i := range fields.dates {
-		v := source.Field(i).Interface().(time.Time).UTC()
-		bind[prefix+fields.fields[i].Name] = v.Format(time.DateOnly)
+		f := source.Field(i)
+		v := f.Interface().(time.Time).UTC()
+		v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
+		if v != v2 {
+			f.Set(reflect.ValueOf(v2))
+		}
+		bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 	}
 	for _, i := range fields.strings {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).String()
@@ -138,8 +148,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.timesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			t := f.Elem().Interface().(time.Time)
-			bind[prefix+fields.fields[i].Name] = t.Format(time.DateTime)
+			v := f.Elem().Interface().(time.Time).UTC()
+			v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
+			if v != v2 {
+				f.Set(reflect.ValueOf(&v2))
+			}
+			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 			continue
 		}
 		bind[prefix+fields.fields[i].Name] = nil
@@ -147,8 +161,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.datesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			t := f.Elem().Interface().(time.Time)
-			bind[prefix+fields.fields[i].Name] = t.Format(time.DateOnly)
+			v := f.Elem().Interface().(time.Time).UTC()
+			v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
+			if v != v2 {
+				f.Set(reflect.ValueOf(&v2))
+			}
+			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 			continue
 		}
 		bind[prefix+fields.fields[i].Name] = nil

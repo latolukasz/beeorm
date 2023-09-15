@@ -111,8 +111,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	c.EnableQueryDebug()
-
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)
@@ -277,4 +275,24 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint64(98872), *entity.Uint64Nullable)
 	assert.Equal(t, "sub name", entity.SubName)
 	assert.Equal(t, float32(123), entity.SubAge)
+
+	// rounding dates
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "rounding dates"
+	newEntity.City = "rounding dates"
+	newEntity.EnumNotNull = testEnumDefinition.B
+	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
+	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	newEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	newEntity.TimeNullable = &timeNullable
+	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	c.Flush()
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), newEntity.Time)
+	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), newEntity.TimeWithTime)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *newEntity.TimeNullable)
+	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), *newEntity.TimeWithTimeNullable)
+
+	// rounding floats
 }
