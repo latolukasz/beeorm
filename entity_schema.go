@@ -115,37 +115,38 @@ type mapBindToScanPointer map[string]func() interface{}
 type mapPointerToValue map[string]func(val interface{}) interface{}
 
 type tableFields struct {
-	t                       reflect.Type
-	fields                  map[int]reflect.StructField
-	prefix                  string
-	uintegers               []int
-	integers                []int
-	uintegersNullable       []int
-	uintegersNullableSize   []int
-	integersNullable        []int
-	integersNullableSize    []int
-	strings                 []int
-	stringMaxLengths        []int
-	stringsEnums            []int
-	enums                   []*enumDefinition
-	sliceStringsSets        []int
-	sets                    []*enumDefinition
-	bytes                   []int
-	booleans                []int
-	booleansNullable        []int
-	floats                  []int
-	floatsPrecision         []int
-	floatsDecimalSize       []int
-	floatsSize              []int
-	floatsNullable          []int
-	floatsNullablePrecision []int
-	floatsNullableSize      []int
-	timesNullable           []int
-	datesNullable           []int
-	times                   []int
-	dates                   []int
-	structs                 []int
-	structsFields           []*tableFields
+	t                         reflect.Type
+	fields                    map[int]reflect.StructField
+	prefix                    string
+	uintegers                 []int
+	integers                  []int
+	uintegersNullable         []int
+	uintegersNullableSize     []int
+	integersNullable          []int
+	integersNullableSize      []int
+	strings                   []int
+	stringMaxLengths          []int
+	stringsEnums              []int
+	enums                     []*enumDefinition
+	sliceStringsSets          []int
+	sets                      []*enumDefinition
+	bytes                     []int
+	booleans                  []int
+	booleansNullable          []int
+	floats                    []int
+	floatsPrecision           []int
+	floatsDecimalSize         []int
+	floatsSize                []int
+	floatsNullable            []int
+	floatsNullablePrecision   []int
+	floatsNullableDecimalSize []int
+	floatsNullableSize        []int
+	timesNullable             []int
+	datesNullable             []int
+	times                     []int
+	dates                     []int
+	structs                   []int
+	structsFields             []*tableFields
 }
 
 func (entitySchema *entitySchema) GetTableName() string {
@@ -897,6 +898,7 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	precision := 8
+	decimalSize := -1
 	if attributes.TypeName == "*float32" {
 		precision = 4
 		attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 32)
@@ -908,13 +910,17 @@ func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldA
 		userPrecision, _ := strconv.Atoi(precisionAttribute)
 		precision = userPrecision
 	} else {
-		precisionAttribute, has := attributes.Tags["decimal"]
-		if has {
-			precision, _ = strconv.Atoi(strings.Split(precisionAttribute, ",")[1])
+		decimal, isDecimal := attributes.Tags["decimal"]
+		if isDecimal {
+			decimalArgs := strings.Split(decimal, ",")
+			precision, _ = strconv.Atoi(decimalArgs[1])
+			decimalSize, _ = strconv.Atoi(decimalArgs[0])
+			decimalSize -= precision
 		}
 	}
 	attributes.Fields.floatsNullable = append(attributes.Fields.floatsNullable, attributes.Index)
 	attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
+	attributes.Fields.floatsNullableDecimalSize = append(attributes.Fields.floatsNullableDecimalSize, decimalSize)
 	entitySchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerFloatNullableScan
 }

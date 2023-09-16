@@ -314,15 +314,18 @@ func testFlush(t *testing.T, local bool, redis bool) {
 
 	// invalid decimal
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
-	newEntity.Name = "Invalid decimal"
-	newEntity.City = "Invalid decimal"
 	newEntity.Decimal = 1234
 	err = c.Flush()
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
 	c.ClearFlush()
-
-	// TODO invalid decimal nullable
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	decimalNullable = 1234
+	newEntity.DecimalNullable = &decimalNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[DecimalNullable] decimal size too big, max 3 allowed")
+	assert.Equal(t, "DecimalNullable", err.(*BindError).Field)
+	c.ClearFlush()
 
 	// float signed
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
@@ -330,7 +333,8 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.City = "Float signed"
 	newEntity.Float64Unsigned = -1
 	err = c.Flush()
-	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
-	assert.Equal(t, "Decimal", err.(*BindError).Field)
+	assert.EqualError(t, err, "[Float64Unsigned] decimal size too big, max 3 allowed")
+	assert.Equal(t, "Float64Unsigned", err.(*BindError).Field)
 	c.ClearFlush()
+	// float signed nullable
 }

@@ -172,7 +172,13 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		if !f.IsNil() {
 			v := f.Elem().Float()
 			roundV := roundFloat(v, fields.floatsNullablePrecision[k])
-			bind[prefix+fields.fields[i].Name] = strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			val := strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			decimalSize := fields.floatsNullableDecimalSize[k]
+			if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
+				return &BindError{Field: prefix + fields.fields[i].Name,
+					Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+			}
+			bind[prefix+fields.fields[i].Name] = val
 			if v != roundV {
 				f.Elem().SetFloat(roundV)
 			}
