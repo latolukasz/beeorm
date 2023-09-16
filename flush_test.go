@@ -379,4 +379,20 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
+	// nullable times
+	newEntity.TimeWithTime = newEntity.Time.UTC()
+	timeNullable = time.Now().Local()
+	newEntity.TimeNullable = &timeNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeNullable] time must be in UTC location")
+	assert.Equal(t, "TimeNullable", err.(*BindError).Field)
+	timeWithTimeNullable = time.Now().Local()
+	timeNullable = time.Now().UTC()
+	newEntity.TimeNullable = &timeNullable
+	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
+	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
+
+	// TODO references
 }
