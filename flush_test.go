@@ -80,10 +80,21 @@ type flushEntity struct {
 	Uint16Nullable       *uint16
 	Uint32Nullable       *uint32
 	Uint64Nullable       *uint64
+	Reference            *Reference[*flushEntityReference]
+	ReferenceRequired    *Reference[*flushEntityReference] `orm:"required"`
 	flushStructAnonymous
 }
 
+type flushEntityReference struct {
+	ID   uint64
+	Name string `orm:"required"`
+}
+
 func (e *flushEntity) GetID() uint64 {
+	return e.ID
+}
+
+func (e *flushEntityReference) GetID() uint64 {
 	return e.ID
 }
 
@@ -105,7 +116,7 @@ func TestFlushInsertRedis(t *testing.T) {
 
 func testFlushInsert(t *testing.T, local bool, redis bool) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, "", &flushEntity{})
+	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
