@@ -53,7 +53,7 @@ type flushEntity struct {
 	UintNullable         *uint
 	IntNullable          *int
 	BoolNullable         *bool
-	FloatNullable        *float64 `orm:"precision=3"`
+	FloatNullable        *float64 `orm:"precision=3;unsigned"`
 	Float32Nullable      *float32 `orm:"precision=4"`
 	SetNullable          testSet
 	SetNotNull           testSet `orm:"required"`
@@ -87,23 +87,23 @@ func (e *flushEntity) GetID() uint64 {
 	return e.ID
 }
 
-func TestFlushLocalRedis(t *testing.T) {
-	testFlush(t, true, true)
+func TestFlushInsertLocalRedis(t *testing.T) {
+	testFlushInsert(t, true, true)
 }
 
-func TestFlushLocal(t *testing.T) {
-	testFlush(t, true, false)
+func TestFlushInsertLocal(t *testing.T) {
+	testFlushInsert(t, true, false)
 }
 
-func TestFlushNoCache(t *testing.T) {
-	testFlush(t, false, false)
+func TestFlushInsertNoCache(t *testing.T) {
+	testFlushInsert(t, false, false)
 }
 
-func TestFlushRedis(t *testing.T) {
-	testFlush(t, false, true)
+func TestFlushInsertRedis(t *testing.T) {
+	testFlushInsert(t, false, true)
 }
 
-func testFlush(t *testing.T, local bool, redis bool) {
+func testFlushInsert(t *testing.T, local bool, redis bool) {
 	registry := &Registry{}
 	c := PrepareTables(t, registry, "", &flushEntity{})
 
