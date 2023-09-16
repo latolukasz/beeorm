@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"github.com/stretchr/testify/assert"
+	"strings"
 	"testing"
 	"time"
 )
@@ -45,7 +46,7 @@ var testEnumDefinition = struct {
 
 type flushEntity struct {
 	ID                   uint64 `orm:"localCache;redisCache"`
-	City                 string `orm:"unique=city"`
+	City                 string `orm:"unique=city;length=40"`
 	Name                 string `orm:"unique=name;required"`
 	Age                  int
 	Uint                 uint
@@ -114,7 +115,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	assert.NotEmpty(t, newEntity.ID)
-	c.Flush()
+	assert.NoError(t, c.Flush())
 
 	entity := GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
@@ -222,7 +223,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.Uint64Nullable = &uint64Nullable
 	newEntity.SubName = "sub name"
 	newEntity.SubAge = 123
-	c.Flush()
+	assert.NoError(t, c.Flush())
 	entity = GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
@@ -278,7 +279,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.TimeNullable = &timeNullable
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	c.Flush()
+	assert.NoError(t, c.Flush())
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), newEntity.Time)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), newEntity.TimeWithTime)
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *newEntity.TimeNullable)
@@ -294,9 +295,29 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.FloatNullable = &floatNullable
 	decimalNullable = 1.126
 	newEntity.DecimalNullable = &decimalNullable
-	c.Flush()
+	assert.NoError(t, c.Flush())
 	assert.Equal(t, 1.12346, newEntity.Float64)
 	assert.Equal(t, 1.12, newEntity.Decimal)
 	assert.Equal(t, 1.123, *newEntity.FloatNullable)
 	assert.Equal(t, 1.13, *newEntity.DecimalNullable)
+
+	// invalid values
+
+	// string too long
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = strings.Repeat("a", 256)
+	err := c.Flush()
+	assert.EqualError(t, err, "text too long, max 255 allowed")
+	assert.Equal(t, "Name", err.(*BindError).Field)
+	err = c.Flush()
+	assert.EqualError(t, err, "text too long, max 255 allowed")
+	c.ClearFlush()
+	assert.NoError(t, c.Flush())
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.City = strings.Repeat("a", 41)
+	err = c.Flush()
+	assert.EqualError(t, err, "text too long, max 40 allowed")
+	newEntity.City = strings.Repeat("a", 40)
+	newEntity.Name = "String to long"
+	assert.NoError(t, c.Flush())
 }

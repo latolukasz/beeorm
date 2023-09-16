@@ -11,8 +11,9 @@ type Context interface {
 	Ctx() context.Context
 	Clone() Context
 	Engine() Engine
-	Flush()
-	FlushLazy()
+	Flush() error
+	FlushLazy() error
+	ClearFlush()
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)

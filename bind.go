@@ -16,27 +16,39 @@ const timeStampSeconds = 62167219200
 
 type Bind map[string]interface{}
 
+type BindError struct {
+	Field   string
+	Message string
+}
+
+func (b *BindError) Error() string {
+	return b.Message
+}
+
 func (b Bind) Get(key string) interface{} {
 	return b[key]
 }
 
-func (m *insertableEntity[E]) GetBind() Bind {
+func (m *insertableEntity[E]) getBind() (Bind, error) {
 	bind := Bind{}
 	if m.entity.GetID() > 0 {
 		bind["ID"] = m.entity.GetID()
 	}
-	fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields(), "")
-	return bind
+	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields(), "")
+	if err != nil {
+		return nil, err
+	}
+	return bind, nil
 }
 
-func (e *editableEntity[E]) GetBind() (new, old Bind) {
+func (e *editableEntity[E]) getBind() (new, old Bind, err error) {
 	new = Bind{}
 	old = Bind{}
 	fillBindFromTwoSources(e.c, new, old, e.value, reflect.ValueOf(e.source), GetEntitySchema[E](e.c).getFields())
 	return
 }
 
-func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) {
+func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uintegers {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Uint()
 	}
@@ -73,8 +85,13 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		}
 		bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 	}
-	for _, i := range fields.strings {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).String()
+	for k, i := range fields.strings {
+		v := source.Field(i).String()
+		if len(v) > fields.stringMaxLengths[k] {
+			return &BindError{Field: prefix + fields.fields[i].Name,
+				Message: fmt.Sprintf("text too long, max %d allowed", fields.stringMaxLengths[k])}
+		}
+		bind[prefix+fields.fields[i].Name] = v
 	}
 	for _, i := range fields.uintegersNullable {
 		f := source.Field(i)
@@ -184,8 +201,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
-		fillBindFromOneSource(c, bind, source.Field(i), sub, prefix+sub.prefix)
+		err := fillBindFromOneSource(c, bind, source.Field(i), sub, prefix+sub.prefix)
+		if err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflect.Value, fields *tableFields) {

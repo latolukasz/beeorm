@@ -15,14 +15,14 @@ const (
 type Meta map[string]string
 
 type EntityFlush interface {
-	FlushType() FlushType
 	Schema() *entitySchema
 	GetMetaData() Meta
+	flushType() FlushType
 }
 
 type EntityFlushInsert interface {
 	EntityFlush
-	GetBind() Bind
+	getBind() (Bind, error)
 }
 
 type EntityFlushedEvent interface {
@@ -43,7 +43,7 @@ type InsertableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	TrackedEntity() E
 	SetOnDuplicateKeyUpdate(bind Bind)
-	GetBind() Bind
+	getBind() (Bind, error)
 }
 
 type RemovableEntity[E Entity] interface {
@@ -54,7 +54,7 @@ type EditableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	TrackedEntity() E
 	SourceEntity() E
-	GetBind() (new, old Bind)
+	getBind() (new, old Bind, err error)
 }
 
 type writableEntity[E Entity] struct {
@@ -98,11 +98,11 @@ func (m *insertableEntity[E]) TrackedEntity() E {
 	return m.entity
 }
 
-func (m *insertableEntity[E]) FlushType() FlushType {
+func (m *insertableEntity[E]) flushType() FlushType {
 	return Insert
 }
 
-func (e *editableEntity[E]) FlushType() FlushType {
+func (e *editableEntity[E]) flushType() FlushType {
 	return Update
 }
 
@@ -112,7 +112,7 @@ type removableEntity[E Entity] struct {
 	delete bool
 }
 
-func (r *removableEntity[E]) FlushType() FlushType {
+func (r *removableEntity[E]) flushType() FlushType {
 	return Delete
 }
 

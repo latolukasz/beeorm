@@ -4,27 +4,45 @@ type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
 
-func (c *contextImplementation) Flush() {
+func (c *contextImplementation) Flush() error {
 	if len(c.trackedEntities) == 0 {
-		return
+		return nil
 	}
 	sqlGroup := c.groupSQLOperations()
 	for db, operations := range sqlGroup {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				c.executeInserts(db, schema, deletes)
+				err := c.executeInserts(db, schema, deletes)
+				if err != nil {
+					return err
+				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				c.executeInserts(db, schema, inserts)
+				err := c.executeInserts(db, schema, inserts)
+				if err != nil {
+					return err
+				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				c.executeUpdates(db, schema, updates)
+				err := c.executeUpdates(db, schema, updates)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
+	c.ClearFlush()
+	return nil
+}
+
+func (c *contextImplementation) FlushLazy() error {
+	return nil
+}
+
+func (c *contextImplementation) ClearFlush() {
 	c.trackedEntities = c.trackedEntities[0:0]
 }
 
@@ -32,7 +50,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 	//TODO
 }
 
-func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) {
+func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
@@ -47,7 +65,10 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 	s.WriteString(") VALUES")
 	for i, operation := range operations {
 		insert := operation.(EntityFlushInsert)
-		bind := insert.GetBind()
+		bind, err := insert.getBind()
+		if err != nil {
+			return err
+		}
 		if i > 0 {
 			s.WriteString(",(?")
 		}
@@ -60,14 +81,11 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		s.WriteString(")")
 	}
 	db.Exec(c, s.String(), args...)
+	return nil
 }
 
-func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) {
-	//TODO
-}
-
-func (c *contextImplementation) FlushLazy() {
-	//TODO
+func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
+	return nil
 }
 
 func (c *contextImplementation) groupSQLOperations() sqlOperations {
@@ -85,7 +103,7 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 			tableSQLGroup = make(map[FlushType][]EntityFlush)
 			poolSQLGroup[schema] = tableSQLGroup
 		}
-		tableSQLGroup[val.FlushType()] = append(tableSQLGroup[val.FlushType()], val)
+		tableSQLGroup[val.flushType()] = append(tableSQLGroup[val.flushType()], val)
 	}
 	return sqlGroup
 }
