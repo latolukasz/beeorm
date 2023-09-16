@@ -65,7 +65,7 @@ type flushEntity struct {
 	Float64              float64  `orm:"precision=5"`
 	Decimal              float64  `orm:"decimal=5,2"`
 	DecimalNullable      *float64 `orm:"decimal=5,2"`
-	Float64Default       float64  `orm:"unsigned"`
+	Float64Unsigned      float64  `orm:"unsigned"`
 	Float64Signed        float64
 	Time                 time.Time
 	TimeWithTime         time.Time `orm:"time"`
@@ -136,7 +136,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 0.0, entity.Float64)
 	assert.Equal(t, 0.0, entity.Decimal)
 	assert.Nil(t, entity.DecimalNullable)
-	assert.Equal(t, 0.0, entity.Float64Default)
+	assert.Equal(t, 0.0, entity.Float64Unsigned)
 	assert.Equal(t, 0.0, entity.Float64Signed)
 	assert.Equal(t, new(time.Time).UTC(), entity.Time)
 	assert.Equal(t, new(time.Time).UTC(), entity.TimeWithTime)
@@ -184,7 +184,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.Decimal = 78.24
 	decimalNullable := 123.23
 	newEntity.DecimalNullable = &decimalNullable
-	newEntity.Float64Default = 8932.299423
+	newEntity.Float64Unsigned = 8932.299423
 	newEntity.Float64Signed = -352.120321
 	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC)
 	newEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC)
@@ -238,7 +238,7 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, 986.2322, entity.Float64)
 	assert.Equal(t, 78.24, entity.Decimal)
 	assert.Equal(t, 123.23, *entity.DecimalNullable)
-	assert.Equal(t, 8932.299423, entity.Float64Default)
+	assert.Equal(t, 8932.299423, entity.Float64Unsigned)
 	assert.Equal(t, -352.120321, entity.Float64Signed)
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), entity.Time)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), entity.TimeWithTime)
@@ -317,10 +317,20 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Invalid decimal"
 	newEntity.City = "Invalid decimal"
 	newEntity.Decimal = 1234
-	c.EnableQueryDebug()
 	err = c.Flush()
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
+	c.ClearFlush()
+
+	// TODO invalid decimal nullable
 
 	// float signed
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Float signed"
+	newEntity.City = "Float signed"
+	newEntity.Float64Unsigned = -1
+	err = c.Flush()
+	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
+	assert.Equal(t, "Decimal", err.(*BindError).Field)
+	c.ClearFlush()
 }
