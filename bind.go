@@ -3,7 +3,6 @@ package beeorm
 import (
 	"bytes"
 	"fmt"
-	"github.com/pkg/errors"
 	"math"
 	"reflect"
 	"slices"
@@ -79,7 +78,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for _, i := range fields.times {
 		f := source.Field(i)
-		v := checkTimeIsUTC(f.Interface().(time.Time))
+		v := f.Interface().(time.Time)
+		if v.Location() != time.UTC {
+			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+		}
 		v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
 		if v != v2 {
 			f.Set(reflect.ValueOf(v2))
@@ -88,7 +90,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for _, i := range fields.dates {
 		f := source.Field(i)
-		v := checkTimeIsUTC(f.Interface().(time.Time))
+		v := f.Interface().(time.Time)
+		if v.Location() != time.UTC {
+			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+		}
 		v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
 		if v != v2 {
 			f.Set(reflect.ValueOf(v2))
@@ -195,7 +200,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.timesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			v := checkTimeIsUTC(f.Elem().Interface().(time.Time))
+			v := f.Elem().Interface().(time.Time)
+			if v.Location() != time.UTC {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+			}
 			v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
 			if v != v2 {
 				f.Set(reflect.ValueOf(&v2))
@@ -208,7 +216,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.datesNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			v := checkTimeIsUTC(f.Elem().Interface().(time.Time))
+			v := f.Elem().Interface().(time.Time)
+			if v.Location() != time.UTC {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+			}
 			v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
 			if v != v2 {
 				f.Set(reflect.ValueOf(&v2))
@@ -262,17 +273,17 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for _, i := range fields.times {
-		v1 := checkTimeIsUTC(source.Field(i).Interface().(time.Time))
-		v2 := checkTimeIsUTC(before.Field(i).Interface().(time.Time))
+		v1 := source.Field(i).Interface().(time.Time)
+		v2 := before.Field(i).Interface().(time.Time)
 		if v1.Unix() != v2.Unix() {
 			bind[fields.fields[i].Name] = v1.Format(time.DateTime)
 			oldBind[fields.fields[i].Name] = v2.Format(time.DateTime)
 		}
 	}
 	for _, i := range fields.dates {
-		v1 := checkTimeIsUTC(source.Field(i).Interface().(time.Time))
+		v1 := source.Field(i).Interface().(time.Time)
 		v1 = time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
-		v2 := checkTimeIsUTC(before.Field(i).Interface().(time.Time))
+		v2 := before.Field(i).Interface().(time.Time)
 		v2 = time.Date(v2.Year(), v2.Month(), v2.Day(), 0, 0, 0, 0, time.UTC)
 		if v1.Unix() != v2.Unix() {
 			bind[fields.fields[i].Name] = v1.Format(time.DateOnly)
@@ -431,10 +442,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = checkTimeIsUTC(f1.Elem().Interface().(time.Time))
+			v1 = f1.Elem().Interface().(time.Time)
 		}
 		if !v2IsNil {
-			v2 = checkTimeIsUTC(f2.Elem().Interface().(time.Time))
+			v2 = f2.Elem().Interface().(time.Time)
 		}
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
 			bind[fields.fields[i].Name] = v1.Format(time.DateTime)
@@ -455,11 +466,11 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = checkTimeIsUTC(f1.Elem().Interface().(time.Time))
+			v1 = f1.Elem().Interface().(time.Time)
 			v1 = time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
 		}
 		if !v2IsNil {
-			v2 = checkTimeIsUTC(f2.Elem().Interface().(time.Time))
+			v2 = f2.Elem().Interface().(time.Time)
 			v2 = time.Date(v2.Year(), v2.Month(), v2.Day(), 0, 0, 0, 0, time.UTC)
 		}
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
@@ -476,13 +487,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	for j := range fields.structs {
 		fillBindFromTwoSources(c, bind, oldBind, source, before, fields.structsFields[j])
 	}
-}
-
-func checkTimeIsUTC(t time.Time) time.Time {
-	if t.Location() != time.UTC {
-		panic(errors.New("time must be UTC"))
-	}
-	return t
 }
 
 func roundFloat(val float64, precision int) float64 {

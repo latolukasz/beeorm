@@ -367,4 +367,16 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	c.ClearFlush()
+
+	// Time
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Time = time.Now().Local()
+	err = c.Flush()
+	assert.EqualError(t, err, "[Time] time must be in UTC location")
+	assert.Equal(t, "Time", err.(*BindError).Field)
+	newEntity.Time = newEntity.Time.UTC()
+	newEntity.TimeWithTime = time.Now().Local()
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
+	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
 }
