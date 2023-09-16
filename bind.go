@@ -124,14 +124,14 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		def := fields.enums[k]
 		if val == "" {
 			if def.required {
-				panic(fmt.Errorf("enum %s cannot be empty", prefix+fields.fields[i].Name))
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
 			} else {
 				bind[prefix+fields.fields[i].Name] = nil
 			}
 			continue
 		}
 		if !slices.Contains(def.GetFields(), val) {
-			panic(fmt.Errorf("invalid enum %s value: %s", prefix+fields.fields[i].Name, val))
+			return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", val)}
 		}
 		bind[prefix+fields.fields[i].Name] = val
 	}
@@ -143,7 +143,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		def := fields.sets[k]
 		if f.IsNil() || f.Len() == 0 {
 			if def.required {
-				panic(fmt.Errorf("set %s cannot be empty", prefix+fields.fields[i].Name))
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
 			} else {
 				bind[prefix+fields.fields[i].Name] = nil
 			}
@@ -152,12 +152,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			for j := 0; j < f.Len(); j++ {
 				v := f.Index(j).String()
 				if !slices.Contains(def.GetFields(), v) {
-					panic(fmt.Errorf("invalid set %s value: %s", prefix+fields.fields[i].Name, v))
+					return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v)}
 				}
 				if j > 0 {
 					s.WriteString(",")
 				}
-				s.WriteString(string(v))
+				s.WriteString(v)
 			}
 			bind[prefix+fields.fields[i].Name] = s.String()
 		}

@@ -342,5 +342,29 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.EqualError(t, err, "[FloatNullable] negative value not allowed")
 	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
 	c.ClearFlush()
-	// float signed nullable
+
+	// invalid enum
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.EnumNotNull = ""
+	err = c.Flush()
+	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
+	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
+	newEntity.EnumNotNull = "invalid"
+	err = c.Flush()
+	assert.EqualError(t, err, "[EnumNotNull] invalid value: invalid")
+	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
+	newEntity.EnumNotNull = testEnumDefinition.C
+	newEntity.SetNotNull = nil
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	newEntity.SetNotNull = testSet{}
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	newEntity.SetNotNull = testSet{"invalid"}
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	c.ClearFlush()
 }
