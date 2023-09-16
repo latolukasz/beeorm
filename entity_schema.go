@@ -135,6 +135,7 @@ type tableFields struct {
 	booleansNullable        []int
 	floats                  []int
 	floatsPrecision         []int
+	floatsDecimalSize       []int
 	floatsSize              []int
 	floatsNullable          []int
 	floatsNullablePrecision []int
@@ -861,6 +862,7 @@ func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAt
 func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	precision := 8
+	decimalSize := -1
 	if attributes.TypeName == "float32" {
 		precision = 4
 		attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
@@ -872,14 +874,17 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 		userPrecision, _ := strconv.Atoi(precisionAttribute)
 		precision = userPrecision
 	} else {
-		decimal, has := attributes.Tags["decimal"]
-		if has {
+		decimal, isDecimal := attributes.Tags["decimal"]
+		if isDecimal {
 			decimalArgs := strings.Split(decimal, ",")
 			precision, _ = strconv.Atoi(decimalArgs[1])
+			decimalSize, _ = strconv.Atoi(decimalArgs[0])
+			decimalSize -= precision
 		}
 	}
 	attributes.Fields.floats = append(attributes.Fields.floats, attributes.Index)
 	attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
+	attributes.Fields.floatsDecimalSize = append(attributes.Fields.floatsDecimalSize, decimalSize)
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := float64(0)
 		return &v

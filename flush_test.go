@@ -52,8 +52,6 @@ type flushEntity struct {
 	Uint                 uint
 	UintNullable         *uint
 	IntNullable          *int
-	Year                 uint16  `orm:"year"`
-	YearNullable         *uint16 `orm:"year"`
 	BoolNullable         *bool
 	FloatNullable        *float64 `orm:"precision=3"`
 	Float32Nullable      *float32 `orm:"precision=4"`
@@ -126,8 +124,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint(0), entity.Uint)
 	assert.Nil(t, entity.UintNullable)
 	assert.Nil(t, entity.IntNullable)
-	assert.Equal(t, uint16(0), entity.Year)
-	assert.Nil(t, entity.YearNullable)
 	assert.Nil(t, entity.BoolNullable)
 	assert.Nil(t, entity.FloatNullable)
 	assert.Nil(t, entity.Float32Nullable)
@@ -172,9 +168,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity.UintNullable = &uintNullable
 	intNullable := -45
 	newEntity.IntNullable = &intNullable
-	newEntity.Year = 2023
-	yearNullable := uint16(2025)
-	newEntity.YearNullable = &yearNullable
 	boolNullable := true
 	newEntity.BoolNullable = &boolNullable
 	floatNullable := 12.23
@@ -233,8 +226,6 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint(134), entity.Uint)
 	assert.Equal(t, uint(23), *entity.UintNullable)
 	assert.Equal(t, -45, *entity.IntNullable)
-	assert.Equal(t, uint16(2023), entity.Year)
-	assert.Equal(t, uint16(2025), *entity.YearNullable)
 	assert.True(t, *entity.BoolNullable)
 	assert.Equal(t, 12.23, *entity.FloatNullable)
 	assert.Equal(t, float32(12.24), *entity.Float32Nullable)
@@ -307,17 +298,29 @@ func testFlush(t *testing.T, local bool, redis bool) {
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = strings.Repeat("a", 256)
 	err := c.Flush()
-	assert.EqualError(t, err, "text too long, max 255 allowed")
+	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
 	err = c.Flush()
-	assert.EqualError(t, err, "text too long, max 255 allowed")
+	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	c.ClearFlush()
 	assert.NoError(t, c.Flush())
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.City = strings.Repeat("a", 41)
 	err = c.Flush()
-	assert.EqualError(t, err, "text too long, max 40 allowed")
+	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
 	newEntity.City = strings.Repeat("a", 40)
 	newEntity.Name = "String to long"
 	assert.NoError(t, c.Flush())
+
+	// invalid decimal
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Invalid decimal"
+	newEntity.City = "Invalid decimal"
+	newEntity.Decimal = 1234
+	c.EnableQueryDebug()
+	err = c.Flush()
+	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
+	assert.Equal(t, "Decimal", err.(*BindError).Field)
+
+	// float signed
 }

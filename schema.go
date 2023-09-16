@@ -495,14 +495,8 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 		"*int":
 		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
 	case "uint16":
-		if attributes["year"] == "true" {
-			return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year NOT NULL DEFAULT '0000'", columnName)}}, nil
-		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, false)
 	case "*uint16":
-		if attributes["year"] == "true" {
-			return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` year DEFAULT NULL", columnName)}}, nil
-		}
 		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
 	case "bool":
 		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"

@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -22,7 +23,7 @@ type BindError struct {
 }
 
 func (b *BindError) Error() string {
-	return b.Message
+	return "[" + b.Field + "] " + b.Message
 }
 
 func (b Bind) Get(key string) interface{} {
@@ -62,7 +63,13 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		f := source.Field(i)
 		v := f.Float()
 		roundV := roundFloat(v, fields.floatsPrecision[k])
-		bind[prefix+fields.fields[i].Name] = strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		val := strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		decimalSize := fields.floatsDecimalSize[k]
+		if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
+			return &BindError{Field: prefix + fields.fields[i].Name,
+				Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+		}
+		bind[prefix+fields.fields[i].Name] = val
 		if v != roundV {
 			f.SetFloat(roundV)
 		}
