@@ -333,8 +333,14 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.City = "Float signed"
 	newEntity.Float64Unsigned = -1
 	err = c.Flush()
-	assert.EqualError(t, err, "[Float64Unsigned] decimal size too big, max 3 allowed")
+	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
 	assert.Equal(t, "Float64Unsigned", err.(*BindError).Field)
+	newEntity.Float64Unsigned = 1
+	floatNullable = -1
+	newEntity.FloatNullable = &floatNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[FloatNullable] negative value not allowed")
+	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
 	c.ClearFlush()
 	// float signed nullable
 }

@@ -137,9 +137,11 @@ type tableFields struct {
 	floatsPrecision           []int
 	floatsDecimalSize         []int
 	floatsSize                []int
+	floatsUnsigned            []bool
 	floatsNullable            []int
 	floatsNullablePrecision   []int
 	floatsNullableDecimalSize []int
+	floatsNullableUnsigned    []bool
 	floatsNullableSize        []int
 	timesNullable             []int
 	datesNullable             []int
@@ -886,6 +888,7 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 	attributes.Fields.floats = append(attributes.Fields.floats, attributes.Index)
 	attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
 	attributes.Fields.floatsDecimalSize = append(attributes.Fields.floatsDecimalSize, decimalSize)
+	attributes.Fields.floatsUnsigned = append(attributes.Fields.floatsUnsigned, attributes.Tags["unsigned"] == "true")
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := float64(0)
 		return &v
@@ -921,6 +924,7 @@ func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldA
 	attributes.Fields.floatsNullable = append(attributes.Fields.floatsNullable, attributes.Index)
 	attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
 	attributes.Fields.floatsNullableDecimalSize = append(attributes.Fields.floatsNullableDecimalSize, decimalSize)
+	attributes.Fields.floatsNullableUnsigned = append(attributes.Fields.floatsNullableUnsigned, attributes.Tags["unsigned"] == "true")
 	entitySchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerFloatNullableScan
 }

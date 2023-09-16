@@ -62,6 +62,9 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.floats {
 		f := source.Field(i)
 		v := f.Float()
+		if fields.floatsUnsigned[k] && v < 0 {
+			return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
+		}
 		roundV := roundFloat(v, fields.floatsPrecision[k])
 		val := strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		decimalSize := fields.floatsDecimalSize[k]
@@ -171,6 +174,9 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		f := source.Field(i)
 		if !f.IsNil() {
 			v := f.Elem().Float()
+			if fields.floatsNullableUnsigned[k] && v < 0 {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
+			}
 			roundV := roundFloat(v, fields.floatsNullablePrecision[k])
 			val := strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
 			decimalSize := fields.floatsNullableDecimalSize[k]
