@@ -24,7 +24,6 @@ type RedisCacheSetter interface {
 type RedisCache interface {
 	RedisCacheSetter
 	GetSet(c Context, key string, expiration time.Duration, provider func() interface{}) interface{}
-	PipeLine() *RedisPipeLine
 	Info(c Context, section ...string) string
 	GetPoolConfig() RedisPoolConfig
 	Get(c Context, key string) (value string, has bool)
@@ -102,18 +101,6 @@ type redisCache struct {
 	config RedisPoolConfig
 }
 
-type redisCacheSetter struct {
-	code            string
-	sets            []interface{}
-	setExpireKeys   []string
-	setExpireValues []interface{}
-	setExpireTTLs   []time.Duration
-	deletes         []string
-	HSets           map[string][]interface{}
-	HDeletes        map[string][]string
-	xAdds           map[string][][]string
-}
-
 func (r *redisCache) GetSet(c Context, key string, expiration time.Duration, provider func() interface{}) interface{} {
 	val, has := r.Get(c, key)
 	if !has {
@@ -125,10 +112,6 @@ func (r *redisCache) GetSet(c Context, key string, expiration time.Duration, pro
 	var data interface{}
 	_ = msgpack.Unmarshal([]byte(val), &data)
 	return data
-}
-
-func (r *redisCache) PipeLine() *RedisPipeLine {
-	return &RedisPipeLine{pool: r.config.GetCode(), r: r, pipeLine: r.client.Pipeline()}
 }
 
 func (r *redisCache) Info(c Context, section ...string) string {
@@ -230,12 +213,6 @@ func (r *redisCache) Set(c Context, key string, value interface{}, expiration ti
 		r.fillLogFields(c, "SET", message, start, false, err)
 	}
 	checkError(err)
-}
-
-func (r *redisCacheSetter) Set(_ Context, key string, value interface{}, expiration time.Duration) {
-	r.setExpireKeys = append(r.setExpireKeys, key)
-	r.setExpireValues = append(r.setExpireValues, value)
-	r.setExpireTTLs = append(r.setExpireTTLs, expiration)
 }
 
 func (r *redisCache) SetNX(c Context, key string, value interface{}, expiration time.Duration) bool {
@@ -733,10 +710,6 @@ func (r *redisCache) MSet(c Context, pairs ...interface{}) {
 	checkError(err)
 }
 
-func (r *redisCacheSetter) MSet(_ Context, pairs ...interface{}) {
-	r.sets = append(r.sets, pairs...)
-}
-
 func (r *redisCache) MGet(c Context, keys ...string) []interface{} {
 	hasLogger, _ := c.getRedisLoggers()
 	if r.config.HasNamespace() {
@@ -834,10 +807,6 @@ func (r *redisCache) Del(c Context, keys ...string) {
 		r.fillLogFields(c, "DEL", "DEL "+strings.Join(keys, " "), start, false, err)
 	}
 	checkError(err)
-}
-
-func (r *redisCacheSetter) Del(_ Context, keys ...string) {
-	r.deletes = append(r.deletes, keys...)
 }
 
 func (r *redisCache) XTrim(c Context, stream string, maxLen int64) (deleted int64) {
@@ -1117,147 +1086,6 @@ func (r *redisCache) xAdd(c Context, stream string, values []string) (id string)
 	}
 	checkError(err)
 	return id
-}
-
-func (r *redisCacheSetter) xAdd(_ Context, stream string, values []string) (id string) {
-	if r.xAdds == nil {
-		r.xAdds = map[string][][]string{stream: {values}}
-	} else {
-		r.xAdds[stream] = append(r.xAdds[stream], values)
-	}
-	return ""
-}
-
-func (r *redisCacheSetter) HSet(_ Context, key string, values ...interface{}) {
-	if r.HSets == nil {
-		r.HSets = map[string][]interface{}{key: values}
-	} else {
-		r.HSets[key] = values
-	}
-}
-
-func (r *redisCacheSetter) HDel(_ Context, key string, keys ...string) {
-	if len(keys) == 0 {
-		return
-	}
-	if r.HDeletes == nil {
-		r.HDeletes = map[string][]string{key: keys}
-	} else {
-		r.HDeletes[key] = keys
-	}
-}
-
-func (r *redisCacheSetter) flush(c Context) {
-	commands := 0
-	if r.sets != nil {
-		commands++
-	}
-	if r.setExpireKeys != nil {
-		commands++
-	}
-	if r.deletes != nil {
-		commands++
-	}
-	if r.xAdds != nil {
-		commands++
-	}
-	if r.HSets != nil {
-		commands++
-	}
-	if r.HDeletes != nil {
-		commands++
-	}
-	if commands == 0 {
-		return
-	}
-	cache := c.Engine().Redis(r.code)
-	usePipeLine := commands > 1
-	if !usePipeLine {
-		usePipeLine = len(r.xAdds) > 1 || len(r.setExpireKeys) > 1
-	}
-	if !usePipeLine {
-		for _, events := range r.xAdds {
-			usePipeLine = len(events) > 1
-		}
-	}
-	if !usePipeLine {
-		usePipeLine = len(r.HSets) > 1 || len(r.HDeletes) > 1
-	}
-	if usePipeLine {
-		pipeLine := cache.PipeLine()
-		if r.sets != nil {
-			pipeLine.MSet(c, r.sets...)
-			r.sets = nil
-		}
-		if r.setExpireKeys != nil {
-			for i, key := range r.setExpireKeys {
-				pipeLine.Set(c, key, r.setExpireValues[i], r.setExpireTTLs[i])
-			}
-			r.setExpireKeys = nil
-			r.setExpireValues = nil
-			r.setExpireTTLs = nil
-		}
-		if r.deletes != nil {
-			pipeLine.Del(c, r.deletes...)
-			r.deletes = nil
-		}
-		if r.HSets != nil {
-			for key, values := range r.HSets {
-				pipeLine.HSet(c, key, values...)
-			}
-			r.HSets = nil
-		}
-		if r.HDeletes != nil {
-			for key, values := range r.HDeletes {
-				pipeLine.HDel(c, key, values...)
-			}
-			r.HSets = nil
-		}
-		if r.xAdds != nil {
-			for stream, events := range r.xAdds {
-				for _, e := range events {
-					pipeLine.XAdd(c, stream, e)
-				}
-			}
-			r.xAdds = nil
-		}
-		pipeLine.Exec(c)
-		return
-	}
-	if r.sets != nil {
-		cache.MSet(c, r.sets)
-		r.sets = nil
-	}
-	if r.setExpireKeys != nil {
-		cache.Set(c, r.setExpireKeys[0], r.setExpireValues[0], r.setExpireTTLs[0])
-		r.setExpireKeys = nil
-		r.setExpireValues = nil
-		r.setExpireTTLs = nil
-	}
-	if r.deletes != nil {
-		cache.Del(c, r.deletes...)
-		r.deletes = nil
-	}
-	if r.xAdds != nil {
-		for stream, events := range r.xAdds {
-			for _, e := range events {
-				cache.xAdd(c, stream, e)
-			}
-		}
-		r.xAdds = nil
-	}
-	if r.HSets != nil {
-		for key, values := range r.HSets {
-			cache.HSet(c, key, values...)
-		}
-		r.HSets = nil
-	}
-	if r.HDeletes != nil {
-		for key, values := range r.HDeletes {
-			cache.HDel(c, key, values...)
-		}
-		r.HDeletes = nil
-	}
 }
 
 func (r *redisCache) XLen(c Context, stream string) int64 {

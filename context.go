@@ -46,6 +46,7 @@ type contextImplementation struct {
 	serializer2            *serializer
 	stringBuilder          *strings.Builder
 	stringBuilder2         *strings.Builder
+	redisPipeLines         map[string]*RedisPipeLine
 	sync.Mutex
 }
 
@@ -102,6 +103,19 @@ func (c *contextImplementation) Clone() Context {
 		meta:                   c.meta,
 		options:                c.options,
 	}
+}
+
+func (c *contextImplementation) PipeLine(pool string) *RedisPipeLine {
+	if c.redisPipeLines == nil {
+		c.redisPipeLines = make(map[string]*RedisPipeLine)
+	}
+	pipeline, has := c.redisPipeLines[pool]
+	if !has {
+		r := c.engine.Redis(pool).(*redisCache)
+		pipeline = &RedisPipeLine{pool: pool, r: r, pipeLine: r.client.Pipeline()}
+		c.redisPipeLines[pool] = pipeline
+	}
+	return pipeline
 }
 
 func (c *contextImplementation) SetPluginOption(plugin, key string, value interface{}) {

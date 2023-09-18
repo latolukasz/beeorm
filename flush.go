@@ -39,6 +39,9 @@ func (c *contextImplementation) Flush() error {
 			}
 		}
 	}
+	for _, pipeline := range c.redisPipeLines {
+		pipeline.Exec(c)
+	}
 	c.ClearFlush()
 	return nil
 }
@@ -49,6 +52,7 @@ func (c *contextImplementation) FlushLazy() error {
 
 func (c *contextImplementation) ClearFlush() {
 	c.trackedEntities = c.trackedEntities[0:0]
+	c.redisPipeLines = nil
 }
 
 func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) {
