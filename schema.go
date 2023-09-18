@@ -716,16 +716,6 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 	maxFields := t.NumField() - 1
 	for i := 0; i <= maxFields; i++ {
 		field := t.Field(i)
-		if i == 0 && subField == nil {
-			entitySchema.GetUniqueIndexes()
-			for k, v := range entitySchema.getUniqueIndexesGlobal() {
-				current := &IndexSchemaDefinition{Name: k, Unique: true, columnsMap: map[int]string{}}
-				for i, l := range v {
-					current.columnsMap[i+1] = l
-				}
-				indexes[k] = current
-			}
-		}
 		prefix := subFieldPrefix
 		if subField != nil && !subField.Anonymous {
 			prefix += subField.Name

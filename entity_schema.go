@@ -61,7 +61,6 @@ type EntitySchema interface {
 	getFieldsQuery() string
 	getStructureHash() uint64
 	getTags() map[string]map[string]string
-	getUniqueIndexesGlobal() map[string][]string
 	uuid() uint64
 }
 
@@ -85,7 +84,6 @@ type entitySchema struct {
 	columnNames                []string
 	columnMapping              map[string]int
 	uniqueIndices              map[string][]string
-	uniqueIndicesGlobal        map[string][]string
 	hasLocalCache              bool
 	localCache                 *localCache
 	localCacheLimit            int
@@ -209,15 +207,7 @@ func (entitySchema *entitySchema) GetColumns() []string {
 }
 
 func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
-	data := make(map[string][]string)
-
-	for k, v := range entitySchema.uniqueIndices {
-		data[k] = v
-	}
-	for k, v := range entitySchema.uniqueIndicesGlobal {
-		data[k] = v
-	}
-	return data
+	return entitySchema.uniqueIndices
 }
 
 func (entitySchema *entitySchema) GetCacheQueries() map[string]*CachedQueryDefinition {
@@ -346,7 +336,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	for k, v := range entitySchema.tags {
 		keys, has := v["unique"]
-		if has && k != "ORM" {
+		if has {
 			values := strings.Split(keys, ",")
 			for _, indexName := range values {
 				parts := strings.Split(indexName, ":")
@@ -416,7 +406,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.cacheKey = cacheKey
 	entitySchema.uniqueIndices = uniqueIndicesSimple
-	entitySchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
 		if isInterfaceInitEntitySchema {
@@ -521,14 +510,14 @@ func (entitySchema *entitySchema) validateIndexes(uniqueIndices map[string]map[i
 }
 
 func (entitySchema *entitySchema) getTag(key, trueValue, defaultValue string) string {
-	userValue, has := entitySchema.tags["ORM"][key]
+	userValue, has := entitySchema.tags["ID"][key]
 	if has {
 		if userValue == "true" {
 			return trueValue
 		}
 		return userValue
 	}
-	return entitySchema.GetTag("ORM", key, trueValue, defaultValue)
+	return entitySchema.GetTag("ID", key, trueValue, defaultValue)
 }
 
 func (entitySchema *entitySchema) GetTag(field, key, trueValue, defaultValue string) string {
@@ -1002,7 +991,7 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 		return map[string]map[string]string{field.Name: attributes}
 	} else if field.Type.Kind().String() == "struct" {
 		t := field.Type.String()
-		if t != "beeorm.ORM" && t != "time.Time" {
+		if t != "time.Time" {
 			prefix := ""
 			if !field.Anonymous {
 				prefix = field.Name
@@ -1028,10 +1017,6 @@ func (entitySchema *entitySchema) getFields() *tableFields {
 
 func (entitySchema *entitySchema) getCachedIndexesTrackedFields() map[string]bool {
 	return entitySchema.cachedIndexesTrackedFields
-}
-
-func (entitySchema *entitySchema) getUniqueIndexesGlobal() map[string][]string {
-	return entitySchema.uniqueIndicesGlobal
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

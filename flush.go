@@ -1,5 +1,10 @@
 package beeorm
 
+import (
+	"fmt"
+	"strconv"
+)
+
 type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
@@ -69,6 +74,38 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		if err != nil {
 			return err
 		}
+
+		uniqueIndexes := schema.GetUniqueIndexes()
+		if len(uniqueIndexes) > 0 {
+			cache, hasRedis := schema.GetRedisCache()
+			if !hasRedis {
+				cache = c.Engine().Redis(DefaultPoolCode)
+			}
+			for indexName, indexColumns := range uniqueIndexes {
+				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hField := ""
+				hasNil := false
+				for _, column := range indexColumns {
+					bindValue := bind[column]
+					if bindValue == nil {
+						hasNil = true
+						break
+					}
+					hField += convertBindValueToString(bindValue)
+				}
+				if hasNil {
+					continue
+				}
+				id, inUse := cache.HGet(c, hSetKey, hField)
+				if inUse {
+					idAsUint, _ := strconv.ParseUint(id, 10, 64)
+					return &DuplicatedKeyBindError{Message: "duplicated unique index `" + indexName + "`",
+						Index: indexName, ID: idAsUint, Columns: indexColumns}
+				}
+				fmt.Printf("%v %v %v %v\n", indexName, indexColumns, hSetKey, hField)
+			}
+		}
+
 		if i > 0 {
 			s.WriteString(",(?")
 		}

@@ -25,8 +25,15 @@ func (b *BindError) Error() string {
 	return "[" + b.Field + "] " + b.Message
 }
 
-func (b *BindError) MessageMessage() string {
-	return b.Message
+type DuplicatedKeyBindError struct {
+	Message string
+	Index   string
+	ID      uint64
+	Columns []string
+}
+
+func (d *DuplicatedKeyBindError) Error() string {
+	return "duplicate value for unique index '" + d.Index + "'"
 }
 
 func (b Bind) Get(key string) interface{} {
@@ -38,7 +45,8 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 	if m.entity.GetID() > 0 {
 		bind["ID"] = m.entity.GetID()
 	}
-	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), GetEntitySchema[E](m.c).getFields(), "")
+	schema := GetEntitySchema[E](m.c)
+	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.getFields(), "")
 	if err != nil {
 		return nil, err
 	}
@@ -551,4 +559,18 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 func roundFloat(val float64, precision int) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return math.Round(val*ratio) / ratio
+}
+
+func convertBindValueToString(value interface{}) string {
+	switch value.(type) {
+	case string:
+		return value.(string)
+	case uint64:
+		return strconv.FormatUint(value.(uint64), 10)
+	case int64:
+		return strconv.FormatInt(value.(int64), 10)
+	default:
+		return fmt.Sprintf("%v", value)
+
+	}
 }
