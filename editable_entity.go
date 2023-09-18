@@ -43,7 +43,6 @@ type writableEntityInterface[E Entity] interface {
 type InsertableEntity[E Entity] interface {
 	writableEntityInterface[E]
 	TrackedEntity() E
-	SetOnDuplicateKeyUpdate(bind Bind)
 	getBind() (Bind, error)
 }
 
@@ -86,17 +85,12 @@ func (w *writableEntity[E]) GetMetaData() Meta {
 
 type insertableEntity[E Entity] struct {
 	writableEntity[E]
-	entity               E
-	value                reflect.Value
-	onDuplicateKeyUpdate Bind
+	entity E
+	value  reflect.Value
 }
 
 func (m *insertableEntity[E]) ID() uint64 {
 	return m.entity.GetID()
-}
-
-func (m *insertableEntity[E]) SetOnDuplicateKeyUpdate(bind Bind) {
-	m.onDuplicateKeyUpdate = bind
 }
 
 func (m *insertableEntity[E]) TrackedEntity() E {
