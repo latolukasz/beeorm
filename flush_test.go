@@ -129,6 +129,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
 	assert.NoError(t, c.Flush())
 
@@ -136,7 +137,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "", entity.City)
-	assert.Equal(t, "", entity.Name)
+	assert.Equal(t, "Name", entity.Name)
 	assert.Equal(t, 0, entity.Age)
 	assert.Equal(t, uint(0), entity.Uint)
 	assert.Nil(t, entity.UintNullable)
@@ -319,6 +320,14 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// invalid values
 
+	// empty string
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush()
+	assert.EqualError(t, err, "[Name] empty string not allowed")
+	assert.Equal(t, "Name", err.(*BindError).Field)
+	c.ClearFlush()
+
 	// string too long
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
@@ -348,6 +357,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
 	c.ClearFlush()
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	decimalNullable = 1234
 	newEntity.DecimalNullable = &decimalNullable
@@ -358,9 +368,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// float signed
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	newEntity.Name = "Float signed"
-	newEntity.City = "Float signed"
 	newEntity.Float64Unsigned = -1
 	err = c.Flush()
 	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
@@ -375,6 +384,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// invalid enum
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.EnumNotNull = ""
 	err = c.Flush()
@@ -401,6 +411,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// Time
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Time = time.Now().Local()
 	err = c.Flush()
@@ -425,6 +436,13 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
+	c.ClearFlush()
 
-	// TODO references
+	// TODO unique index error
+
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 }

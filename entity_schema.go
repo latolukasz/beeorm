@@ -120,6 +120,7 @@ type tableFields struct {
 	integersNullableSize      []int
 	strings                   []int
 	stringMaxLengths          []int
+	stringsRequired           []bool
 	stringsEnums              []int
 	enums                     []*enumDefinition
 	sliceStringsSets          []int
@@ -797,6 +798,7 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 		stringLength, _ = strconv.Atoi(length)
 	}
 	attributes.Fields.stringMaxLengths = append(attributes.Fields.stringMaxLengths, stringLength)
+	attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
 	}

@@ -25,6 +25,10 @@ func (b *BindError) Error() string {
 	return "[" + b.Field + "] " + b.Message
 }
 
+func (b *BindError) MessageMessage() string {
+	return b.Message
+}
+
 func (b Bind) Get(key string) interface{} {
 	return b[key]
 }
@@ -122,7 +126,15 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			return &BindError{Field: prefix + fields.fields[i].Name,
 				Message: fmt.Sprintf("text too long, max %d allowed", fields.stringMaxLengths[k])}
 		}
-		bind[prefix+fields.fields[i].Name] = v
+		if v == "" {
+			isRequired := fields.stringsRequired[k]
+			if isRequired {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty string not allowed"}
+			}
+			bind[prefix+fields.fields[i].Name] = nil
+		} else {
+			bind[prefix+fields.fields[i].Name] = v
+		}
 	}
 	for _, i := range fields.uIntegersNullable {
 		f := source.Field(i)
