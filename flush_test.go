@@ -439,8 +439,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
 	c.ClearFlush()
 
-	// TODO unique index error
-
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
@@ -449,4 +447,17 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
+	c.ClearFlush()
+
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
+	// TODO full redis with unique indexes
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.Name = "Name"
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush()
+	assert.EqualError(t, err, "duplicated value for unique index 'name'")
+	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
+	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
+	c.ClearFlush()
 }
