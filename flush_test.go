@@ -131,6 +131,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
+	firstEntityID := newEntity.ID
 	assert.NoError(t, c.Flush())
 
 	entity := GetByID[*flushEntity](c, newEntity.ID)
@@ -444,5 +445,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	err = c.Flush()
-	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
+	assert.EqualError(t, err, "duplicated value for unique index 'name'")
+	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
+	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 }

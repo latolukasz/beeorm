@@ -26,14 +26,13 @@ func (b *BindError) Error() string {
 }
 
 type DuplicatedKeyBindError struct {
-	Message string
 	Index   string
 	ID      uint64
 	Columns []string
 }
 
 func (d *DuplicatedKeyBindError) Error() string {
-	return "duplicate value for unique index '" + d.Index + "'"
+	return "duplicated value for unique index '" + d.Index + "'"
 }
 
 func (b Bind) Get(key string) interface{} {

@@ -14,6 +14,7 @@ type Context interface {
 	Flush() error
 	FlushLazy() error
 	ClearFlush()
+	PipeLine(pool string) *RedisPipeLine
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)

@@ -15,6 +15,7 @@ const (
 type Meta map[string]string
 
 type EntityFlush interface {
+	ID() uint64
 	Schema() *entitySchema
 	GetMetaData() Meta
 	flushType() FlushType
@@ -90,6 +91,10 @@ type insertableEntity[E Entity] struct {
 	onDuplicateKeyUpdate Bind
 }
 
+func (m *insertableEntity[E]) ID() uint64 {
+	return m.entity.GetID()
+}
+
 func (m *insertableEntity[E]) SetOnDuplicateKeyUpdate(bind Bind) {
 	m.onDuplicateKeyUpdate = bind
 }
@@ -121,6 +126,10 @@ type editableEntity[E Entity] struct {
 	entity E
 	value  reflect.Value
 	source E
+}
+
+func (e *editableEntity[E]) ID() uint64 {
+	return e.entity.GetID()
 }
 
 func (e *editableEntity[E]) TrackedEntity() E {

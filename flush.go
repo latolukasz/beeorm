@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"strconv"
 )
 
@@ -100,13 +99,12 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 				if hasNil {
 					continue
 				}
-				id, inUse := cache.HGet(c, hSetKey, hField)
+				previousID, inUse := cache.HGet(c, hSetKey, hField)
 				if inUse {
-					idAsUint, _ := strconv.ParseUint(id, 10, 64)
-					return &DuplicatedKeyBindError{Message: "duplicated unique index `" + indexName + "`",
-						Index: indexName, ID: idAsUint, Columns: indexColumns}
+					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
+					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
-				fmt.Printf("%v %v %v %v\n", indexName, indexColumns, hSetKey, hField)
+				c.PipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
 
