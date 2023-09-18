@@ -530,15 +530,8 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 			structFields, err := checkStruct(engine, schema, field.Type, indexes, field, subFieldPrefix)
 			checkError(err)
 			return structFields, nil
-		} else if kind == "ptr" {
-			subSchema := engine.Registry().EntitySchema(field.Type)
-			if subSchema != nil {
-				definition = handleReferenceOne(subSchema, attributes)
-				addNotNullIfNotSet = false
-				addDefaultNullIfNullable = true
-			} else {
-				return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
-			}
+		} else if field.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
+			definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
 		} else if field.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 			fieldType := "ENUM"
 			if field.Type.Kind().String() == "slice" {
@@ -669,13 +662,6 @@ func handleTime(attributes map[string]string, nullable bool) (string, bool, bool
 		defaultValue = "'0001-01-01'"
 	}
 	return "date", !nullable, true, defaultValue
-}
-
-func handleReferenceOne(schema EntitySchema, attributes map[string]string) string {
-	if schema.GetType().Elem().NumField() <= 1 {
-		return convertIntToSchema("uint64", attributes)
-	}
-	return convertIntToSchema(schema.GetType().Elem().Field(1).Type.String(), attributes)
 }
 
 func convertIntToSchema(typeAsString string, attributes Meta) string {

@@ -339,7 +339,7 @@ package beeorm
 //}
 //
 //func (b *entityFlushBuilder) buildUIntegers(s *serializer, fields *tableFields, value reflect.Value) {
-//	b.build(s, fields, value, fields.uintegers, uIntFieldDataProvider)
+//	b.build(s, fields, value, fields.uIntegers, uIntFieldDataProvider)
 //}
 //
 //var intFieldDataProvider = fieldDataProvider{
@@ -475,7 +475,7 @@ package beeorm
 //}
 //
 //func (b *entityFlushBuilder) buildUIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {
-//	b.buildNullable(s, fields, value, fields.uintegersNullable, uIntFieldDataProvider)
+//	b.buildNullable(s, fields, value, fields.uIntegersNullable, uIntFieldDataProvider)
 //}
 //
 //func (b *entityFlushBuilder) buildIntegersNullable(s *serializer, fields *tableFields, value reflect.Value) {

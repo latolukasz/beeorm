@@ -21,9 +21,21 @@ func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Valu
 }
 
 func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
-	for _, i := range fields.uintegers {
+	for _, i := range fields.uIntegers {
 		v := s.DeserializeUInteger()
 		elem.Field(i).SetUint(v)
+	}
+	for _, i := range fields.references {
+		v := s.DeserializeUInteger()
+		if v == 0 {
+			elem.Field(i).SetZero()
+		} else {
+			f := elem.Field(i)
+			val := reflect.New(f.Type()).Elem()
+			reference := val.Interface().(referenceInterface)
+			reference.SetID(v)
+			f.Set(val)
+		}
 	}
 	k := 0
 	for _, i := range fields.integers {
@@ -56,10 +68,10 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.strings {
 		elem.Field(i).SetString(s.DeserializeString())
 	}
-	for k, i := range fields.uintegersNullable {
+	for k, i := range fields.uIntegersNullable {
 		if s.DeserializeBool() {
 			v := s.DeserializeUInteger()
-			switch fields.uintegersNullableSize[k] {
+			switch fields.uIntegersNullableSize[k] {
 			case 0:
 				val := uint(v)
 				elem.Field(i).Set(reflect.ValueOf(&val))
@@ -192,8 +204,21 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 }
 
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
-	for _, i := range fields.uintegers {
+	for _, i := range fields.uIntegers {
 		elem.Field(i).SetUint(*pointers[index].(*uint64))
+		index++
+	}
+	for _, i := range fields.references {
+		v := pointers[index].(*sql.NullInt64)
+		if v.Valid {
+			f := elem.Field(i)
+			val := reflect.New(f.Type().Elem())
+			reference := val.Interface().(referenceInterface)
+			reference.SetID(uint64(v.Int64))
+			f.Set(val)
+		} else {
+			elem.Field(i).SetZero()
+		}
 		index++
 	}
 	for _, i := range fields.integers {
@@ -230,7 +255,7 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		elem.Field(i).SetString(pointers[index].(*sql.NullString).String)
 		index++
 	}
-	for _, i := range fields.uintegersNullable {
+	for _, i := range fields.uIntegersNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
 			f := elem.Field(i)

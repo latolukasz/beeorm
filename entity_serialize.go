@@ -12,9 +12,17 @@ func serializeEntity(schema EntitySchema, elem reflect.Value, serializer *serial
 }
 
 func serializeFields(serialized *serializer, fields *tableFields, elem reflect.Value) {
-	for _, i := range fields.uintegers {
+	for _, i := range fields.uIntegers {
 		v := elem.Field(i).Uint()
 		serialized.SerializeUInteger(v)
+	}
+	for _, i := range fields.references {
+		f := elem.Field(i)
+		if f.IsNil() {
+			serialized.SerializeUInteger(0)
+		} else {
+			serialized.SerializeUInteger(f.Interface().(referenceInterface).GetID())
+		}
 	}
 	for _, i := range fields.integers {
 		serialized.SerializeInteger(elem.Field(i).Int())
@@ -58,7 +66,7 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 	for _, i := range fields.strings {
 		serialized.SerializeString(elem.Field(i).String())
 	}
-	for _, i := range fields.uintegersNullable {
+	for _, i := range fields.uIntegersNullable {
 		f := elem.Field(i)
 		if f.IsNil() {
 			serialized.SerializeBool(false)

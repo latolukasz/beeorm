@@ -121,8 +121,14 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
 
+	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference"
+	err := c.Flush()
+	assert.NoError(t, err)
+
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	assert.NotEmpty(t, newEntity.ID)
 	assert.NoError(t, c.Flush())
 
@@ -168,6 +174,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Nil(t, entity.Uint64Nullable)
 	assert.Equal(t, "", entity.SubName)
 	assert.Equal(t, float32(0), entity.SubAge)
+	assert.Nil(t, entity.Reference)
+	assert.NotNil(t, reference.ID, entity.ReferenceRequired)
 
 	// Adding full entity
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
@@ -227,6 +235,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.Uint64Nullable = &uint64Nullable
 	newEntity.SubName = "sub name"
 	newEntity.SubAge = 123
+	newEntity.Reference = NewReference[*flushEntityReference](reference.ID)
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	assert.NoError(t, c.Flush())
 	entity = GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
@@ -270,9 +280,12 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, uint64(98872), *entity.Uint64Nullable)
 	assert.Equal(t, "sub name", entity.SubName)
 	assert.Equal(t, float32(123), entity.SubAge)
+	assert.Equal(t, reference.ID, entity.Reference.GetID())
+	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
 
 	// rounding dates
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = "rounding dates"
 	newEntity.City = "rounding dates"
 	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
@@ -289,6 +302,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// rounding floats
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = "rounding floats"
 	newEntity.City = "rounding floats"
 	newEntity.Float64 = 1.123456
@@ -307,8 +321,9 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// string too long
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = strings.Repeat("a", 256)
-	err := c.Flush()
+	err = c.Flush()
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
 	err = c.Flush()
@@ -316,6 +331,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	c.ClearFlush()
 	assert.NoError(t, c.Flush())
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.City = strings.Repeat("a", 41)
 	err = c.Flush()
 	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
@@ -325,12 +341,14 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// invalid decimal
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Decimal = 1234
 	err = c.Flush()
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
 	c.ClearFlush()
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	decimalNullable = 1234
 	newEntity.DecimalNullable = &decimalNullable
 	err = c.Flush()
@@ -340,6 +358,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// float signed
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = "Float signed"
 	newEntity.City = "Float signed"
 	newEntity.Float64Unsigned = -1
@@ -356,6 +375,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// invalid enum
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.EnumNotNull = ""
 	err = c.Flush()
 	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
@@ -381,6 +401,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// Time
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Time = time.Now().Local()
 	err = c.Flush()
 	assert.EqualError(t, err, "[Time] time must be in UTC location")

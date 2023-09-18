@@ -49,8 +49,24 @@ func (e *editableEntity[E]) getBind() (new, old Bind, err error) {
 }
 
 func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
-	for _, i := range fields.uintegers {
+	for _, i := range fields.uIntegers {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Uint()
+	}
+	for k, i := range fields.references {
+		f := source.Field(i)
+		required := fields.referencesRequired[k]
+		if f.IsNil() {
+			if required {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "nil value not allowed"}
+			}
+			f.SetZero()
+		} else {
+			reference := f.Interface().(referenceInterface)
+			if required && reference.GetID() == 0 {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "ID zero not allowed"}
+			}
+			bind[prefix+fields.fields[i].Name] = reference.GetID()
+		}
 	}
 	for _, i := range fields.integers {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Int()
@@ -108,7 +124,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		}
 		bind[prefix+fields.fields[i].Name] = v
 	}
-	for _, i := range fields.uintegersNullable {
+	for _, i := range fields.uIntegersNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
 			bind[prefix+fields.fields[i].Name] = f.Elem().Uint()
@@ -240,12 +256,43 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 }
 
 func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflect.Value, fields *tableFields) {
-	for _, i := range fields.uintegers {
+	for _, i := range fields.uIntegers {
 		v1 := source.Field(i).Uint()
 		v2 := before.Field(i).Uint()
 		if v1 != v2 {
 			bind[fields.fields[i].Name] = v1
 			oldBind[fields.fields[i].Name] = v2
+		}
+	}
+	for k, i := range fields.references {
+		// TODO
+		v1 := uint64(0)
+		v2 := uint64(0)
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		isRequired := fields.referencesRequired[k]
+		v1IsNil := f1.IsNil()
+		v2IsNil := f2.IsNil()
+		if !v1IsNil {
+			v1 = f1.Interface().(referenceInterface).GetID()
+			if isRequired && v1 == 0 {
+				//return &BindError{Field: fields.fields[i].Name, Message: "nil value not allowed"}
+			}
+		} else if isRequired {
+			//return &BindError{Field: fields.fields[i].Name, Message: "ID zero not allowed"}
+		}
+		if !v2IsNil {
+			v2 = f2.Interface().(referenceInterface).GetID()
+		}
+		if v1IsNil != v2IsNil || v1 != v2 {
+			bind[fields.fields[i].Name] = v1
+			oldBind[fields.fields[i].Name] = v2
+			if v1IsNil {
+				bind[fields.fields[i].Name] = nil
+			}
+			if v2IsNil {
+				oldBind[fields.fields[i].Name] = nil
+			}
 		}
 	}
 	for _, i := range fields.integers {
@@ -298,7 +345,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			oldBind[fields.fields[i].Name] = v2
 		}
 	}
-	for _, i := range fields.uintegersNullable {
+	for _, i := range fields.uIntegersNullable {
 		v1 := uint64(0)
 		v2 := uint64(0)
 		f1 := source.Field(i)

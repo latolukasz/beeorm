@@ -38,8 +38,13 @@ func prepareScan(schema EntitySchema) (pointers []interface{}) {
 }
 
 func prepareScanForFields(fields *tableFields, start int, pointers []interface{}) int {
-	for range fields.uintegers {
+	for range fields.uIntegers {
 		v := uint64(0)
+		pointers[start] = &v
+		start++
+	}
+	for range fields.references {
+		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
@@ -73,7 +78,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for range fields.uintegersNullable {
+	for range fields.uIntegersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++

@@ -35,12 +35,6 @@ type CachedQueryDefinition struct {
 	OrderFields   []string
 }
 
-type EntitySchemaReference struct {
-	ColumnName string
-	FieldPath  []string
-	EntityName string
-}
-
 type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
@@ -52,7 +46,6 @@ type EntitySchema interface {
 	GetDB() DB
 	GetLocalCache() (cache LocalCache, has bool)
 	GetRedisCache() (cache RedisCache, has bool)
-	GetReferences() []EntitySchemaReference
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
 	GetCacheQueries() map[string]*CachedQueryDefinition
@@ -93,7 +86,6 @@ type entitySchema struct {
 	columnMapping              map[string]int
 	uniqueIndices              map[string][]string
 	uniqueIndicesGlobal        map[string][]string
-	references                 []EntitySchemaReference
 	hasLocalCache              bool
 	localCache                 *localCache
 	localCacheLimit            int
@@ -118,10 +110,12 @@ type tableFields struct {
 	t                         reflect.Type
 	fields                    map[int]reflect.StructField
 	prefix                    string
-	uintegers                 []int
+	uIntegers                 []int
 	integers                  []int
-	uintegersNullable         []int
-	uintegersNullableSize     []int
+	references                []int
+	referencesRequired        []bool
+	uIntegersNullable         []int
+	uIntegersNullableSize     []int
 	integersNullable          []int
 	integersNullableSize      []int
 	strings                   []int
@@ -209,10 +203,6 @@ func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
 	return entitySchema.redisCache, true
 }
 
-func (entitySchema *entitySchema) GetReferences() []EntitySchemaReference {
-	return entitySchema.references
-}
-
 func (entitySchema *entitySchema) GetColumns() []string {
 	return entitySchema.columnNames
 }
@@ -244,7 +234,6 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
 	entitySchema.tags = extractTags(registry, entityType.Elem(), "")
-	references := make([]EntitySchemaReference, 0)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
 	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
@@ -334,15 +323,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 				cachedQueriesTrackedFields[name] = true
 			}
 		}
-		refEntity, hasReference := values["ref"]
-		if hasReference {
-			reference := EntitySchemaReference{
-				ColumnName: key,
-				FieldPath:  strings.Split(values["refPath"], "."),
-				EntityName: refEntity,
-			}
-			references = append(references, reference)
-		}
 	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
@@ -399,26 +379,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	for _, reference := range references {
-		has := false
-		for _, v := range indices {
-			if v[1] == reference.ColumnName {
-				has = true
-				break
-			}
-		}
-		if !has {
-			for _, v := range uniqueIndices {
-				if v[1] == reference.ColumnName {
-					has = true
-					break
-				}
-			}
-			if !has {
-				indices["_"+reference.ColumnName] = map[int]string{1: reference.ColumnName}
-			}
-		}
-	}
 	entitySchema.fields = entitySchema.buildTableFields(entityType.Elem(), registry, 0, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
 	if len(entitySchema.fieldsQuery) > 0 {
@@ -453,7 +413,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	entitySchema.redisCacheName = redisCacheName
 	entitySchema.hasRedisCache = redisCacheName != ""
-	entitySchema.references = references
 	entitySchema.cacheKey = cacheKey
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	entitySchema.uniqueIndicesGlobal = uniqueIndicesSimpleGlobal
@@ -717,6 +676,8 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 				} else {
 					entitySchema.buildStringSliceField(attributes, definition)
 				}
+			} else if f.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
+				entitySchema.buildReferenceField(attributes)
 			} else {
 				panic(fmt.Errorf("field type %s is not supported", f.Type.String()))
 			}
@@ -739,7 +700,7 @@ func (attributes schemaFieldAttributes) GetColumnName() string {
 }
 
 func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttributes) {
-	attributes.Fields.uintegers = append(attributes.Fields.uintegers, attributes.Index)
+	attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
 	columnName := attributes.GetColumnName()
 	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
 		v := uint64(0)
@@ -750,20 +711,28 @@ func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttribute
 	}
 }
 
+func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
+	attributes.Fields.references = append(attributes.Fields.references, attributes.Index)
+	attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, attributes.Tags["required"] == "true")
+	columnName := attributes.GetColumnName()
+	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
+}
+
 func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
-	attributes.Fields.uintegersNullable = append(attributes.Fields.uintegersNullable, attributes.Index)
+	attributes.Fields.uIntegersNullable = append(attributes.Fields.uIntegersNullable, attributes.Index)
 	columnName := attributes.GetColumnName()
 	switch attributes.TypeName {
 	case "*uint":
-		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 0)
+		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 0)
 	case "*uint8":
-		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 8)
+		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 8)
 	case "*uint16":
-		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 16)
+		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 16)
 	case "*uint32":
-		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 32)
+		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 32)
 	case "*uint64":
-		attributes.Fields.uintegersNullableSize = append(attributes.Fields.uintegersNullableSize, 64)
+		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 64)
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
@@ -1066,7 +1035,8 @@ func (entitySchema *entitySchema) getUniqueIndexesGlobal() map[string][]string {
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {
 	fieldsQuery := ""
 	columns := make([]string, 0)
-	ids := fields.uintegers
+	ids := fields.uIntegers
+	ids = append(ids, fields.references...)
 	ids = append(ids, fields.integers...)
 	ids = append(ids, fields.booleans...)
 	ids = append(ids, fields.floats...)
@@ -1075,7 +1045,7 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.dates...)
 	timesEnd := len(ids)
 	ids = append(ids, fields.strings...)
-	ids = append(ids, fields.uintegersNullable...)
+	ids = append(ids, fields.uIntegersNullable...)
 	ids = append(ids, fields.integersNullable...)
 	ids = append(ids, fields.stringsEnums...)
 	ids = append(ids, fields.bytes...)
