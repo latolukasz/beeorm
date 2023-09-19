@@ -495,9 +495,14 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())
 	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
-	c.EnableQueryDebug()
 	err = c.Flush()
 	assert.NoError(t, err)
+	entity = GetByID[*flushEntity](c, entity.GetID())
+	assert.Nil(t, entity)
 
-	// TODO check unique keys
+	entity = NewEntity[*flushEntity](c).TrackedEntity()
+	entity.Name = "Test 1"
+	entity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush()
+	assert.NoError(t, err)
 }
