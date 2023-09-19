@@ -450,7 +450,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	c.ClearFlush()
 
 	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
-	// TODO full redis with unique indexes
+	LoadUniqueKeys(c, false)
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)

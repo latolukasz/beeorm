@@ -30,7 +30,7 @@ func (where *Where) GetParameters() []interface{} {
 
 func (where *Where) Append(query string, parameters ...interface{}) {
 	newWhere := NewWhere(query, parameters...)
-	where.query += " " + newWhere.query
+	where.query += newWhere.query
 	where.parameters = append(where.parameters, newWhere.parameters...)
 }
 

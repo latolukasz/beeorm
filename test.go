@@ -56,6 +56,7 @@ func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, enti
 		}
 	}
 	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
+	LoadUniqueKeys(engine.NewContext(context.Background()), false)
 	return c
 }
 
