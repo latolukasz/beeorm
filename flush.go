@@ -185,5 +185,5 @@ func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
 	if hasNil {
 		return "", false
 	}
-	return hField, false
+	return hField, true
 }

@@ -498,4 +498,6 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	c.EnableQueryDebug()
 	err = c.Flush()
 	assert.NoError(t, err)
+
+	// TODO check unique keys
 }

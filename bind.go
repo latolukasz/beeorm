@@ -44,7 +44,7 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 	if m.entity.GetID() > 0 {
 		bind["ID"] = m.entity.GetID()
 	}
-	schema := GetEntitySchema[E](m.c)
+	schema := m.Schema()
 	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.getFields(), "")
 	if err != nil {
 		return nil, err
@@ -57,6 +57,16 @@ func (e *editableEntity[E]) getBind() (new, old Bind, err error) {
 	old = Bind{}
 	fillBindFromTwoSources(e.c, new, old, e.value, reflect.ValueOf(e.source), GetEntitySchema[E](e.c).getFields())
 	return
+}
+
+func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
+	bind = Bind{}
+	schema := r.Schema()
+	err = fillBindFromOneSource(r.c, bind, reflect.ValueOf(r.source).Elem(), schema.getFields(), "")
+	if err != nil {
+		return nil, err
+	}
+	return bind, nil
 }
 
 func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
