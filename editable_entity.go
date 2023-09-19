@@ -48,6 +48,7 @@ type InsertableEntity[E Entity] interface {
 
 type RemovableEntity[E Entity] interface {
 	writableEntityInterface[E]
+	SourceEntity() E
 }
 
 type EditableEntity[E Entity] interface {
@@ -108,11 +109,14 @@ func (e *editableEntity[E]) flushType() FlushType {
 type removableEntity[E Entity] struct {
 	writableEntity[E]
 	source E
-	delete bool
 }
 
 func (r *removableEntity[E]) flushType() FlushType {
 	return Delete
+}
+
+func (r *removableEntity[E]) SourceEntity() E {
+	return r.source
 }
 
 type editableEntity[E Entity] struct {
@@ -124,6 +128,10 @@ type editableEntity[E Entity] struct {
 
 func (e *editableEntity[E]) ID() uint64 {
 	return e.entity.GetID()
+}
+
+func (r *removableEntity[E]) ID() uint64 {
+	return r.source.GetID()
 }
 
 func (e *editableEntity[E]) TrackedEntity() E {
@@ -150,10 +158,14 @@ func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	return newEntity
 }
 
-func RemoveEntity[E Entity](c Context, source E) RemovableEntity[E] {
+func DeleteEntity[E Entity](c Context, source E) RemovableEntity[E] {
 	toRemove := &removableEntity[E]{}
 	toRemove.c = c
 	toRemove.source = source
+	ci := c.(*contextImplementation)
+	schema := GetEntitySchema[E](c).(*entitySchema)
+	toRemove.schema = schema
+	ci.trackedEntities = append(ci.trackedEntities, toRemove)
 	return toRemove
 }
 

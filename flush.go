@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"strconv"
 )
 
@@ -17,7 +18,7 @@ func (c *contextImplementation) Flush() error {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.executeInserts(db, schema, deletes)
+				err := c.executeDeletes(db, schema, deletes)
 				if err != nil {
 					return err
 				}
@@ -54,8 +55,10 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) {
+func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) error {
 	//TODO
+	fmt.Printf("OPErATIONS %v\n", operations)
+	return nil
 }
 
 func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) error {
