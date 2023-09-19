@@ -26,6 +26,11 @@ type EntityFlushInsert interface {
 	getBind() (Bind, error)
 }
 
+type EntityFlushDelete interface {
+	EntityFlush
+	getOldBind() (Bind, error)
+}
+
 type EntityFlushedEvent interface {
 	FlushType() FlushType
 	GetMetaData() Meta

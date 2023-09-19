@@ -1,8 +1,8 @@
 package beeorm
 
 import (
-	"fmt"
 	"strconv"
+	"strings"
 )
 
 type entitySqlOperations map[FlushType][]EntityFlush
@@ -56,8 +56,38 @@ func (c *contextImplementation) ClearFlush() {
 }
 
 func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) error {
-	//TODO
-	fmt.Printf("OPErATIONS %v\n", operations)
+	args := make([]interface{}, len(operations))
+	s := c.getStringBuilder2()
+	s.WriteString("DELETE FROM `")
+	s.WriteString(schema.GetTableName())
+	s.WriteString("` WHERE ID IN (?")
+	s.WriteString(strings.Repeat(",?", len(operations)-1))
+	s.WriteString(")")
+	for i, operation := range operations {
+		args[i] = operation.ID()
+	}
+	db.Exec(c, s.String(), args...)
+	for _, operation := range operations {
+		uniqueIndexes := schema.GetUniqueIndexes()
+		if len(uniqueIndexes) > 0 {
+			deleteFlush := operation.(EntityFlushDelete)
+			bind, err := deleteFlush.getOldBind()
+			if err != nil {
+				return err
+			}
+			cache, hasRedis := schema.GetRedisCache()
+			if !hasRedis {
+				cache = c.Engine().Redis(DefaultPoolCode)
+			}
+			for indexName, indexColumns := range uniqueIndexes {
+				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
+				if hasKey {
+					c.PipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hField)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -89,17 +119,8 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 			}
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.GetCacheKey() + ":" + indexName
-				hField := ""
-				hasNil := false
-				for _, column := range indexColumns {
-					bindValue := bind[column]
-					if bindValue == nil {
-						hasNil = true
-						break
-					}
-					hField += convertBindValueToString(bindValue)
-				}
-				if hasNil {
+				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
+				if !hasKey {
 					continue
 				}
 				previousID, inUse := cache.HGet(c, hSetKey, hField)
@@ -148,4 +169,21 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 		tableSQLGroup[val.flushType()] = append(tableSQLGroup[val.flushType()], val)
 	}
 	return sqlGroup
+}
+
+func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
+	hField := ""
+	hasNil := false
+	for _, column := range indexColumns {
+		bindValue := bind[column]
+		if bindValue == nil {
+			hasNil = true
+			break
+		}
+		hField += convertBindValueToString(bindValue)
+	}
+	if hasNil {
+		return "", false
+	}
+	return hField, false
 }
