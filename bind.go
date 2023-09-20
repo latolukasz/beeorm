@@ -522,13 +522,15 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 		if v1IsNil != v2IsNil || slices.Equal(v1, v2) {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
 			if v1IsNil {
 				bind[prefix+fields.fields[i].Name] = nil
+			} else {
+				bind[prefix+fields.fields[i].Name] = strings.Join(v1, ",")
 			}
 			if v2IsNil {
 				oldBind[prefix+fields.fields[i].Name] = nil
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = strings.Join(v2, ",")
 			}
 		}
 	}
