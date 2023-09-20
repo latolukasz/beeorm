@@ -358,8 +358,8 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for _, i := range fields.times {
-		f := before.Field(i)
-		v1 := source.Field(i).Interface().(time.Time)
+		f := source.Field(i)
+		v1 := f.Interface().(time.Time)
 		if v1.Location() != time.UTC {
 			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
 		}
@@ -368,15 +368,15 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			f.Set(reflect.ValueOf(v1Check))
 			v1 = v1Check
 		}
-		v2 := f.Interface().(time.Time)
+		v2 := before.Field(i).Interface().(time.Time)
 		if v1.Unix() != v2.Unix() {
 			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateTime)
 			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 		}
 	}
 	for _, i := range fields.dates {
-		f := before.Field(i)
-		v1 := source.Field(i).Interface().(time.Time)
+		f := source.Field(i)
+		v1 := f.Interface().(time.Time)
 		if v1.Location() != time.UTC {
 			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
 		}
@@ -385,7 +385,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			f.Set(reflect.ValueOf(v1Check))
 			v1 = v1Check
 		}
-		v2 := f.Interface().(time.Time)
+		v2 := before.Field(i).Interface().(time.Time)
 		if v1.Unix() != v2.Unix() {
 			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateOnly)
 			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)

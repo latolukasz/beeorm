@@ -615,6 +615,7 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 1)
+	loggerDB.Clear()
 
 	entity := GetByID[*flushEntity](c, editedEntity.ID)
 	assert.NotNil(t, entity)
@@ -660,4 +661,8 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, float32(123), entity.SubAge)
 	assert.Equal(t, reference.ID, entity.Reference.GetID())
 	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
+
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
 }
