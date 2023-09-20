@@ -21,14 +21,19 @@ type EntityFlush interface {
 	flushType() FlushType
 }
 
-type EntityFlushInsert interface {
+type entityFlushInsert interface {
 	EntityFlush
 	getBind() (Bind, error)
 }
 
-type EntityFlushDelete interface {
+type entityFlushDelete interface {
 	EntityFlush
 	getOldBind() (Bind, error)
+}
+
+type entityFlushUpdate interface {
+	EntityFlush
+	getBind() (old, new Bind, err error)
 }
 
 type EntityFlushedEvent interface {

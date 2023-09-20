@@ -55,7 +55,7 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 func (e *editableEntity[E]) getBind() (new, old Bind, err error) {
 	new = Bind{}
 	old = Bind{}
-	fillBindFromTwoSources(e.c, new, old, e.value, reflect.ValueOf(e.source), GetEntitySchema[E](e.c).getFields())
+	fillBindFromTwoSources(e.c, new, old, e.value.Elem(), reflect.ValueOf(e.source).Elem(), GetEntitySchema[E](e.c).getFields())
 	return
 }
 

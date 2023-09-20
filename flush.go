@@ -70,7 +70,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
-			deleteFlush := operation.(EntityFlushDelete)
+			deleteFlush := operation.(entityFlushDelete)
 			bind, err := deleteFlush.getOldBind()
 			if err != nil {
 				return err
@@ -105,7 +105,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 	}
 	s.WriteString(") VALUES")
 	for i, operation := range operations {
-		insert := operation.(EntityFlushInsert)
+		insert := operation.(entityFlushInsert)
 		bind, err := insert.getBind()
 		if err != nil {
 			return err
@@ -148,6 +148,39 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 }
 
 func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
+	var queryPrefix string
+	for _, operation := range operations {
+		update := operation.(entityFlushUpdate)
+		_, newBind, err := update.getBind()
+		if err != nil {
+			return err
+		}
+		if len(newBind) == 0 {
+			continue
+		}
+		if queryPrefix == "" {
+			s := c.getStringBuilder2()
+			s.WriteString("UPDATE `")
+			s.WriteString(schema.GetTableName())
+			s.WriteString("` SET ")
+			queryPrefix = s.String()
+		}
+		s := c.getStringBuilder2()
+		s.WriteString(queryPrefix)
+		k := 0
+		args := make([]interface{}, len(newBind)+1)
+		for column, value := range newBind {
+			if k > 0 {
+				s.WriteString(",")
+			}
+			s.WriteString("`" + column + "`=?")
+			args[k] = value
+			k++
+		}
+		s.WriteString(" WHERE ID = ?")
+		args[k] = update.ID()
+		db.Exec(c, s.String(), args...)
+	}
 	return nil
 }
 

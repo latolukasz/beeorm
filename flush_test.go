@@ -554,4 +554,8 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
+
+	//editedEntity.City = "City"
+	//assert.NoError(t, c.Flush())
+	//assert.Len(t, loggerDB.Logs, 1)
 }
