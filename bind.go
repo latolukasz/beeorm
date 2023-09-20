@@ -590,7 +590,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	// TODO
 	for _, i := range fields.timesNullable {
 		var v1 time.Time
 		var v2 time.Time
@@ -600,6 +599,14 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
 			v1 = f1.Elem().Interface().(time.Time)
+			if v1.Location() != time.UTC {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+			}
+			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
+			if vFinal != v2 {
+				f1.Set(reflect.ValueOf(&v2))
+				v1 = vFinal
+			}
 		}
 		if !v2IsNil {
 			v2 = f2.Elem().Interface().(time.Time)
@@ -624,11 +631,17 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
 			v1 = f1.Elem().Interface().(time.Time)
-			v1 = time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
+			if v1.Location() != time.UTC {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+			}
+			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
+			if vFinal != v2 {
+				f1.Set(reflect.ValueOf(&v2))
+				v1 = vFinal
+			}
 		}
 		if !v2IsNil {
 			v2 = f2.Elem().Interface().(time.Time)
-			v2 = time.Date(v2.Year(), v2.Month(), v2.Day(), 0, 0, 0, 0, time.UTC)
 		}
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
 			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateOnly)
