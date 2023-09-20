@@ -579,7 +579,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 		if !v2IsNil {
-			v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+			v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[prefix+fields.fields[i].Name] = v1
