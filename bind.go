@@ -556,7 +556,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	// TODO
 	for k, i := range fields.floatsNullable {
 		v1 := ""
 		v2 := ""
@@ -565,7 +564,17 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = strconv.FormatFloat(f1.Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+			f := f1.Float()
+			if fields.floatsNullableUnsigned[k] && f < 0 {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
+			}
+			roundV := roundFloat(f, fields.floatsNullablePrecision[k])
+			v1 := strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			decimalSize := fields.floatsNullableDecimalSize[k]
+			if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
+				return &BindError{Field: prefix + fields.fields[i].Name,
+					Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+			}
 		}
 		if !v2IsNil {
 			v2 = strconv.FormatFloat(f2.Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
@@ -581,6 +590,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
+	// TODO
 	for _, i := range fields.timesNullable {
 		var v1 time.Time
 		var v2 time.Time
