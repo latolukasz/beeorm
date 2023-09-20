@@ -425,10 +425,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = f1.Uint()
+			v1 = f1.Elem().Uint()
 		}
 		if !v2IsNil {
-			v2 = f2.Uint()
+			v2 = f2.Elem().Uint()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[prefix+fields.fields[i].Name] = v1
@@ -449,10 +449,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = f1.Int()
+			v1 = f1.Elem().Int()
 		}
 		if !v2IsNil {
-			v2 = f2.Int()
+			v2 = f2.Elem().Int()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[prefix+fields.fields[i].Name] = v1
@@ -542,10 +542,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			v1 = f1.Bool()
+			v1 = f1.Elem().Bool()
 		}
 		if !v2IsNil {
-			v2 = f2.Bool()
+			v2 = f2.Elem().Bool()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[prefix+fields.fields[i].Name] = v1
@@ -566,12 +566,12 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1IsNil := f1.IsNil()
 		v2IsNil := f2.IsNil()
 		if !v1IsNil {
-			f := f1.Float()
+			f := f1.Elem().Float()
 			if fields.floatsNullableUnsigned[k] && f < 0 {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
 			}
 			roundV := roundFloat(f, fields.floatsNullablePrecision[k])
-			v1 := strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			v1 = strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
 			decimalSize := fields.floatsNullableDecimalSize[k]
 			if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
 				return &BindError{Field: prefix + fields.fields[i].Name,
@@ -579,7 +579,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 		if !v2IsNil {
-			v2 = strconv.FormatFloat(f2.Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+			v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			bind[prefix+fields.fields[i].Name] = v1

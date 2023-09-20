@@ -33,7 +33,7 @@ type entityFlushDelete interface {
 
 type entityFlushUpdate interface {
 	EntityFlush
-	getBind() (old, new Bind, err error)
+	getBind() (new, old Bind, err error)
 }
 
 type EntityFlushedEvent interface {

@@ -151,7 +151,7 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 	var queryPrefix string
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
-		_, newBind, err := update.getBind()
+		newBind, _, err := update.getBind()
 		if err != nil {
 			return err
 		}

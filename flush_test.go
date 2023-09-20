@@ -546,13 +546,118 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 
+	// empty entity
 	editedEntity := EditEdit[*flushEntity](c, newEntity).TrackedEntity()
 	assert.Equal(t, "Name", editedEntity.Name)
 	assert.Equal(t, newEntity.ReferenceRequired, editedEntity.ReferenceRequired)
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
 
-	//editedEntity.City = "City"
-	//assert.NoError(t, c.Flush())
-	//assert.Len(t, loggerDB.Logs, 1)
+	// editing to full entity
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.City = "New York"
+	editedEntity.Name = "Test name"
+	editedEntity.Age = -19
+	editedEntity.Uint = 134
+	uintNullable := uint(23)
+	editedEntity.UintNullable = &uintNullable
+	intNullable := -45
+	editedEntity.IntNullable = &intNullable
+	boolNullable := true
+	editedEntity.BoolNullable = &boolNullable
+	floatNullable := 12.23
+	editedEntity.FloatNullable = &floatNullable
+	float32Nullable := float32(12.24)
+	editedEntity.Float32Nullable = &float32Nullable
+	editedEntity.SetNullable = testSet{testEnumDefinition.B, testEnumDefinition.C}
+	editedEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
+	editedEntity.EnumNullable = testEnumDefinition.C
+	editedEntity.EnumNotNull = testEnumDefinition.A
+	editedEntity.Blob = []byte("test binary")
+	editedEntity.Bool = true
+	editedEntity.Float64 = 986.2322
+	editedEntity.Decimal = 78.24
+	decimalNullable := 123.23
+	editedEntity.DecimalNullable = &decimalNullable
+	editedEntity.Float64Unsigned = 8932.299423
+	editedEntity.Float64Signed = -352.120321
+	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC)
+	editedEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC)
+	timeNullable := time.Date(2024, 1, 2, 3, 4, 5, 6, time.UTC)
+	editedEntity.TimeNullable = &timeNullable
+	timeWithTimeNullable := time.Date(2025, 11, 4, 21, 0, 5, 6, time.UTC)
+	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	editedEntity.FlushStruct.Name2 = "Tom"
+	editedEntity.FlushStruct.Age = 23
+	editedEntity.FlushStruct.Sub.Name3 = "Zoya"
+	editedEntity.FlushStruct.Sub.Age3 = 18
+	testTime := time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
+	editedEntity.FlushStruct.TestTime = &testTime
+	int8Nullable := int8(23)
+	editedEntity.Int8Nullable = &int8Nullable
+	int16Nullable := int16(-29)
+	editedEntity.Int16Nullable = &int16Nullable
+	int32Nullable := int32(-2923)
+	editedEntity.Int32Nullable = &int32Nullable
+	int64Nullable := int64(98872)
+	editedEntity.Int64Nullable = &int64Nullable
+	uint8Nullable := uint8(23)
+	editedEntity.Uint8Nullable = &uint8Nullable
+	uint16Nullable := uint16(29)
+	editedEntity.Uint16Nullable = &uint16Nullable
+	uint32Nullable := uint32(2923)
+	editedEntity.Uint32Nullable = &uint32Nullable
+	uint64Nullable := uint64(98872)
+	editedEntity.Uint64Nullable = &uint64Nullable
+	editedEntity.SubName = "sub name"
+	editedEntity.SubAge = 123
+	editedEntity.Reference = NewReference[*flushEntityReference](reference.ID)
+	editedEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 1)
+
+	entity := GetByID[*flushEntity](c, editedEntity.ID)
+	assert.NotNil(t, entity)
+	assert.Equal(t, editedEntity.ID, entity.ID)
+	assert.Equal(t, "New York", entity.City)
+	assert.Equal(t, "Test name", entity.Name)
+	assert.Equal(t, -19, entity.Age)
+	assert.Equal(t, uint(134), entity.Uint)
+	assert.Equal(t, uint(23), *entity.UintNullable)
+	assert.Equal(t, -45, *entity.IntNullable)
+	assert.True(t, *entity.BoolNullable)
+	assert.Equal(t, 12.23, *entity.FloatNullable)
+	assert.Equal(t, float32(12.24), *entity.Float32Nullable)
+	assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullable)
+	assert.Equal(t, testSet{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
+	assert.Equal(t, testEnumDefinition.C, entity.EnumNullable)
+	assert.Equal(t, testEnumDefinition.A, entity.EnumNotNull)
+	assert.Equal(t, []byte("test binary"), entity.Blob)
+	assert.True(t, entity.Bool)
+	assert.Equal(t, 986.2322, entity.Float64)
+	assert.Equal(t, 78.24, entity.Decimal)
+	assert.Equal(t, 123.23, *entity.DecimalNullable)
+	assert.Equal(t, 8932.299423, entity.Float64Unsigned)
+	assert.Equal(t, -352.120321, entity.Float64Signed)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), entity.Time)
+	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), entity.TimeWithTime)
+	assert.Equal(t, time.Date(2024, 1, 2, 0, 0, 0, 0, time.UTC), *entity.TimeNullable)
+	assert.Equal(t, time.Date(2025, 11, 4, 21, 0, 5, 0, time.UTC), *entity.TimeWithTimeNullable)
+	assert.Equal(t, "Tom", entity.FlushStruct.Name2)
+	assert.Equal(t, 23, entity.FlushStruct.Age)
+	assert.Equal(t, "Zoya", entity.FlushStruct.Sub.Name3)
+	assert.Equal(t, 18, entity.FlushStruct.Sub.Age3)
+	assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), *entity.FlushStruct.TestTime)
+	assert.Equal(t, int8(23), *entity.Int8Nullable)
+	assert.Equal(t, int16(-29), *entity.Int16Nullable)
+	assert.Equal(t, int32(-2923), *entity.Int32Nullable)
+	assert.Equal(t, int64(98872), *entity.Int64Nullable)
+	assert.Equal(t, uint8(23), *entity.Uint8Nullable)
+	assert.Equal(t, uint16(29), *entity.Uint16Nullable)
+	assert.Equal(t, uint32(2923), *entity.Uint32Nullable)
+	assert.Equal(t, uint64(98872), *entity.Uint64Nullable)
+	assert.Equal(t, "sub name", entity.SubName)
+	assert.Equal(t, float32(123), entity.SubAge)
+	assert.Equal(t, reference.ID, entity.Reference.GetID())
+	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
 }
