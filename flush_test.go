@@ -544,6 +544,14 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 
 	c.EnableQueryDebug()
 	editedEntity := EditEdit[*flushEntity](c, newEntity).TrackedEntity()
-	assert.NotNil(t, editedEntity) // todo usunac
 	assert.NoError(t, c.Flush())
+	assert.Equal(t, "Name", editedEntity.Name)
+	assert.Equal(t, newEntity.ReferenceRequired, editedEntity.ReferenceRequired)
+
+	c.EnableQueryDebug()
+
+	loggerDB := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerDB, true, false, false)
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
 }
