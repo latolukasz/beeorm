@@ -654,9 +654,9 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	for j := range fields.structs {
+	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
-		err := fillBindFromTwoSources(c, bind, oldBind, source, before, fields.structsFields[j], prefix+sub.prefix)
+		err := fillBindFromTwoSources(c, bind, oldBind, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
 		}
