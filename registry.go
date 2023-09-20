@@ -18,6 +18,7 @@ import (
 )
 
 type Registry struct {
+	oneAppMode      bool
 	mysqlPools      map[string]MySQLPoolConfig
 	mysqlTables     map[string]map[string]bool
 	localCaches     map[string]LocalCache
@@ -42,6 +43,7 @@ func (r *Registry) Validate() (Engine, error) {
 	maxPoolLen := 0
 	e := &engineImplementation{}
 	e.registry = &engineRegistryImplementation{engine: e}
+	e.registry.oneAppMode = r.oneAppMode
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
@@ -200,6 +202,10 @@ func (r *Registry) RegisterMySQLTable(pool string, tableName ...string) {
 	}
 }
 
+func (r *Registry) EnableOneAppMode() {
+	r.oneAppMode = true
+}
+
 func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	dbCode := DefaultPoolCode
 	if len(code) > 0 {
@@ -255,11 +261,6 @@ func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis
 	}
 	client := redis.NewFailoverClient(&opts)
 	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
-}
-
-func (r *Registry) HasRegisteredRedisPool(pool string) bool {
-	_, has := r.redisPools[pool]
-	return has
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {

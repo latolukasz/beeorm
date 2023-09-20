@@ -174,24 +174,11 @@ func DeleteEntity[E Entity](c Context, source E) RemovableEntity[E] {
 	return toRemove
 }
 
-func CloneForEdit[E Entity](c Context, source E) EditableEntity[E] {
+func EditEdit[E Entity](c Context, source E) EditableEntity[E] {
 	writable := Copy[E](c, source).(*editableEntity[E])
 	writable.source = source
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, writable)
-	return writable
-}
-
-func Copy[E Entity](c Context, source E) EditableEntity[E] {
-	cloned := *new(E)
-	writable := &editableEntity[E]{}
-	writable.c = c
-	writable.entity = cloned
-	writable.value = reflect.ValueOf(writable.entity)
-	schema := GetEntitySchema[E](c)
-	s := c.getSerializer()
-	serializeEntity(schema, reflect.ValueOf(source), s)
-	deserializeFromBinary(s, schema, writable.value)
 	return writable
 }
 

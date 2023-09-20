@@ -126,6 +126,24 @@ func TestFlushDeleteRedis(t *testing.T) {
 	testFlushDelete(t, false, true)
 }
 
+func TestFlushUpdateLocalRedis(t *testing.T) {
+	testFlushUpdate(t, true, true)
+}
+
+func TestFlushUpdateLocal(t *testing.T) {
+	testFlushUpdate(t, true, false)
+}
+
+func TestFlushUpdateNoCache(t *testing.T) {
+	testFlushUpdate(t, false, false)
+}
+
+func TestFlushUpdateRedis(t *testing.T) {
+	testFlushUpdate(t, false, true)
+}
+
+//
+
 func testFlushInsert(t *testing.T, local bool, redis bool) {
 	registry := &Registry{}
 	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
@@ -505,4 +523,27 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	entity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	err = c.Flush()
 	assert.NoError(t, err)
+}
+
+func testFlushUpdate(t *testing.T, local bool, redis bool) {
+	registry := &Registry{}
+	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+
+	schema := GetEntitySchema[*flushEntity](c)
+	schema.DisableCache(!local, !redis)
+
+	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference"
+	err := c.Flush()
+	assert.NoError(t, err)
+
+	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	newEntity.Name = "Name"
+	assert.NoError(t, c.Flush())
+
+	c.EnableQueryDebug()
+	editedEntity := EditEdit[*flushEntity](c, newEntity).TrackedEntity()
+	assert.NotNil(t, editedEntity) // todo usunac
+	assert.NoError(t, c.Flush())
 }

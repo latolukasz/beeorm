@@ -41,6 +41,7 @@ type Engine interface {
 
 type engineRegistryImplementation struct {
 	engine             *engineImplementation
+	oneAppMode         bool
 	entities           map[string]reflect.Type
 	entitySchemas      map[reflect.Type]*entitySchema
 	plugins            []Plugin
