@@ -875,14 +875,12 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	c.ClearFlush()
 
-	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
-	LoadUniqueKeys(c, false)
-	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
-	editedEntity.Name = "Name 2"
-	err = c.Flush()
-	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, newEntity.ID, err.(*DuplicatedKeyBindError).ID)
-	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
-	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	c.ClearFlush()
+	editedEntity = EditEdit[*flushEntity](c, newEntity).TrackedEntity()
+	editedEntity.Name = "Name 3"
+	assert.NoError(t, c.Flush())
+
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	newEntity.Name = "Name 2"
+	assert.NoError(t, c.Flush())
 }

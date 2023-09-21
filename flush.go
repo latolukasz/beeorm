@@ -174,23 +174,24 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 						break
 					}
 				}
-				if indexChanged {
+				if !indexChanged {
 					continue
 				}
 				hSetKey := schema.GetCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(indexColumns, newBind) // TODO brak pol
-				if !hasKey {
-					continue
+				hField, hasKey := buildUniqueKeyHSetField(indexColumns, newBind)
+				if hasKey {
+					previousID, inUse := cache.HGet(c, hSetKey, hField)
+					if inUse {
+						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
+						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
+					}
+					c.PipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
-				previousID, inUse := cache.HGet(c, hSetKey, hField)
-				if inUse {
-					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
-					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
+				hFieldOld, hasKey := buildUniqueKeyHSetField(indexColumns, oldBind)
+				if hasKey {
+					c.PipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hFieldOld)
 				}
-				p := c.PipeLine(cache.GetPoolConfig().GetCode())
-				p.HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
-				hFieldOld, _ := buildUniqueKeyHSetField(indexColumns, oldBind) // TODO brak pol
-				p.HDel(c, hSetKey, hFieldOld)
+
 			}
 		}
 
@@ -254,5 +255,5 @@ func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
 	if hasNil {
 		return "", false
 	}
-	return hField, true
+	return hashString(hField), true
 }

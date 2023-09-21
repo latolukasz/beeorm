@@ -80,7 +80,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 							for i := 1; i < len(pointers); i++ {
 								hField += *pointers[i].(*string)
 							}
-							cache.HSet(c, hSetKey, hField, id)
+							cache.HSet(c, hSetKey, hashString(hField), id)
 							count++
 							executed++
 						}

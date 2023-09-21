@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"crypto/sha256"
 	"database/sql"
 	"fmt"
 	"hash/fnv"
@@ -380,7 +379,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	for i, name := range entitySchema.columnNames {
 		columnMapping[name] = i
 	}
-	cacheKey = fmt.Sprintf("%x", sha256.Sum256([]byte(cacheKey+entitySchema.fieldsQuery)))
+	cacheKey = hashString(cacheKey + entitySchema.fieldsQuery)
 	cacheKey = cacheKey[0:5]
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cacheKey))
@@ -595,12 +594,17 @@ func (entitySchema *entitySchema) SetPluginOption(plugin, key string, value inte
 func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
+	fields.forcedOldBid = make(map[int]bool)
 	for i := start; i < t.NumField(); i++ {
 		f := t.Field(i)
 		tags := schemaTags[prefix+f.Name]
 		_, has := tags["ignore"]
 		if has {
 			continue
+		}
+		_, has = tags["unique"]
+		if has {
+			fields.forcedOldBid[i] = true
 		}
 		attributes := schemaFieldAttributes{
 			Fields:   fields,
