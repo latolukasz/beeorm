@@ -735,4 +735,16 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.DecimalNullable = &decimalNullable
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
+
+	// same set
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B}
+	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A}
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B, testEnumDefinition.B}
+	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
 }
