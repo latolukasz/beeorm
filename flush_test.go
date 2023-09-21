@@ -747,4 +747,6 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
+
+	// invalid values
 }
