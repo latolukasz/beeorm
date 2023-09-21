@@ -671,4 +671,39 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
+
+	// rounding dates
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	editedEntity.Name = "rounding dates"
+	editedEntity.City = "rounding dates"
+	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	editedEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	editedEntity.TimeNullable = &timeNullable
+	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 1)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), editedEntity.Time)
+	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), editedEntity.TimeWithTime)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *editedEntity.TimeNullable)
+	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), *editedEntity.TimeWithTimeNullable)
+
+	// same dates
+	loggerDB.Clear()
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	editedEntity.TimeNullable = &timeNullable
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
+
+	// same times
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
+	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
 }

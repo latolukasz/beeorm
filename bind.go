@@ -605,8 +605,8 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
 			}
 			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
-			if vFinal != v2 {
-				f1.Set(reflect.ValueOf(&v2))
+			if vFinal != v1 {
+				f1.Set(reflect.ValueOf(&vFinal))
 				v1 = vFinal
 			}
 		}
@@ -637,8 +637,8 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
 			}
 			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
-			if vFinal != v2 {
-				f1.Set(reflect.ValueOf(&v2))
+			if vFinal != v1 {
+				f1.Set(reflect.ValueOf(&vFinal))
 				v1 = vFinal
 			}
 		}
