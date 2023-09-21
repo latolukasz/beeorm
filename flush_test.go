@@ -548,7 +548,6 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Name"
 	assert.NoError(t, c.Flush())
 
-	c.EnableQueryDebug()
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 
@@ -749,4 +748,27 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// invalid values
+
+	// empty string
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Name = ""
+	err = c.Flush()
+	assert.EqualError(t, err, "[Name] empty string not allowed")
+	assert.Equal(t, "Name", err.(*BindError).Field)
+	c.ClearFlush()
+
+	// string too long
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Name = strings.Repeat("a", 256)
+	err = c.Flush()
+	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
+	assert.Equal(t, "Name", err.(*BindError).Field)
+	c.ClearFlush()
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.City = strings.Repeat("a", 41)
+	err = c.Flush()
+	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
+	editedEntity.City = strings.Repeat("a", 40)
+	editedEntity.Name = "String to long"
+	assert.NoError(t, c.Flush())
 }
