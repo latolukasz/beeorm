@@ -289,7 +289,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1 := source.Field(i).Uint()
 		v2 := before.Field(i).Uint()
 		if v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
 	}
@@ -313,13 +316,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Interface().(referenceInterface).GetID()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
+			} else {
+				bind[name] = v1
 			}
 			if v2IsNil {
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2
+			}
+		} else if fields.forcedOldBid[i] {
+			if v2IsNil {
 				oldBind[prefix+fields.fields[i].Name] = nil
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = v2
 			}
 		}
 	}
@@ -327,7 +339,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1 := source.Field(i).Int()
 		v2 := before.Field(i).Int()
 		if v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
 	}
@@ -335,7 +350,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1 := source.Field(i).Bool()
 		v2 := before.Field(i).Bool()
 		if v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
 	}
@@ -357,7 +375,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		v2 := strconv.FormatFloat(before.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		if v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
 	}
@@ -374,7 +395,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		v2 := before.Field(i).Interface().(time.Time)
 		if v1.Unix() != v2.Unix() {
-			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateTime)
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1.Format(time.DateTime)
+			oldBind[name] = v2.Format(time.DateTime)
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 		}
 	}
@@ -391,7 +415,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		v2 := before.Field(i).Interface().(time.Time)
 		if v1.Unix() != v2.Unix() {
-			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateOnly)
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1.Format(time.DateOnly)
+			oldBind[name] = v2.Format(time.DateOnly)
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 		}
 	}
@@ -409,15 +436,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		v2 := before.Field(i).String()
 		if v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
 			if fields.stringsRequired[k] {
 				if v1 == "" {
-					bind[prefix+fields.fields[i].Name] = nil
+					bind[name] = nil
 				}
 				if v2 == "" {
-					oldBind[prefix+fields.fields[i].Name] = nil
+					oldBind[name] = nil
 				}
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			oldBind[name] = v2
+			if v2 == "" {
+				oldBind[name] = nil
 			}
 		}
 	}
@@ -435,11 +469,18 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Elem().Uint()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			}
+			if v2IsNil {
+				oldBind[prefix+fields.fields[i].Name] = nil
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			oldBind[name] = v2
 			if v2IsNil {
 				oldBind[prefix+fields.fields[i].Name] = nil
 			}
@@ -459,13 +500,20 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Elem().Int()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			oldBind[name] = v2
+			if v2IsNil {
+				oldBind[name] = nil
 			}
 		}
 	}
@@ -481,15 +529,23 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v1)}
 		}
 		if v1 != v2 {
+			name := prefix + fields.fields[i].Name
 			if v1 == "" && !def.required {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			} else {
-				bind[prefix+fields.fields[i].Name] = v1
+				bind[name] = v1
 			}
 			if v2 == "" && !def.required {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
 			} else {
-				oldBind[prefix+fields.fields[i].Name] = v2
+				oldBind[name] = v2
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			if v2 == "" && !def.required {
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2
 			}
 		}
 	}
@@ -497,7 +553,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1 := source.Field(i).Bytes()
 		v2 := before.Field(i).Bytes()
 		if !bytes.Equal(v1, v2) {
-			bind[prefix+fields.fields[i].Name] = v1
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
+		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
 	}
@@ -530,15 +589,23 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 		if v1IsNil != v2IsNil || !compareSlices(v1, v2) {
+			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			} else {
-				bind[prefix+fields.fields[i].Name] = strings.Join(v1, ",")
+				bind[name] = strings.Join(v1, ",")
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
 			} else {
-				oldBind[prefix+fields.fields[i].Name] = strings.Join(v2, ",")
+				oldBind[name] = strings.Join(v2, ",")
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			if v2IsNil {
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = strings.Join(v2, ",")
 			}
 		}
 	}
@@ -556,13 +623,20 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Elem().Bool()
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			oldBind[name] = v2
+			if v2IsNil {
+				oldBind[name] = nil
 			}
 		}
 	}
@@ -598,13 +672,20 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
-			bind[prefix+fields.fields[i].Name] = v1
-			oldBind[prefix+fields.fields[i].Name] = v2
+			name := prefix + fields.fields[i].Name
+			bind[name] = v1
+			oldBind[name] = v2
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			oldBind[name] = v2
+			if v2IsNil {
+				oldBind[name] = nil
 			}
 		}
 	}
@@ -630,13 +711,23 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Elem().Interface().(time.Time)
 		}
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
-			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateTime)
-			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
+			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
+			} else {
+				bind[name] = v1.Format(time.DateTime)
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2.Format(time.DateTime)
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			if v2IsNil {
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2.Format(time.DateTime)
 			}
 		}
 	}
@@ -662,13 +753,23 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			v2 = f2.Elem().Interface().(time.Time)
 		}
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
-			bind[prefix+fields.fields[i].Name] = v1.Format(time.DateOnly)
-			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
+			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[name] = nil
+			} else {
+				bind[name] = v1.Format(time.DateOnly)
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2.Format(time.DateOnly)
+			}
+		} else if fields.forcedOldBid[i] {
+			name := prefix + fields.fields[i].Name
+			if v2IsNil {
+				oldBind[name] = nil
+			} else {
+				oldBind[name] = v2.Format(time.DateOnly)
 			}
 		}
 	}

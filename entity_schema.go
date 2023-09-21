@@ -107,6 +107,7 @@ type mapPointerToValue map[string]func(val interface{}) interface{}
 type tableFields struct {
 	t                         reflect.Type
 	fields                    map[int]reflect.StructField
+	forcedOldBid              map[int]bool
 	prefix                    string
 	uIntegers                 []int
 	integers                  []int
