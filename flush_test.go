@@ -706,4 +706,33 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 0)
+
+	// rounding floats
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Name = "rounding floats"
+	editedEntity.City = "rounding floats"
+	editedEntity.Float64 = 1.123456
+	editedEntity.Decimal = 1.123
+	floatNullable = 1.1234
+	editedEntity.FloatNullable = &floatNullable
+	decimalNullable = 1.126
+	editedEntity.DecimalNullable = &decimalNullable
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 1)
+	assert.Equal(t, 1.12346, editedEntity.Float64)
+	assert.Equal(t, 1.12, editedEntity.Decimal)
+	assert.Equal(t, 1.123, *editedEntity.FloatNullable)
+	assert.Equal(t, 1.13, *editedEntity.DecimalNullable)
+	loggerDB.Clear()
+
+	// same floats
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Float64 = 1.123456
+	editedEntity.Decimal = 1.123
+	floatNullable = 1.1234
+	editedEntity.FloatNullable = &floatNullable
+	decimalNullable = 1.126
+	editedEntity.DecimalNullable = &decimalNullable
+	assert.NoError(t, c.Flush())
+	assert.Len(t, loggerDB.Logs, 0)
 }

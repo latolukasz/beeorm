@@ -340,12 +340,16 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for k, i := range fields.floats {
-		v := source.Field(i).Float()
+		f := source.Field(i)
+		v := f.Float()
 		if fields.floatsUnsigned[k] && v < 0 {
 			return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
 		}
 		roundV := roundFloat(v, fields.floatsPrecision[k])
 		v1 := strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		if v != roundV {
+			f.SetFloat(roundV)
+		}
 		decimalSize := fields.floatsDecimalSize[k]
 		if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
 			return &BindError{Field: prefix + fields.fields[i].Name,
@@ -572,6 +576,14 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 			roundV := roundFloat(f, fields.floatsNullablePrecision[k])
 			v1 = strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
+			if f != roundV {
+				if fields.floatsNullableSize[k] == 32 {
+					roundV32 := float32(roundV)
+					f1.Set(reflect.ValueOf(&roundV32))
+				} else {
+					f1.Set(reflect.ValueOf(&roundV))
+				}
+			}
 			decimalSize := fields.floatsNullableDecimalSize[k]
 			if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
 				return &BindError{Field: prefix + fields.fields[i].Name,
