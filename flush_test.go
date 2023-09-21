@@ -413,7 +413,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
 	c.ClearFlush()
 
-	// invalid enum
+	// invalid enum, set
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
@@ -453,7 +453,9 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
+
 	// nullable times
+
 	newEntity.TimeWithTime = newEntity.Time.UTC()
 	timeNullable = time.Now().Local()
 	newEntity.TimeNullable = &timeNullable
@@ -468,6 +470,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
 	c.ClearFlush()
+
+	// duplicated key
 
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "Name"
@@ -509,6 +513,8 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	entity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	err = c.Flush()
 	assert.NoError(t, err)
+
+	// duplicated key
 
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())
