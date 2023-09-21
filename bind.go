@@ -473,8 +473,12 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v1 := source.Field(i).String()
 		v2 := before.Field(i).String()
 		def := fields.enums[k]
-		if v1 == "" && def.required {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
+		if v1 == "" {
+			if def.required {
+				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
+			}
+		} else if !slices.Contains(def.GetFields(), v1) {
+			return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v1)}
 		}
 		if v1 != v2 {
 			if v1 == "" && !def.required {

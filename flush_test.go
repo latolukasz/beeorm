@@ -455,7 +455,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
 
 	// nullable times
-
 	newEntity.TimeWithTime = newEntity.Time.UTC()
 	timeNullable = time.Now().Local()
 	newEntity.TimeNullable = &timeNullable
@@ -771,4 +770,92 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.City = strings.Repeat("a", 40)
 	editedEntity.Name = "String to long"
 	assert.NoError(t, c.Flush())
+
+	// invalid decimal
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Decimal = 1234
+	err = c.Flush()
+	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
+	assert.Equal(t, "Decimal", err.(*BindError).Field)
+	c.ClearFlush()
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Decimal = 123
+	decimalNullable = 1234
+	editedEntity.DecimalNullable = &decimalNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[DecimalNullable] decimal size too big, max 3 allowed")
+	assert.Equal(t, "DecimalNullable", err.(*BindError).Field)
+	c.ClearFlush()
+	decimalNullable = 123
+	editedEntity.DecimalNullable = &decimalNullable
+
+	// float signed
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Float64Unsigned = -1
+	err = c.Flush()
+	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
+	assert.Equal(t, "Float64Unsigned", err.(*BindError).Field)
+	editedEntity.Float64Unsigned = 1
+	floatNullable = -1
+	editedEntity.FloatNullable = &floatNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[FloatNullable] negative value not allowed")
+	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
+	c.ClearFlush()
+	floatNullable = 1
+	editedEntity.FloatNullable = &floatNullable
+
+	// invalid enum, set
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.EnumNotNull = ""
+	err = c.Flush()
+	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
+	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
+	editedEntity.EnumNotNull = "invalid"
+	err = c.Flush()
+	assert.EqualError(t, err, "[EnumNotNull] invalid value: invalid")
+	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
+	editedEntity.EnumNotNull = testEnumDefinition.C
+	editedEntity.SetNotNull = nil
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	editedEntity.SetNotNull = testSet{}
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	editedEntity.SetNotNull = testSet{"invalid"}
+	err = c.Flush()
+	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
+	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
+	editedEntity.SetNotNull = testSet{testEnumDefinition.B}
+	c.ClearFlush()
+
+	// Time
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Time = time.Now().Local()
+	err = c.Flush()
+	assert.EqualError(t, err, "[Time] time must be in UTC location")
+	assert.Equal(t, "Time", err.(*BindError).Field)
+	editedEntity.Time = newEntity.Time.UTC()
+	editedEntity.TimeWithTime = time.Now().Local()
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
+	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
+	// nullable times
+
+	editedEntity.TimeWithTime = editedEntity.Time.UTC()
+	timeNullable = time.Now().Local()
+	editedEntity.TimeNullable = &timeNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeNullable] time must be in UTC location")
+	assert.Equal(t, "TimeNullable", err.(*BindError).Field)
+	timeWithTimeNullable = time.Now().Local()
+	timeNullable = time.Now().UTC()
+	editedEntity.TimeNullable = &timeNullable
+	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	err = c.Flush()
+	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
+	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
+	c.ClearFlush()
 }
