@@ -471,7 +471,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	c.ClearFlush()
 
 	// duplicated key
-
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
@@ -842,8 +841,8 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
-	// nullable times
 
+	// nullable times
 	editedEntity.TimeWithTime = editedEntity.Time.UTC()
 	timeNullable = time.Now().Local()
 	editedEntity.TimeNullable = &timeNullable
@@ -857,5 +856,33 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
+	timeWithTimeNullable = time.Now().UTC()
+	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
+	c.ClearFlush()
+
+	// duplicated key
+	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	newEntity.Name = "Name 2"
+	assert.NoError(t, c.Flush())
+
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Name = "Name 2"
+	err = c.Flush()
+	assert.EqualError(t, err, "duplicated value for unique index 'name'")
+	assert.Equal(t, newEntity.ID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
+	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
+	c.ClearFlush()
+
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
+	LoadUniqueKeys(c, false)
+	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity.Name = "Name 2"
+	err = c.Flush()
+	assert.EqualError(t, err, "duplicated value for unique index 'name'")
+	assert.Equal(t, newEntity.ID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
+	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	c.ClearFlush()
 }
