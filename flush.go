@@ -151,13 +151,49 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 	var queryPrefix string
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
-		newBind, _, err := update.getBind()
+		newBind, oldBind, err := update.getBind()
 		if err != nil {
 			return err
 		}
 		if len(newBind) == 0 {
 			continue
 		}
+
+		uniqueIndexes := schema.GetUniqueIndexes()
+		if len(uniqueIndexes) > 0 {
+			cache, hasRedis := schema.GetRedisCache()
+			if !hasRedis {
+				cache = c.Engine().Redis(DefaultPoolCode)
+			}
+			for indexName, indexColumns := range uniqueIndexes {
+				indexChanged := false
+				for _, column := range indexColumns {
+					_, changed := newBind[column]
+					if changed {
+						indexChanged = true
+						break
+					}
+				}
+				if indexChanged {
+					continue
+				}
+				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hField, hasKey := buildUniqueKeyHSetField(indexColumns, newBind) // TODO brak pol
+				if !hasKey {
+					continue
+				}
+				previousID, inUse := cache.HGet(c, hSetKey, hField)
+				if inUse {
+					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
+					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
+				}
+				p := c.PipeLine(cache.GetPoolConfig().GetCode())
+				p.HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
+				hFieldOld, _ := buildUniqueKeyHSetField(indexColumns, oldBind) // TODO brak pol
+				p.HDel(c, hSetKey, hFieldOld)
+			}
+		}
+
 		if queryPrefix == "" {
 			s := c.getStringBuilder2()
 			s.WriteString("UPDATE `")
