@@ -525,7 +525,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 				v2 = append(v2, v)
 			}
 		}
-		if v1IsNil != v2IsNil || !slices.Equal(v1, v2) {
+		if v1IsNil != v2IsNil || !compareSlices(v1, v2) {
 			if v1IsNil {
 				bind[prefix+fields.fields[i].Name] = nil
 			} else {
@@ -695,4 +695,18 @@ func convertBindValueToString(value interface{}) string {
 		return fmt.Sprintf("%v", value)
 
 	}
+}
+
+func compareSlices(left, right []string) bool {
+	for _, val := range left {
+		if !slices.Contains(right, val) {
+			return false
+		}
+	}
+	for _, val := range right {
+		if !slices.Contains(left, val) {
+			return false
+		}
+	}
+	return true
 }
