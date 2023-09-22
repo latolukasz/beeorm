@@ -61,7 +61,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	}
 	if hasRedis {
 		s := c.getSerializer()
-		serializeEntity(schema, reflect.ValueOf(entity), s)
+		serializeEntity(schema, reflect.ValueOf(entity).Elem(), s)
 		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(s.Read()))
 	}
 	return

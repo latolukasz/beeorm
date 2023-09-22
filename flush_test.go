@@ -110,6 +110,10 @@ func TestFlushInsertNoCache(t *testing.T) {
 	testFlushInsert(t, false, false)
 }
 
+func TestFlushInsertRedis(t *testing.T) {
+	testFlushInsert(t, false, true)
+}
+
 func TestFlushDeleteLocalRedis(t *testing.T) {
 	testFlushDelete(t, true, true)
 }
