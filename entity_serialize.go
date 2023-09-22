@@ -82,7 +82,7 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 		serialized.SerializeUInteger(uint64(l))
 		if l > 0 {
 			set := fields.sets[k]
-			for j := 0; i < l; j++ {
+			for j := 0; j < l; j++ {
 				serialized.SerializeUInteger(uint64(set.Index(f.Index(j).String())))
 			}
 		}

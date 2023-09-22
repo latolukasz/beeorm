@@ -136,9 +136,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		l := int(s.DeserializeUInteger())
 		f := elem.Field(i)
 		if l == 0 {
-			if !f.IsNil() {
-				f.SetZero()
-			}
+			f.SetZero()
 		} else {
 			enum := fields.sets[k]
 			v := make([]string, l)
