@@ -52,17 +52,6 @@ type localCache struct {
 	storeEntities bool
 }
 
-type localCacheSetter struct {
-	engine            Engine
-	code              string
-	setKeys           []string
-	setEntities       []uint64
-	setValues         []interface{}
-	setValuesEntities []reflect.Value
-	removes           []string
-	removesEntities   []uint64
-}
-
 func newLocalCache(dbCode string, limit int, storeEntities bool) *localCache {
 	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}, storeEntities: storeEntities}
 	if limit > 0 {
@@ -92,6 +81,10 @@ func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
 
 func (lc *localCache) getEntity(c Context, id uint64) (value reflect.Value, ok bool) {
 	value, ok = lc.cacheEntities.Load(id)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %d", id), ok)
+	}
 	return
 }
 
@@ -105,16 +98,10 @@ func (lc *localCache) Set(c Context, key string, value interface{}) {
 
 func (lc *localCache) setEntity(c Context, id uint64, value reflect.Value) {
 	lc.cacheEntities.Store(id, value)
-}
-
-func (lc *localCacheSetter) Set(_ Context, key string, value interface{}) {
-	lc.setKeys = append(lc.setKeys, key)
-	lc.setValues = append(lc.setValues, value)
-}
-
-func (lc *localCacheSetter) setEntity(_ Context, id uint64, value reflect.Value) {
-	lc.setEntities = append(lc.setEntities, id)
-	lc.setValuesEntities = append(lc.setValuesEntities, value)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %d [entity value]", id), false)
+	}
 }
 
 func (lc *localCache) Remove(c Context, key string) {
@@ -127,36 +114,6 @@ func (lc *localCache) Remove(c Context, key string) {
 
 func (lc *localCache) removeEntity(c Context, id uint64) {
 	lc.cacheEntities.Delete(id)
-}
-
-func (lc *localCacheSetter) Remove(_ Context, key string) {
-	lc.removes = append(lc.removes, key)
-}
-
-func (lc *localCacheSetter) removeEntity(_ Context, id uint64) {
-	lc.removesEntities = append(lc.removesEntities, id)
-}
-
-func (lc *localCacheSetter) flush(c Context) {
-	cache := lc.engine.LocalCache(lc.code)
-	for i, key := range lc.setKeys {
-		cache.Set(c, key, lc.setValues[i])
-	}
-	for i, key := range lc.setEntities {
-		cache.setEntity(c, key, lc.setValuesEntities[i])
-	}
-	for _, key := range lc.removes {
-		cache.Remove(c, key)
-	}
-	for _, key := range lc.removesEntities {
-		cache.removeEntity(c, key)
-	}
-	lc.setKeys = nil
-	lc.setValues = nil
-	lc.setEntities = nil
-	lc.setValuesEntities = nil
-	lc.removes = nil
-	lc.removesEntities = nil
 }
 
 func (lc *localCache) Clear(c Context) {

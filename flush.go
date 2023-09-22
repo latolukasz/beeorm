@@ -39,6 +39,9 @@ func (c *contextImplementation) Flush() error {
 			}
 		}
 	}
+	for _, action := range c.flushActions {
+		action()
+	}
 	for _, pipeline := range c.redisPipeLines {
 		pipeline.Exec(c)
 	}
@@ -52,6 +55,7 @@ func (c *contextImplementation) FlushLazy() error {
 
 func (c *contextImplementation) ClearFlush() {
 	c.trackedEntities = c.trackedEntities[0:0]
+	c.flushActions = c.flushActions[0:0]
 	c.redisPipeLines = nil
 }
 
@@ -83,7 +87,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 				hSetKey := schema.GetCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
 				if hasKey {
-					c.PipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hField)
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hField)
 				}
 			}
 		}
@@ -128,7 +132,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
-				c.PipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
+				c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
 
@@ -142,6 +146,13 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 			s.WriteString(",?")
 		}
 		s.WriteString(")")
+
+		lc, hasLocalCache := schema.GetLocalCache()
+		if hasLocalCache {
+			c.flushActions = append(c.flushActions, func() {
+				lc.setEntity(c, insert.ID(), insert.getValue())
+			})
+		}
 	}
 	db.Exec(c, s.String(), args...)
 	return nil
@@ -185,11 +196,11 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 					}
-					c.PipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
 				hFieldOld, hasKey := buildUniqueKeyHSetField(indexColumns, oldBind)
 				if hasKey {
-					c.PipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hFieldOld)
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hFieldOld)
 				}
 
 			}

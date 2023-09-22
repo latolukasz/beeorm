@@ -14,7 +14,7 @@ type Context interface {
 	Flush() error
 	FlushLazy() error
 	ClearFlush()
-	PipeLine(pool string) *RedisPipeLine
+	RedisPipeLine(pool string) *RedisPipeLine
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
@@ -48,6 +48,7 @@ type contextImplementation struct {
 	stringBuilder          *strings.Builder
 	stringBuilder2         *strings.Builder
 	redisPipeLines         map[string]*RedisPipeLine
+	flushActions           []func()
 	sync.Mutex
 }
 
@@ -106,7 +107,7 @@ func (c *contextImplementation) Clone() Context {
 	}
 }
 
-func (c *contextImplementation) PipeLine(pool string) *RedisPipeLine {
+func (c *contextImplementation) RedisPipeLine(pool string) *RedisPipeLine {
 	if c.redisPipeLines == nil {
 		c.redisPipeLines = make(map[string]*RedisPipeLine)
 	}

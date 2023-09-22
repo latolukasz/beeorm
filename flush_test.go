@@ -156,6 +156,11 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	err := c.Flush()
 	assert.NoError(t, err)
 
+	loggerDB := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerDB, true, false, false)
+	loggerLocal := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerLocal, false, false, true)
+
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
@@ -163,8 +168,15 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
 	assert.NoError(t, c.Flush())
+	if local {
+		assert.Len(t, loggerLocal.Logs, 1)
+	}
+	loggerDB.Clear()
 
 	entity := GetByID[*flushEntity](c, newEntity.ID)
+	if local {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "", entity.City)

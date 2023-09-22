@@ -24,6 +24,7 @@ type EntityFlush interface {
 type entityFlushInsert interface {
 	EntityFlush
 	getBind() (Bind, error)
+	getValue() reflect.Value
 }
 
 type entityFlushDelete interface {
@@ -110,6 +111,10 @@ func (m *insertableEntity[E]) TrackedEntity() E {
 
 func (m *insertableEntity[E]) flushType() FlushType {
 	return Insert
+}
+
+func (m *insertableEntity[E]) getValue() reflect.Value {
+	return m.value
 }
 
 func (e *editableEntity[E]) flushType() FlushType {
