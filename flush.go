@@ -71,6 +71,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 		args[i] = operation.ID()
 	}
 	db.Exec(c, s.String(), args...)
+	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
@@ -91,6 +92,11 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 				}
 			}
 		}
+		if hasLocalCache {
+			c.flushActions = append(c.flushActions, func() {
+				lc.removeEntity(c, operation.ID())
+			})
+		}
 	}
 	return nil
 }
@@ -108,6 +114,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		s.WriteString("`")
 	}
 	s.WriteString(") VALUES")
+	lc, hasLocalCache := schema.GetLocalCache()
 	for i, operation := range operations {
 		insert := operation.(entityFlushInsert)
 		bind, err := insert.getBind()
@@ -147,7 +154,6 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		}
 		s.WriteString(")")
 
-		lc, hasLocalCache := schema.GetLocalCache()
 		if hasLocalCache {
 			c.flushActions = append(c.flushActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getValue())
