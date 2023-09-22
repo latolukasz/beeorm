@@ -97,6 +97,10 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 				lc.removeEntity(c, operation.ID())
 			})
 		}
+		rc, hasRedisCache := schema.GetRedisCache()
+		if hasRedisCache {
+			c.RedisPipeLine(rc.GetCode()).HDel(c, schema.GetCacheKey(), strconv.FormatUint(operation.ID(), 10))
+		}
 	}
 	return nil
 }
