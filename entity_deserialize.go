@@ -50,19 +50,19 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	for _, i := range fields.times {
 		f := elem.Field(i)
 		unix := s.DeserializeInteger()
-		if unix == zeroDateSeconds {
+		if unix == 0 {
 			f.SetZero()
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
+			f.Set(reflect.ValueOf(time.Unix(unix, 0).UTC()))
 		}
 	}
 	for _, i := range fields.dates {
 		f := elem.Field(i)
 		unix := s.DeserializeInteger()
-		if unix == zeroDateSeconds {
+		if unix == 0 {
 			f.SetZero()
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix-timeStampSeconds, 0).UTC()))
+			f.Set(reflect.ValueOf(time.Unix(unix, 0).UTC()))
 		}
 	}
 	for _, i := range fields.strings {
