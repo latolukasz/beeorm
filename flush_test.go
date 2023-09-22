@@ -560,6 +560,8 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
+	loggerLocal := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerLocal, false, false, true)
 
 	// empty entity
 	editedEntity := EditEdit[*flushEntity](c, newEntity).TrackedEntity()
@@ -569,7 +571,8 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// editing to full entity
-	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()
+	editedEntityFull := EditEdit[*flushEntity](c, editedEntity)
+	editedEntity = editedEntityFull.TrackedEntity()
 	editedEntity.City = "New York"
 	editedEntity.Name = "Test name"
 	editedEntity.Age = -19
@@ -628,9 +631,14 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	editedEntity.SubAge = 123
 	editedEntity.Reference = NewReference[*flushEntityReference](reference.ID)
 	editedEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	loggerLocal.Clear()
 	assert.NoError(t, c.Flush())
 	assert.Len(t, loggerDB.Logs, 1)
-
+	if local {
+		assert.Len(t, loggerLocal.Logs, 1)
+	}
+	loggerDB.Clear()
+	loggerLocal.Clear()
 	entity := GetByID[*flushEntity](c, editedEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, editedEntity.ID, entity.ID)
@@ -675,6 +683,12 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, float32(123), entity.SubAge)
 	assert.Equal(t, reference.ID, entity.Reference.GetID())
 	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
+	if local {
+		assert.Len(t, loggerDB.Logs, 0)
+		assert.Len(t, loggerLocal.Logs, 1)
+		assert.Equal(t, "New York", editedEntityFull.SourceEntity().City)
+		assert.Equal(t, "Test name", editedEntityFull.SourceEntity().Name)
+	}
 
 	loggerDB.Clear()
 	editedEntity = EditEdit[*flushEntity](c, editedEntity).TrackedEntity()

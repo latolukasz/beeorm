@@ -166,6 +166,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 
 func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
+	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
 		newBind, oldBind, err := update.getBind()
@@ -234,6 +235,14 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 		s.WriteString(" WHERE ID = ?")
 		args[k] = update.ID()
 		db.Exec(c, s.String(), args...)
+
+		if hasLocalCache {
+			c.flushActions = append(c.flushActions, func() {
+				sourceValue := update.getSourceValue()
+				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.getFields())
+				lc.setEntity(c, operation.ID(), sourceValue)
+			})
+		}
 	}
 	return nil
 }

@@ -12,7 +12,8 @@ func Copy[E Entity](c Context, source E) EditableEntity[E] {
 	writable.schema = schema
 	writable.entity = value.Interface().(E)
 	writable.value = value
-	copyEntity(reflect.ValueOf(source).Elem(), value.Elem(), schema.fields)
+	writable.sourceValue = reflect.ValueOf(source)
+	copyEntity(writable.sourceValue.Elem(), value.Elem(), schema.fields)
 	return writable
 }
 
