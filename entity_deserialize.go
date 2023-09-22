@@ -155,7 +155,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
+			f.SetZero()
 		}
 	}
 	for k, i := range fields.floatsNullable {
@@ -171,7 +171,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		}
 		f := elem.Field(i)
 		if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
+			f.SetZero()
 		}
 	}
 	for _, i := range fields.timesNullable {
