@@ -34,14 +34,19 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 				}
 				return
 			}
+			var value reflect.Value
 			if entityToFill == nil {
-				entity = *new(E)
+				value = reflect.New(schema.GetType().Elem())
+				entity = value.Interface().(E)
 			} else {
 				entity = entityToFill.(E)
+				value = reflect.ValueOf(entity)
 			}
-			deserializeFromBinary(c.getSerializer(), schema, reflect.ValueOf(entity))
+			s := c.getSerializer()
+			s.buffer.WriteString(row)
+			deserializeFromBinary(s, schema, value.Elem())
 			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, id, reflect.ValueOf(entity))
+				schema.localCache.setEntity(c, id, value)
 			}
 			return
 		}

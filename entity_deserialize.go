@@ -31,7 +31,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 			elem.Field(i).SetZero()
 		} else {
 			f := elem.Field(i)
-			val := reflect.New(f.Type()).Elem()
+			val := reflect.New(f.Type().Elem())
 			reference := val.Interface().(referenceInterface)
 			reference.SetID(v)
 			f.Set(val)
@@ -137,7 +137,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		f := elem.Field(i)
 		if l == 0 {
 			if !f.IsNil() {
-				f.Set(reflect.Zero(f.Type()))
+				f.SetZero()
 			}
 		} else {
 			enum := fields.sets[k]

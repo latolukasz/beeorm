@@ -164,6 +164,8 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 	loggerLocal := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerLocal, false, false, true)
+	loggerRedis := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerRedis, false, true, false)
 
 	// Adding empty entity
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
@@ -171,14 +173,16 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
+	c.EnableQueryDebug()
 	assert.NoError(t, c.Flush())
 	if local {
 		assert.Len(t, loggerLocal.Logs, 1)
 	}
 	loggerDB.Clear()
 
+	// TODO redis hash cache nie powinien panicowac tylko zwracac nil
 	entity := GetByID[*flushEntity](c, newEntity.ID)
-	if local {
+	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
 	assert.NotNil(t, entity)

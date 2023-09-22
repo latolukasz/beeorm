@@ -115,6 +115,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 	}
 	s.WriteString(") VALUES")
 	lc, hasLocalCache := schema.GetLocalCache()
+	rc, hasRedisCache := schema.GetRedisCache()
 	for i, operation := range operations {
 		insert := operation.(entityFlushInsert)
 		bind, err := insert.getBind()
@@ -158,6 +159,12 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 			c.flushActions = append(c.flushActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getValue())
 			})
+		}
+		if hasRedisCache {
+			idToString := strconv.FormatUint(operation.ID(), 10)
+			sr := c.getSerializer()
+			serializeEntity(schema, insert.getValue().Elem(), sr)
+			c.RedisPipeLine(rc.GetCode()).HSet(c, schema.GetCacheKey(), idToString, string(sr.Read()))
 		}
 	}
 	db.Exec(c, s.String(), args...)
