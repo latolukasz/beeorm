@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"database/sql"
-	"fmt"
 	"reflect"
 	"strings"
 	"time"
@@ -12,12 +11,13 @@ func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []inter
 	deserializeStructFromDB(elem, 0, fields, pointers)
 }
 
-func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Value) {
+func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Value) bool {
 	hash := s.DeserializeUInteger()
 	if hash != schema.getStructureHash() {
-		panic(fmt.Errorf("%s entity cache data use wrong hash", schema.GetType().String()))
+		return false
 	}
 	deserializeFields(s, schema.getFields(), elem)
+	return true
 }
 
 func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {

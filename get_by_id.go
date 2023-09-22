@@ -44,11 +44,12 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			}
 			s := c.getSerializer()
 			s.buffer.WriteString(row)
-			deserializeFromBinary(s, schema, value.Elem())
-			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, id, value)
+			if deserializeFromBinary(s, schema, value.Elem()) {
+				if schema.hasLocalCache {
+					schema.localCache.setEntity(c, id, value)
+				}
+				return
 			}
-			return
 		}
 	}
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)

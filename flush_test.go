@@ -179,7 +179,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	}
 	loggerDB.Clear()
 
-	// TODO redis hash cache nie powinien panicowac tylko zwracac nil
 	entity := GetByID[*flushEntity](c, newEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
