@@ -36,32 +36,10 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 		serialized.SerializeFloat(math.Round(f*p) / p)
 	}
 	for _, i := range fields.times {
-		t := elem.Field(i).Interface().(time.Time)
-		if t.IsZero() {
-			serialized.SerializeInteger(zeroDateSeconds)
-		} else {
-			unix := t.Unix()
-			if unix > 0 {
-				unix += timeStampSeconds
-			} else {
-				unix = zeroDateSeconds
-			}
-			serialized.SerializeInteger(unix)
-		}
+		serialized.SerializeInteger(elem.Field(i).Interface().(time.Time).Unix())
 	}
 	for _, i := range fields.dates {
-		t := elem.Field(i).Interface().(time.Time)
-		if t.IsZero() {
-			serialized.SerializeInteger(zeroDateSeconds)
-		} else {
-			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
-			if unix > 0 {
-				unix += timeStampSeconds
-			} else {
-				unix = zeroDateSeconds
-			}
-			serialized.SerializeInteger(unix)
-		}
+		serialized.SerializeInteger(elem.Field(i).Interface().(time.Time).Unix())
 	}
 	for _, i := range fields.strings {
 		serialized.SerializeString(elem.Field(i).String())
@@ -100,13 +78,12 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 	k = 0
 	for _, i := range fields.sliceStringsSets {
 		f := elem.Field(i)
-		values := f.Interface().([]string)
-		l := len(values)
+		l := f.Len()
 		serialized.SerializeUInteger(uint64(l))
 		if l > 0 {
 			set := fields.sets[k]
-			for _, val := range values {
-				serialized.SerializeUInteger(uint64(set.Index(val)))
+			for j := 0; i < l; j++ {
+				serialized.SerializeUInteger(uint64(set.Index(f.Index(j).String())))
 			}
 		}
 		k++
@@ -137,13 +114,7 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 			serialized.SerializeBool(false)
 		} else {
 			serialized.SerializeBool(true)
-			unix := f.Interface().(*time.Time).Unix()
-			if unix > 0 {
-				unix += timeStampSeconds
-			} else {
-				unix = zeroDateSeconds
-			}
-			serialized.SerializeInteger(unix)
+			serialized.SerializeInteger(f.Interface().(*time.Time).Unix())
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -152,17 +123,10 @@ func serializeFields(serialized *serializer, fields *tableFields, elem reflect.V
 			serialized.SerializeBool(false)
 		} else {
 			serialized.SerializeBool(true)
-			t := f.Interface().(*time.Time)
-			unix := time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location()).Unix()
-			if unix > 0 {
-				unix += timeStampSeconds
-			} else {
-				unix = zeroDateSeconds
-			}
-			serialized.SerializeInteger(unix)
+			serialized.SerializeInteger(f.Interface().(*time.Time).Unix())
 		}
 	}
-	for k, i := range fields.structs {
-		serializeFields(serialized, fields.structsFields[k], elem.Field(i))
+	for j, i := range fields.structs {
+		serializeFields(serialized, fields.structsFields[j], elem.Field(i))
 	}
 }
