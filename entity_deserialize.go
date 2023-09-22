@@ -89,10 +89,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 			}
 			continue
 		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			elem.Field(i).Set(reflect.Zero(f.Type()))
-		}
+		elem.Field(i).SetZero()
 	}
 	for k, i := range fields.integersNullable {
 		if s.DeserializeBool() {
@@ -115,10 +112,7 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 			}
 			continue
 		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			elem.Field(i).Set(reflect.Zero(f.Type()))
-		}
+		elem.Field(i).SetZero()
 	}
 	for z, i := range fields.stringsEnums {
 		index := s.DeserializeUInteger()
@@ -139,11 +133,11 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 			f.SetZero()
 		} else {
 			enum := fields.sets[k]
-			v := make([]string, l)
+			v := reflect.MakeSlice(f.Type(), l, l)
 			for j := 0; j < l; j++ {
-				v[j] = enum.GetFields()[s.DeserializeUInteger()-1]
+				v.Index(j).SetString(enum.GetFields()[s.DeserializeUInteger()-1])
 			}
-			f.Set(reflect.ValueOf(v))
+			f.Set(v)
 		}
 		k++
 	}
@@ -176,25 +170,19 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 	}
 	for _, i := range fields.timesNullable {
 		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0).UTC()
+			v := time.Unix(s.DeserializeInteger(), 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
-		}
+		elem.Field(i).SetZero()
 	}
 	for _, i := range fields.datesNullable {
 		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger()-timeStampSeconds, 0).UTC()
+			v := time.Unix(s.DeserializeInteger(), 0).UTC()
 			elem.Field(i).Set(reflect.ValueOf(&v))
 			continue
 		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			f.Set(reflect.Zero(f.Type()))
-		}
+		elem.Field(i).SetZero()
 	}
 	for k, i := range fields.structs {
 		deserializeFields(s, fields.structsFields[k], elem.Field(i))

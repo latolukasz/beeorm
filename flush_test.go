@@ -173,7 +173,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
-	c.EnableQueryDebug()
 	assert.NoError(t, c.Flush())
 	if local {
 		assert.Len(t, loggerLocal.Logs, 1)
