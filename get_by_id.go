@@ -56,7 +56,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			schema.localCache.setEntity(c, id, emptyReflect)
 		}
 		if hasRedis {
-			cacheRedis.LPush(c, cacheKey, cacheNilValue)
+			cacheRedis.RPush(c, cacheKey, cacheNilValue)
 		}
 		return
 	}
@@ -69,14 +69,8 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		if err != nil {
 			panic(err)
 		}
-		values := make([]interface{}, len(bind)+1)
-		values[0] = schema.getStructureHash()
-		k := 1
-		for _, val := range bind {
-			values[k] = val
-			k++
-		}
-		cacheRedis.LPush(c, cacheKey, values...)
+		values := convertBindToRedisValue(bind, schema)
+		cacheRedis.RPush(c, cacheKey, values...)
 	}
 	return
 }

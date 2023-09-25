@@ -15,6 +15,8 @@ const zeroDateSeconds = 31622400
 const timeStampSeconds = 62167219200
 const nullAsString = "NULL"
 const zeroAsString = "0"
+const zeroTimeAsString = "0001-01-01 00:00:00"
+const zeroDateAsString = "0001-01-01"
 
 type Bind map[string]string
 
@@ -97,7 +99,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for _, i := range fields.integers {
 		v := source.Field(i).Int()
-		if v > 0 {
+		if v != 0 {
 			bind[prefix+fields.fields[i].Name] = strconv.FormatInt(v, 10)
 		} else {
 			bind[prefix+fields.fields[i].Name] = zeroAsString
@@ -114,6 +116,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.floats {
 		f := source.Field(i)
 		v := f.Float()
+		if v == 0 {
+			bind[prefix+fields.fields[i].Name] = zeroAsString
+			continue
+		}
 		if fields.floatsUnsigned[k] && v < 0 {
 			return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
 		}
@@ -249,6 +255,10 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		f := source.Field(i)
 		if !f.IsNil() {
 			v := f.Elem().Float()
+			if v == 0 {
+				bind[prefix+fields.fields[i].Name] = zeroAsString
+				continue
+			}
 			if fields.floatsNullableUnsigned[k] && v < 0 {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
 			}
@@ -434,11 +444,20 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			return &BindError{Field: prefix + fields.fields[i].Name,
 				Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
 		}
-		v2 := strconv.FormatFloat(before.Field(i).Float(), 'f', fields.floatsPrecision[k], fields.floatsSize[k])
+		v2Float := before.Field(i).Float()
+		v2 := strconv.FormatFloat(v2Float, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
 		if v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v == 0 {
+				bind[name] = zeroAsString
+			} else {
+				bind[name] = v1
+			}
+			if v2Float == 0 {
+				oldBind[name] = zeroAsString
+			} else {
+				oldBind[name] = v2
+			}
 		} else if fields.forcedOldBid[i] {
 			oldBind[prefix+fields.fields[i].Name] = v2
 		}
@@ -763,19 +782,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
 			if v1IsNil {
 				bind[name] = nullAsString
+			} else {
+				bind[name] = v1
 			}
 			if v2IsNil {
 				oldBind[name] = nullAsString
+			} else {
+				oldBind[name] = v2
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
-			oldBind[name] = v2
 			if v2IsNil {
 				oldBind[name] = nullAsString
+			} else {
+				oldBind[name] = v2
 			}
 		}
 	}
@@ -890,4 +912,17 @@ func compareSlices(left, right []string) bool {
 		}
 	}
 	return true
+}
+
+func convertBindToRedisValue(bind Bind, schema EntitySchema) []interface{} {
+	values := make([]interface{}, len(bind)+1)
+	values[0] = schema.getStructureHash()
+	for i, column := range schema.GetColumns() {
+		v := bind[column]
+		if v == nullAsString || v == zeroAsString || v == zeroTimeAsString || v == zeroDateAsString {
+			v = ""
+		}
+		values[i+1] = v
+	}
+	return values
 }

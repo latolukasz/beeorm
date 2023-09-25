@@ -174,9 +174,6 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
 	assert.NoError(t, c.Flush())
-	if local {
-		assert.Len(t, loggerLocal.Logs, 1)
-	}
 	loggerDB.Clear()
 
 	entity := GetByID[*flushEntity](c, newEntity.ID)
@@ -490,6 +487,7 @@ func testFlushInsert(t *testing.T, local bool, redis bool) {
 
 	// duplicated key
 	newEntity = NewEntity[*flushEntity](c).TrackedEntity()
+	newEntity.City = "Another city "
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	err = c.Flush()

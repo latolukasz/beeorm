@@ -306,7 +306,7 @@ func (r *redisCache) LRange(c Context, key string, start, stop int64) []string {
 	s := getNow(hasLogger)
 	val, err := r.client.LRange(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
-		message := fmt.Sprintf("LRANGE %d %d", start, stop)
+		message := fmt.Sprintf("LRANGE %s %d %d", key, start, stop)
 		r.fillLogFields(c, "LRANGE", message, s, false, err)
 	}
 	checkError(err)

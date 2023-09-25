@@ -154,7 +154,12 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		s.WriteString("(?")
 		args = append(args, bind["ID"])
 		for _, column := range columns[1:] {
-			args = append(args, bind[column])
+			v := bind[column]
+			if v == nullAsString {
+				args = append(args, nil)
+			} else {
+				args = append(args, v)
+			}
 			s.WriteString(",?")
 		}
 		s.WriteString(")")
@@ -166,7 +171,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		}
 		if hasRedisCache {
 			idToString := strconv.FormatUint(operation.ID(), 10)
-			c.RedisPipeLine(rc.GetCode()).LPush(c, schema.GetCacheKey()+":"+idToString, "TODO")
+			c.RedisPipeLine(rc.GetCode()).RPush(c, schema.GetCacheKey()+":"+idToString, convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	db.Exec(c, s.String(), args...)

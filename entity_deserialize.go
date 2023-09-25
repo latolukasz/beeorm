@@ -25,7 +25,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.uIntegers {
 		v := data[index]
 		index++
-		if v == zeroAsString {
+		if v == "" {
 			elem.Field(i).SetUint(0)
 		} else {
 			val, _ := strconv.ParseUint(v, 10, 64)
@@ -35,7 +35,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.references {
 		v := data[index]
 		index++
-		if v == zeroAsString {
+		if v == "" {
 			elem.Field(i).SetZero()
 		} else {
 			f := elem.Field(i)
@@ -49,7 +49,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.integers {
 		v := data[index]
 		index++
-		if v == zeroAsString {
+		if v == "" {
 			elem.Field(i).SetInt(0)
 		} else {
 			val, _ := strconv.ParseInt(v, 10, 64)
@@ -59,12 +59,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.booleans {
 		v := data[index]
 		index++
-		elem.Field(i).SetBool(v != zeroAsString)
+		elem.Field(i).SetBool(v == "1")
 	}
 	for _, i := range fields.floats {
 		v := data[index]
 		index++
-		if v == zeroAsString {
+		if v == "" {
 			elem.Field(i).SetFloat(0)
 		} else {
 			val, _ := strconv.ParseFloat(v, 64)
@@ -75,7 +75,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		v := data[index]
 		index++
 		f := elem.Field(i)
-		if v != zeroAsString {
+		if v != "" {
 			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
 			f.Set(reflect.ValueOf(t))
 		} else {
@@ -86,7 +86,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		v := data[index]
 		index++
 		f := elem.Field(i)
-		if v != zeroAsString {
+		if v != "" {
 			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
 			f.Set(reflect.ValueOf(t))
 		} else {
@@ -94,13 +94,14 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 	}
 	for _, i := range fields.strings {
-		elem.Field(i).SetString(data[index])
+		v := data[index]
 		index++
+		elem.Field(i).SetString(v)
 	}
 	for k, i := range fields.uIntegersNullable {
 		v := data[index]
 		index++
-		if v != nullAsString {
+		if v != "" {
 			asInt, _ := strconv.ParseUint(v, 10, 64)
 			switch fields.uIntegersNullableSize[k] {
 			case 0:
@@ -116,7 +117,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 				val := uint32(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
-				elem.Field(i).Set(reflect.ValueOf(&v))
+				elem.Field(i).Set(reflect.ValueOf(&asInt))
 			}
 			continue
 		}
@@ -125,7 +126,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for k, i := range fields.integersNullable {
 		v := data[index]
 		index++
-		if v != nullAsString {
+		if v != "" {
 			asInt, _ := strconv.ParseInt(v, 10, 64)
 			switch fields.integersNullableSize[k] {
 			case 0:
@@ -141,7 +142,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 				val := int32(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
-				elem.Field(i).Set(reflect.ValueOf(&v))
+				elem.Field(i).Set(reflect.ValueOf(&asInt))
 			}
 			continue
 		}
@@ -154,7 +155,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.bytes {
 		v := data[index]
 		index++
-		if v == nullAsString {
+		if v == "" {
 			elem.Field(i).SetBytes([]byte(v))
 		} else {
 			elem.Field(i).SetZero()
@@ -164,7 +165,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		v := data[index]
 		index++
 		f := elem.Field(i)
-		if v != nullAsString {
+		if v != "" {
 			values := strings.Split(v, ",")
 			l := len(values)
 			newSlice := reflect.MakeSlice(f.Type(), l, l)
@@ -179,16 +180,16 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.booleansNullable {
 		v := data[index]
 		index++
-		if v == nullAsString {
+		if v == "" {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).SetBool(v != zeroAsString)
+			elem.Field(i).SetBool(v == "1")
 		}
 	}
 	for j, i := range fields.floatsNullable {
 		v := data[index]
 		index++
-		if v != nullAsString {
+		if v != "" {
 			asFloat, _ := strconv.ParseFloat(v, 64)
 			if fields.floatsNullableSize[j] == 32 {
 				val := float32(asFloat)
@@ -203,7 +204,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.timesNullable {
 		v := data[index]
 		index++
-		if v != nullAsString {
+		if v != "" {
 			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
 			elem.Field(i).Set(reflect.ValueOf(&t))
 		} else {
@@ -213,7 +214,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 	for _, i := range fields.datesNullable {
 		v := data[index]
 		index++
-		if v != nullAsString {
+		if v != "" {
 			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
 			elem.Field(i).Set(reflect.ValueOf(&t))
 		} else {
