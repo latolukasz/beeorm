@@ -15,7 +15,7 @@ func (c *contextImplementation) Flush() error {
 	}
 	sqlGroup := c.groupSQLOperations()
 	for dbPool, operations := range sqlGroup {
-		tx := dbPool.Begin(c)
+		tx := dbPool.Begin(c) // TODO czy?
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
