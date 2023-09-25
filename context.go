@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"bytes"
 	"context"
 	"strings"
 	"sync"
@@ -25,8 +24,6 @@ type Context interface {
 	getDBLoggers() (bool, []LogHandler)
 	getLocalCacheLoggers() (bool, []LogHandler)
 	getRedisLoggers() (bool, []LogHandler)
-	getSerializer() *serializer
-	getSerializer2() *serializer
 	getStringBuilder() *strings.Builder
 	getStringBuilder2() *strings.Builder
 }
@@ -43,31 +40,11 @@ type contextImplementation struct {
 	hasLocalCacheLogger    bool
 	options                map[string]map[string]interface{}
 	meta                   Meta
-	serializer             *serializer
-	serializer2            *serializer
 	stringBuilder          *strings.Builder
 	stringBuilder2         *strings.Builder
 	redisPipeLines         map[string]*RedisPipeLine
 	flushActions           []func()
 	sync.Mutex
-}
-
-func (c *contextImplementation) getSerializer() *serializer {
-	if c.serializer == nil {
-		c.serializer = &serializer{buffer: new(bytes.Buffer)}
-	} else {
-		c.serializer.buffer.Reset()
-	}
-	return c.serializer
-}
-
-func (c *contextImplementation) getSerializer2() *serializer {
-	if c.serializer2 == nil {
-		c.serializer2 = &serializer{buffer: new(bytes.Buffer)}
-	} else {
-		c.serializer2.buffer.Reset()
-	}
-	return c.serializer2
 }
 
 func (c *contextImplementation) getStringBuilder() *strings.Builder {

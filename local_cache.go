@@ -28,18 +28,14 @@ func (p *localCachePoolConfig) GetLimit() int {
 	return p.limit
 }
 
-type LocalCacheSetter interface {
+type LocalCache interface {
 	Set(c Context, key string, value interface{})
 	Remove(c Context, key string)
-	setEntity(c Context, id uint64, value reflect.Value)
-	removeEntity(c Context, id uint64)
-}
-
-type LocalCache interface {
-	LocalCacheSetter
 	GetPoolConfig() LocalCachePoolConfig
 	Get(c Context, key string) (value interface{}, ok bool)
 	getEntity(c Context, id uint64) (value reflect.Value, ok bool)
+	setEntity(c Context, id uint64, value reflect.Value)
+	removeEntity(c Context, id uint64)
 	Clear(c Context)
 	GetObjectsCount() int
 }

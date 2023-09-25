@@ -3,6 +3,7 @@ package beeorm
 import (
 	"database/sql"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -11,78 +12,108 @@ func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []inter
 	deserializeStructFromDB(elem, 0, fields, pointers)
 }
 
-func deserializeFromBinary(s *serializer, schema EntitySchema, elem reflect.Value) bool {
-	hash := s.DeserializeUInteger()
+func deserializeFromRedis(data []string, schema EntitySchema, elem reflect.Value) bool {
+	hash := data[0]
 	if hash != schema.getStructureHash() {
 		return false
 	}
-	deserializeFields(s, schema.getFields(), elem)
+	deserializeFieldsFromRedis(data, schema.getFields(), elem, 1)
 	return true
 }
 
-func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
+func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect.Value, index int) {
 	for _, i := range fields.uIntegers {
-		v := s.DeserializeUInteger()
-		elem.Field(i).SetUint(v)
+		v := data[index]
+		index++
+		if v == zeroAsString {
+			elem.Field(i).SetUint(0)
+		} else {
+			val, _ := strconv.ParseUint(v, 10, 64)
+			elem.Field(i).SetUint(val)
+		}
 	}
 	for _, i := range fields.references {
-		v := s.DeserializeUInteger()
-		if v == 0 {
+		v := data[index]
+		index++
+		if v == zeroAsString {
 			elem.Field(i).SetZero()
 		} else {
 			f := elem.Field(i)
 			val := reflect.New(f.Type().Elem())
 			reference := val.Interface().(referenceInterface)
-			reference.SetID(v)
+			valInt, _ := strconv.ParseUint(v, 10, 64)
+			reference.SetID(valInt)
 			f.Set(val)
 		}
 	}
-	k := 0
 	for _, i := range fields.integers {
-		elem.Field(i).SetInt(s.DeserializeInteger())
+		v := data[index]
+		index++
+		if v == zeroAsString {
+			elem.Field(i).SetInt(0)
+		} else {
+			val, _ := strconv.ParseInt(v, 10, 64)
+			elem.Field(i).SetInt(val)
+		}
 	}
 	for _, i := range fields.booleans {
-		elem.Field(i).SetBool(s.DeserializeBool())
+		v := data[index]
+		index++
+		elem.Field(i).SetBool(v != zeroAsString)
 	}
 	for _, i := range fields.floats {
-		elem.Field(i).SetFloat(s.DeserializeFloat())
+		v := data[index]
+		index++
+		if v == zeroAsString {
+			elem.Field(i).SetFloat(0)
+		} else {
+			val, _ := strconv.ParseFloat(v, 64)
+			elem.Field(i).SetFloat(val)
+		}
 	}
 	for _, i := range fields.times {
+		v := data[index]
+		index++
 		f := elem.Field(i)
-		unix := s.DeserializeInteger()
-		if unix == 0 {
-			f.SetZero()
+		if v != zeroAsString {
+			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+			f.Set(reflect.ValueOf(t))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix, 0).UTC()))
+			f.SetZero()
 		}
 	}
 	for _, i := range fields.dates {
+		v := data[index]
+		index++
 		f := elem.Field(i)
-		unix := s.DeserializeInteger()
-		if unix == 0 {
-			f.SetZero()
+		if v != zeroAsString {
+			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+			f.Set(reflect.ValueOf(t))
 		} else {
-			f.Set(reflect.ValueOf(time.Unix(unix, 0).UTC()))
+			f.SetZero()
 		}
 	}
 	for _, i := range fields.strings {
-		elem.Field(i).SetString(s.DeserializeString())
+		elem.Field(i).SetString(data[index])
+		index++
 	}
 	for k, i := range fields.uIntegersNullable {
-		if s.DeserializeBool() {
-			v := s.DeserializeUInteger()
+		v := data[index]
+		index++
+		if v != nullAsString {
+			asInt, _ := strconv.ParseUint(v, 10, 64)
 			switch fields.uIntegersNullableSize[k] {
 			case 0:
-				val := uint(v)
+				val := uint(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 8:
-				val := uint8(v)
+				val := uint8(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 16:
-				val := uint16(v)
+				val := uint16(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 32:
-				val := uint32(v)
+				val := uint32(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
 				elem.Field(i).Set(reflect.ValueOf(&v))
@@ -92,20 +123,22 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		elem.Field(i).SetZero()
 	}
 	for k, i := range fields.integersNullable {
-		if s.DeserializeBool() {
-			v := s.DeserializeInteger()
+		v := data[index]
+		index++
+		if v != nullAsString {
+			asInt, _ := strconv.ParseInt(v, 10, 64)
 			switch fields.integersNullableSize[k] {
 			case 0:
-				val := int(v)
+				val := int(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 8:
-				val := int8(v)
+				val := int8(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 16:
-				val := int16(v)
+				val := int16(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 32:
-				val := int32(v)
+				val := int32(asInt)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			case 64:
 				elem.Field(i).Set(reflect.ValueOf(&v))
@@ -114,78 +147,81 @@ func deserializeFields(s *serializer, fields *tableFields, elem reflect.Value) {
 		}
 		elem.Field(i).SetZero()
 	}
-	for z, i := range fields.stringsEnums {
-		index := s.DeserializeUInteger()
-		if index == 0 {
-			elem.Field(i).SetString("")
-		} else {
-			elem.Field(i).SetString(fields.enums[z].GetFields()[index-1])
-		}
+	for _, i := range fields.stringsEnums {
+		elem.Field(i).SetString(data[index])
+		index++
 	}
 	for _, i := range fields.bytes {
-		elem.Field(i).SetBytes(s.DeserializeBytes())
-	}
-	k = 0
-	for _, i := range fields.sliceStringsSets {
-		l := int(s.DeserializeUInteger())
-		f := elem.Field(i)
-		if l == 0 {
-			f.SetZero()
+		v := data[index]
+		index++
+		if v == nullAsString {
+			elem.Field(i).SetBytes([]byte(v))
 		} else {
-			enum := fields.sets[k]
-			v := reflect.MakeSlice(f.Type(), l, l)
-			for j := 0; j < l; j++ {
-				v.Index(j).SetString(enum.GetFields()[s.DeserializeUInteger()-1])
-			}
-			f.Set(v)
+			elem.Field(i).SetZero()
 		}
-		k++
+	}
+	for _, i := range fields.sliceStringsSets {
+		v := data[index]
+		index++
+		f := elem.Field(i)
+		if v != nullAsString {
+			values := strings.Split(v, ",")
+			l := len(values)
+			newSlice := reflect.MakeSlice(f.Type(), l, l)
+			for j, val := range values {
+				newSlice.Index(j).SetString(val)
+			}
+			f.Set(newSlice)
+		} else {
+			f.SetZero()
+		}
 	}
 	for _, i := range fields.booleansNullable {
-		if s.DeserializeBool() {
-			v := s.DeserializeBool()
-			elem.Field(i).Set(reflect.ValueOf(&v))
-			continue
-		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			f.SetZero()
+		v := data[index]
+		index++
+		if v == nullAsString {
+			elem.Field(i).SetZero()
+		} else {
+			elem.Field(i).SetBool(v != zeroAsString)
 		}
 	}
-	for k, i := range fields.floatsNullable {
-		if s.DeserializeBool() {
-			v := s.DeserializeFloat()
-			if fields.floatsNullableSize[k] == 32 {
-				val := float32(v)
+	for j, i := range fields.floatsNullable {
+		v := data[index]
+		index++
+		if v != nullAsString {
+			asFloat, _ := strconv.ParseFloat(v, 64)
+			if fields.floatsNullableSize[j] == 32 {
+				val := float32(asFloat)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			} else {
 				elem.Field(i).Set(reflect.ValueOf(&v))
 			}
 			continue
 		}
-		f := elem.Field(i)
-		if !f.IsNil() {
-			f.SetZero()
-		}
+		elem.Field(i).SetZero()
 	}
 	for _, i := range fields.timesNullable {
-		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger(), 0).UTC()
-			elem.Field(i).Set(reflect.ValueOf(&v))
-			continue
+		v := data[index]
+		index++
+		if v != nullAsString {
+			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+			elem.Field(i).Set(reflect.ValueOf(&t))
+		} else {
+			elem.Field(i).SetZero()
 		}
-		elem.Field(i).SetZero()
 	}
 	for _, i := range fields.datesNullable {
-		if s.DeserializeBool() {
-			v := time.Unix(s.DeserializeInteger(), 0).UTC()
-			elem.Field(i).Set(reflect.ValueOf(&v))
-			continue
+		v := data[index]
+		index++
+		if v != nullAsString {
+			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+			elem.Field(i).Set(reflect.ValueOf(&t))
+		} else {
+			elem.Field(i).SetZero()
 		}
-		elem.Field(i).SetZero()
 	}
-	for k, i := range fields.structs {
-		deserializeFields(s, fields.structsFields[k], elem.Field(i))
+	for j, i := range fields.structs {
+		deserializeFieldsFromRedis(data, fields.structsFields[j], elem.Field(i), index)
 	}
 }
 

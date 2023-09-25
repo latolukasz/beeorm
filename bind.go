@@ -13,8 +13,10 @@ import (
 
 const zeroDateSeconds = 31622400
 const timeStampSeconds = 62167219200
+const nullAsString = "NULL"
+const zeroAsString = "0"
 
-type Bind map[string]interface{}
+type Bind map[string]string
 
 type BindError struct {
 	Field   string
@@ -41,9 +43,7 @@ func (b Bind) Get(key string) interface{} {
 
 func (m *insertableEntity[E]) getBind() (Bind, error) {
 	bind := Bind{}
-	if m.entity.GetID() > 0 {
-		bind["ID"] = m.entity.GetID()
-	}
+	bind["ID"] = strconv.FormatUint(m.entity.GetID(), 10)
 	schema := m.Schema()
 	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.getFields(), "")
 	if err != nil {
@@ -71,7 +71,12 @@ func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
 
 func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).Uint()
+		v := source.Field(i).Uint()
+		if v > 0 {
+			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(v, 10)
+		} else {
+			bind[prefix+fields.fields[i].Name] = zeroAsString
+		}
 	}
 	for k, i := range fields.references {
 		f := source.Field(i)
@@ -81,19 +86,30 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "nil value not allowed"}
 			}
 			f.SetZero()
+			bind[prefix+fields.fields[i].Name] = nullAsString
 		} else {
 			reference := f.Interface().(referenceInterface)
 			if required && reference.GetID() == 0 {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "ID zero not allowed"}
 			}
-			bind[prefix+fields.fields[i].Name] = reference.GetID()
+			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(reference.GetID(), 10)
 		}
 	}
 	for _, i := range fields.integers {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).Int()
+		v := source.Field(i).Int()
+		if v > 0 {
+			bind[prefix+fields.fields[i].Name] = strconv.FormatInt(v, 10)
+		} else {
+			bind[prefix+fields.fields[i].Name] = zeroAsString
+		}
 	}
 	for _, i := range fields.booleans {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).Bool()
+		if source.Field(i).Bool() {
+			bind[prefix+fields.fields[i].Name] = "1"
+		} else {
+			bind[prefix+fields.fields[i].Name] = zeroAsString
+		}
+
 	}
 	for k, i := range fields.floats {
 		f := source.Field(i)
@@ -148,7 +164,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			if isRequired {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty string not allowed"}
 			}
-			bind[prefix+fields.fields[i].Name] = nil
+			bind[prefix+fields.fields[i].Name] = nullAsString
 		} else {
 			bind[prefix+fields.fields[i].Name] = v
 		}
@@ -156,18 +172,18 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.uIntegersNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = f.Elem().Uint()
+			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(f.Elem().Uint(), 10)
 			continue
 		}
-		bind[fields.fields[i].Name] = nil
+		bind[fields.fields[i].Name] = nullAsString
 	}
 	for _, i := range fields.integersNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = f.Elem().Int()
+			bind[prefix+fields.fields[i].Name] = strconv.FormatInt(f.Elem().Int(), 10)
 			continue
 		}
-		bind[prefix+fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for k, i := range fields.stringsEnums {
 		val := source.Field(i).String()
@@ -176,7 +192,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			if def.required {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
 			} else {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[prefix+fields.fields[i].Name] = nullAsString
 			}
 			continue
 		}
@@ -186,7 +202,12 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		bind[prefix+fields.fields[i].Name] = val
 	}
 	for _, i := range fields.bytes {
-		bind[prefix+fields.fields[i].Name] = source.Field(i).Bytes()
+		v := source.Field(i).Bytes()
+		if v == nil {
+			bind[prefix+fields.fields[i].Name] = nullAsString
+		} else {
+			bind[prefix+fields.fields[i].Name] = string(v)
+		}
 	}
 	for k, i := range fields.sliceStringsSets {
 		f := source.Field(i)
@@ -195,7 +216,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			if def.required {
 				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
 			} else {
-				bind[prefix+fields.fields[i].Name] = nil
+				bind[prefix+fields.fields[i].Name] = nullAsString
 			}
 		} else {
 			s := c.getStringBuilder()
@@ -215,10 +236,14 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.booleansNullable {
 		f := source.Field(i)
 		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = f.Elem().Bool()
+			if f.Elem().Bool() {
+				bind[prefix+fields.fields[i].Name] = "1"
+			} else {
+				bind[prefix+fields.fields[i].Name] = zeroAsString
+			}
 			continue
 		}
-		bind[prefix+fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for k, i := range fields.floatsNullable {
 		f := source.Field(i)
@@ -240,7 +265,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			}
 			continue
 		}
-		bind[prefix+fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for _, i := range fields.timesNullable {
 		f := source.Field(i)
@@ -256,7 +281,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 			continue
 		}
-		bind[prefix+fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for _, i := range fields.datesNullable {
 		f := source.Field(i)
@@ -272,7 +297,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 			continue
 		}
-		bind[prefix+fields.fields[i].Name] = nil
+		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
@@ -290,10 +315,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2 := before.Field(i).Uint()
 		if v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v1 == 0 {
+				bind[name] = zeroAsString
+			} else {
+				bind[name] = strconv.FormatUint(v1, 10)
+			}
+			if v2 == 0 {
+				oldBind[name] = zeroAsString
+			} else {
+				oldBind[name] = strconv.FormatUint(v2, 10)
+			}
 		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2
+			if v2 == 0 {
+				oldBind[prefix+fields.fields[i].Name] = zeroAsString
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = strconv.FormatUint(v2, 10)
+			}
 		}
 	}
 	for k, i := range fields.references {
@@ -318,20 +355,20 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1IsNil != v2IsNil || v1 != v2 {
 			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			} else {
-				bind[name] = v1
+				bind[name] = strconv.FormatUint(v1, 10)
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
-				oldBind[name] = v2
+				oldBind[name] = strconv.FormatUint(v2, 10)
 			}
 		} else if fields.forcedOldBid[i] {
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[prefix+fields.fields[i].Name] = nullAsString
 			} else {
-				oldBind[prefix+fields.fields[i].Name] = v2
+				oldBind[prefix+fields.fields[i].Name] = strconv.FormatUint(v2, 10)
 			}
 		}
 	}
@@ -340,10 +377,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2 := before.Field(i).Int()
 		if v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v1 == 0 {
+				bind[name] = zeroAsString
+			} else {
+				bind[name] = strconv.FormatInt(v1, 10)
+			}
+			if v2 == 0 {
+				oldBind[name] = zeroAsString
+			} else {
+				oldBind[name] = strconv.FormatInt(v2, 10)
+			}
 		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2
+			if v2 == 0 {
+				oldBind[prefix+fields.fields[i].Name] = zeroAsString
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = strconv.FormatInt(v2, 10)
+			}
 		}
 	}
 	for _, i := range fields.booleans {
@@ -351,10 +400,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2 := before.Field(i).Bool()
 		if v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v1 {
+				bind[name] = "1"
+			} else {
+				bind[name] = zeroAsString
+			}
+			if v2 {
+				oldBind[name] = "1"
+			} else {
+				oldBind[name] = zeroAsString
+			}
 		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2
+			if v2 {
+				oldBind[prefix+fields.fields[i].Name] = "1"
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = zeroAsString
+			}
 		}
 	}
 	for k, i := range fields.floats {
@@ -441,17 +502,17 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			oldBind[name] = v2
 			if fields.stringsRequired[k] {
 				if v1 == "" {
-					bind[name] = nil
+					bind[name] = nullAsString
 				}
 				if v2 == "" {
-					oldBind[name] = nil
+					oldBind[name] = nullAsString
 				}
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			oldBind[name] = v2
 			if v2 == "" {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			}
 		}
 	}
@@ -470,19 +531,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
+			} else {
+				bind[name] = strconv.FormatUint(v1, 10)
 			}
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[prefix+fields.fields[i].Name] = nullAsString
+			} else {
+				oldBind[name] = strconv.FormatUint(v2, 10)
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
-			oldBind[name] = v2
 			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nil
+				oldBind[prefix+fields.fields[i].Name] = nullAsString
+			} else {
+				oldBind[name] = strconv.FormatUint(v2, 10)
 			}
 		}
 	}
@@ -501,19 +565,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
+			} else {
+				bind[name] = strconv.FormatInt(v1, 10)
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
+			} else {
+				oldBind[name] = strconv.FormatInt(v2, 10)
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
-			oldBind[name] = v2
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
+			} else {
+				oldBind[name] = strconv.FormatInt(v2, 10)
 			}
 		}
 	}
@@ -531,19 +598,19 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1 != v2 {
 			name := prefix + fields.fields[i].Name
 			if v1 == "" && !def.required {
-				bind[name] = nil
+				bind[name] = nullAsString
 			} else {
 				bind[name] = v1
 			}
 			if v2 == "" && !def.required {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			if v2 == "" && !def.required {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2
 			}
@@ -554,10 +621,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		v2 := before.Field(i).Bytes()
 		if !bytes.Equal(v1, v2) {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v1 == nil {
+				bind[name] = nullAsString
+			} else {
+				bind[name] = string(v1)
+			}
+			if v2 == nil {
+				oldBind[name] = nullAsString
+			} else {
+				oldBind[name] = string(v2)
+			}
 		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2
+			if v2 == nil {
+				oldBind[prefix+fields.fields[i].Name] = nullAsString
+			} else {
+				oldBind[prefix+fields.fields[i].Name] = string(v2)
+			}
 		}
 	}
 	for k, i := range fields.sliceStringsSets {
@@ -591,19 +670,19 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1IsNil != v2IsNil || !compareSlices(v1, v2) {
 			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			} else {
 				bind[name] = strings.Join(v1, ",")
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = strings.Join(v2, ",")
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = strings.Join(v2, ",")
 			}
@@ -624,19 +703,30 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 		if v1IsNil != v2IsNil || v1 != v2 {
 			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
+			if v1 {
+				bind[name] = "1"
+			} else {
+				bind[name] = zeroAsString
+			}
+			if v2 {
+				oldBind[name] = "1"
+			} else {
+				oldBind[name] = zeroAsString
+			}
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
-			oldBind[name] = v2
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
+			} else if v2 {
+				oldBind[name] = "1"
+			} else {
+				oldBind[name] = zeroAsString
 			}
 		}
 	}
@@ -676,16 +766,16 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			bind[name] = v1
 			oldBind[name] = v2
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			oldBind[name] = v2
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			}
 		}
 	}
@@ -713,19 +803,19 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
 			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			} else {
 				bind[name] = v1.Format(time.DateTime)
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2.Format(time.DateTime)
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2.Format(time.DateTime)
 			}
@@ -755,19 +845,19 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
 			name := prefix + fields.fields[i].Name
 			if v1IsNil {
-				bind[name] = nil
+				bind[name] = nullAsString
 			} else {
 				bind[name] = v1.Format(time.DateOnly)
 			}
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2.Format(time.DateOnly)
 			}
 		} else if fields.forcedOldBid[i] {
 			name := prefix + fields.fields[i].Name
 			if v2IsNil {
-				oldBind[name] = nil
+				oldBind[name] = nullAsString
 			} else {
 				oldBind[name] = v2.Format(time.DateOnly)
 			}
@@ -786,20 +876,6 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 func roundFloat(val float64, precision int) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return math.Round(val*ratio) / ratio
-}
-
-func convertBindValueToString(value interface{}) string {
-	switch value.(type) {
-	case string:
-		return value.(string)
-	case uint64:
-		return strconv.FormatUint(value.(uint64), 10)
-	case int64:
-		return strconv.FormatInt(value.(int64), 10)
-	default:
-		return fmt.Sprintf("%v", value)
-
-	}
 }
 
 func compareSlices(left, right []string) bool {

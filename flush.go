@@ -166,9 +166,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 		}
 		if hasRedisCache {
 			idToString := strconv.FormatUint(operation.ID(), 10)
-			sr := c.getSerializer()
-			serializeEntity(schema, insert.getValue().Elem(), sr)
-			c.RedisPipeLine(rc.GetCode()).HSet(c, schema.GetCacheKey(), idToString, string(sr.Read()))
+			c.RedisPipeLine(rc.GetCode()).LPush(c, schema.GetCacheKey()+":"+idToString, "TODO")
 		}
 	}
 	db.Exec(c, s.String(), args...)
@@ -178,6 +176,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
+	//rc, hasRedisCache := schema.GetRedisCache()
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
 		newBind, oldBind, err := update.getBind()
@@ -254,6 +253,9 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 				lc.setEntity(c, operation.ID(), sourceValue)
 			})
 		}
+		//if hasRedisCache {
+		//	// todo
+		//}
 	}
 	return nil
 }
@@ -283,11 +285,11 @@ func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
 	hasNil := false
 	for _, column := range indexColumns {
 		bindValue := bind[column]
-		if bindValue == nil {
+		if bindValue == cacheNilValue {
 			hasNil = true
 			break
 		}
-		hField += convertBindValueToString(bindValue)
+		hField += bindValue
 	}
 	if hasNil {
 		return "", false

@@ -25,10 +25,10 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	var cacheKey string
 	if hasRedis {
-		cacheKey = strconv.FormatUint(id, 10)
-		row, has := cacheRedis.HGet(c, schema.GetCacheKey(), cacheKey)
-		if has {
-			if row == cacheNilValue {
+		cacheKey = schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)
+		row := cacheRedis.LRange(c, cacheKey, 0, int64(len(schema.columnNames)+1))
+		if row != nil {
+			if len(row) == 0 {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(c, id, emptyReflect)
 				}
@@ -42,9 +42,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 				entity = entityToFill.(E)
 				value = reflect.ValueOf(entity)
 			}
-			s := c.getSerializer()
-			s.buffer.WriteString(row)
-			if deserializeFromBinary(s, schema, value.Elem()) {
+			if deserializeFromRedis(row, schema, value.Elem()) {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(c, id, value)
 				}
@@ -58,7 +56,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			schema.localCache.setEntity(c, id, emptyReflect)
 		}
 		if hasRedis {
-			cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, cacheNilValue)
+			cacheRedis.LPush(c, cacheKey, cacheNilValue)
 		}
 		return
 	}
@@ -66,9 +64,19 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		schema.localCache.setEntity(c, id, reflect.ValueOf(entity))
 	}
 	if hasRedis {
-		s := c.getSerializer()
-		serializeEntity(schema, reflect.ValueOf(entity).Elem(), s)
-		cacheRedis.HSet(c, schema.GetCacheKey(), cacheKey, string(s.Read()))
+		bind := make(Bind)
+		err := fillBindFromOneSource(c, bind, reflect.ValueOf(entity).Elem(), schema.fields, "")
+		if err != nil {
+			panic(err)
+		}
+		values := make([]interface{}, len(bind)+1)
+		values[0] = schema.getStructureHash()
+		k := 1
+		for _, val := range bind {
+			values[k] = val
+			k++
+		}
+		cacheRedis.LPush(c, cacheKey, values...)
 	}
 	return
 }

@@ -58,7 +58,7 @@ type EntitySchema interface {
 	getCachedIndexesTrackedFields() map[string]bool
 	getTagBool(field, key string) bool
 	getFieldsQuery() string
-	getStructureHash() uint64
+	getStructureHash() string
 	getTags() map[string]map[string]string
 	uuid() uint64
 }
@@ -91,7 +91,7 @@ type entitySchema struct {
 	redisCache                 *redisCache
 	searchCacheName            string
 	cacheKey                   string
-	structureHash              uint64
+	structureHash              string
 	skipLogs                   []string
 	mapBindToScanPointer       mapBindToScanPointer
 	mapPointerToValue          mapPointerToValue
@@ -384,7 +384,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cacheKey))
 
-	entitySchema.structureHash = uint64(h.Sum32())
+	entitySchema.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
 	entitySchema.columnMapping = columnMapping
 	entitySchema.cachedIndexes = cachedQueries
 	entitySchema.cachedIndexesOne = cachedQueriesOne
@@ -540,7 +540,7 @@ func (entitySchema *entitySchema) getFieldsQuery() string {
 	return entitySchema.fieldsQuery
 }
 
-func (entitySchema *entitySchema) getStructureHash() uint64 {
+func (entitySchema *entitySchema) getStructureHash() string {
 	return entitySchema.structureHash
 }
 
