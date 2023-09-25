@@ -14,30 +14,32 @@ func (c *contextImplementation) Flush() error {
 		return nil
 	}
 	sqlGroup := c.groupSQLOperations()
-	for db, operations := range sqlGroup {
+	for dbPool, operations := range sqlGroup {
+		tx := dbPool.Begin(c)
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.executeDeletes(db, schema, deletes)
+				err := c.executeDeletes(tx, schema, deletes)
 				if err != nil {
 					return err
 				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				err := c.executeInserts(db, schema, inserts)
+				err := c.executeInserts(tx, schema, inserts)
 				if err != nil {
 					return err
 				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				err := c.executeUpdates(db, schema, updates)
+				err := c.executeUpdates(tx, schema, updates)
 				if err != nil {
 					return err
 				}
 			}
 		}
+		tx.Commit(c)
 	}
 	for _, action := range c.flushActions {
 		action()
@@ -59,7 +61,7 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) executeDeletes(db db, schema EntitySchema, operations []EntityFlush) error {
 	args := make([]interface{}, len(operations))
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
@@ -105,7 +107,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 	return nil
 }
 
-func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) executeInserts(db db, schema EntitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
@@ -177,7 +179,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 	return nil
 }
 
-func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) executeUpdates(db db, schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()

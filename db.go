@@ -126,6 +126,19 @@ type standardSQLClient struct {
 	db DBClient
 }
 
+type txSQLClient struct {
+	standardSQLClient
+	tx *sql.Tx
+}
+
+func (tx *txSQLClient) Commit() error {
+	return tx.tx.Commit()
+}
+
+func (tx *txSQLClient) Rollback() error {
+	return tx.tx.Rollback()
+}
+
 func (db *standardSQLClient) Prepare(query string) (*sql.Stmt, error) {
 	res, err := db.db.Prepare(query)
 	if err != nil {
@@ -303,7 +316,7 @@ type db interface {
 
 type DB interface {
 	db
-	Begin() DBTransaction
+	Begin(c Context) DBTransaction
 }
 
 type DBTransaction interface {
@@ -328,6 +341,7 @@ func (db *dbImplementation) Commit(c Context) {
 	if hasLogger {
 		db.fillLogFields(c, "COMMIT", "", start, err)
 	}
+	checkError(err)
 }
 
 func (db *dbImplementation) Rollback(c Context) {
@@ -337,12 +351,18 @@ func (db *dbImplementation) Rollback(c Context) {
 	if hasLogger {
 		db.fillLogFields(c, "ROLLBACK", "", start, err)
 	}
+	checkError(err)
 }
 
-func (db *dbImplementation) Begin() DBTransaction {
+func (db *dbImplementation) Begin(c Context) DBTransaction {
+	hasLogger, _ := c.getDBLoggers()
+	start := getNow(hasLogger)
 	tx, err := db.client.Begin()
+	if hasLogger {
+		db.fillLogFields(c, "BEGIN", "", start, err)
+	}
 	checkError(err)
-	dbTX := &dbImplementation{config: db.config, client: &standardSQLClient{db: tx}}
+	dbTX := &dbImplementation{config: db.config, client: &txSQLClient{standardSQLClient{db: tx}, tx}}
 	return dbTX
 }
 
