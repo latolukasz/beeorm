@@ -180,7 +180,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
-	//rc, hasRedisCache := schema.GetRedisCache()
+	rc, hasRedisCache := schema.GetRedisCache()
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
 		newBind, oldBind, err := update.getBind()
@@ -190,7 +190,6 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 		if len(newBind) == 0 {
 			continue
 		}
-
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
 			cache, hasRedis := schema.GetRedisCache()
@@ -223,7 +222,6 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 				if hasKey {
 					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hFieldOld)
 				}
-
 			}
 		}
 
@@ -261,9 +259,13 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 				lc.setEntity(c, operation.ID(), sourceValue)
 			})
 		}
-		//if hasRedisCache {
-		//	// todo
-		//}
+		if hasRedisCache {
+			p := c.RedisPipeLine(rc.GetCode())
+			for column, val := range newBind {
+				index := int64(schema.(*entitySchema).columnMapping[column] + 1)
+				p.LSet(c, schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
+			}
+		}
 	}
 	return nil
 }

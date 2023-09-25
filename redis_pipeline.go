@@ -35,6 +35,15 @@ func (rp *RedisPipeLine) RPush(c Context, key string, values ...interface{}) {
 	rp.pipeLine.RPush(c.Ctx(), key, values...)
 }
 
+func (rp *RedisPipeLine) LSet(c Context, key string, index int64, value interface{}) {
+	rp.commands++
+	hasLog, _ := c.getRedisLoggers()
+	if hasLog {
+		rp.log = append(rp.log, fmt.Sprintf("LSET %s %d %v", key, index, value))
+	}
+	rp.pipeLine.LSet(c.Ctx(), key, index, value)
+}
+
 func (rp *RedisPipeLine) Del(c Context, key ...string) {
 	for i, v := range key {
 		key[i] = rp.r.addNamespacePrefix(v)

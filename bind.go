@@ -918,11 +918,14 @@ func convertBindToRedisValue(bind Bind, schema EntitySchema) []interface{} {
 	values := make([]interface{}, len(bind)+1)
 	values[0] = schema.getStructureHash()
 	for i, column := range schema.GetColumns() {
-		v := bind[column]
-		if v == nullAsString || v == zeroAsString || v == zeroTimeAsString || v == zeroDateAsString {
-			v = ""
-		}
-		values[i+1] = v
+		values[i+1] = convertBindValueToRedisValue(bind[column])
 	}
 	return values
+}
+
+func convertBindValueToRedisValue(value string) string {
+	if value == nullAsString || value == zeroAsString || value == zeroTimeAsString || value == zeroDateAsString {
+		return ""
+	}
+	return value
 }
