@@ -21,7 +21,7 @@ func deserializeFromRedis(data []string, schema EntitySchema, elem reflect.Value
 	return true
 }
 
-func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect.Value, index int) {
+func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect.Value, index int) int {
 	for _, i := range fields.uIntegers {
 		v := data[index]
 		index++
@@ -156,9 +156,9 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		v := data[index]
 		index++
 		if v == "" {
-			elem.Field(i).SetBytes([]byte(v))
-		} else {
 			elem.Field(i).SetZero()
+		} else {
+			elem.Field(i).SetBytes([]byte(v))
 		}
 	}
 	for _, i := range fields.sliceStringsSets {
@@ -183,7 +183,8 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		if v == "" {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).SetBool(v == "1")
+			b := v == "1"
+			elem.Field(i).Set(reflect.ValueOf(&b))
 		}
 	}
 	for j, i := range fields.floatsNullable {
@@ -195,7 +196,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 				val := float32(asFloat)
 				elem.Field(i).Set(reflect.ValueOf(&val))
 			} else {
-				elem.Field(i).Set(reflect.ValueOf(&v))
+				elem.Field(i).Set(reflect.ValueOf(&asFloat))
 			}
 			continue
 		}
@@ -222,8 +223,9 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 	}
 	for j, i := range fields.structs {
-		deserializeFieldsFromRedis(data, fields.structsFields[j], elem.Field(i), index)
+		index = deserializeFieldsFromRedis(data, fields.structsFields[j], elem.Field(i), index)
 	}
+	return index
 }
 
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
