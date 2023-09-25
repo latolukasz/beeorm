@@ -4,11 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"regexp"
 	"strings"
 	"time"
-
-	"github.com/go-sql-driver/mysql"
 )
 
 type MySQLPoolConfig interface {
@@ -81,7 +78,7 @@ func (e *execResult) RowsAffected() uint64 {
 	return uint64(id)
 }
 
-type sqlClient interface {
+type sqlClientBase interface {
 	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...interface{}) (sql.Result, error)
 	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
@@ -89,6 +86,17 @@ type sqlClient interface {
 	QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow
 	Query(query string, args ...interface{}) (SQLRows, error)
 	QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error)
+}
+
+type sqlClient interface {
+	sqlClientBase
+	Begin() (*sql.Tx, error)
+}
+
+type txClient interface {
+	sqlClientBase
+	Commit() error
+	Rollback() error
 }
 
 type DBClientQuery interface {
@@ -102,6 +110,15 @@ type DBClientQuery interface {
 }
 
 type DBClient interface {
+	DBClientQuery
+}
+
+type DBClientNoTX interface {
+	DBClientQuery
+	Begin() (*sql.Tx, error)
+}
+
+type TXClient interface {
 	DBClientQuery
 }
 
@@ -123,6 +140,10 @@ func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result
 		return nil, err
 	}
 	return res, nil
+}
+
+func (db *standardSQLClient) Begin() (*sql.Tx, error) {
+	return db.db.(DBClientNoTX).Begin()
 }
 
 func (db *standardSQLClient) ExecContext(context context.Context, query string, args ...interface{}) (sql.Result, error) {
@@ -270,7 +291,7 @@ type SQLRow interface {
 	Scan(dest ...interface{}) error
 }
 
-type DB interface {
+type db interface {
 	GetPoolConfig() MySQLPoolConfig
 	GetDBClient() DBClient
 	SetMockDBClient(mock DBClient)
@@ -280,6 +301,17 @@ type DB interface {
 	Query(c Context, query string, args ...interface{}) (rows Rows, close func())
 }
 
+type DB interface {
+	db
+	Begin() DBTransaction
+}
+
+type DBTransaction interface {
+	db
+	Commit(c Context)
+	Rollback(c Context)
+}
+
 type dbImplementation struct {
 	client sqlClient
 	config MySQLPoolConfig
@@ -287,6 +319,31 @@ type dbImplementation struct {
 
 func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
 	return db.config
+}
+
+func (db *dbImplementation) Commit(c Context) {
+	hasLogger, _ := c.getDBLoggers()
+	start := getNow(hasLogger)
+	err := db.client.(txClient).Commit()
+	if hasLogger {
+		db.fillLogFields(c, "COMMIT", "", start, err)
+	}
+}
+
+func (db *dbImplementation) Rollback(c Context) {
+	hasLogger, _ := c.getDBLoggers()
+	start := getNow(hasLogger)
+	err := db.client.(txClient).Rollback()
+	if hasLogger {
+		db.fillLogFields(c, "ROLLBACK", "", start, err)
+	}
+}
+
+func (db *dbImplementation) Begin() DBTransaction {
+	tx, err := db.client.Begin()
+	checkError(err)
+	dbTX := &dbImplementation{config: db.config, client: &standardSQLClient{db: tx}}
+	return dbTX
 }
 
 func (db *dbImplementation) GetDBClient() DBClient {
@@ -388,18 +445,4 @@ func (db *dbImplementation) fillLogFields(c Context, operation, query string, st
 	query = strings.ReplaceAll(query, "\n", " ")
 	_, loggers := c.getDBLoggers()
 	fillLogFields(c, loggers, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
-}
-
-func convertSQLError(err error) error {
-	sqlErr, yes := err.(*mysql.MySQLError)
-	if yes {
-		if sqlErr.Number == 1062 {
-			var abortLabelReg, _ = regexp.Compile(` for key '(.*?)'`)
-			labels := abortLabelReg.FindStringSubmatch(sqlErr.Message)
-			if len(labels) > 0 {
-				return &DuplicatedKeyError{Message: sqlErr.Message, Index: labels[1]}
-			}
-		}
-	}
-	return err
 }

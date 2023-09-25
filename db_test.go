@@ -3,15 +3,12 @@ package beeorm
 //
 //import (
 //	"database/sql"
-//	"testing"
-//
 //	"github.com/pkg/errors"
-//
 //	"github.com/stretchr/testify/assert"
+//	"testing"
 //)
 //
 //type dbEntity struct {
-//	ORM
 //	ID   uint64
 //	Name string
 //}
