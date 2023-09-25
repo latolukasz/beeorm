@@ -644,6 +644,9 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	loggerDB.Clear()
 	loggerLocal.Clear()
 	entity := GetByID[*flushEntity](c, editedEntity.ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
 	assert.NotNil(t, entity)
 	assert.Equal(t, editedEntity.ID, entity.ID)
 	assert.Equal(t, "New York", entity.City)

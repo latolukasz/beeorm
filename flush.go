@@ -243,7 +243,11 @@ func (c *contextImplementation) executeUpdates(db DB, schema EntitySchema, opera
 				s.WriteString(",")
 			}
 			s.WriteString("`" + column + "`=?")
-			args[k] = value
+			if value == nullAsString {
+				args[k] = nil
+			} else {
+				args[k] = value
+			}
 			k++
 		}
 		s.WriteString(" WHERE ID = ?")
@@ -289,7 +293,7 @@ func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
 	hasNil := false
 	for _, column := range indexColumns {
 		bindValue := bind[column]
-		if bindValue == cacheNilValue {
+		if bindValue == nullAsString {
 			hasNil = true
 			break
 		}
