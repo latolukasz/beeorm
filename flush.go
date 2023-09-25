@@ -99,7 +99,7 @@ func (c *contextImplementation) executeDeletes(db DB, schema EntitySchema, opera
 		}
 		rc, hasRedisCache := schema.GetRedisCache()
 		if hasRedisCache {
-			c.RedisPipeLine(rc.GetCode()).HDel(c, schema.GetCacheKey(), strconv.FormatUint(operation.ID(), 10))
+			c.RedisPipeLine(rc.GetCode()).Del(c, schema.GetCacheKey()+":"+strconv.FormatUint(operation.ID(), 10))
 		}
 	}
 	return nil
@@ -170,8 +170,7 @@ func (c *contextImplementation) executeInserts(db DB, schema EntitySchema, opera
 			})
 		}
 		if hasRedisCache {
-			idToString := strconv.FormatUint(operation.ID(), 10)
-			c.RedisPipeLine(rc.GetCode()).RPush(c, schema.GetCacheKey()+":"+idToString, convertBindToRedisValue(bind, schema)...)
+			c.RedisPipeLine(rc.GetCode()).RPush(c, schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	db.Exec(c, s.String(), args...)

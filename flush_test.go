@@ -528,8 +528,6 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	err = c.Flush()
 	assert.NoError(t, err)
 
-	// duplicated key
-
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())
 	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
@@ -537,6 +535,8 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	assert.NoError(t, err)
 	entity = GetByID[*flushEntity](c, entity.GetID())
 	assert.Nil(t, entity)
+
+	// duplicated key
 
 	entity = NewEntity[*flushEntity](c).TrackedEntity()
 	entity.Name = "Test 1"
