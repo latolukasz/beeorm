@@ -533,8 +533,18 @@ func testFlushDelete(t *testing.T, local bool, redis bool) {
 	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
 	err = c.Flush()
 	assert.NoError(t, err)
-	entity = GetByID[*flushEntity](c, entity.GetID())
+	loggerDB := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerDB, true, false, false)
+	id := entity.GetID()
+	entity = GetByID[*flushEntity](c, id)
 	assert.Nil(t, entity)
+	assert.Len(t, loggerDB.Logs, 1)
+	if local || redis {
+		loggerDB.Clear()
+		entity = GetByID[*flushEntity](c, id)
+		assert.Nil(t, entity)
+		assert.Len(t, loggerDB.Logs, 0)
+	}
 
 	// duplicated key
 

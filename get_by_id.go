@@ -27,8 +27,9 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	if hasRedis {
 		cacheKey = schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)
 		row := cacheRedis.LRange(c, cacheKey, 0, int64(len(schema.columnNames)+1))
-		if row != nil {
-			if len(row) == 0 {
+		l := len(row)
+		if len(row) > 0 {
+			if l == 1 {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(c, id, emptyReflect)
 				}
@@ -56,7 +57,10 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			schema.localCache.setEntity(c, id, emptyReflect)
 		}
 		if hasRedis {
-			cacheRedis.RPush(c, cacheKey, cacheNilValue)
+			p := c.RedisPipeLine(cacheRedis.GetCode())
+			p.Del(c, cacheKey)
+			p.RPush(c, cacheKey, cacheNilValue)
+			p.Exec(c)
 		}
 		return
 	}
