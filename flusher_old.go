@@ -169,7 +169,7 @@ package beeorm
 //				for tableName, byAction := range byDB {
 //					deleteEvents, hasDeletes := byAction[Delete]
 //					if hasDeletes {
-//						f.executeDeletes(db, tableName, deleteEvents)
+//						f.handleDeletes(db, tableName, deleteEvents)
 //					}
 //					insertEvents, hasInserts := byAction[Insert]
 //					if hasInserts {
@@ -416,7 +416,7 @@ package beeorm
 //	}
 //}
 //
-//func (f *flusher) executeDeletes(db DB, table string, events []*entitySQLFlush) {
+//func (f *flusher) handleDeletes(db DB, table string, events []*entitySQLFlush) {
 //	f.stringBuilder.Reset()
 //	f.stringBuilder.WriteString("DELETE FROM `" + table + "` WHERE ID IN(?")
 //	f.stringBuilder.WriteString(strings.Repeat(",?", len(events)-1) + ")")

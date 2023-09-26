@@ -9,7 +9,21 @@ type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
 
+type flushData struct {
+	SQL    string
+	Args   []interface{}
+	Schema EntitySchema
+}
+
 func (c *contextImplementation) Flush() error {
+	return c.flush(false)
+}
+
+func (c *contextImplementation) FlushLazy() error {
+	return c.flush(true)
+}
+
+func (c *contextImplementation) flush(lazy bool) error {
 	if len(c.trackedEntities) == 0 {
 		return nil
 	}
@@ -18,50 +32,55 @@ func (c *contextImplementation) Flush() error {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.executeDeletes(schema, deletes)
+				err := c.handleDeletes(schema, deletes)
 				if err != nil {
 					return err
 				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				err := c.executeInserts(schema, inserts)
+				err := c.handleInserts(schema, inserts)
 				if err != nil {
 					return err
 				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				err := c.executeUpdates(schema, updates)
+				err := c.handleUpdates(schema, updates)
 				if err != nil {
 					return err
 				}
 			}
 		}
 	}
-	func() {
-		var transactions []DBTransaction
-		defer func() {
+	if !lazy {
+		func() {
+			var transactions []DBTransaction
+			defer func() {
+				for _, tx := range transactions {
+					tx.Rollback(c)
+				}
+			}()
+			for code, actions := range c.flushDBActions {
+				var d db
+				d = c.Engine().DB(code)
+				if len(actions) > 1 || len(c.flushDBActions) > 1 {
+					tx := d.(DB).Begin(c)
+					transactions = append(transactions, tx)
+					d = tx
+				}
+				for _, action := range actions {
+					d.Exec(c, action.SQL, action.Args...)
+				}
+			}
 			for _, tx := range transactions {
-				tx.Rollback(c)
+				tx.Commit(c)
 			}
 		}()
-		for code, actions := range c.flushDBActions {
-			var d db
-			d = c.Engine().DB(code)
-			if len(actions) > 1 || len(c.flushDBActions) > 1 {
-				tx := d.(DB).Begin(c)
-				transactions = append(transactions, tx)
-				d = tx
-			}
-			for _, action := range actions {
-				action(d)
-			}
-		}
-		for _, tx := range transactions {
-			tx.Commit(c)
-		}
-	}()
+	} else {
+		// TODO lazy
+	}
+
 	for _, action := range c.flushPostActions {
 		action()
 	}
@@ -72,10 +91,6 @@ func (c *contextImplementation) Flush() error {
 	return nil
 }
 
-func (c *contextImplementation) FlushLazy() error {
-	return nil
-}
-
 func (c *contextImplementation) ClearFlush() {
 	c.trackedEntities = c.trackedEntities[0:0]
 	c.flushDBActions = nil
@@ -83,7 +98,7 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) executeDeletes(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleDeletes(schema EntitySchema, operations []EntityFlush) error {
 	args := make([]interface{}, len(operations))
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
@@ -95,9 +110,7 @@ func (c *contextImplementation) executeDeletes(schema EntitySchema, operations [
 		args[i] = operation.ID()
 	}
 	sql := s.String()
-	c.appendDBAction(schema.GetDB().GetPoolConfig().GetCode(), func(db db) {
-		db.Exec(c, sql, args...)
-	})
+	c.appendDBAction(schema, sql, args)
 	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()
@@ -132,7 +145,7 @@ func (c *contextImplementation) executeDeletes(schema EntitySchema, operations [
 	return nil
 }
 
-func (c *contextImplementation) executeInserts(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleInserts(schema EntitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
@@ -201,13 +214,11 @@ func (c *contextImplementation) executeInserts(schema EntitySchema, operations [
 		}
 	}
 	sql := s.String()
-	c.appendDBAction(schema.GetDB().GetPoolConfig().GetCode(), func(db db) {
-		db.Exec(c, sql, args...)
-	})
+	c.appendDBAction(schema, sql, args)
 	return nil
 }
 
-func (c *contextImplementation) executeUpdates(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleUpdates(schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
@@ -281,9 +292,7 @@ func (c *contextImplementation) executeUpdates(schema EntitySchema, operations [
 		s.WriteString(" WHERE ID = ?")
 		args[k] = update.ID()
 		sql := s.String()
-		c.appendDBAction(schema.GetDB().GetPoolConfig().GetCode(), func(db db) {
-			db.Exec(c, sql, args...)
-		})
+		c.appendDBAction(schema, sql, args)
 
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -323,15 +332,12 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(poolCode string, action func(db db)) {
+func (c *contextImplementation) appendDBAction(schema EntitySchema, sql string, args []interface{}) {
 	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]func(db db))
+		c.flushDBActions = make(map[string][]flushData)
 	}
-	_, has := c.flushDBActions[poolCode]
-	if !has {
-		c.flushDBActions[poolCode] = make([]func(db db), 0)
-	}
-	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)
+	poolCode := schema.GetDB().GetPoolConfig().GetCode()
+	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], flushData{SQL: sql, Args: args, Schema: schema})
 }
 
 func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
