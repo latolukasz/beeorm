@@ -38,7 +38,7 @@ func (d *defaultLogLogger) Handle(_ Context, fields map[string]interface{}) {
 	case "local_cache":
 		row += localCacheLogo
 	}
-	poolTemplate := "\u001B[1m\x1b[38;2;175;175;175;48;2;255;255;255m%-" + strconv.Itoa(d.maxPoolLen) + "s\u001B[0m\x1b[0m\u001B[0m"
+	poolTemplate := "\u001B[1m\x1b[38;2;175;175;175;48;2;255;255;255m%-" + strconv.Itoa(d.maxPoolLen+3) + "s\u001B[0m\x1b[0m\u001B[0m"
 	row += fmt.Sprintf(poolTemplate, fields["pool"])
 	microseconds := float64(0)
 	microsecondsVal, has := fields["microseconds"]

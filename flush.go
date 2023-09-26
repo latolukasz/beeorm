@@ -176,7 +176,7 @@ func (c *contextImplementation) executeInserts(schema EntitySchema, operations [
 		}
 
 		if i > 0 {
-			s.WriteString(",(?")
+			s.WriteString(",")
 		}
 		s.WriteString("(?")
 		args = append(args, bind["ID"])

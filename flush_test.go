@@ -927,3 +927,42 @@ func testFlushUpdate(t *testing.T, local bool, redis bool) {
 	newEntity.Name = "Name 2"
 	assert.NoError(t, c.Flush())
 }
+
+func TestFlushTransaction(t *testing.T) {
+	registry := &Registry{}
+	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+
+	schema := GetEntitySchema[*flushEntity](c)
+	schema.DisableCache(true, true)
+
+	loggerDB := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerDB, true, false, false)
+
+	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference"
+	err := c.Flush()
+	assert.NoError(t, err)
+	assert.Len(t, loggerDB.Logs, 1)
+	loggerDB.Clear()
+
+	reference = NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference 2"
+	reference2 := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference2.Name = "test reference 3"
+	err = c.Flush()
+	assert.NoError(t, err)
+	assert.Len(t, loggerDB.Logs, 1)
+	loggerDB.Clear()
+
+	reference = NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference 2"
+	flushE := NewEntity[*flushEntity](c).TrackedEntity()
+	flushE.Name = "test"
+	flushE.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush()
+	assert.NoError(t, err)
+	assert.Len(t, loggerDB.Logs, 4)
+	assert.Equal(t, "START TRANSACTION", loggerDB.Logs[0]["query"])
+	assert.Equal(t, "COMMIT", loggerDB.Logs[3]["query"])
+	loggerDB.Clear()
+}

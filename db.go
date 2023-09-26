@@ -344,7 +344,7 @@ func (db *dbImplementation) Commit(c Context) {
 	err := db.client.(txClient).Commit()
 	db.transaction = false
 	if hasLogger {
-		db.fillLogFields(c, "COMMIT", "", start, err)
+		db.fillLogFields(c, "TRANSACTION", "COMMIT", start, err)
 	}
 	checkError(err)
 }
@@ -358,7 +358,7 @@ func (db *dbImplementation) Rollback(c Context) {
 	err := db.client.(txClient).Rollback()
 	db.transaction = false
 	if hasLogger {
-		db.fillLogFields(c, "ROLLBACK", "", start, err)
+		db.fillLogFields(c, "TRANSACTION", "ROLLBACK", start, err)
 	}
 	checkError(err)
 }
@@ -368,7 +368,7 @@ func (db *dbImplementation) Begin(c Context) DBTransaction {
 	start := getNow(hasLogger)
 	tx, err := db.client.Begin()
 	if hasLogger {
-		db.fillLogFields(c, "BEGIN", "", start, err)
+		db.fillLogFields(c, "TRANSACTION", "START TRANSACTION", start, err)
 	}
 	checkError(err)
 	dbTX := &dbImplementation{config: db.config, client: &txSQLClient{standardSQLClient{db: tx}, tx}, transaction: true}
