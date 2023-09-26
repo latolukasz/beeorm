@@ -283,8 +283,7 @@ func (r *Registry) registerRedis(client *redis.Client, code []string, address, n
 	if len(code) > 0 {
 		dbCode = code[0]
 	}
-	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, namespace: namespace,
-		hasNamespace: namespace != "", db: db}
+	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, db: db}
 	if r.redisPools == nil {
 		r.redisPools = make(map[string]RedisPoolConfig)
 	}
@@ -295,18 +294,14 @@ type RedisPoolConfig interface {
 	GetCode() string
 	GetDatabase() int
 	GetAddress() string
-	GetNamespace() string
-	HasNamespace() bool
 	getClient() *redis.Client
 }
 
 type redisCacheConfig struct {
-	code         string
-	client       *redis.Client
-	db           int
-	address      string
-	namespace    string
-	hasNamespace bool
+	code    string
+	client  *redis.Client
+	db      int
+	address string
 }
 
 func (p *redisCacheConfig) GetCode() string {
@@ -319,14 +314,6 @@ func (p *redisCacheConfig) GetDatabase() int {
 
 func (p *redisCacheConfig) GetAddress() string {
 	return p.address
-}
-
-func (p *redisCacheConfig) GetNamespace() string {
-	return p.namespace
-}
-
-func (p *redisCacheConfig) HasNamespace() bool {
-	return p.hasNamespace
 }
 
 func (p *redisCacheConfig) getClient() *redis.Client {

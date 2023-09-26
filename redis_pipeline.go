@@ -45,9 +45,6 @@ func (rp *RedisPipeLine) LSet(c Context, key string, index int64, value interfac
 }
 
 func (rp *RedisPipeLine) Del(c Context, key ...string) {
-	for i, v := range key {
-		key[i] = rp.r.addNamespacePrefix(v)
-	}
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -58,7 +55,6 @@ func (rp *RedisPipeLine) Del(c Context, key ...string) {
 }
 
 func (rp *RedisPipeLine) Get(c Context, key string) *PipeLineGet {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -68,7 +64,6 @@ func (rp *RedisPipeLine) Get(c Context, key string) *PipeLineGet {
 }
 
 func (rp *RedisPipeLine) Set(c Context, key string, value interface{}, expiration time.Duration) {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -78,11 +73,6 @@ func (rp *RedisPipeLine) Set(c Context, key string, value interface{}, expiratio
 }
 
 func (rp *RedisPipeLine) MSet(c Context, pairs ...interface{}) {
-	if rp.r.config.HasNamespace() {
-		for i := 0; i < len(pairs); i = i + 2 {
-			pairs[i] = rp.r.addNamespacePrefix(pairs[i].(string))
-		}
-	}
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -96,7 +86,6 @@ func (rp *RedisPipeLine) MSet(c Context, pairs ...interface{}) {
 }
 
 func (rp *RedisPipeLine) Expire(c Context, key string, expiration time.Duration) *PipeLineBool {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -106,7 +95,6 @@ func (rp *RedisPipeLine) Expire(c Context, key string, expiration time.Duration)
 }
 
 func (rp *RedisPipeLine) HIncrBy(c Context, key, field string, incr int64) *PipeLineInt {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -116,7 +104,6 @@ func (rp *RedisPipeLine) HIncrBy(c Context, key, field string, incr int64) *Pipe
 }
 
 func (rp *RedisPipeLine) HSet(c Context, key string, values ...interface{}) {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -129,7 +116,6 @@ func (rp *RedisPipeLine) HSet(c Context, key string, values ...interface{}) {
 }
 
 func (rp *RedisPipeLine) HDel(c Context, key string, values ...string) {
-	key = rp.r.addNamespacePrefix(key)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
@@ -140,7 +126,6 @@ func (rp *RedisPipeLine) HDel(c Context, key string, values ...string) {
 }
 
 func (rp *RedisPipeLine) XAdd(c Context, stream string, values []string) *PipeLineString {
-	stream = rp.r.addNamespacePrefix(stream)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {

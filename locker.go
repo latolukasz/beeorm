@@ -35,7 +35,6 @@ func (r *redisCache) GetLocker() *Locker {
 }
 
 func (l *Locker) Obtain(c Context, key string, ttl time.Duration, waitTimeout time.Duration) (lock *Lock, obtained bool) {
-	key = l.r.addNamespacePrefix(key)
 	if ttl == 0 {
 		panic(errors.New("ttl must be higher than zero"))
 	}

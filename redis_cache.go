@@ -88,11 +88,7 @@ type RedisCache interface {
 	FlushDB(c Context)
 	GetLocker() *Locker
 	Process(c Context, cmd redis.Cmder) error
-	HasNamespace() bool
-	GetNamespace() string
 	GetCode() string
-	RemoveNamespacePrefix(key string) string
-	AddNamespacePrefix(key string) string
 }
 
 type redisCache struct {
@@ -136,7 +132,6 @@ func (r *redisCache) GetPoolConfig() RedisPoolConfig {
 func (r *redisCache) Get(c Context, key string) (value string, has bool) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
-	key = r.addNamespacePrefix(key)
 	val, err := r.client.Get(c.Ctx(), key).Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -204,7 +199,6 @@ func (r *redisCache) ScriptLoad(c Context, script string) string {
 }
 
 func (r *redisCache) Set(c Context, key string, value interface{}, expiration time.Duration) {
-	key = r.addNamespacePrefix(key)
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.Set(c.Ctx(), key, value, expiration).Result()
@@ -217,7 +211,6 @@ func (r *redisCache) Set(c Context, key string, value interface{}, expiration ti
 
 func (r *redisCache) SetNX(c Context, key string, value interface{}, expiration time.Duration) bool {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	isSet, err := r.client.SetNX(c.Ctx(), key, value, expiration).Result()
 	if hasLogger {
@@ -230,7 +223,6 @@ func (r *redisCache) SetNX(c Context, key string, value interface{}, expiration 
 
 func (r *redisCache) LPush(c Context, key string, values ...interface{}) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.LPush(c.Ctx(), key, values...).Result()
 	if hasLogger {
@@ -246,7 +238,6 @@ func (r *redisCache) LPush(c Context, key string, values ...interface{}) int64 {
 
 func (r *redisCache) RPush(c Context, key string, values ...interface{}) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.RPush(c.Ctx(), key, values...).Result()
 	if hasLogger {
@@ -262,7 +253,6 @@ func (r *redisCache) RPush(c Context, key string, values ...interface{}) int64 {
 
 func (r *redisCache) LLen(c Context, key string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.LLen(c.Ctx(), key).Result()
 	if hasLogger {
@@ -274,11 +264,6 @@ func (r *redisCache) LLen(c Context, key string) int64 {
 
 func (r *redisCache) Exists(c Context, keys ...string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		for i, key := range keys {
-			keys[i] = r.addNamespacePrefix(key)
-		}
-	}
 	start := getNow(hasLogger)
 	val, err := r.client.Exists(c.Ctx(), keys...).Result()
 	if hasLogger {
@@ -290,7 +275,6 @@ func (r *redisCache) Exists(c Context, keys ...string) int64 {
 
 func (r *redisCache) Type(c Context, key string) string {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.Type(c.Ctx(), key).Result()
 	if hasLogger {
@@ -302,7 +286,6 @@ func (r *redisCache) Type(c Context, key string) string {
 
 func (r *redisCache) LRange(c Context, key string, start, stop int64) []string {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	s := getNow(hasLogger)
 	val, err := r.client.LRange(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
@@ -315,7 +298,6 @@ func (r *redisCache) LRange(c Context, key string, start, stop int64) []string {
 
 func (r *redisCache) LSet(c Context, key string, index int64, value interface{}) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	_, err := r.client.LSet(c.Ctx(), key, index, value).Result()
 	if hasLogger {
@@ -327,7 +309,6 @@ func (r *redisCache) LSet(c Context, key string, index int64, value interface{})
 
 func (r *redisCache) RPop(c Context, key string) (value string, found bool) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.RPop(c.Ctx(), key).Result()
 	if err != nil {
@@ -348,7 +329,6 @@ func (r *redisCache) RPop(c Context, key string) (value string, found bool) {
 
 func (r *redisCache) LRem(c Context, key string, count int64, value interface{}) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	_, err := r.client.LRem(c.Ctx(), key, count, value).Result()
 	if hasLogger {
@@ -360,7 +340,6 @@ func (r *redisCache) LRem(c Context, key string, count int64, value interface{})
 
 func (r *redisCache) Ltrim(c Context, key string, start, stop int64) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	s := getNow(hasLogger)
 	_, err := r.client.LTrim(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
@@ -372,7 +351,6 @@ func (r *redisCache) Ltrim(c Context, key string, start, stop int64) {
 
 func (r *redisCache) HSet(c Context, key string, values ...interface{}) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	_, err := r.client.HSet(c.Ctx(), key, values...).Result()
 	if hasLogger {
@@ -387,7 +365,6 @@ func (r *redisCache) HSet(c Context, key string, values ...interface{}) {
 
 func (r *redisCache) HSetNx(c Context, key, field string, value interface{}) bool {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	res, err := r.client.HSetNX(c.Ctx(), key, field, value).Result()
 	if hasLogger {
@@ -400,7 +377,6 @@ func (r *redisCache) HSetNx(c Context, key, field string, value interface{}) boo
 
 func (r *redisCache) HDel(c Context, key string, fields ...string) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	_, err := r.client.HDel(c.Ctx(), key, fields...).Result()
 	if hasLogger {
@@ -412,7 +388,6 @@ func (r *redisCache) HDel(c Context, key string, fields ...string) {
 
 func (r *redisCache) hDelUints(c Context, key string, fields ...uint64) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	args := make([]interface{}, 2+len(fields))
 	args[0] = "hdel"
@@ -431,7 +406,6 @@ func (r *redisCache) hDelUints(c Context, key string, fields ...uint64) {
 
 func (r *redisCache) HMGet(c Context, key string, fields ...string) map[string]interface{} {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.HMGet(c.Ctx(), key, fields...).Result()
 	results := make(map[string]interface{}, len(fields))
@@ -452,7 +426,6 @@ func (r *redisCache) HMGet(c Context, key string, fields ...string) map[string]i
 
 func (r *redisCache) hMGetUints(c Context, key string, fields ...uint64) []interface{} {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 
 	args := make([]interface{}, 2+len(fields))
@@ -491,7 +464,6 @@ func (r *redisCache) hMGetUints(c Context, key string, fields ...uint64) []inter
 
 func (r *redisCache) HGetAll(c Context, key string) map[string]string {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.HGetAll(c.Ctx(), key).Result()
 	if hasLogger {
@@ -503,7 +475,6 @@ func (r *redisCache) HGetAll(c Context, key string) map[string]string {
 
 func (r *redisCache) HGet(c Context, key, field string) (value string, has bool) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	misses := false
 	start := getNow(hasLogger)
 	val, err := r.client.HGet(c.Ctx(), key, field).Result()
@@ -520,7 +491,6 @@ func (r *redisCache) HGet(c Context, key, field string) (value string, has bool)
 
 func (r *redisCache) HLen(c Context, key string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.HLen(c.Ctx(), key).Result()
 	if hasLogger {
@@ -532,7 +502,6 @@ func (r *redisCache) HLen(c Context, key string) int64 {
 
 func (r *redisCache) HIncrBy(c Context, key, field string, incr int64) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.HIncrBy(c.Ctx(), key, field, incr).Result()
 	if hasLogger {
@@ -545,7 +514,6 @@ func (r *redisCache) HIncrBy(c Context, key, field string, incr int64) int64 {
 
 func (r *redisCache) IncrBy(c Context, key string, incr int64) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.IncrBy(c.Ctx(), key, incr).Result()
 	if hasLogger {
@@ -558,7 +526,6 @@ func (r *redisCache) IncrBy(c Context, key string, incr int64) int64 {
 
 func (r *redisCache) Incr(c Context, key string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.Incr(c.Ctx(), key).Result()
 	if hasLogger {
@@ -570,7 +537,6 @@ func (r *redisCache) Incr(c Context, key string) int64 {
 
 func (r *redisCache) IncrWithExpire(c Context, key string, expire time.Duration) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	p := r.client.Pipeline()
 	res := p.Incr(c.Ctx(), key)
@@ -587,7 +553,6 @@ func (r *redisCache) IncrWithExpire(c Context, key string, expire time.Duration)
 
 func (r *redisCache) Expire(c Context, key string, expiration time.Duration) bool {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.Expire(c.Ctx(), key, expiration).Result()
 	if hasLogger {
@@ -600,7 +565,6 @@ func (r *redisCache) Expire(c Context, key string, expiration time.Duration) boo
 
 func (r *redisCache) ZAdd(c Context, key string, members ...redis.Z) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.ZAdd(c.Ctx(), key, members...).Result()
 	if hasLogger {
@@ -616,7 +580,6 @@ func (r *redisCache) ZAdd(c Context, key string, members ...redis.Z) int64 {
 
 func (r *redisCache) ZRevRange(c Context, key string, start, stop int64) []string {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	startTime := getNow(hasLogger)
 	val, err := r.client.ZRevRange(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
@@ -629,7 +592,6 @@ func (r *redisCache) ZRevRange(c Context, key string, start, stop int64) []strin
 
 func (r *redisCache) ZRevRangeWithScores(c Context, key string, start, stop int64) []redis.Z {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	startTime := getNow(hasLogger)
 	val, err := r.client.ZRevRangeWithScores(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
@@ -642,7 +604,6 @@ func (r *redisCache) ZRevRangeWithScores(c Context, key string, start, stop int6
 
 func (r *redisCache) ZRangeWithScores(c Context, key string, start, stop int64) []redis.Z {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	startTime := getNow(hasLogger)
 	val, err := r.client.ZRangeWithScores(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
@@ -655,7 +616,6 @@ func (r *redisCache) ZRangeWithScores(c Context, key string, start, stop int64) 
 
 func (r *redisCache) ZCard(c Context, key string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.ZCard(c.Ctx(), key).Result()
 	if hasLogger {
@@ -667,7 +627,6 @@ func (r *redisCache) ZCard(c Context, key string) int64 {
 
 func (r *redisCache) ZCount(c Context, key string, min, max string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.ZCount(c.Ctx(), key, min, max).Result()
 	if hasLogger {
@@ -680,7 +639,6 @@ func (r *redisCache) ZCount(c Context, key string, min, max string) int64 {
 
 func (r *redisCache) ZScore(c Context, key, member string) float64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.ZScore(c.Ctx(), key, member).Result()
 	if hasLogger {
@@ -693,11 +651,6 @@ func (r *redisCache) ZScore(c Context, key, member string) float64 {
 
 func (r *redisCache) MSet(c Context, pairs ...interface{}) {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		for i := 0; i < len(pairs); i = i + 2 {
-			pairs[i] = r.addNamespacePrefix(pairs[i].(string))
-		}
-	}
 	start := getNow(hasLogger)
 	_, err := r.client.MSet(c.Ctx(), pairs...).Result()
 	if hasLogger {
@@ -712,13 +665,6 @@ func (r *redisCache) MSet(c Context, pairs ...interface{}) {
 
 func (r *redisCache) MGet(c Context, keys ...string) []interface{} {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		newKeys := make([]string, len(keys))
-		for i, key := range keys {
-			newKeys[i] = r.addNamespacePrefix(key)
-		}
-		keys = newKeys
-	}
 	start := getNow(hasLogger)
 	val, err := r.client.MGet(c.Ctx(), keys...).Result()
 	results := make([]interface{}, len(keys))
@@ -738,7 +684,6 @@ func (r *redisCache) MGet(c Context, keys ...string) []interface{} {
 
 func (r *redisCache) SAdd(c Context, key string, members ...interface{}) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.SAdd(c.Ctx(), key, members...).Result()
 	if hasLogger {
@@ -754,7 +699,6 @@ func (r *redisCache) SAdd(c Context, key string, members ...interface{}) int64 {
 
 func (r *redisCache) SCard(c Context, key string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.SCard(c.Ctx(), key).Result()
 	if hasLogger {
@@ -766,7 +710,6 @@ func (r *redisCache) SCard(c Context, key string) int64 {
 
 func (r *redisCache) SPop(c Context, key string) (string, bool) {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.SPop(c.Ctx(), key).Result()
 	found := true
@@ -783,7 +726,6 @@ func (r *redisCache) SPop(c Context, key string) (string, bool) {
 
 func (r *redisCache) SPopN(c Context, key string, max int64) []string {
 	hasLogger, _ := c.getRedisLoggers()
-	key = r.addNamespacePrefix(key)
 	start := getNow(hasLogger)
 	val, err := r.client.SPopN(c.Ctx(), key, max).Result()
 	if hasLogger {
@@ -796,11 +738,6 @@ func (r *redisCache) SPopN(c Context, key string, max int64) []string {
 
 func (r *redisCache) Del(c Context, keys ...string) {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		for i, key := range keys {
-			keys[i] = r.addNamespacePrefix(key)
-		}
-	}
 	start := getNow(hasLogger)
 	_, err := r.client.Del(c.Ctx(), keys...).Result()
 	if hasLogger {
@@ -811,7 +748,6 @@ func (r *redisCache) Del(c Context, keys ...string) {
 
 func (r *redisCache) XTrim(c Context, stream string, maxLen int64) (deleted int64) {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	start := getNow(hasLogger)
 	var err error
 	deleted, err = r.client.XTrimMaxLen(c.Ctx(), stream, maxLen).Result()
@@ -825,7 +761,6 @@ func (r *redisCache) XTrim(c Context, stream string, maxLen int64) (deleted int6
 
 func (r *redisCache) XRange(c Context, stream, start, stop string, count int64) []redis.XMessage {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	s := getNow(hasLogger)
 	deleted, err := r.client.XRangeN(c.Ctx(), stream, start, stop, count).Result()
 	if hasLogger {
@@ -838,7 +773,6 @@ func (r *redisCache) XRange(c Context, stream, start, stop string, count int64) 
 
 func (r *redisCache) XRevRange(c Context, stream, start, stop string, count int64) []redis.XMessage {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	s := getNow(hasLogger)
 	deleted, err := r.client.XRevRangeN(c.Ctx(), stream, start, stop, count).Result()
 	if hasLogger {
@@ -851,7 +785,6 @@ func (r *redisCache) XRevRange(c Context, stream, start, stop string, count int6
 
 func (r *redisCache) XInfoStream(c Context, stream string) *redis.XInfoStream {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	start := getNow(hasLogger)
 	info, err := r.client.XInfoStream(c.Ctx(), stream).Result()
 	if hasLogger {
@@ -863,7 +796,6 @@ func (r *redisCache) XInfoStream(c Context, stream string) *redis.XInfoStream {
 
 func (r *redisCache) XInfoGroups(c Context, stream string) []redis.XInfoGroup {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	start := getNow(hasLogger)
 	info, err := r.client.XInfoGroups(c.Ctx(), stream).Result()
 	if err == redis.Nil {
@@ -879,18 +811,11 @@ func (r *redisCache) XInfoGroups(c Context, stream string) []redis.XInfoGroup {
 		r.fillLogFields(c, "XINFOGROUPS", "XINFOGROUPS "+stream, start, false, err)
 	}
 	checkError(err)
-	if r.config.HasNamespace() {
-		for i := range info {
-			info[i].Name = r.removeNamespacePrefix(info[i].Name)
-		}
-	}
 	return info
 }
 
 func (r *redisCache) XGroupCreate(c Context, stream, group, start string) (key string, exists bool) {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	s := getNow(hasLogger)
 	res, err := r.client.XGroupCreate(c.Ctx(), stream, group, start).Result()
 	if err != nil && strings.HasPrefix(err.Error(), "BUSYGROUP") {
@@ -910,8 +835,6 @@ func (r *redisCache) XGroupCreate(c Context, stream, group, start string) (key s
 
 func (r *redisCache) XGroupCreateMkStream(c Context, stream, group, start string) (key string, exists bool) {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	s := getNow(hasLogger)
 	res, err := r.client.XGroupCreateMkStream(c.Ctx(), stream, group, start).Result()
 	created := false
@@ -930,8 +853,6 @@ func (r *redisCache) XGroupCreateMkStream(c Context, stream, group, start string
 
 func (r *redisCache) XGroupDestroy(c Context, stream, group string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	start := getNow(hasLogger)
 	res, err := r.client.XGroupDestroy(c.Ctx(), stream, group).Result()
 	if hasLogger {
@@ -944,11 +865,6 @@ func (r *redisCache) XGroupDestroy(c Context, stream, group string) int64 {
 
 func (r *redisCache) XRead(c Context, a *redis.XReadArgs) []redis.XStream {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		for i, stream := range a.Streams {
-			a.Streams[i] = r.addNamespacePrefix(stream)
-		}
-	}
 	start := getNow(hasLogger)
 	info, err := r.client.XRead(c.Ctx(), a).Result()
 	if hasLogger {
@@ -961,7 +877,6 @@ func (r *redisCache) XRead(c Context, a *redis.XReadArgs) []redis.XStream {
 
 func (r *redisCache) XDel(c Context, stream string, ids ...string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	start := getNow(hasLogger)
 	deleted, err := r.client.XDel(c.Ctx(), stream, ids...).Result()
 	if hasLogger {
@@ -973,8 +888,6 @@ func (r *redisCache) XDel(c Context, stream string, ids ...string) int64 {
 
 func (r *redisCache) XGroupDelConsumer(c Context, stream, group, consumer string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	start := getNow(hasLogger)
 	deleted, err := r.client.XGroupDelConsumer(c.Ctx(), stream, group, consumer).Result()
 	if hasLogger {
@@ -987,14 +900,6 @@ func (r *redisCache) XGroupDelConsumer(c Context, stream, group, consumer string
 
 func (r *redisCache) XReadGroup(c Context, a *redis.XReadGroupArgs) (streams []redis.XStream) {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		if a.Group != "" {
-			a.Group = r.addNamespacePrefix(a.Group)
-		}
-		for i := 0; i < len(a.Streams)/2; i++ {
-			a.Streams[i] = r.addNamespacePrefix(a.Streams[i])
-		}
-	}
 	start := getNow(hasLogger)
 	if hasLogger && a.Block >= 0 {
 		message := fmt.Sprintf("XREADGROUP %s %s STREAMS %s", a.Group, a.Consumer, strings.Join(a.Streams, " "))
@@ -1031,18 +936,11 @@ func (r *redisCache) XReadGroup(c Context, a *redis.XReadGroupArgs) (streams []r
 		err = nil
 	}
 	checkError(err)
-	if r.config.HasNamespace() {
-		for i := range streams {
-			streams[i].Stream = r.removeNamespacePrefix(streams[i].Stream)
-		}
-	}
 	return streams
 }
 
 func (r *redisCache) XPending(c Context, stream, group string) *redis.XPending {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	start := getNow(hasLogger)
 	res, err := r.client.XPending(c.Ctx(), stream, group).Result()
 	if hasLogger {
@@ -1055,14 +953,6 @@ func (r *redisCache) XPending(c Context, stream, group string) *redis.XPending {
 
 func (r *redisCache) XPendingExt(c Context, a *redis.XPendingExtArgs) []redis.XPendingExt {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		if a.Group != "" {
-			a.Group = r.addNamespacePrefix(a.Group)
-		}
-		if a.Stream != "" {
-			a.Stream = r.addNamespacePrefix(a.Stream)
-		}
-	}
 	start := getNow(hasLogger)
 	res, err := r.client.XPendingExt(c.Ctx(), a).Result()
 	if hasLogger {
@@ -1076,7 +966,6 @@ func (r *redisCache) XPendingExt(c Context, a *redis.XPendingExtArgs) []redis.XP
 
 func (r *redisCache) xAdd(c Context, stream string, values []string) (id string) {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	a := &redis.XAddArgs{Stream: stream, ID: "*", Values: values}
 	start := getNow(hasLogger)
 	id, err := r.client.XAdd(c.Ctx(), a).Result()
@@ -1090,7 +979,6 @@ func (r *redisCache) xAdd(c Context, stream string, values []string) (id string)
 
 func (r *redisCache) XLen(c Context, stream string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
 	start := getNow(hasLogger)
 	l, err := r.client.XLen(c.Ctx(), stream).Result()
 	if hasLogger {
@@ -1102,10 +990,6 @@ func (r *redisCache) XLen(c Context, stream string) int64 {
 
 func (r *redisCache) XClaim(c Context, a *redis.XClaimArgs) []redis.XMessage {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		a.Stream = r.addNamespacePrefix(a.Stream)
-		a.Group = r.addNamespacePrefix(a.Group)
-	}
 	start := getNow(hasLogger)
 	res, err := r.client.XClaim(c.Ctx(), a).Result()
 	if hasLogger {
@@ -1119,10 +1003,6 @@ func (r *redisCache) XClaim(c Context, a *redis.XClaimArgs) []redis.XMessage {
 
 func (r *redisCache) XClaimJustID(c Context, a *redis.XClaimArgs) []string {
 	hasLogger, _ := c.getRedisLoggers()
-	if r.config.HasNamespace() {
-		a.Stream = r.addNamespacePrefix(a.Stream)
-		a.Group = r.addNamespacePrefix(a.Group)
-	}
 	start := getNow(hasLogger)
 	res, err := r.client.XClaimJustID(c.Ctx(), a).Result()
 	if hasLogger {
@@ -1137,8 +1017,6 @@ func (r *redisCache) XClaimJustID(c Context, a *redis.XClaimArgs) []string {
 
 func (r *redisCache) XAck(c Context, stream, group string, ids ...string) int64 {
 	hasLogger, _ := c.getRedisLoggers()
-	stream = r.addNamespacePrefix(stream)
-	group = r.addNamespacePrefix(group)
 	start := getNow(hasLogger)
 	res, err := r.client.XAck(c.Ctx(), stream, group, ids...).Result()
 	if hasLogger {
@@ -1162,15 +1040,6 @@ func (r *redisCache) FlushAll(c Context) {
 func (r *redisCache) FlushDB(c Context) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
-	if r.config.HasNamespace() {
-		script := "for _,k in ipairs(redis.call('keys','" + r.config.GetNamespace() + ":*')) do redis.call('del',k) end return 1"
-		_, err := r.client.Eval(c.Ctx(), script, nil).Result()
-		if hasLogger {
-			r.fillLogFields(c, "FLUSHDB EVAL", "EVAL REMOVE KEYS WITH PREFIX "+r.config.GetNamespace(), start, false, err)
-		}
-		checkError(err)
-		return
-	}
 	_, err := r.client.FlushDB(c.Ctx()).Result()
 	if hasLogger {
 		r.fillLogFields(c, "FLUSHDB", "FLUSHDB", start, false, err)
@@ -1182,42 +1051,11 @@ func (r *redisCache) Process(c Context, cmd redis.Cmder) error {
 	return r.client.Process(c.Ctx(), cmd)
 }
 
-func (r *redisCache) HasNamespace() bool {
-	return r.config.HasNamespace()
-}
-
-func (r *redisCache) GetNamespace() string {
-	return r.config.GetNamespace()
-}
-
 func (r *redisCache) GetCode() string {
 	return r.config.GetCode()
-}
-
-func (r *redisCache) RemoveNamespacePrefix(key string) string {
-	return r.removeNamespacePrefix(key)
-}
-
-func (r *redisCache) AddNamespacePrefix(key string) string {
-	return r.addNamespacePrefix(key)
 }
 
 func (r *redisCache) fillLogFields(c Context, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	_, loggers := c.getRedisLoggers()
 	fillLogFields(c, loggers, r.config.GetCode(), sourceRedis, operation, query, start, cacheMiss, err)
-}
-
-func (r *redisCache) addNamespacePrefix(key string) string {
-	if r.config.HasNamespace() {
-		return r.config.GetNamespace() + ":" + key
-	}
-	return key
-}
-
-func (r *redisCache) removeNamespacePrefix(key string) string {
-	if !r.config.HasNamespace() {
-		return key
-	}
-	prefixLen := len(r.config.GetNamespace()) + 1
-	return key[prefixLen:]
 }
