@@ -9,12 +9,6 @@ type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
 
-type flushData struct {
-	SQL    string
-	Args   []interface{}
-	Schema EntitySchema
-}
-
 func (c *contextImplementation) Flush() error {
 	return c.flush(false)
 }
@@ -32,21 +26,21 @@ func (c *contextImplementation) flush(lazy bool) error {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.handleDeletes(schema, deletes)
+				err := c.handleDeletes(lazy, schema, deletes)
 				if err != nil {
 					return err
 				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				err := c.handleInserts(schema, inserts)
+				err := c.handleInserts(lazy, schema, inserts)
 				if err != nil {
 					return err
 				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				err := c.handleUpdates(schema, updates)
+				err := c.handleUpdates(lazy, schema, updates)
 				if err != nil {
 					return err
 				}
@@ -70,17 +64,14 @@ func (c *contextImplementation) flush(lazy bool) error {
 					d = tx
 				}
 				for _, action := range actions {
-					d.Exec(c, action.SQL, action.Args...)
+					action(d)
 				}
 			}
 			for _, tx := range transactions {
 				tx.Commit(c)
 			}
 		}()
-	} else {
-		// TODO lazy
 	}
-
 	for _, action := range c.flushPostActions {
 		action()
 	}
@@ -98,7 +89,7 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) handleDeletes(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleDeletes(lazy bool, schema EntitySchema, operations []EntityFlush) error {
 	args := make([]interface{}, len(operations))
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
@@ -110,7 +101,9 @@ func (c *contextImplementation) handleDeletes(schema EntitySchema, operations []
 		args[i] = operation.ID()
 	}
 	sql := s.String()
-	c.appendDBAction(schema, sql, args)
+	c.appendDBAction(schema, func(db db) {
+		db.Exec(c, sql, args...)
+	})
 	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()
@@ -145,7 +138,7 @@ func (c *contextImplementation) handleDeletes(schema EntitySchema, operations []
 	return nil
 }
 
-func (c *contextImplementation) handleInserts(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
@@ -214,11 +207,13 @@ func (c *contextImplementation) handleInserts(schema EntitySchema, operations []
 		}
 	}
 	sql := s.String()
-	c.appendDBAction(schema, sql, args)
+	c.appendDBAction(schema, func(db db) {
+		db.Exec(c, sql, args...)
+	})
 	return nil
 }
 
-func (c *contextImplementation) handleUpdates(schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleUpdates(lazy bool, schema EntitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
@@ -292,7 +287,9 @@ func (c *contextImplementation) handleUpdates(schema EntitySchema, operations []
 		s.WriteString(" WHERE ID = ?")
 		args[k] = update.ID()
 		sql := s.String()
-		c.appendDBAction(schema, sql, args)
+		c.appendDBAction(schema, func(db db) {
+			db.Exec(c, sql, args...)
+		})
 
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -332,12 +329,12 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(schema EntitySchema, sql string, args []interface{}) {
+func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(db db)) {
 	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]flushData)
+		c.flushDBActions = make(map[string][]func(db db))
 	}
 	poolCode := schema.GetDB().GetPoolConfig().GetCode()
-	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], flushData{SQL: sql, Args: args, Schema: schema})
+	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)
 }
 
 func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
