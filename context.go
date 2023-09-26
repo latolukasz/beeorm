@@ -43,7 +43,8 @@ type contextImplementation struct {
 	stringBuilder          *strings.Builder
 	stringBuilder2         *strings.Builder
 	redisPipeLines         map[string]*RedisPipeLine
-	flushActions           []func()
+	flushDBActions         map[string][]func(db db)
+	flushPostActions       []func()
 	sync.Mutex
 }
 

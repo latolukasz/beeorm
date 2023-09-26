@@ -326,8 +326,9 @@ type DBTransaction interface {
 }
 
 type dbImplementation struct {
-	client sqlClient
-	config MySQLPoolConfig
+	client      sqlClient
+	config      MySQLPoolConfig
+	transaction bool
 }
 
 func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
@@ -335,9 +336,13 @@ func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
 }
 
 func (db *dbImplementation) Commit(c Context) {
+	if !db.transaction {
+		return
+	}
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.(txClient).Commit()
+	db.transaction = false
 	if hasLogger {
 		db.fillLogFields(c, "COMMIT", "", start, err)
 	}
@@ -345,9 +350,13 @@ func (db *dbImplementation) Commit(c Context) {
 }
 
 func (db *dbImplementation) Rollback(c Context) {
+	if !db.transaction {
+		return
+	}
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.(txClient).Rollback()
+	db.transaction = false
 	if hasLogger {
 		db.fillLogFields(c, "ROLLBACK", "", start, err)
 	}
@@ -362,7 +371,7 @@ func (db *dbImplementation) Begin(c Context) DBTransaction {
 		db.fillLogFields(c, "BEGIN", "", start, err)
 	}
 	checkError(err)
-	dbTX := &dbImplementation{config: db.config, client: &txSQLClient{standardSQLClient{db: tx}, tx}}
+	dbTX := &dbImplementation{config: db.config, client: &txSQLClient{standardSQLClient{db: tx}, tx}, transaction: true}
 	return dbTX
 }
 
