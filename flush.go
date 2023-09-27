@@ -116,7 +116,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		})
 	} else {
 		data := `["` + sql + `"]"`
-		c.RedisPipeLine(schema.getLazyRedisCode()).LPush(c, schema.lazyCacheKey, data)
+		c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, data)
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()

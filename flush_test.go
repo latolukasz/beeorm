@@ -538,6 +538,12 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	c.EnableQueryDebug()
 	err = c.Flush(lazy)
 	assert.NoError(t, err)
+
+	if lazy {
+		err = ConsumeLazyFlushEvents(c, false)
+		assert.NoError(t, err)
+	}
+
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 	id := entity.GetID()

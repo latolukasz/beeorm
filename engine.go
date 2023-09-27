@@ -8,15 +8,8 @@ import (
 
 const DefaultPoolCode = "default"
 
-type RedisStream struct {
-	Name      string
-	Pool      string
-	Consumers []string
-}
-
 type EngineRegistry interface {
 	EntitySchema(entity any) EntitySchema
-	RedisStreams() []RedisStream
 	DBPools() map[string]DB
 	LocalCachePools() map[string]LocalCache
 	RedisPools() map[string]RedisCache
@@ -26,8 +19,6 @@ type EngineRegistry interface {
 	DefaultDBCollate() string
 	DefaultDBEncoding() string
 	getDefaultQueryLogger() LogHandler
-	getRedisStreamsForGroup(group string) []string
-	getRedisPoolForStream(stream string) string
 	getDBTables() map[string]map[string]bool
 }
 
@@ -46,8 +37,6 @@ type engineRegistryImplementation struct {
 	entitySchemas      map[reflect.Type]*entitySchema
 	plugins            []Plugin
 	defaultQueryLogger *defaultLogLogger
-	redisStreamGroups  map[string]map[string]map[string]bool
-	redisStreamPools   map[string]string
 	defaultDBEncoding  string
 	defaultDBCollate   string
 	dbTables           map[string]map[string]bool
@@ -129,39 +118,8 @@ func (er *engineRegistryImplementation) Plugin(code string) Plugin {
 	return nil
 }
 
-func (er *engineRegistryImplementation) RedisStreams() []RedisStream {
-	res := make([]RedisStream, 0)
-	for redisPool, row := range er.redisStreamGroups {
-		for stream, groups := range row {
-			redisStream := RedisStream{Name: stream, Pool: redisPool, Consumers: []string{}}
-			for group := range groups {
-				redisStream.Consumers = append(redisStream.Consumers, group)
-			}
-			res = append(res, redisStream)
-		}
-	}
-	return res
-}
-
-func (er *engineRegistryImplementation) getRedisStreamsForGroup(group string) []string {
-	streams := make([]string, 0)
-	for _, row := range er.redisStreamGroups {
-		for stream, groups := range row {
-			_, has := groups[group]
-			if has {
-				streams = append(streams, stream)
-			}
-		}
-	}
-	return streams
-}
-
 func (er *engineRegistryImplementation) getDBTables() map[string]map[string]bool {
 	return er.dbTables
-}
-
-func (er *engineRegistryImplementation) getRedisPoolForStream(stream string) string {
-	return er.redisStreamPools[stream]
 }
 
 func (er *engineRegistryImplementation) Entities() map[string]reflect.Type {
