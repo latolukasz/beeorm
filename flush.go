@@ -90,20 +90,43 @@ func (c *contextImplementation) ClearFlush() {
 }
 
 func (c *contextImplementation) handleDeletes(lazy bool, schema EntitySchema, operations []EntityFlush) error {
-	args := make([]interface{}, len(operations))
+	var args []interface{}
+	if !lazy {
+		args = make([]interface{}, len(operations))
+	}
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
 	s.WriteString(schema.GetTableName())
-	s.WriteString("` WHERE ID IN (?")
-	s.WriteString(strings.Repeat(",?", len(operations)-1))
-	s.WriteString(")")
-	for i, operation := range operations {
-		args[i] = operation.ID()
+	s.WriteString("` WHERE ID IN (")
+	if lazy {
+		for i, operation := range operations {
+			if i > 0 {
+				s.WriteString(",")
+			}
+			s.WriteString(strconv.FormatUint(operation.ID(), 10))
+		}
+	} else {
+		s.WriteString("?")
+		s.WriteString(strings.Repeat(",?", len(operations)-1))
 	}
+	s.WriteString(")")
 	sql := s.String()
-	c.appendDBAction(schema, func(db db) {
-		db.Exec(c, sql, args...)
-	})
+	if !lazy {
+		for i, operation := range operations {
+			args[i] = operation.ID()
+		}
+		c.appendDBAction(schema, func(db db) {
+			db.Exec(c, sql, args...)
+		})
+	} else {
+		data := `["` + sql + `"]"`
+		rc, has := schema.GetRedisCache()
+		if !has {
+			rc = c.Engine().Redis(DefaultPoolCode)
+		}
+		c.RedisPipeLine(rc.GetCode()).LPush(c, schema.GetCacheKey()+":lazy", data)
+	}
+
 	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()

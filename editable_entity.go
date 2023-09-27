@@ -12,12 +12,9 @@ const (
 	Delete
 )
 
-type Meta map[string]string
-
 type EntityFlush interface {
 	ID() uint64
 	Schema() *entitySchema
-	GetMetaData() Meta
 	flushType() FlushType
 }
 
@@ -41,16 +38,8 @@ type entityFlushUpdate interface {
 
 type EntityFlushedEvent interface {
 	FlushType() FlushType
-	GetMetaData() Meta
 }
-
-func (m Meta) Get(key string) string {
-	return m[key]
-}
-
 type writableEntityInterface[E Entity] interface {
-	SetMetaData(key, value string)
-	GetMetaData() Meta
 }
 
 type InsertableEntity[E Entity] interface {
@@ -74,27 +63,10 @@ type EditableEntity[E Entity] interface {
 type writableEntity[E Entity] struct {
 	c      Context
 	schema *entitySchema
-	meta   Meta
-}
-
-func (w *writableEntity[E]) SetMetaData(key, value string) {
-	if w.meta == nil {
-		if value != "" {
-			w.meta = Meta{key: value}
-		}
-	} else if value == "" {
-		delete(w.meta, key)
-	} else {
-		w.meta[key] = value
-	}
 }
 
 func (w *writableEntity[E]) Schema() *entitySchema {
 	return w.schema
-}
-
-func (w *writableEntity[E]) GetMetaData() Meta {
-	return w.meta
 }
 
 type insertableEntity[E Entity] struct {
