@@ -9,12 +9,8 @@ type entitySqlOperations map[FlushType][]EntityFlush
 type schemaSqlOperations map[EntitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
 
-func (c *contextImplementation) Flush() error {
-	return c.flush(false)
-}
-
-func (c *contextImplementation) FlushLazy() error {
-	return c.flush(true)
+func (c *contextImplementation) Flush(lazy bool) error {
+	return c.flush(lazy)
 }
 
 func (c *contextImplementation) flush(lazy bool) error {

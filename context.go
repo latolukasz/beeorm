@@ -6,12 +6,17 @@ import (
 	"sync"
 )
 
+type Meta map[string]string
+
+func (m Meta) Get(key string) string {
+	return m[key]
+}
+
 type Context interface {
 	Ctx() context.Context
 	Clone() Context
 	Engine() Engine
-	Flush() error
-	FlushLazy() error
+	Flush(lazy bool) error
 	ClearFlush()
 	RedisPipeLine(pool string) *RedisPipeLine
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
