@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +20,7 @@ func (rp *RedisPipeLine) LPush(c Context, key string, values ...interface{}) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "LPUSH")
+		rp.log = append(rp.log, fmt.Sprintf("LPUSH %s %v", key, values))
 	}
 	rp.pipeLine.LPush(c.Ctx(), key, values...)
 }
@@ -30,7 +29,7 @@ func (rp *RedisPipeLine) RPush(c Context, key string, values ...interface{}) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "RPUSH")
+		rp.log = append(rp.log, fmt.Sprintf("RPUSH %s %v", key, values))
 	}
 	rp.pipeLine.RPush(c.Ctx(), key, values...)
 }
@@ -48,8 +47,7 @@ func (rp *RedisPipeLine) Del(c Context, key ...string) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "DEL")
-		rp.log = append(rp.log, key...)
+		rp.log = append(rp.log, "DEL "+strings.Join(key, " "))
 	}
 	rp.pipeLine.Del(c.Ctx(), key...)
 }
@@ -58,7 +56,7 @@ func (rp *RedisPipeLine) Get(c Context, key string) *PipeLineGet {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "GET", key)
+		rp.log = append(rp.log, "GET "+key)
 	}
 	return &PipeLineGet{p: rp, cmd: rp.pipeLine.Get(c.Ctx(), key)}
 }
@@ -67,7 +65,7 @@ func (rp *RedisPipeLine) Set(c Context, key string, value interface{}, expiratio
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "SET", key, expiration.String())
+		rp.log = append(rp.log, fmt.Sprintf("SET %s %v %s", key, value, expiration.String()))
 	}
 	rp.pipeLine.Set(c.Ctx(), key, value, expiration)
 }
@@ -80,7 +78,7 @@ func (rp *RedisPipeLine) MSet(c Context, pairs ...interface{}) {
 		for _, v := range pairs {
 			message += fmt.Sprintf(" %v", v)
 		}
-		rp.log = append(rp.log, "MSET", message)
+		rp.log = append(rp.log, "MSET "+message)
 	}
 	rp.pipeLine.MSet(c.Ctx(), pairs...)
 }
@@ -89,7 +87,7 @@ func (rp *RedisPipeLine) Expire(c Context, key string, expiration time.Duration)
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "EXPIRE", key, expiration.String())
+		rp.log = append(rp.log, fmt.Sprintf("EXPIRE %s %s", key, expiration.String()))
 	}
 	return &PipeLineBool{p: rp, cmd: rp.pipeLine.Expire(c.Ctx(), key, expiration)}
 }
@@ -98,7 +96,7 @@ func (rp *RedisPipeLine) HIncrBy(c Context, key, field string, incr int64) *Pipe
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "HINCRBY", key, field, strconv.Itoa(int(incr)))
+		rp.log = append(rp.log, fmt.Sprintf("HINCRBY %s %s %d", key, field, incr))
 	}
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(c.Ctx(), key, field, incr)}
 }
@@ -107,7 +105,7 @@ func (rp *RedisPipeLine) HSet(c Context, key string, values ...interface{}) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "HSET", key)
+		rp.log = append(rp.log, fmt.Sprintf("HSET, %s %v", key, values))
 		for _, v := range values {
 			rp.log = append(rp.log, fmt.Sprintf("%v", v))
 		}
@@ -119,8 +117,7 @@ func (rp *RedisPipeLine) HDel(c Context, key string, values ...string) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "HDEL", key)
-		rp.log = append(rp.log, values...)
+		rp.log = append(rp.log, fmt.Sprintf("HDEL %s %s", key, strings.Join(values, " ")))
 	}
 	rp.pipeLine.HDel(c.Ctx(), key, values...)
 }
@@ -129,8 +126,7 @@ func (rp *RedisPipeLine) XAdd(c Context, stream string, values []string) *PipeLi
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, "XADD", stream)
-		rp.log = append(rp.log, values...)
+		rp.log = append(rp.log, fmt.Sprintf("XADD %s %s", stream, strings.Join(values, " ")))
 	}
 	return &PipeLineString{p: rp, cmd: rp.pipeLine.XAdd(c.Ctx(), &redis.XAddArgs{Stream: stream, Values: values})}
 }
@@ -147,7 +143,7 @@ func (rp *RedisPipeLine) Exec(c Context) {
 		err = nil
 	}
 	if hasLog {
-		query := strings.Join(rp.log, " ")
+		query := strings.Join(rp.log, "\n\u001B[38;2;255;255;155m")
 		fillLogFields(c, loggers, rp.pool, sourceRedis, "PIPELINE EXEC", query, start, false, err)
 	}
 	rp.log = nil

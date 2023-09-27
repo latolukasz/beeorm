@@ -61,6 +61,7 @@ type EntitySchema interface {
 	getStructureHash() string
 	getTags() map[string]map[string]string
 	uuid() uint64
+	getLazyRedisCode() string
 }
 
 type SettableEntitySchema interface {
@@ -91,6 +92,7 @@ type entitySchema struct {
 	redisCache                 *redisCache
 	searchCacheName            string
 	cacheKey                   string
+	lazyCacheKey               string
 	structureHash              string
 	skipLogs                   []string
 	mapBindToScanPointer       mapBindToScanPointer
@@ -405,6 +407,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.redisCacheName = redisCacheName
 	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.cacheKey = cacheKey
+	entitySchema.lazyCacheKey = cacheKey + ":lazy"
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
@@ -550,6 +553,13 @@ func (entitySchema *entitySchema) getTags() map[string]map[string]string {
 
 func (entitySchema *entitySchema) uuid() uint64 {
 	return (entitySchema.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&entitySchema.uuidCounter, 1)
+}
+
+func (entitySchema *entitySchema) getLazyRedisCode() string {
+	if entitySchema.hasRedisCache {
+		return entitySchema.redisCacheName
+	}
+	return DefaultPoolCode
 }
 
 func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {

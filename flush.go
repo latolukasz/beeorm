@@ -6,7 +6,7 @@ import (
 )
 
 type entitySqlOperations map[FlushType][]EntityFlush
-type schemaSqlOperations map[EntitySchema]entitySqlOperations
+type schemaSqlOperations map[*entitySchema]entitySqlOperations
 type sqlOperations map[DB]schemaSqlOperations
 
 func (c *contextImplementation) Flush(lazy bool) error {
@@ -85,7 +85,7 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) handleDeletes(lazy bool, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, operations []EntityFlush) error {
 	var args []interface{}
 	if !lazy {
 		args = make([]interface{}, len(operations))
@@ -116,11 +116,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema EntitySchema, op
 		})
 	} else {
 		data := `["` + sql + `"]"`
-		rc, has := schema.GetRedisCache()
-		if !has {
-			rc = c.Engine().Redis(DefaultPoolCode)
-		}
-		c.RedisPipeLine(rc.GetCode()).LPush(c, schema.GetCacheKey()+":lazy", data)
+		c.RedisPipeLine(schema.getLazyRedisCode()).LPush(c, schema.lazyCacheKey, data)
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()

@@ -126,6 +126,10 @@ func TestFlushDeleteNoCache(t *testing.T) {
 	testFlushDelete(t, false, false, false)
 }
 
+func TestFlushLazyDeleteNoCache(t *testing.T) {
+	testFlushDelete(t, true, false, false)
+}
+
 func TestFlushDeleteRedis(t *testing.T) {
 	testFlushDelete(t, false, false, true)
 }
@@ -519,18 +523,19 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 
 	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
 	reference.Name = "test reference"
-	err := c.Flush(lazy)
+	err := c.Flush(false)
 	assert.NoError(t, err)
 
 	entity := NewEntity[*flushEntity](c).TrackedEntity()
 	entity.Name = "Test 1"
 	entity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	err = c.Flush(lazy)
+	err = c.Flush(false)
 	assert.NoError(t, err)
 
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())
 	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
+	c.EnableQueryDebug()
 	err = c.Flush(lazy)
 	assert.NoError(t, err)
 	loggerDB := &MockLogHandler{}
@@ -547,11 +552,10 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	}
 
 	// duplicated key
-
 	entity = NewEntity[*flushEntity](c).TrackedEntity()
 	entity.Name = "Test 1"
 	entity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	err = c.Flush(lazy)
+	err = c.Flush(false)
 	assert.NoError(t, err)
 }
 
