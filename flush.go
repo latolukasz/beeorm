@@ -52,7 +52,7 @@ func (c *contextImplementation) flush(lazy bool) error {
 				}
 			}()
 			for code, actions := range c.flushDBActions {
-				var d db
+				var d DBBase
 				d = c.Engine().DB(code)
 				if len(actions) > 1 || len(c.flushDBActions) > 1 {
 					tx := d.(DB).Begin(c)
@@ -111,7 +111,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		for i, operation := range operations {
 			args[i] = operation.ID()
 		}
-		c.appendDBAction(schema, func(db db) {
+		c.appendDBAction(schema, func(db DBBase) {
 			db.Exec(c, sql, args...)
 		})
 	} else {
@@ -222,7 +222,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, op
 		}
 	}
 	sql := s.String()
-	c.appendDBAction(schema, func(db db) {
+	c.appendDBAction(schema, func(db DBBase) {
 		db.Exec(c, sql, args...)
 	})
 	return nil
@@ -302,7 +302,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema EntitySchema, op
 		s.WriteString(" WHERE ID = ?")
 		args[k] = update.ID()
 		sql := s.String()
-		c.appendDBAction(schema, func(db db) {
+		c.appendDBAction(schema, func(db DBBase) {
 			db.Exec(c, sql, args...)
 		})
 
@@ -344,9 +344,9 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(db db)) {
+func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(db DBBase)) {
 	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]func(db db))
+		c.flushDBActions = make(map[string][]func(db DBBase))
 	}
 	poolCode := schema.GetDB().GetPoolConfig().GetCode()
 	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)

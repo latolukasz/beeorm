@@ -304,7 +304,7 @@ type SQLRow interface {
 	Scan(dest ...interface{}) error
 }
 
-type db interface {
+type DBBase interface {
 	GetPoolConfig() MySQLPoolConfig
 	GetDBClient() DBClient
 	SetMockDBClient(mock DBClient)
@@ -315,12 +315,12 @@ type db interface {
 }
 
 type DB interface {
-	db
+	DBBase
 	Begin(c Context) DBTransaction
 }
 
 type DBTransaction interface {
-	db
+	DBBase
 	Commit(c Context)
 	Rollback(c Context)
 }

@@ -313,7 +313,7 @@ func (r *redisCache) BLMove(c Context, source, destination, srcPos, destPos stri
 	start := getNow(hasLogger)
 	value, err := r.client.BLMove(c.Ctx(), source, destination, srcPos, destPos, timeout).Result()
 	if hasLogger {
-		message := fmt.Sprintf("BLMOVE %s %s %s %s %s", source, destination, srcPos, destPos)
+		message := fmt.Sprintf("BLMOVE %s %s %s %s %s", source, destination, srcPos, destPos, timeout)
 		r.fillLogFields(c, "BLMOVE", message, start, false, err)
 	}
 	checkError(err)
