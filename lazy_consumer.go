@@ -32,7 +32,7 @@ func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *s
 		values = r.LRange(c, source, 0, lazyConsumerPage-1)
 		if len(values) > 0 {
 			handleLazyEvents(c, schema, "", values)
-			r.Ltrim(c, tmpList, 0, int64(len(values)-1))
+			r.Ltrim(c, tmpList, int64(len(values)), -1)
 		}
 		if len(values) < lazyConsumerPage {
 			source = schema.lazyCacheKey
@@ -44,10 +44,10 @@ func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *s
 			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
 			handleLazyEvents(c, schema, tmp, values)
 			if tmp != "" {
-				r.Ltrim(c, tmpList, -1, -1)
+				r.Ltrim(c, tmpList, 1, -1)
 			}
 			if len(values) > 0 {
-				r.Ltrim(c, schema.lazyCacheKey, 0, int64(len(values)-1))
+				r.Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
 			}
 			if !block {
 				return
@@ -147,7 +147,7 @@ func handleLazyEventsOneByOne(c Context, schema *entitySchema, tmpValue string, 
 			r.RPush(c, schema.lazyCacheKey+":err", tmpValue)
 			r.RPush(c, schema.lazyCacheKey+":err", err)
 		}
-		r.Ltrim(c, schema.lazyCacheKey+":tmp", 0, 0)
+		r.Ltrim(c, schema.lazyCacheKey+":tmp", 1, -1)
 	}
 	for _, event := range values {
 		err := handleLazyEvent(c, dbPool, event)
@@ -155,6 +155,6 @@ func handleLazyEventsOneByOne(c Context, schema *entitySchema, tmpValue string, 
 			r.RPush(c, schema.lazyCacheKey+":err", event)
 			r.RPush(c, schema.lazyCacheKey+":err", err)
 		}
-		r.Ltrim(c, schema.lazyCacheKey, 0, 0)
+		r.Ltrim(c, schema.lazyCacheKey, 1, -1)
 	}
 }

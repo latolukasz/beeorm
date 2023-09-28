@@ -41,6 +41,7 @@ type RedisCache interface {
 	LSet(c Context, key string, index int64, value interface{})
 	RPop(c Context, key string) (value string, found bool)
 	BLMove(c Context, source, destination, srcPos, destPos string, timeout time.Duration) string
+	LMove(c Context, source, destination, srcPos, destPos string) string
 	LRem(c Context, key string, count int64, value interface{})
 	Ltrim(c Context, key string, start, stop int64)
 	HSetNx(c Context, key, field string, value interface{}) bool
@@ -315,6 +316,18 @@ func (r *redisCache) BLMove(c Context, source, destination, srcPos, destPos stri
 	if hasLogger {
 		message := fmt.Sprintf("BLMOVE %s %s %s %s %s", source, destination, srcPos, destPos, timeout)
 		r.fillLogFields(c, "BLMOVE", message, start, false, err)
+	}
+	checkError(err)
+	return value
+}
+
+func (r *redisCache) LMove(c Context, source, destination, srcPos, destPos string) string {
+	hasLogger, _ := c.getRedisLoggers()
+	start := getNow(hasLogger)
+	value, err := r.client.LMove(c.Ctx(), source, destination, srcPos, destPos).Result()
+	if hasLogger {
+		message := fmt.Sprintf("LMOVE %s %s %s %s", source, destination, srcPos, destPos)
+		r.fillLogFields(c, "LMOVE", message, start, false, err)
 	}
 	checkError(err)
 	return value
