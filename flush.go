@@ -142,12 +142,14 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
-				lc.removeEntity(c, operation.ID())
+				lc.setEntity(c, operation.ID(), emptyReflect)
 			})
 		}
 		rc, hasRedisCache := schema.GetRedisCache()
 		if hasRedisCache {
-			c.RedisPipeLine(rc.GetCode()).Del(c, schema.GetCacheKey()+":"+strconv.FormatUint(operation.ID(), 10))
+			cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
+			c.RedisPipeLine(rc.GetCode()).Del(c, cacheKey)
+			c.RedisPipeLine(rc.GetCode()).LPush(c, cacheKey, "")
 		}
 	}
 	return nil

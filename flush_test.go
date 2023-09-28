@@ -532,16 +532,22 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	err = c.Flush(false)
 	assert.NoError(t, err)
 
+	id := entity.GetID()
+
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())
 	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
 	err = c.Flush(lazy)
 	assert.NoError(t, err)
 
+	loggerDB := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerDB, true, false, false)
+
 	if redis || local {
-		id := entity.GetID()
 		entity = GetByID[*flushEntity](c, id)
 		assert.Nil(t, entity)
+		assert.Len(t, loggerDB.Logs, 0)
+		loggerDB.Clear()
 	}
 
 	if lazy {
@@ -549,18 +555,8 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 		assert.NoError(t, err)
 	}
 
-	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
-	id := entity.GetID()
 	entity = GetByID[*flushEntity](c, id)
 	assert.Nil(t, entity)
-	assert.Len(t, loggerDB.Logs, 1)
-	if local || redis {
-		loggerDB.Clear()
-		entity = GetByID[*flushEntity](c, id)
-		assert.Nil(t, entity)
-		assert.Len(t, loggerDB.Logs, 0)
-	}
 
 	// duplicated key
 	entity = NewEntity[*flushEntity](c).TrackedEntity()
