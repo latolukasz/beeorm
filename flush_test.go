@@ -102,16 +102,32 @@ func TestFlushInsertLocalRedis(t *testing.T) {
 	testFlushInsert(t, false, true, true)
 }
 
+func TestFlushLazyInsertLocalRedis(t *testing.T) {
+	testFlushInsert(t, true, true, true)
+}
+
 func TestFlushInsertLocal(t *testing.T) {
 	testFlushInsert(t, false, true, false)
+}
+
+func TestFlushLazyInsertLocal(t *testing.T) {
+	testFlushInsert(t, true, true, false)
 }
 
 func TestFlushInsertNoCache(t *testing.T) {
 	testFlushInsert(t, false, false, false)
 }
 
+func TestFlushLazyInsertNoCache(t *testing.T) {
+	testFlushInsert(t, true, false, false)
+}
+
 func TestFlushInsertRedis(t *testing.T) {
 	testFlushInsert(t, false, false, true)
+}
+
+func TestFlushLazyInsertRedis(t *testing.T) {
+	testFlushInsert(t, true, false, true)
 }
 
 func TestFlushDeleteLocalRedis(t *testing.T) {
