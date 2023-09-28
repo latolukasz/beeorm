@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
 	"sync"
 )
@@ -59,35 +60,66 @@ func handleLazyEvents(c Context, schema *entitySchema, tmpValue string, values [
 	if tmpValue == "" && len(values) == 0 {
 		return
 	}
-	inTX := len(values) > 2
-	var d DBBase
-	defer func() {
+	operations := len(values)
+	if tmpValue != "" {
+		operations++
+	}
+	inTX := operations > 1
+	func() {
+		var d DBBase
+		defer func() {
+			if inTX {
+				d.(DBTransaction).Rollback(c)
+			}
+		}()
+		dbPool := schema.GetDB()
 		if inTX {
-			d.(DBTransaction).Rollback(c)
+			d = dbPool.Begin(c)
+		} else {
+			d = dbPool
+		}
+		if tmpValue != "" {
+			err := handleLazyEvent(c, d, tmpValue)
+			if err != nil {
+				if inTX {
+					d.(DBTransaction).Rollback(c)
+				}
+				handleLazyEventsOneByOne(c, schema, tmpValue, values)
+				return
+			}
+		}
+		for _, event := range values {
+			err := handleLazyEvent(c, d, event)
+			if err != nil {
+				if inTX {
+					d.(DBTransaction).Rollback(c)
+				}
+				handleLazyEventsOneByOne(c, schema, tmpValue, values)
+				return
+			}
+		}
+		if inTX {
+			d.(DBTransaction).Commit(c)
 		}
 	}()
-	dbPool := schema.GetDB()
-	if inTX {
-		d = dbPool.Begin(c)
-	} else {
-		d = dbPool
-	}
-	if tmpValue != "" {
-		handleLazyEvent(c, d, tmpValue)
-	}
-	for _, event := range values {
-		handleLazyEvent(c, d, event)
-	}
-	if inTX {
-		d.(DBTransaction).Commit(c)
-	}
 }
 
-func handleLazyEvent(c Context, db DBBase, value string) {
+func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
+			if isMySQLError {
+				err = asMySQLError
+				// return only if strange sql errors
+				return
+			}
+			panic(rec)
+		}
+	}()
 	var data []interface{}
 	_ = jsoniter.ConfigFastest.UnmarshalFromString(value, &data)
 	if len(data) == 0 {
-		return
+		return nil
 	}
 	sql, valid := data[0].(string)
 	if !valid {
@@ -95,7 +127,34 @@ func handleLazyEvent(c Context, db DBBase, value string) {
 	}
 	if len(data) == 1 {
 		db.Exec(c, sql)
-		return
+		return nil
+	}
+	for i, arg := range data[1:] {
+		if arg == nullAsString {
+			data[i+1] = nil
+		}
 	}
 	db.Exec(c, sql, data[1:]...)
+	return nil
+}
+
+func handleLazyEventsOneByOne(c Context, schema *entitySchema, tmpValue string, values []string) {
+	r := c.Engine().Redis(schema.getLazyRedisCode())
+	dbPool := schema.GetDB()
+	if tmpValue != "" {
+		err := handleLazyEvent(c, dbPool, tmpValue)
+		if err != nil {
+			r.RPush(c, schema.lazyCacheKey+":err", tmpValue)
+			r.RPush(c, schema.lazyCacheKey+":err", err)
+		}
+		r.Ltrim(c, schema.lazyCacheKey+":tmp", 0, 0)
+	}
+	for _, event := range values {
+		err := handleLazyEvent(c, dbPool, event)
+		if err != nil {
+			r.RPush(c, schema.lazyCacheKey+":err", event)
+			r.RPush(c, schema.lazyCacheKey+":err", err)
+		}
+		r.Ltrim(c, schema.lazyCacheKey, 0, 0)
+	}
 }

@@ -538,6 +538,12 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	err = c.Flush(lazy)
 	assert.NoError(t, err)
 
+	if redis || local {
+		id := entity.GetID()
+		entity = GetByID[*flushEntity](c, id)
+		assert.Nil(t, entity)
+	}
+
 	if lazy {
 		err = ConsumeLazyFlushEvents(c, false)
 		assert.NoError(t, err)
