@@ -166,7 +166,21 @@ func TestFlushUpdateRedis(t *testing.T) {
 	testFlushUpdate(t, false, false, true)
 }
 
-//
+func TestFlushUpdateUpdateLocalRedis(t *testing.T) {
+	testFlushUpdate(t, true, true, true)
+}
+
+func TestFlushUpdateUpdateLocal(t *testing.T) {
+	testFlushUpdate(t, true, true, false)
+}
+
+func TestFlushUpdateUpdateNoCache(t *testing.T) {
+	testFlushUpdate(t, true, false, false)
+}
+
+func TestFlushUpdateUpdateRedis(t *testing.T) {
+	testFlushUpdate(t, true, false, true)
+}
 
 func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	registry := &Registry{}
