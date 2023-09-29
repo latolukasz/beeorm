@@ -199,8 +199,16 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	entity := GetByID[*flushEntity](c, newEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
+		assert.NotNil(t, entity)
+	} else {
+		assert.Nil(t, entity)
+		c.EnableQueryDebug()
+		err = ConsumeLazyFlushEvents(c, false)
+		assert.NoError(t, err)
+		entity = GetByID[*flushEntity](c, newEntity.ID)
+		assert.NotNil(t, entity)
 	}
-	assert.NotNil(t, entity)
+
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "", entity.City)
 	assert.Equal(t, "Name", entity.Name)

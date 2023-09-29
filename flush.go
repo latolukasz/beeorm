@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	jsoniter "github.com/json-iterator/go"
 	"strconv"
 	"strings"
 )
@@ -155,9 +156,8 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 	return nil
 }
 
-func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
-	args := make([]interface{}, 0, len(operations)*len(columns))
 	s := c.getStringBuilder2()
 	s.WriteString("INSERT INTO `")
 	s.WriteString(schema.GetTableName())
@@ -168,6 +168,10 @@ func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, op
 		s.WriteString("`")
 	}
 	s.WriteString(") VALUES")
+	var args []interface{}
+	if !lazy {
+		args = make([]interface{}, 0, len(operations)*len(columns))
+	}
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
 	for i, operation := range operations {
@@ -197,23 +201,47 @@ func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, op
 				c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
+		var lazyData []string
+		if lazy {
+			lazyData = make([]string, len(columns))
+		}
 
-		if i > 0 {
+		if i > 0 && !lazy {
 			s.WriteString(",")
 		}
-		s.WriteString("(?")
-		args = append(args, bind["ID"])
-		for _, column := range columns[1:] {
-			v := bind[column]
-			if v == nullAsString {
-				args = append(args, nil)
-			} else {
-				args = append(args, v)
-			}
-			s.WriteString(",?")
+		if !lazy || i == 0 {
+			s.WriteString("(?")
 		}
-		s.WriteString(")")
-
+		if !lazy {
+			args = append(args, bind["ID"])
+		} else {
+			lazyData[0] = bind["ID"]
+		}
+		for j, column := range columns[1:] {
+			v := bind[column]
+			if !lazy {
+				if v == nullAsString {
+					args = append(args, nil)
+				} else {
+					args = append(args, v)
+				}
+			} else {
+				lazyData[j+1] = v
+			}
+			if !lazy || i == 0 {
+				s.WriteString(",?")
+			}
+		}
+		if !lazy || i == 0 {
+			s.WriteString(")")
+		}
+		if lazy {
+			data := make([]string, 0, len(lazyData)+1)
+			data = append(data, s.String())
+			data = append(data, lazyData...)
+			asJson, _ := jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, asJson)
+		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getValue())
@@ -223,14 +251,17 @@ func (c *contextImplementation) handleInserts(lazy bool, schema EntitySchema, op
 			c.RedisPipeLine(rc.GetCode()).RPush(c, schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
 		}
 	}
-	sql := s.String()
-	c.appendDBAction(schema, func(db DBBase) {
-		db.Exec(c, sql, args...)
-	})
+	if !lazy {
+		sql := s.String()
+		c.appendDBAction(schema, func(db DBBase) {
+			db.Exec(c, sql, args...)
+		})
+	}
+
 	return nil
 }
 
-func (c *contextImplementation) handleUpdates(lazy bool, schema EntitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
@@ -318,7 +349,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema EntitySchema, op
 		if hasRedisCache {
 			p := c.RedisPipeLine(rc.GetCode())
 			for column, val := range newBind {
-				index := int64(schema.(*entitySchema).columnMapping[column] + 1)
+				index := int64(schema.columnMapping[column] + 1)
 				p.LSet(c, schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
 			}
 		}
