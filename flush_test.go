@@ -200,9 +200,8 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.NotNil(t, entity)
-	} else {
+	} else if lazy {
 		assert.Nil(t, entity)
-		c.EnableQueryDebug()
 		err = ConsumeLazyFlushEvents(c, false)
 		assert.NoError(t, err)
 		entity = GetByID[*flushEntity](c, newEntity.ID)
@@ -313,6 +312,10 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	newEntity.Reference = NewReference[*flushEntityReference](reference.ID)
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	assert.NoError(t, c.Flush(lazy))
+	if lazy {
+		err = ConsumeLazyFlushEvents(c, false)
+		assert.NoError(t, err)
+	}
 	entity = GetByID[*flushEntity](c, newEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
