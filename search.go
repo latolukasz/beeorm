@@ -130,7 +130,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 }
 
 func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch bool) (entity E, found bool) {
-	schema := GetEntitySchema[E](c)
+	schema := getEntitySchema[E](c)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(c, where, schema)
 	}
@@ -152,7 +152,7 @@ func searchRow[E Entity](c Context, where *Where, entityToFill Entity, isSearch 
 		entity = entityToFill.(E)
 		value = reflect.ValueOf(entity)
 	} else {
-		value = reflect.New(schema.GetType().Elem())
+		value = reflect.New(schema.tElem)
 		entity = value.Interface().(E)
 	}
 	deserializeFromDB(schema.getFields(), value.Elem(), pointers)
@@ -174,7 +174,7 @@ func search[E Entity](c Context, where *Where, pager *Pager, withCount bool) (re
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := getEntitySchema[E](c)
 	entities := reflect.MakeSlice(reflect.SliceOf(schema.t), 0, 0)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 
@@ -185,20 +185,17 @@ func search[E Entity](c Context, where *Where, pager *Pager, withCount bool) (re
 	queryResults, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 
-	valOrigin := entities
-	val := valOrigin
 	i := 0
 	for queryResults.Next() {
 		pointers := prepareScan(schema)
 		queryResults.Scan(pointers...)
-		entity := *new(E)
-		deserializeFromDB(schema.getFields(), reflect.ValueOf(entity), pointers)
-		val = reflect.Append(val, reflect.ValueOf(entity))
+		value := reflect.New(schema.tElem)
+		deserializeFromDB(schema.getFields(), value.Elem(), pointers)
+		entities = reflect.Append(entities, value)
 		i++
 	}
 	def()
 	totalRows = getTotalRows(c, withCount, pager, where, schema, i)
-	valOrigin.Set(val)
 	return entities.Interface().([]E), totalRows
 }
 

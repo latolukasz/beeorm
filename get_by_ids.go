@@ -13,7 +13,7 @@ package beeorm
 //}
 //
 //func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, hasMissing bool) {
-//	schema := GetEntitySchema[E](c).(*entitySchema)
+//	schema := getEntitySchema[E](c)
 //	resultsSlice := reflect.MakeSlice(reflect.SliceOf(schema.t), len(ids), len(ids))
 //	if len(ids) == 0 {
 //		return resultsSlice.Interface().([]E), true

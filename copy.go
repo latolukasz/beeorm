@@ -5,8 +5,8 @@ import (
 )
 
 func Copy[E Entity](c Context, source E) EditableEntity[E] {
-	schema := GetEntitySchema[E](c).(*entitySchema)
-	value := reflect.New(schema.GetType().Elem())
+	schema := getEntitySchema[E](c)
+	value := reflect.New(schema.tElem)
 	writable := &editableEntity[E]{}
 	writable.c = c
 	writable.schema = schema

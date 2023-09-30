@@ -17,6 +17,10 @@ var codeStartTime = uint64(time.Now().Unix())
 type CachedQuery struct{}
 
 func GetEntitySchema[E Entity](c Context) EntitySchema {
+	return getEntitySchema[E](c)
+}
+
+func getEntitySchema[E Entity](c Context) *entitySchema {
 	ci := c.(*contextImplementation)
 	var entity E
 	schema, has := ci.engine.registry.entitySchemas[reflect.TypeOf(entity)]
@@ -73,6 +77,7 @@ type entitySchema struct {
 	tableName                  string
 	mysqlPoolCode              string
 	t                          reflect.Type
+	tElem                      reflect.Type
 	fields                     *tableFields
 	engine                     Engine
 	fieldsQuery                string
@@ -226,6 +231,7 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
+	entitySchema.tElem = entityType.Elem()
 	entitySchema.tags = extractTags(registry, entityType.Elem(), "")
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}

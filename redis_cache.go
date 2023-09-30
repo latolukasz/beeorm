@@ -369,7 +369,7 @@ func (r *redisCache) Ltrim(c Context, key string, start, stop int64) {
 	s := getNow(hasLogger)
 	_, err := r.client.LTrim(c.Ctx(), key, start, stop).Result()
 	if hasLogger {
-		message := fmt.Sprintf("LTRIM %d %d", start, stop)
+		message := fmt.Sprintf("LTRIM %s %d %d", key, start, stop)
 		r.fillLogFields(c, "LTRIM", message, s, false, err)
 	}
 	checkError(err)

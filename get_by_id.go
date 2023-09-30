@@ -37,7 +37,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			}
 			var value reflect.Value
 			if entityToFill == nil {
-				value = reflect.New(schema.GetType().Elem())
+				value = reflect.New(schema.tElem)
 				entity = value.Interface().(E)
 			} else {
 				entity = entityToFill.(E)

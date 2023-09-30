@@ -32,25 +32,22 @@ func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *s
 		values = r.LRange(c, source, 0, lazyConsumerPage-1)
 		if len(values) > 0 {
 			handleLazyEvents(c, schema, "", values)
-			r.Ltrim(c, tmpList, int64(len(values)), -1)
+			r.Ltrim(c, source, int64(len(values)), -1)
 		}
 		if len(values) < lazyConsumerPage {
-			source = schema.lazyCacheKey
-			clearTemp = false
-			var tmp = ""
-			if block {
-				tmp = r.BLMove(c, schema.lazyCacheKey, tmpList, "LEFT", "RIGHT", 0)
-			}
-			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
-			handleLazyEvents(c, schema, tmp, values)
-			if tmp != "" {
-				r.Ltrim(c, tmpList, 1, -1)
-			}
-			if len(values) > 0 {
-				r.Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
+			if clearTemp {
+				clearTemp = false
+				continue
 			}
 			if !block {
 				return
+			}
+			tmp := r.BLMove(c, schema.lazyCacheKey, tmpList, "LEFT", "RIGHT", 0)
+			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
+			handleLazyEvents(c, schema, tmp, values)
+			r.Ltrim(c, tmpList, 1, -1)
+			if len(values) > 0 {
+				r.Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
 			}
 		}
 	}
@@ -109,6 +106,7 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 		if rec := recover(); rec != nil {
 			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
 			if isMySQLError {
+				// 1062 - Duplicate entry
 				err = asMySQLError
 				// return only if strange sql errors
 				return
@@ -152,8 +150,7 @@ func handleLazyEventsOneByOne(c Context, schema *entitySchema, tmpValue string, 
 	for _, event := range values {
 		err := handleLazyEvent(c, dbPool, event)
 		if err != nil {
-			r.RPush(c, schema.lazyCacheKey+":err", event)
-			r.RPush(c, schema.lazyCacheKey+":err", err)
+			r.RPush(c, schema.lazyCacheKey+":err", event, err.Error())
 		}
 		r.Ltrim(c, schema.lazyCacheKey, 1, -1)
 	}

@@ -143,9 +143,9 @@ func (e *editableEntity[E]) SourceEntity() E {
 func NewEntity[E Entity](c Context) InsertableEntity[E] {
 	newEntity := &insertableEntity[E]{}
 	newEntity.c = c
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := getEntitySchema[E](c)
 	newEntity.schema = schema
-	value := reflect.New(schema.GetType().Elem())
+	value := reflect.New(schema.tElem)
 	elem := value.Elem()
 	initNewEntity(elem, schema.fields)
 	newEntity.entity = value.Interface().(E)
@@ -161,7 +161,7 @@ func DeleteEntity[E Entity](c Context, source E) RemovableEntity[E] {
 	toRemove.c = c
 	toRemove.source = source
 	ci := c.(*contextImplementation)
-	schema := GetEntitySchema[E](c).(*entitySchema)
+	schema := getEntitySchema[E](c)
 	toRemove.schema = schema
 	ci.trackedEntities = append(ci.trackedEntities, toRemove)
 	return toRemove
