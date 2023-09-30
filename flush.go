@@ -319,25 +319,45 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		s := c.getStringBuilder2()
 		s.WriteString(queryPrefix)
 		k := 0
-		args := make([]interface{}, len(newBind)+1)
+		var args []interface{}
+		var lazyArgs []string
+		if lazy {
+			lazyArgs = make([]string, len(newBind)+2)
+		} else {
+			args = make([]interface{}, len(newBind)+1)
+		}
 		for column, value := range newBind {
 			if k > 0 {
 				s.WriteString(",")
 			}
 			s.WriteString("`" + column + "`=?")
-			if value == nullAsString {
-				args[k] = nil
+			if lazy {
+				lazyArgs[k+1] = value
 			} else {
-				args[k] = value
+				if value == nullAsString {
+					args[k] = nil
+				} else {
+					args[k] = value
+				}
 			}
 			k++
 		}
 		s.WriteString(" WHERE ID = ?")
-		args[k] = update.ID()
+		if lazy {
+			lazyArgs[k+1] = strconv.FormatUint(update.ID(), 10)
+		} else {
+			args[k] = update.ID()
+		}
 		sql := s.String()
-		c.appendDBAction(schema, func(db DBBase) {
-			db.Exec(c, sql, args...)
-		})
+		if lazy {
+			lazyArgs[0] = sql
+			asJson, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
+			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, asJson)
+		} else {
+			c.appendDBAction(schema, func(db DBBase) {
+				db.Exec(c, sql, args...)
+			})
+		}
 
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {

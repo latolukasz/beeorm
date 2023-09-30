@@ -105,10 +105,7 @@ func (rp *RedisPipeLine) HSet(c Context, key string, values ...interface{}) {
 	rp.commands++
 	hasLog, _ := c.getRedisLoggers()
 	if hasLog {
-		rp.log = append(rp.log, fmt.Sprintf("HSET, %s %v", key, values))
-		for _, v := range values {
-			rp.log = append(rp.log, fmt.Sprintf("%v", v))
-		}
+		rp.log = append(rp.log, fmt.Sprintf("HSET %s %v", key, values))
 	}
 	rp.pipeLine.HSet(c.Ctx(), key, values...)
 }

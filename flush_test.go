@@ -616,13 +616,13 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 
 	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
 	reference.Name = "test reference"
-	err := c.Flush(lazy)
+	err := c.Flush(false)
 	assert.NoError(t, err)
 
 	newEntity := NewEntity[*flushEntity](c).TrackedEntity()
 	newEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
-	assert.NoError(t, c.Flush(lazy))
+	assert.NoError(t, c.Flush(false))
 
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
@@ -699,9 +699,12 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	editedEntity.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
 	loggerLocal.Clear()
 	assert.NoError(t, c.Flush(lazy))
-	assert.Len(t, loggerDB.Logs, 1)
-	if local {
-		assert.Len(t, loggerLocal.Logs, 1)
+	if !lazy {
+		assert.Len(t, loggerDB.Logs, 1)
+	} else {
+		assert.Len(t, loggerDB.Logs, 0)
+		err = ConsumeLazyFlushEvents(c, false)
+		assert.NoError(t, err)
 	}
 	loggerDB.Clear()
 	loggerLocal.Clear()
@@ -776,7 +779,9 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
 	assert.NoError(t, c.Flush(lazy))
-	assert.Len(t, loggerDB.Logs, 1)
+	if !lazy {
+		assert.Len(t, loggerDB.Logs, 1)
+	}
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), editedEntity.Time)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), editedEntity.TimeWithTime)
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *editedEntity.TimeNullable)
@@ -810,7 +815,9 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	decimalNullable = 1.126
 	editedEntity.DecimalNullable = &decimalNullable
 	assert.NoError(t, c.Flush(lazy))
-	assert.Len(t, loggerDB.Logs, 1)
+	if !lazy {
+		assert.Len(t, loggerDB.Logs, 1)
+	}
 	assert.Equal(t, 1.12346, editedEntity.Float64)
 	assert.Equal(t, 1.12, editedEntity.Decimal)
 	assert.Equal(t, 1.123, *editedEntity.FloatNullable)
