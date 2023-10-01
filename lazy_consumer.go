@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
 	"sync"
@@ -11,10 +12,13 @@ const lazyConsumerPage = 1000
 func ConsumeLazyFlushEvents(c Context, block bool) error {
 	waitGroup := &sync.WaitGroup{}
 	for _, entityType := range c.Engine().Registry().Entities() {
+		fmt.Printf("ADDED\n")
 		waitGroup.Add(1)
 		go consumeLazyEvents(c.Clone(), c.Engine().Registry().EntitySchema(entityType).(*entitySchema), block, waitGroup)
 	}
+	fmt.Printf("WATING\n")
 	waitGroup.Wait()
+	fmt.Printf("CLOSED\n")
 	return nil
 }
 
@@ -42,7 +46,12 @@ func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *s
 			if !block {
 				return
 			}
+			fmt.Printf("BLMove\n")
 			tmp := r.BLMove(c, schema.lazyCacheKey, tmpList, "LEFT", "RIGHT", 0)
+			if c.Ctx().Err() != nil {
+				fmt.Printf("FINISHED\n")
+				return
+			}
 			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
 			handleLazyEvents(c, schema, tmp, values)
 			r.Ltrim(c, tmpList, 1, -1)

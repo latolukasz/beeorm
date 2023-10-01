@@ -1,9 +1,12 @@
 package beeorm
 
 import (
+	"context"
+	"fmt"
 	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
+	"time"
 )
 
 func TestLazyConsumer(t *testing.T) {
@@ -29,4 +32,24 @@ func TestLazyConsumer(t *testing.T) {
 	}
 
 	// more than one-page blocking mode
+	ctx, cancel := context.WithCancel(context.Background())
+	c2 := c.Engine().NewContext(ctx)
+
+	var consumeErr error
+	consumerFinished := false
+	fmt.Printf("STARTED\n\n\n")
+	go func() {
+		consumeErr = ConsumeLazyFlushEvents(c2, true)
+		consumerFinished = true
+	}()
+	time.Sleep(time.Millisecond * 300)
+
+	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference.Name = "test reference block"
+	err = c.Flush(true)
+	assert.NoError(t, err)
+	cancel()
+	time.Sleep(time.Millisecond * 3000)
+	assert.True(t, consumerFinished)
+	assert.NoError(t, consumeErr)
 }
