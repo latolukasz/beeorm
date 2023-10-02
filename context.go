@@ -102,7 +102,7 @@ func (c *contextImplementation) RedisPipeLine(pool string) *RedisPipeLine {
 	pipeline, has := c.redisPipeLines[pool]
 	if !has {
 		r := c.engine.Redis(pool).(*redisCache)
-		pipeline = &RedisPipeLine{pool: pool, r: r, pipeLine: r.client.Pipeline()}
+		pipeline = &RedisPipeLine{c: c, pool: pool, r: r, pipeLine: r.client.Pipeline()}
 		c.redisPipeLines[pool] = pipeline
 	}
 	return pipeline

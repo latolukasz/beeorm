@@ -1,9 +1,8 @@
 package beeorm
 
 import (
-	"fmt"
 	"reflect"
-	"strings"
+	"strconv"
 )
 
 func GetByIDs[E Entity](c Context, ids ...uint64) []E {
@@ -17,150 +16,146 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 	if len(ids) == 0 {
 		return resultsSlice.Interface().([]E), true
 	}
-	foundInCache := 0
-	hasCacheNils := false
+	var missingKeys []int
 	if schema.hasLocalCache {
 		for i, id := range ids {
 			fromLocalCache, hasInLocalCache := schema.localCache.getEntity(c, id)
 			if hasInLocalCache {
 				if fromLocalCache == emptyReflect {
 					hasMissing = true
-					hasCacheNils = true
-					resultsSlice.Index(i).SetZero()
 				} else {
 					resultsSlice.Index(i).Set(fromLocalCache)
 				}
-				foundInCache++
+			} else {
+				missingKeys = append(missingKeys, i)
 			}
 		}
-	}
-	if foundInCache == len(ids) {
-		return resultsSlice.Interface().([]E), hasMissing
+		if missingKeys == nil {
+			return resultsSlice.Interface().([]E), hasMissing
+		}
 	}
 	cacheRedis, hasRedisCache := schema.GetRedisCache()
-	if hasRedisCache && foundInCache < len(ids) {
-		redisHSetKeys := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
-		fromRedisAll := cacheRedis.hMGetUints(c, schema.GetCacheKey(), redisHSetKeys...)
-		if foundInCache == 0 {
-			for i := range redisHSetKeys {
-				fromRedisCache := fromRedisAll[i]
-				if fromRedisCache != nil {
-					entity := *new(E)
-					resultsSlice.Index(i).Set(reflect.ValueOf(entity))
-					if fromRedisCache != cacheNilValue {
-						fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
-					} else {
+	var redisPipeline *RedisPipeLine
+	if hasRedisCache {
+		redisPipeline = c.RedisPipeLine(cacheRedis.GetCode())
+		l := int64(len(schema.columnNames) + 1)
+		lRanges := make([]*PipeLineSlice, len(missingKeys))
+		if schema.hasLocalCache {
+			for _, key := range missingKeys {
+				redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(ids[key], 10), 0, l)
+			}
+		} else {
+			for _, id := range ids {
+				redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(id, 10), 0, l)
+			}
+		}
+		redisPipeline.Exec(c)
+		if schema.hasLocalCache {
+			missingKeys = missingKeys[0:0]
+			for i, key := range missingKeys {
+				row := lRanges[i].Result()
+				if len(row) > 0 {
+					if l == 1 {
 						hasMissing = true
-						hasCacheNils = true
+					} else {
+						value := reflect.New(schema.tElem)
+						resultsSlice.Index(key).Set(value)
 					}
-					foundInCache++
+				} else {
+					missingKeys = append(missingKeys, key)
 				}
 			}
 		} else {
-			for k, id := range redisHSetKeys {
-				fromRedisCache := fromRedisAll[k]
-				if fromRedisCache != nil {
-					for i, idOriginal := range ids {
-						if id == idOriginal {
-							entity := *new(E)
-							value := reflect.ValueOf(entity)
-							resultsSlice.Index(i).Set(value)
-							if fromRedisCache != cacheNilValue {
-								fillFromBinary(c, schema, []byte(fromRedisCache.(string)), entity)
-								if schema.hasLocalCache {
-									schema.localCache.setEntity(c, id, value)
-								}
-							} else {
-								hasMissing = true
-								hasCacheNils = true
-								if schema.hasLocalCache {
-									schema.localCache.setEntity(c, id, emptyReflect)
-								}
-							}
-							foundInCache++
-						}
+			for i := range ids {
+				row := lRanges[i].Result()
+				if len(row) > 0 {
+					if l == 1 {
+						hasMissing = true
+					} else {
+						value := reflect.New(schema.tElem)
+						resultsSlice.Index(i).Set(value)
 					}
-				}
-			}
-		}
-	}
-	if foundInCache < len(ids) {
-		var redisHSetValues []interface{}
-		dbIDs := getMissingIdsFromResults(ids, foundInCache, resultsSlice)
-		idsQuery := strings.ReplaceAll(fmt.Sprintf("%v", dbIDs), " ", ",")[1:]
-		query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (" + idsQuery[:len(idsQuery)-1] + ")"
-		results, def := schema.GetDB().Query(c, query)
-		defer def()
-		foundInDB := 0
-		for results.Next() {
-			foundInDB++
-			pointers := prepareScan(schema)
-			results.Scan(pointers...)
-			entity := *new(E)
-			value := reflect.ValueOf(entity)
-			fillFromDBRow(c, schema, pointers, entity)
-			id := *pointers[0].(*uint64)
-			for i, originalID := range ids {
-				if id == originalID {
-					resultsSlice.Index(i).Set(value)
-				}
-			}
-			if schema.hasLocalCache {
-				schema.localCache.setEntity(c, id, value)
-			}
-			s := c.getSerializer()
-			serializeEntity(schema, value, s)
-			if hasRedisCache {
-				if len(ids) == 1 {
-					cacheRedis.HSet(c, schema.GetCacheKey(), id, string(s.Read()))
 				} else {
-					redisHSetValues = append(redisHSetValues, id, string(s.Read()))
+					missingKeys = append(missingKeys, i)
 				}
 			}
 		}
-		def()
-		if redisHSetValues != nil {
-			cacheRedis.HSet(c, schema.GetCacheKey(), redisHSetValues...)
+		if len(missingKeys) == 0 {
+			return resultsSlice.Interface().([]E), hasMissing
 		}
-		if foundInDB < len(dbIDs) {
-			for i, id := range ids {
-				if resultsSlice.Index(i).IsZero() {
-					hasMissing = true
-					if !schema.hasLocalCache && !hasRedisCache {
-						break
-					}
-					if schema.hasLocalCache {
-						schema.localCache.setEntity(c, id, emptyReflect)
-					}
-					if hasRedisCache {
-						cacheRedis.HSet(c, schema.GetCacheKey(), id, cacheNilValue)
-					}
+	}
+	sBuilder := c.getStringBuilder()
+	sBuilder.WriteString("SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (")
+	toSearch := 0
+	if len(missingKeys) > 0 {
+		for i, key := range missingKeys {
+			if i > 0 {
+				sBuilder.WriteString(",")
+			}
+			sBuilder.WriteString(strconv.FormatUint(ids[key], 10))
+		}
+		toSearch = len(missingKeys)
+	} else {
+		for i, id := range ids {
+			if i > 0 {
+				sBuilder.WriteString(",")
+			}
+			sBuilder.WriteString(strconv.FormatUint(id, 10))
+		}
+		toSearch = len(ids)
+	}
+
+	sBuilder.WriteString(")")
+	execRedisPipeline := false
+	res, def := schema.GetDB().Query(c, sBuilder.String())
+	defer def()
+	foundInDB := 0
+	for res.Next() {
+		foundInDB++
+		pointers := prepareScan(schema)
+		res.Scan(pointers...)
+		value := reflect.New(schema.tElem)
+		deserializeFromDB(schema.fields, value.Elem(), pointers)
+		id := *pointers[0].(*uint64)
+		for i, originalID := range ids {
+			if id == originalID {
+				resultsSlice.Index(i).Set(value)
+			}
+		}
+		if schema.hasLocalCache {
+			schema.localCache.setEntity(c, id, value)
+		}
+		if hasRedisCache {
+			bind := make(Bind)
+			err := fillBindFromOneSource(c, bind, value.Elem(), schema.fields, "")
+			checkError(err)
+			values := convertBindToRedisValue(bind, schema)
+			redisPipeline.RPush(schema.GetCacheKey()+":"+strconv.FormatUint(id, 10), values...)
+			execRedisPipeline = true
+		}
+	}
+	def()
+	if foundInDB < toSearch {
+		for i, id := range ids {
+			if resultsSlice.Index(i).IsZero() {
+				hasMissing = true
+				if !schema.hasLocalCache && !hasRedisCache {
+					break
+				}
+				if schema.hasLocalCache {
+					schema.localCache.setEntity(c, id, emptyReflect)
+				}
+				if hasRedisCache {
+					cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)
+					redisPipeline.Del(cacheKey)
+					redisPipeline.RPush(cacheKey, cacheNilValue)
+					execRedisPipeline = true
 				}
 			}
 		}
 	}
-	if hasCacheNils {
-		for i := range ids {
-			inSlice := resultsSlice.Index(i)
-			if inSlice.Interface().(Entity).GetID() == 0 {
-				inSlice.SetZero()
-			}
-		}
+	if execRedisPipeline {
+		redisPipeline.Exec(c)
 	}
 	return resultsSlice.Interface().([]E), hasMissing
-}
-
-func getMissingIdsFromResults(ids []uint64, foundInCache int, slice reflect.Value) []uint64 {
-	if foundInCache == 0 {
-		return ids
-	}
-	result := make([]uint64, len(ids)-foundInCache)
-	j := 0
-	for i, id := range ids {
-		if slice.Index(i).IsZero() {
-			result[j] = id
-			j++
-		}
-	}
-	return result
 }

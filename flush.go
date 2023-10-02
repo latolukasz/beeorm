@@ -117,7 +117,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		})
 	} else {
 		data := `["` + sql + `"]"`
-		c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, data)
+		c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, data)
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()
@@ -137,7 +137,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 				hSetKey := schema.GetCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hField)
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(hSetKey, hField)
 				}
 			}
 		}
@@ -149,8 +149,8 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		rc, hasRedisCache := schema.GetRedisCache()
 		if hasRedisCache {
 			cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
-			c.RedisPipeLine(rc.GetCode()).Del(c, cacheKey)
-			c.RedisPipeLine(rc.GetCode()).LPush(c, cacheKey, "")
+			c.RedisPipeLine(rc.GetCode()).Del(cacheKey)
+			c.RedisPipeLine(rc.GetCode()).LPush(cacheKey, "")
 		}
 	}
 	return nil
@@ -198,7 +198,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
-				c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
+				c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
 		var lazyData []string
@@ -240,7 +240,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			data = append(data, s.String())
 			data = append(data, lazyData...)
 			asJson, _ := jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, asJson)
+			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, asJson)
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -248,7 +248,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			})
 		}
 		if hasRedisCache {
-			c.RedisPipeLine(rc.GetCode()).RPush(c, schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
+			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	if !lazy {
@@ -300,11 +300,11 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 					}
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(c, hSetKey, hField, strconv.FormatUint(update.ID(), 10))
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
 				hFieldOld, hasKey := buildUniqueKeyHSetField(indexColumns, oldBind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(c, hSetKey, hFieldOld)
+					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}
 			}
 		}
@@ -352,7 +352,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		if lazy {
 			lazyArgs[0] = sql
 			asJson, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
-			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(c, schema.lazyCacheKey, asJson)
+			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, asJson)
 		} else {
 			c.appendDBAction(schema, func(db DBBase) {
 				db.Exec(c, sql, args...)
@@ -370,7 +370,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			p := c.RedisPipeLine(rc.GetCode())
 			for column, val := range newBind {
 				index := int64(schema.columnMapping[column] + 1)
-				p.LSet(c, schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
+				p.LSet(schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
 			}
 		}
 	}

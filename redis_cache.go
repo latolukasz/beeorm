@@ -48,7 +48,6 @@ type RedisCache interface {
 	HSetNx(c Context, key, field string, value interface{}) bool
 	hDelUints(c Context, key string, fields ...uint64)
 	HMGet(c Context, key string, fields ...string) map[string]interface{}
-	hMGetUints(c Context, key string, fields ...uint64) []interface{}
 	HGetAll(c Context, key string) map[string]string
 	HGet(c Context, key, field string) (value string, has bool)
 	HLen(c Context, key string) int64
@@ -457,44 +456,6 @@ func (r *redisCache) HMGet(c Context, key string, fields ...string) map[string]i
 	if hasLogger {
 		message := "HMGET " + key + " " + strings.Join(fields, " ")
 		r.fillLogFields(c, "HMGET", message, start, misses > 0, err)
-	}
-	checkError(err)
-	return results
-}
-
-func (r *redisCache) hMGetUints(c Context, key string, fields ...uint64) []interface{} {
-	hasLogger, _ := c.getRedisLoggers()
-	start := getNow(hasLogger)
-
-	args := make([]interface{}, 2+len(fields))
-	args[0] = "hmget"
-	args[1] = key
-	for i, field := range fields {
-		args[2+i] = field
-	}
-	cmd := redis.NewSliceCmd(c.Ctx(), args...)
-	err := r.client.Process(c.Ctx(), cmd)
-	misses := false
-	var results []interface{}
-	if err == nil {
-		results, err = cmd.Result()
-		if err == nil {
-			if len(results) == 0 {
-				results = make([]interface{}, len(fields))
-			}
-			if hasLogger {
-				for _, v := range results {
-					if v == nil {
-						misses = true
-						break
-					}
-				}
-			}
-		}
-	}
-	if hasLogger {
-		message := "HMGET " + key + " " + fmt.Sprintf("%v", fields)
-		r.fillLogFields(c, "HMGET", message, start, misses, err)
 	}
 	checkError(err)
 	return results

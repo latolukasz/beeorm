@@ -58,8 +58,8 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		}
 		if hasRedis {
 			p := c.RedisPipeLine(cacheRedis.GetCode())
-			p.Del(c, cacheKey)
-			p.RPush(c, cacheKey, cacheNilValue)
+			p.Del(cacheKey)
+			p.RPush(cacheKey, cacheNilValue)
 			p.Exec(c)
 		}
 		return
@@ -70,9 +70,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	if hasRedis {
 		bind := make(Bind)
 		err := fillBindFromOneSource(c, bind, reflect.ValueOf(entity).Elem(), schema.fields, "")
-		if err != nil {
-			panic(err)
-		}
+		checkError(err)
 		values := convertBindToRedisValue(bind, schema)
 		cacheRedis.RPush(c, cacheKey, values...)
 	}
