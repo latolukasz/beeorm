@@ -46,10 +46,10 @@ func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *s
 			if !block {
 				return
 			}
-			fmt.Printf("BLMove\n")
+			fmt.Printf("BLMove %s\n", schema.lazyCacheKey)
 			tmp := r.BLMove(c, schema.lazyCacheKey, tmpList, "LEFT", "RIGHT", 0)
 			if c.Ctx().Err() != nil {
-				fmt.Printf("FINISHED\n")
+				fmt.Printf("FINISHED %s\n", schema.lazyCacheKey)
 				return
 			}
 			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)

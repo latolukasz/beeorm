@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -14,6 +15,27 @@ func TestLazyConsumer(t *testing.T) {
 	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(true, true)
+
+	ctx4, cancel4 := context.WithCancel(context.Background())
+	c4 := c.Engine().NewContext(ctx4)
+	rr := c4.Engine().Redis(DefaultPoolCode)
+	go func() {
+		for {
+			select {
+			case <-c4.Ctx().Done():
+				return
+			default:
+				fmt.Printf("A1\n")
+				rr.BLMove(c4, "AAA", "BBB", "LEFT", "RIGHT", 0)
+				fmt.Printf("A2\n")
+			}
+		}
+
+	}()
+	time.Sleep(time.Second)
+	cancel4()
+	time.Sleep(time.Second)
+	os.Exit(1)
 
 	// more than one-page non-blocking mode
 	for i := 0; i < lazyConsumerPage+10; i++ {
