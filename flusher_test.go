@@ -363,6 +363,7 @@ type flushEntity struct {
 	Images                []obj
 	AttributesValues      attributesValues
 	flushStructAnonymous
+	Modified time.Time `orm:"time"`
 }
 
 type flushEntityReference struct {

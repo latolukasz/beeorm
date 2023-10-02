@@ -270,6 +270,16 @@ func (f *flusher) flush(root bool, lazy bool, transaction bool, entities ...Enti
 					bindBuilder.sqlBind["ID"] = strconv.FormatUint(currentID, 10)
 				}
 			}
+			fModified, has := schema.t.FieldByName("Modified")
+			if has {
+				if fModified.Type.String() == "time.Time" {
+					now := time.Now()
+					bindBuilder.bind["Modified"] = now
+					if bindBuilder.buildSQL {
+						bindBuilder.sqlBind["Modified"] = `"` + now.Format(timeFormat) + `"`
+					}
+				}
+			}
 			if f.flushOnDuplicateKey(lazy, bindBuilder, schema, entity) {
 				continue
 			}
@@ -583,6 +593,16 @@ func (f *flusher) flushUpdate(entity Entity, bindBuilder *bindBuilder, currentID
 	if !entity.IsLoaded() {
 		panic(fmt.Errorf("entity is not loaded and can't be updated: %v [%d]", entity.getORM().elem.Type().String(), currentID))
 	}
+	_, hasModified := bindBuilder.sqlBind["Modified"]
+	if !hasModified {
+		fModified, has := schema.t.FieldByName("Modified")
+		if has {
+			if fModified.Type.String() == "time.Time" {
+				bindBuilder.sqlBind["Modified"] = `"` + time.Now().Format(timeFormat) + `"`
+			}
+		}
+	}
+
 	f.stringBuilder.WriteString("UPDATE `")
 	f.stringBuilder.WriteString(schema.GetTableName())
 	f.stringBuilder.WriteString("` SET ")
