@@ -62,7 +62,6 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	elements := strings.Split(parts[0], ":")
 	dbNumber := ""
 	uri := ""
-	namespace := ""
 	isSocket := strings.Index(parts[0], ".sock") > 0
 	l := len(elements)
 	switch l {
@@ -73,14 +72,12 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 		if isSocket {
 			dbNumber = elements[1]
 			uri = elements[0]
-			namespace = elements[2]
 		} else {
 			dbNumber = elements[2]
 			uri = elements[0] + ":" + elements[1]
 		}
 	case 4:
 		dbNumber = elements[2]
-		namespace = elements[3]
 		uri = elements[0] + ":" + elements[1]
 	default:
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
@@ -95,11 +92,11 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 			panic(fmt.Errorf("redis uri '%v' is not valid", value))
 		}
 		if values.Has("user") && values.Has("password") {
-			registry.RegisterRedisWithCredentials(uri, namespace, values.Get("user"), values.Get("password"), int(db), key)
+			registry.RegisterRedisWithCredentials(uri, values.Get("user"), values.Get("password"), int(db), key)
 			return
 		}
 	}
-	registry.RegisterRedis(uri, namespace, int(db), key)
+	registry.RegisterRedis(uri, int(db), key)
 }
 
 func validateSentinel(registry *Registry, value interface{}, key string) {
@@ -114,7 +111,6 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 			asStrings[i] = fmt.Sprintf("%v", v)
 		}
 		db := 0
-		namespace := ""
 		parts := strings.Split(master, "?")
 		elements := strings.Split(parts[0], ":")
 		l := len(elements)
@@ -125,9 +121,6 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 				panic(fmt.Errorf("sentinel db '%v' is not valid", value))
 			}
 			db = int(nr)
-			if l == 3 {
-				namespace = elements[2]
-			}
 		}
 		if len(parts) == 2 && parts[1] != "" {
 			values, err := url.ParseQuery(parts[1])
@@ -135,11 +128,11 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 				panic(fmt.Errorf("sentinel uri '%v' is not valid", master))
 			}
 			if values.Has("user") && values.Has("password") {
-				registry.RegisterRedisSentinelWithCredentials(master, namespace, values.Get("user"), values.Get("password"), db, asStrings, key)
+				registry.RegisterRedisSentinelWithCredentials(master, values.Get("user"), values.Get("password"), db, asStrings, key)
 				return
 			}
 		}
-		registry.RegisterRedisSentinel(master, namespace, db, asStrings, key)
+		registry.RegisterRedisSentinel(master, db, asStrings, key)
 	}
 }
 

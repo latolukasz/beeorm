@@ -2,23 +2,14 @@ package beeorm
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestLocker(t *testing.T) {
-	testLocker(t, "")
-}
-
-func TestLockerNamespace(t *testing.T) {
-	testLocker(t, "test")
-}
-
-func testLocker(t *testing.T, namespace string) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6382", namespace, 15)
+	registry.RegisterRedis("localhost:6382", 15)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())

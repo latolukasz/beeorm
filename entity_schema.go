@@ -12,6 +12,9 @@ import (
 	"time"
 )
 
+const flushLazyEventsList = "flush_lazy_events"
+const flushLazyEventsListErrorSuffix = ":err"
+
 var codeStartTime = uint64(time.Now().Unix())
 
 type CachedQuery struct{}
@@ -244,7 +247,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	localCacheLimit := entitySchema.getTag("localCache", DefaultPoolCode, "")
 	redisCacheName := entitySchema.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
-		_, has = registry.mysqlPools[redisCacheName]
+		_, has = registry.redisPools[redisCacheName]
 		if !has {
 			return fmt.Errorf("redis pool '%s' not found", redisCacheName)
 		}
@@ -413,7 +416,13 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.redisCacheName = redisCacheName
 	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.cacheKey = cacheKey
-	entitySchema.lazyCacheKey = cacheKey + ":lazy"
+
+	lazyList := entitySchema.getTag("custom_lazy_group", entitySchema.tElem.String(), "")
+	if lazyList == "" {
+		lazyList = flushLazyEventsList
+	}
+	entitySchema.lazyCacheKey = entitySchema.mysqlPoolCode + ":" + lazyList
+
 	entitySchema.uniqueIndices = uniqueIndicesSimple
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
@@ -657,7 +666,7 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			"*int64":
 			entitySchema.buildIntPointerField(attributes)
 		case "string":
-			entitySchema.buildStringField(attributes, registry)
+			entitySchema.buildStringField(attributes)
 		case "[]uint8":
 			fields.bytes = append(fields.bytes, i)
 		case "bool":
@@ -797,7 +806,7 @@ func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttribute
 	}
 }
 
-func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes, registry *Registry) {
+func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
 	stringLength := 255

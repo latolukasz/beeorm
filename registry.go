@@ -218,11 +218,11 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	r.localCaches[dbCode] = newLocalCache(dbCode, size, false)
 }
 
-func (r *Registry) RegisterRedis(address, namespace string, db int, code ...string) {
-	r.RegisterRedisWithCredentials(address, namespace, "", "", db, code...)
+func (r *Registry) RegisterRedis(address string, db int, code ...string) {
+	r.RegisterRedisWithCredentials(address, "", "", db, code...)
 }
 
-func (r *Registry) RegisterRedisWithCredentials(address, namespace, user, password string, db int, code ...string) {
+func (r *Registry) RegisterRedisWithCredentials(address, user, password string, db int, code ...string) {
 	options := &redis.Options{
 		Addr:            address,
 		DB:              db,
@@ -234,14 +234,14 @@ func (r *Registry) RegisterRedisWithCredentials(address, namespace, user, passwo
 		options.Network = "unix"
 	}
 	client := redis.NewClient(options)
-	r.registerRedis(client, code, address, namespace, db)
+	r.registerRedis(client, code, address, db)
 }
 
-func (r *Registry) RegisterRedisSentinel(masterName, namespace string, db int, sentinels []string, code ...string) {
-	r.RegisterRedisSentinelWithCredentials(masterName, namespace, "", "", db, sentinels, code...)
+func (r *Registry) RegisterRedisSentinel(masterName string, db int, sentinels []string, code ...string) {
+	r.RegisterRedisSentinelWithCredentials(masterName, "", "", db, sentinels, code...)
 }
 
-func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, user, password string, db int, sentinels []string, code ...string) {
+func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, user, password string, db int, sentinels []string, code ...string) {
 	options := &redis.FailoverOptions{
 		MasterName:      masterName,
 		SentinelAddrs:   sentinels,
@@ -251,17 +251,17 @@ func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, namespace, u
 		Password:        password,
 	}
 	client := redis.NewFailoverClient(options)
-	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
+	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), db)
 }
 
-func (r *Registry) RegisterRedisSentinelWithOptions(namespace string, opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
+func (r *Registry) RegisterRedisSentinelWithOptions(opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
 	opts.DB = db
 	opts.SentinelAddrs = sentinels
 	if opts.ConnMaxIdleTime == 0 {
 		opts.ConnMaxIdleTime = time.Minute * 2
 	}
 	client := redis.NewFailoverClient(&opts)
-	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), namespace, db)
+	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), db)
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
@@ -279,7 +279,7 @@ func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolO
 	r.mysqlPools[dbCode] = db
 }
 
-func (r *Registry) registerRedis(client *redis.Client, code []string, address, namespace string, db int) {
+func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {
 	dbCode := DefaultPoolCode
 	if len(code) > 0 {
 		dbCode = code[0]

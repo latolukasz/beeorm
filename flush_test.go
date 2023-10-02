@@ -86,7 +86,7 @@ type flushEntity struct {
 }
 
 type flushEntityReference struct {
-	ID   uint64
+	ID   uint64 `orm:"localCache;redisCache"`
 	Name string `orm:"required"`
 }
 
@@ -184,7 +184,7 @@ func TestFlushUpdateUpdateRedis(t *testing.T) {
 
 func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
@@ -557,7 +557,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 
 func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
@@ -609,7 +609,7 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 
 func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(!local, !redis)
@@ -989,7 +989,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 
 func TestFlushTransaction(t *testing.T) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
+	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(true, true)

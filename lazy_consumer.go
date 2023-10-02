@@ -14,25 +14,43 @@ const lazyConsumerBlockTime = time.Second * 3
 func ConsumeLazyFlushEvents(c Context, block bool) error {
 	waitGroup := &sync.WaitGroup{}
 	ctxNoCancel := c.CloneWithContext(context.Background())
+	groups := make(map[DB]map[RedisCache]map[string]bool)
 	for _, entityType := range c.Engine().Registry().Entities() {
+		schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+		db := schema.GetDB()
+		dbGroup, has := groups[db]
+		if !has {
+			dbGroup = make(map[RedisCache]map[string]bool)
+			groups[db] = dbGroup
+		}
+		r := c.Engine().Redis(schema.getLazyRedisCode())
+		redisGroup, has := dbGroup[r]
+		if !has {
+			redisGroup = make(map[string]bool)
+			dbGroup[r] = redisGroup
+		}
+		_, has = redisGroup[schema.lazyCacheKey]
+		if has {
+			continue
+		}
+		redisGroup[schema.lazyCacheKey] = true
 		waitGroup.Add(1)
-		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), c.Engine().Registry().EntitySchema(entityType).(*entitySchema), block, waitGroup)
+		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), schema.lazyCacheKey, db, r, block, waitGroup)
 	}
 	waitGroup.Wait()
 	return nil
 }
 
-func consumeLazyEvents(c Context, ctx context.Context, schema *entitySchema, block bool, waitGroup *sync.WaitGroup) {
+func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache, block bool, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
-	r := c.Engine().Redis(schema.getLazyRedisCode())
 	var values []string
 	for {
 		if ctx.Err() != nil {
 			return
 		}
-		values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
+		values = r.LRange(c, list, 0, lazyConsumerPage-1)
 		if len(values) > 0 {
-			handleLazyEvents(c, ctx, schema, values)
+			handleLazyEvents(c, ctx, list, db, r, values)
 		}
 		if len(values) < lazyConsumerPage {
 			if !block || ctx.Err() != nil {
@@ -43,7 +61,7 @@ func consumeLazyEvents(c Context, ctx context.Context, schema *entitySchema, blo
 	}
 }
 
-func handleLazyEvents(c Context, ctx context.Context, schema *entitySchema, values []string) {
+func handleLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache, values []string) {
 	operations := len(values)
 	inTX := operations > 1
 	func() {
@@ -53,7 +71,7 @@ func handleLazyEvents(c Context, ctx context.Context, schema *entitySchema, valu
 				d.(DBTransaction).Rollback(c)
 			}
 		}()
-		dbPool := schema.GetDB()
+		dbPool := db
 		if inTX {
 			d = dbPool.Begin(c)
 		} else {
@@ -68,14 +86,14 @@ func handleLazyEvents(c Context, ctx context.Context, schema *entitySchema, valu
 				if inTX {
 					d.(DBTransaction).Rollback(c)
 				}
-				handleLazyEventsOneByOne(c, ctx, schema, values)
+				handleLazyEventsOneByOne(c, ctx, list, db, r, values)
 				return
 			}
 		}
 		if inTX {
 			d.(DBTransaction).Commit(c)
 		}
-		c.Engine().Redis(schema.getLazyRedisCode()).Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
+		r.Ltrim(c, list, int64(len(values)), -1)
 	}()
 }
 
@@ -114,17 +132,15 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 	return nil
 }
 
-func handleLazyEventsOneByOne(c Context, ctx context.Context, schema *entitySchema, values []string) {
-	r := c.Engine().Redis(schema.getLazyRedisCode())
-	dbPool := schema.GetDB()
+func handleLazyEventsOneByOne(c Context, ctx context.Context, list string, db DB, r RedisCache, values []string) {
 	for _, event := range values {
 		if ctx.Err() != nil {
 			return
 		}
-		err := handleLazyEvent(c, dbPool, event)
+		err := handleLazyEvent(c, db, event)
 		if err != nil {
-			r.RPush(c, schema.lazyCacheKey+":err", event, err.Error())
+			r.RPush(c, list+flushLazyEventsListErrorSuffix, event, err.Error())
 		}
-		r.Ltrim(c, schema.lazyCacheKey, 1, -1)
+		r.Ltrim(c, list, 1, -1)
 	}
 }

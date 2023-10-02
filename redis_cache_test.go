@@ -11,28 +11,20 @@ import (
 )
 
 func TestRedis6(t *testing.T) {
-	testRedis(t, "", 6)
+	testRedis(t, 6)
 }
 
 func TestRedis7(t *testing.T) {
-	testRedis(t, "", 7)
+	testRedis(t, 7)
 }
 
-func TestRedis6Namespaces(t *testing.T) {
-	testRedis(t, "test", 6)
-}
-
-func TestRedis7Namespaces(t *testing.T) {
-	testRedis(t, "test", 7)
-}
-
-func testRedis(t *testing.T, namespace string, version int) {
+func testRedis(t *testing.T, version int) {
 	registry := &Registry{}
 	url := "localhost:6382"
 	if version == 7 {
 		url = "localhost:6381"
 	}
-	registry.RegisterRedis(url, namespace, 15)
+	registry.RegisterRedis(url, 15)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
@@ -201,7 +193,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	assert.Equal(t, int64(0), r.Exists(c, "a"))
 
 	registry = &Registry{}
-	registry.RegisterRedis("localhost:6399", "", 15)
+	registry.RegisterRedis("localhost:6399", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
 	c = validatedRegistry.NewContext(context.Background())
@@ -212,7 +204,7 @@ func testRedis(t *testing.T, namespace string, version int) {
 	})
 
 	registry = &Registry{}
-	registry.RegisterRedisWithCredentials("localhost:6382", namespace, "user", "pass", 15)
+	registry.RegisterRedisWithCredentials("localhost:6382", "user", "pass", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
 	c = validatedRegistry.NewContext(context.Background())

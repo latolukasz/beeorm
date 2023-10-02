@@ -7,7 +7,7 @@ import (
 )
 
 func TestEngine(t *testing.T) {
-	c := PrepareTables(t, &Registry{}, "")
+	c := PrepareTables(t, &Registry{})
 	source := c.Engine().Registry()
 	assert.NotNil(t, source)
 	assert.PanicsWithError(t, "unregistered mysql pool 'test'", func() {

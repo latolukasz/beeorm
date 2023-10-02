@@ -20,10 +20,11 @@ func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, entities ...Entity) (c Context) {
+func PrepareTables(t *testing.T, registry *Registry, entities ...Entity) (c Context) {
 	poolOptions := MySQLPoolOptions{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test", poolOptions)
-	registry.RegisterRedis("localhost:6385", redisNamespace, 0)
+	registry.RegisterRedis("localhost:6385", 0)
+	registry.RegisterRedis("localhost:6385", 1, "second")
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)
@@ -39,13 +40,13 @@ func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, enti
 	c = engine.NewContext(context.Background())
 	cacheRedis := engine.Redis(DefaultPoolCode)
 	cacheRedis.FlushDB(c)
+	engine.Redis("second").FlushDB(c)
 
 	alters := GetAlters(c)
 	for _, alter := range alters {
 		alter.Exec(c)
 	}
 
-	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 0")
 	for _, entity := range entities {
 		schema := c.Engine().Registry().EntitySchema(entity)
 		schema.TruncateTable(c)
@@ -55,7 +56,6 @@ func PrepareTables(t *testing.T, registry *Registry, redisNamespace string, enti
 			cacheLocal.Clear(c)
 		}
 	}
-	engine.DB(DefaultPoolCode).Exec(c, "SET FOREIGN_KEY_CHECKS = 1")
 	LoadUniqueKeys(engine.NewContext(context.Background()), false)
 	return c
 }
