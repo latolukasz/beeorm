@@ -4,12 +4,28 @@ import (
 	"context"
 	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
+	"slices"
 	"sync"
 	"time"
 )
 
 const lazyConsumerPage = 1000
 const lazyConsumerBlockTime = time.Second * 3
+
+var mySQLErrorCodesToSkip = []uint16{
+	1022, // Can't write; duplicate key in table '%s'
+	1048, // Column '%s' cannot be null
+	1049, // Unknown database '%s'
+	1051, // Unknown table '%s'
+	1054, // Unknown column '%s' in '%s'
+	1062, // Duplicate entry '%s' for key %d
+	1063, // Incorrect column specifier for column '%s'
+	1067, // Invalid default value for '%s'
+	1109, // Message: Unknown table '%s' in %s
+	1146, // Table '%s.%s' doesn't exist
+	1149, // You have an error in your SQL syntax; check the manual that corresponds to your MySQL server version for the right syntax to use
+	2032, // Data truncated
+}
 
 func ConsumeLazyFlushEvents(c Context, block bool) error {
 	waitGroup := &sync.WaitGroup{}
@@ -101,7 +117,7 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 	defer func() {
 		if rec := recover(); rec != nil {
 			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
-			if isMySQLError {
+			if isMySQLError && slices.Contains(mySQLErrorCodesToSkip, asMySQLError.Number) {
 				// 1062 - Duplicate entry
 				err = asMySQLError
 				// return only if strange sql errors
