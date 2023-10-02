@@ -15,6 +15,7 @@ func (m Meta) Get(key string) string {
 type Context interface {
 	Ctx() context.Context
 	Clone() Context
+	CloneWithContext(ctx context.Context) Context
 	Engine() Engine
 	Flush(lazy bool) error
 	ClearFlush()
@@ -75,9 +76,9 @@ func (c *contextImplementation) Ctx() context.Context {
 	return c.parent
 }
 
-func (c *contextImplementation) Clone() Context {
+func (c *contextImplementation) CloneWithContext(ctx context.Context) Context {
 	return &contextImplementation{
-		parent:                 c.parent,
+		parent:                 ctx,
 		engine:                 c.engine,
 		queryLoggersDB:         c.queryLoggersDB,
 		queryLoggersRedis:      c.queryLoggersRedis,
@@ -88,6 +89,10 @@ func (c *contextImplementation) Clone() Context {
 		meta:                   c.meta,
 		options:                c.options,
 	}
+}
+
+func (c *contextImplementation) Clone() Context {
+	return c.CloneWithContext(c.parent)
 }
 
 func (c *contextImplementation) RedisPipeLine(pool string) *RedisPipeLine {

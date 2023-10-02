@@ -2,9 +2,7 @@ package beeorm
 
 import (
 	"context"
-	"fmt"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"strconv"
 	"testing"
 	"time"
@@ -15,27 +13,6 @@ func TestLazyConsumer(t *testing.T) {
 	c := PrepareTables(t, registry, "", &flushEntity{}, &flushEntityReference{})
 	schema := GetEntitySchema[*flushEntity](c)
 	schema.DisableCache(true, true)
-
-	ctx4, cancel4 := context.WithCancel(context.Background())
-	c4 := c.Engine().NewContext(ctx4)
-	rr := c4.Engine().Redis(DefaultPoolCode)
-	go func() {
-		for {
-			select {
-			case <-c4.Ctx().Done():
-				return
-			default:
-				fmt.Printf("A1\n")
-				rr.BLMove(c4, "AAA", "BBB", "LEFT", "RIGHT", 0)
-				fmt.Printf("A2\n")
-			}
-		}
-
-	}()
-	time.Sleep(time.Second)
-	cancel4()
-	time.Sleep(time.Second)
-	os.Exit(1)
 
 	// more than one-page non-blocking mode
 	for i := 0; i < lazyConsumerPage+10; i++ {
@@ -56,22 +33,25 @@ func TestLazyConsumer(t *testing.T) {
 	// more than one-page blocking mode
 	ctx, cancel := context.WithCancel(context.Background())
 	c2 := c.Engine().NewContext(ctx)
+	c2.Engine().Registry().(*engineRegistryImplementation).lazyConsumerBlockTime = time.Millisecond * 100
 
 	var consumeErr error
 	consumerFinished := false
-	fmt.Printf("STARTED\n\n\n")
 	go func() {
 		consumeErr = ConsumeLazyFlushEvents(c2, true)
 		consumerFinished = true
 	}()
-	time.Sleep(time.Millisecond * 300)
+	time.Sleep(time.Millisecond * 30)
 
 	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
 	reference.Name = "test reference block"
 	err = c.Flush(true)
 	assert.NoError(t, err)
+	time.Sleep(time.Millisecond * 300)
 	cancel()
-	time.Sleep(time.Millisecond * 3000)
+	time.Sleep(time.Millisecond * 200)
 	assert.True(t, consumerFinished)
 	assert.NoError(t, consumeErr)
+	references = Search[*flushEntityReference](c, NewWhere("1"), nil)
+	assert.Len(t, references, lazyConsumerPage+11)
 }

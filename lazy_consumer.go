@@ -1,75 +1,50 @@
 package beeorm
 
 import (
-	"fmt"
+	"context"
 	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
 	"sync"
+	"time"
 )
 
 const lazyConsumerPage = 1000
+const lazyConsumerBlockTime = time.Second * 3
 
 func ConsumeLazyFlushEvents(c Context, block bool) error {
 	waitGroup := &sync.WaitGroup{}
+	ctxNoCancel := c.CloneWithContext(context.Background())
 	for _, entityType := range c.Engine().Registry().Entities() {
-		fmt.Printf("ADDED\n")
 		waitGroup.Add(1)
-		go consumeLazyEvents(c.Clone(), c.Engine().Registry().EntitySchema(entityType).(*entitySchema), block, waitGroup)
+		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), c.Engine().Registry().EntitySchema(entityType).(*entitySchema), block, waitGroup)
 	}
-	fmt.Printf("WATING\n")
 	waitGroup.Wait()
-	fmt.Printf("CLOSED\n")
 	return nil
 }
 
-func consumeLazyEvents(c Context, schema *entitySchema, block bool, waitGroup *sync.WaitGroup) {
+func consumeLazyEvents(c Context, ctx context.Context, schema *entitySchema, block bool, waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 	r := c.Engine().Redis(schema.getLazyRedisCode())
-	tmpList := schema.lazyCacheKey + ":tmp"
-	clearTemp := true
 	var values []string
 	for {
-		source := schema.lazyCacheKey
-		if clearTemp {
-			source = tmpList
+		if ctx.Err() != nil {
+			return
 		}
-		values = r.LRange(c, source, 0, lazyConsumerPage-1)
+		values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
 		if len(values) > 0 {
-			handleLazyEvents(c, schema, "", values)
-			r.Ltrim(c, source, int64(len(values)), -1)
+			handleLazyEvents(c, ctx, schema, values)
 		}
 		if len(values) < lazyConsumerPage {
-			if clearTemp {
-				clearTemp = false
-				continue
-			}
-			if !block {
+			if !block || ctx.Err() != nil {
 				return
 			}
-			fmt.Printf("BLMove %s\n", schema.lazyCacheKey)
-			tmp := r.BLMove(c, schema.lazyCacheKey, tmpList, "LEFT", "RIGHT", 0)
-			if c.Ctx().Err() != nil {
-				fmt.Printf("FINISHED %s\n", schema.lazyCacheKey)
-				return
-			}
-			values = r.LRange(c, schema.lazyCacheKey, 0, lazyConsumerPage-1)
-			handleLazyEvents(c, schema, tmp, values)
-			r.Ltrim(c, tmpList, 1, -1)
-			if len(values) > 0 {
-				r.Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
-			}
+			time.Sleep(c.Engine().Registry().(*engineRegistryImplementation).lazyConsumerBlockTime)
 		}
 	}
 }
 
-func handleLazyEvents(c Context, schema *entitySchema, tmpValue string, values []string) {
-	if tmpValue == "" && len(values) == 0 {
-		return
-	}
+func handleLazyEvents(c Context, ctx context.Context, schema *entitySchema, values []string) {
 	operations := len(values)
-	if tmpValue != "" {
-		operations++
-	}
 	inTX := operations > 1
 	func() {
 		var d DBBase
@@ -84,29 +59,23 @@ func handleLazyEvents(c Context, schema *entitySchema, tmpValue string, values [
 		} else {
 			d = dbPool
 		}
-		if tmpValue != "" {
-			err := handleLazyEvent(c, d, tmpValue)
-			if err != nil {
-				if inTX {
-					d.(DBTransaction).Rollback(c)
-				}
-				handleLazyEventsOneByOne(c, schema, tmpValue, values)
+		for _, event := range values {
+			if ctx.Err() != nil {
 				return
 			}
-		}
-		for _, event := range values {
 			err := handleLazyEvent(c, d, event)
 			if err != nil {
 				if inTX {
 					d.(DBTransaction).Rollback(c)
 				}
-				handleLazyEventsOneByOne(c, schema, tmpValue, values)
+				handleLazyEventsOneByOne(c, ctx, schema, values)
 				return
 			}
 		}
 		if inTX {
 			d.(DBTransaction).Commit(c)
 		}
+		c.Engine().Redis(schema.getLazyRedisCode()).Ltrim(c, schema.lazyCacheKey, int64(len(values)), -1)
 	}()
 }
 
@@ -145,18 +114,13 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 	return nil
 }
 
-func handleLazyEventsOneByOne(c Context, schema *entitySchema, tmpValue string, values []string) {
+func handleLazyEventsOneByOne(c Context, ctx context.Context, schema *entitySchema, values []string) {
 	r := c.Engine().Redis(schema.getLazyRedisCode())
 	dbPool := schema.GetDB()
-	if tmpValue != "" {
-		err := handleLazyEvent(c, dbPool, tmpValue)
-		if err != nil {
-			r.RPush(c, schema.lazyCacheKey+":err", tmpValue)
-			r.RPush(c, schema.lazyCacheKey+":err", err)
-		}
-		r.Ltrim(c, schema.lazyCacheKey+":tmp", 1, -1)
-	}
 	for _, event := range values {
+		if ctx.Err() != nil {
+			return
+		}
 		err := handleLazyEvent(c, dbPool, event)
 		if err != nil {
 			r.RPush(c, schema.lazyCacheKey+":err", event, err.Error())

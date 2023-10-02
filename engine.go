@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"strings"
+	"time"
 )
 
 const DefaultPoolCode = "default"
@@ -31,15 +32,16 @@ type Engine interface {
 }
 
 type engineRegistryImplementation struct {
-	engine             *engineImplementation
-	oneAppMode         bool
-	entities           map[string]reflect.Type
-	entitySchemas      map[reflect.Type]*entitySchema
-	plugins            []Plugin
-	defaultQueryLogger *defaultLogLogger
-	defaultDBEncoding  string
-	defaultDBCollate   string
-	dbTables           map[string]map[string]bool
+	engine                *engineImplementation
+	oneAppMode            bool
+	entities              map[string]reflect.Type
+	entitySchemas         map[reflect.Type]*entitySchema
+	plugins               []Plugin
+	defaultQueryLogger    *defaultLogLogger
+	defaultDBEncoding     string
+	defaultDBCollate      string
+	dbTables              map[string]map[string]bool
+	lazyConsumerBlockTime time.Duration
 }
 
 type engineImplementation struct {
