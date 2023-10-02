@@ -33,6 +33,7 @@ type RedisCache interface {
 	ScriptExists(c Context, sha1 string) bool
 	ScriptLoad(c Context, script string) string
 	LPush(c Context, key string, values ...interface{}) int64
+	LPop(c Context, key string) string
 	RPush(c Context, key string, values ...interface{}) int64
 	LLen(c Context, key string) int64
 	Exists(c Context, keys ...string) int64
@@ -233,6 +234,17 @@ func (r *redisCache) LPush(c Context, key string, values ...interface{}) int64 {
 			message += " " + fmt.Sprintf("%v", v)
 		}
 		r.fillLogFields(c, "LPUSH", message, start, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *redisCache) LPop(c Context, key string) string {
+	hasLogger, _ := c.getRedisLoggers()
+	start := getNow(hasLogger)
+	val, err := r.client.LPop(c.Ctx(), key).Result()
+	if hasLogger {
+		r.fillLogFields(c, "LPOP", "LPOP "+key, start, false, err)
 	}
 	checkError(err)
 	return val

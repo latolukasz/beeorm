@@ -48,7 +48,7 @@ func TestLazyConsumer(t *testing.T) {
 	registry := &Registry{}
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{}, &flushEntityLazy{},
 		&flushEntityLazy2{}, &flushEntityLazy3{}, &flushEntityLazySecondRedis{})
-	schema := GetEntitySchema[*flushEntity](c)
+	schema := getEntitySchema[*flushEntity](c)
 	schema.DisableCache(true, true)
 	schema2 := getEntitySchema[*flushEntityReference](c)
 	schema2.DisableCache(true, true)
@@ -134,4 +134,41 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazy2](c, lazyEntity2.ID).Name)
 	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazy3](c, lazyEntity3.ID).Name)
 	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazySecondRedis](c, lazyEntitySecondRedis.ID).Name)
+
+	// broken event structure
+	c.Engine().Redis(DefaultPoolCode).RPush(c, schema2.lazyCacheKey, "invalid")
+	err = ConsumeLazyFlushEvents(c, false)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
+
+	// invalid one event, duplicated key
+	e1 := NewEntity[*flushEntity](c).TrackedEntity()
+	e1.Name = "Valid name 1"
+	e1.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e2 := NewEntity[*flushEntity](c).TrackedEntity()
+	e2.Name = "Valid name 2"
+	e2.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e3 := NewEntity[*flushEntity](c).TrackedEntity()
+	e3.Name = "Valid name 3"
+	e3.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush(false)
+	assert.NoError(t, err)
+	c.Engine().Redis(DefaultPoolCode).FlushDB(c) // clearing duplicated key data
+	e1 = NewEntity[*flushEntity](c).TrackedEntity()
+	e1.Name = "Valid name 4"
+	e1.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e2 = NewEntity[*flushEntity](c).TrackedEntity()
+	e2.Name = "Valid name 2"
+	e2.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e3 = NewEntity[*flushEntity](c).TrackedEntity()
+	e3.Name = "Valid name 5"
+	e3.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	err = c.Flush(true)
+	assert.NoError(t, err)
+	err = ConsumeLazyFlushEvents(c, false)
+	assert.Nil(t, err)
+	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema.lazyCacheKey))
+	assert.Equal(t, int64(2), c.Engine().Redis(DefaultPoolCode).LLen(c, schema.lazyCacheKey+flushLazyEventsListErrorSuffix))
+	assert.Contains(t, c.Engine().Redis(DefaultPoolCode).LPop(c, schema.lazyCacheKey+flushLazyEventsListErrorSuffix), "INSERT INTO `flushEntity`")
+	assert.Equal(t, "Error 1062 (23000): Duplicate entry 'Valid name 2' for key 'flushEntity.name'", c.Engine().Redis(DefaultPoolCode).LPop(c, schema.lazyCacheKey+flushLazyEventsListErrorSuffix))
 }

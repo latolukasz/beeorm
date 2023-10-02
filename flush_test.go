@@ -1024,4 +1024,6 @@ func TestFlushTransaction(t *testing.T) {
 	assert.Equal(t, "START TRANSACTION", loggerDB.Logs[0]["query"])
 	assert.Equal(t, "COMMIT", loggerDB.Logs[3]["query"])
 	loggerDB.Clear()
+
+	// Skipping invalid event
 }
