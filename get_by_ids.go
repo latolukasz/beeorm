@@ -21,10 +21,10 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		for i, id := range ids {
 			fromLocalCache, hasInLocalCache := schema.localCache.getEntity(c, id)
 			if hasInLocalCache {
-				if fromLocalCache == emptyReflect {
+				if fromLocalCache == emptyEntityInstance {
 					hasMissing = true
 				} else {
-					resultsSlice[i] = fromLocalCache.Interface().(E)
+					resultsSlice[i] = fromLocalCache.(E)
 				}
 			} else {
 				missingKeys = append(missingKeys, i)
@@ -59,14 +59,14 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 				if len(row) > 0 {
 					if len(row) == 1 {
 						hasMissing = true
-						schema.localCache.setEntity(c, ids[key], emptyReflect)
+						schema.localCache.setEntity(c, ids[key], emptyEntityInstance)
 					} else {
 						value := reflect.New(schema.tElem)
+						e := value.Interface().(E)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-							schema.localCache.setEntity(c, ids[key], value)
+							schema.localCache.setEntity(c, ids[key], e)
 						}
-						resultsSlice[key] = value.Interface().(E)
-						schema.localCache.setEntity(c, ids[key], value)
+						resultsSlice[key] = e
 					}
 					missingKeys[i] = 0
 					hasZero = true
@@ -92,10 +92,11 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 						hasMissing = true
 					} else {
 						value := reflect.New(schema.tElem)
+						e := value.Interface().(E)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-							schema.localCache.setEntity(c, id, value)
+							schema.localCache.setEntity(c, id, e)
 						}
-						resultsSlice[i] = value.Interface().(E)
+						resultsSlice[i] = e
 					}
 				} else {
 					missingKeys = append(missingKeys, i)
@@ -145,7 +146,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 			}
 		}
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, id, value)
+			schema.localCache.setEntity(c, id, value.Interface().(E))
 		}
 		if hasRedisCache {
 			bind := make(Bind)
@@ -165,7 +166,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 					break
 				}
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, emptyReflect)
+					schema.localCache.setEntity(c, id, emptyEntityInstance)
 				}
 				if hasRedisCache {
 					cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)

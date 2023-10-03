@@ -143,7 +143,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
-				lc.setEntity(c, operation.ID(), emptyReflect)
+				lc.setEntity(c, operation.ID(), emptyEntityInstance)
 			})
 		}
 		rc, hasRedisCache := schema.GetRedisCache()
@@ -244,7 +244,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
-				lc.setEntity(c, insert.ID(), insert.getValue())
+				lc.setEntity(c, insert.ID(), insert.getEntity())
 			})
 		}
 		if hasRedisCache {
@@ -363,7 +363,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			c.flushPostActions = append(c.flushPostActions, func() {
 				sourceValue := update.getSourceValue()
 				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.getFields())
-				lc.setEntity(c, operation.ID(), sourceValue)
+				lc.setEntity(c, operation.ID(), update.getEntity())
 			})
 		}
 		if hasRedisCache {

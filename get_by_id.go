@@ -15,10 +15,10 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {
-			if e == emptyReflect {
+			if e.GetID() == 0 {
 				return
 			}
-			entity = e.Interface().(E)
+			entity = e.(E)
 			return
 		}
 	}
@@ -31,7 +31,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		if len(row) > 0 {
 			if l == 1 {
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, emptyReflect)
+					schema.localCache.setEntity(c, id, emptyEntityInstance)
 				}
 				return
 			}
@@ -45,7 +45,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 			}
 			if deserializeFromRedis(row, schema, value.Elem()) {
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, value)
+					schema.localCache.setEntity(c, id, entity)
 				}
 				return
 			}
@@ -54,7 +54,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
 	if !found {
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, id, emptyReflect)
+			schema.localCache.setEntity(c, id, emptyEntityInstance)
 		}
 		if hasRedis {
 			p := c.RedisPipeLine(cacheRedis.GetCode())
@@ -65,7 +65,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		return
 	}
 	if schema.hasLocalCache {
-		schema.localCache.setEntity(c, id, reflect.ValueOf(entity))
+		schema.localCache.setEntity(c, id, entity)
 	}
 	if hasRedis {
 		bind := make(Bind)

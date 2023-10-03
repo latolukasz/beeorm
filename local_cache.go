@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"github.com/puzpuzpuz/xsync/v2"
 	"hash/maphash"
-	"reflect"
 )
 
-var emptyReflect reflect.Value
+type emptyEntity struct {
+	ID uint64
+}
+
+func (e *emptyEntity) GetID() uint64 {
+	return e.ID
+}
+
+var emptyEntityInstance = &emptyEntity{}
 
 type LocalCachePoolConfig interface {
 	GetCode() string
@@ -33,8 +40,8 @@ type LocalCache interface {
 	Remove(c Context, key string)
 	GetPoolConfig() LocalCachePoolConfig
 	Get(c Context, key string) (value interface{}, ok bool)
-	getEntity(c Context, id uint64) (value reflect.Value, ok bool)
-	setEntity(c Context, id uint64, value reflect.Value)
+	getEntity(c Context, id uint64) (value Entity, ok bool)
+	setEntity(c Context, id uint64, value Entity)
 	removeEntity(c Context, id uint64)
 	Clear(c Context)
 	GetObjectsCount() int
@@ -44,7 +51,7 @@ type localCache struct {
 	config        *localCachePoolConfig
 	ll            *list.List
 	cache         *xsync.Map
-	cacheEntities *xsync.MapOf[uint64, reflect.Value]
+	cacheEntities *xsync.MapOf[uint64, Entity]
 	storeEntities bool
 }
 
@@ -55,7 +62,7 @@ func newLocalCache(dbCode string, limit int, storeEntities bool) *localCache {
 	}
 	c.cache = xsync.NewMap()
 	if storeEntities {
-		c.cacheEntities = xsync.NewTypedMapOf[uint64, reflect.Value](func(seed maphash.Seed, u uint64) uint64 {
+		c.cacheEntities = xsync.NewTypedMapOf[uint64, Entity](func(seed maphash.Seed, u uint64) uint64 {
 			return u
 		})
 	}
@@ -75,7 +82,7 @@ func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
 	return
 }
 
-func (lc *localCache) getEntity(c Context, id uint64) (value reflect.Value, ok bool) {
+func (lc *localCache) getEntity(c Context, id uint64) (value Entity, ok bool) {
 	value, ok = lc.cacheEntities.Load(id)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
@@ -92,7 +99,7 @@ func (lc *localCache) Set(c Context, key string, value interface{}) {
 	}
 }
 
-func (lc *localCache) setEntity(c Context, id uint64, value reflect.Value) {
+func (lc *localCache) setEntity(c Context, id uint64, value Entity) {
 	lc.cacheEntities.Store(id, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
