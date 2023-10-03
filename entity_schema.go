@@ -81,6 +81,7 @@ type entitySchema struct {
 	mysqlPoolCode              string
 	t                          reflect.Type
 	tElem                      reflect.Type
+	tSlice                     reflect.Type
 	fields                     *tableFields
 	engine                     Engine
 	fieldsQuery                string
@@ -235,6 +236,7 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
 	entitySchema.tElem = entityType.Elem()
+	entitySchema.tSlice = reflect.SliceOf(entityType)
 	entitySchema.tags = extractTags(registry, entityType.Elem(), "")
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}

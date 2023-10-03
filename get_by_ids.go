@@ -12,9 +12,9 @@ func GetByIDs[E Entity](c Context, ids ...uint64) []E {
 
 func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, hasMissing bool) {
 	schema := getEntitySchema[E](c)
-	resultsSlice := reflect.MakeSlice(reflect.SliceOf(schema.t), len(ids), len(ids))
+	resultsSlice := make([]E, len(ids))
 	if len(ids) == 0 {
-		return resultsSlice.Interface().([]E), true
+		return resultsSlice, true
 	}
 	var missingKeys []int
 	if schema.hasLocalCache {
@@ -24,14 +24,14 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 				if fromLocalCache == emptyReflect {
 					hasMissing = true
 				} else {
-					resultsSlice.Index(i).Set(fromLocalCache)
+					resultsSlice[i] = fromLocalCache.Interface().(E)
 				}
 			} else {
 				missingKeys = append(missingKeys, i)
 			}
 		}
 		if missingKeys == nil {
-			return resultsSlice.Interface().([]E), hasMissing
+			return resultsSlice, hasMissing
 		}
 	}
 	cacheRedis, hasRedisCache := schema.GetRedisCache()
@@ -65,7 +65,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, ids[key], value)
 						}
-						resultsSlice.Index(key).Set(value)
+						resultsSlice[key] = value.Interface().(E)
 						schema.localCache.setEntity(c, ids[key], value)
 					}
 					missingKeys[i] = 0
@@ -95,7 +95,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, id, value)
 						}
-						resultsSlice.Index(i).Set(value)
+						resultsSlice[i] = value.Interface().(E)
 					}
 				} else {
 					missingKeys = append(missingKeys, i)
@@ -103,7 +103,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 			}
 		}
 		if len(missingKeys) == 0 {
-			return resultsSlice.Interface().([]E), hasMissing
+			return resultsSlice, hasMissing
 		}
 	}
 	sBuilder := c.getStringBuilder()
@@ -139,9 +139,9 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		value := reflect.New(schema.tElem)
 		deserializeFromDB(schema.fields, value.Elem(), pointers)
 		id := *pointers[0].(*uint64)
-		for i, originalID := range ids {
+		for i, originalID := range ids { // TODO too slow
 			if id == originalID {
-				resultsSlice.Index(i).Set(value)
+				resultsSlice[i] = value.Interface().(E)
 			}
 		}
 		if schema.hasLocalCache {
@@ -159,7 +159,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 	def()
 	if foundInDB < toSearch {
 		for i, id := range ids {
-			if resultsSlice.Index(i).IsZero() {
+			if reflect.ValueOf(resultsSlice[i]).IsZero() { // TODO TO SLOW and duplicated sets
 				hasMissing = true
 				if !schema.hasLocalCache && !hasRedisCache {
 					break
@@ -179,5 +179,5 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 	if execRedisPipeline {
 		redisPipeline.Exec(c)
 	}
-	return resultsSlice.Interface().([]E), hasMissing
+	return resultsSlice, hasMissing
 }

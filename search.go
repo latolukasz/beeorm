@@ -175,7 +175,7 @@ func search[E Entity](c Context, where *Where, pager *Pager, withCount bool) (re
 		pager = NewPager(1, 50000)
 	}
 	schema := getEntitySchema[E](c)
-	entities := reflect.MakeSlice(reflect.SliceOf(schema.t), 0, 0)
+	entities := reflect.MakeSlice(schema.tSlice, 0, 0)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 
 	whereQuery := where.String()

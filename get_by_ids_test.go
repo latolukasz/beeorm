@@ -6,12 +6,12 @@ import (
 	"testing"
 )
 
-type loadByIdsEntity struct {
+type getByIdsEntity struct {
 	ID   uint64 `orm:"localCache;redisCache"`
 	Name string `orm:"max=100"`
 }
 
-func (e *loadByIdsEntity) GetID() uint64 {
+func (e *getByIdsEntity) GetID() uint64 {
 	return e.ID
 }
 
@@ -32,14 +32,14 @@ func TestLoadByIdsLocalRedisCache(t *testing.T) {
 }
 
 func testLoadByIds(t *testing.T, local, redis bool) {
-	var entity *loadByIdsEntity
+	var entity *getByIdsEntity
 	c := PrepareTables(t, &Registry{}, entity)
-	schema := GetEntitySchema[*loadByIdsEntity](c)
+	schema := GetEntitySchema[*getByIdsEntity](c)
 	schema.DisableCache(!local, !redis)
 
 	var ids []uint64
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[*loadByIdsEntity](c).TrackedEntity()
+		entity = NewEntity[*getByIdsEntity](c).TrackedEntity()
 		entity.Name = fmt.Sprintf("Name %d", i)
 		ids = append(ids, entity.ID)
 	}
@@ -52,7 +52,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	c.RegisterQueryLogger(loggerRedis, false, true, false)
 	loggerLocal := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerLocal, false, false, false)
-	rows := GetByIDs[*loadByIdsEntity](c, ids...)
+	rows := GetByIDs[*getByIdsEntity](c, ids...)
 	assert.Len(t, rows, 10)
 	for i := 0; i < 10; i++ {
 		assert.NotNil(t, rows[i])
@@ -70,7 +70,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		rc, _ := schema.GetRedisCache()
 		rc.FlushDB(c)
 	}
-	rows = GetByIDs[*loadByIdsEntity](c, ids...)
+	rows = GetByIDs[*getByIdsEntity](c, ids...)
 	assert.Len(t, rows, 10)
 	for i := 0; i < 10; i++ {
 		assert.NotNil(t, rows[i])
@@ -79,7 +79,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 1)
 	loggerDB.Clear()
 	if local || redis {
-		rows = GetByIDs[*loadByIdsEntity](c, ids...)
+		rows = GetByIDs[*getByIdsEntity](c, ids...)
 		assert.Len(t, rows, 10)
 		for i := 0; i < 10; i++ {
 			assert.NotNil(t, rows[i])
@@ -90,7 +90,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	// invalid ids
-	rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+	rows = GetByIDs[*getByIdsEntity](c, 1, 2, 3)
 	assert.Len(t, rows, 3)
 	for i := 0; i < 3; i++ {
 		assert.Nil(t, rows[i])
@@ -98,7 +98,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 1)
 	loggerDB.Clear()
 	if local || redis {
-		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		rows = GetByIDs[*getByIdsEntity](c, 1, 2, 3)
 		assert.Len(t, rows, 3)
 		for i := 0; i < 3; i++ {
 			assert.Nil(t, rows[i])
@@ -109,7 +109,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		lc, _ := schema.GetLocalCache()
 		lc.Clear(c)
 		loggerDB.Clear()
-		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		rows = GetByIDs[*getByIdsEntity](c, 1, 2, 3)
 		assert.Len(t, rows, 3)
 		for i := 0; i < 3; i++ {
 			assert.Nil(t, rows[i])
@@ -117,7 +117,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 		loggerLocal.Clear()
 		loggerRedis.Clear()
-		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		rows = GetByIDs[*getByIdsEntity](c, 1, 2, 3)
 		assert.Len(t, rows, 3)
 		for i := 0; i < 3; i++ {
 			assert.Nil(t, rows[i])
@@ -127,14 +127,14 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	}
 
 	// missing one
-	rows = GetByIDs[*loadByIdsEntity](c, ids[0], 2, ids[1])
+	rows = GetByIDs[*getByIdsEntity](c, ids[0], 2, ids[1])
 	assert.Len(t, rows, 3)
 	assert.NotNil(t, rows[0])
 	assert.Nil(t, rows[1])
 	assert.NotNil(t, rows[2])
 
 	// duplicated
-	rows = GetByIDs[*loadByIdsEntity](c, ids[0], ids[0], ids[0])
+	rows = GetByIDs[*getByIdsEntity](c, ids[0], ids[0], ids[0])
 	assert.Len(t, rows, 3)
 	for i := 0; i < 3; i++ {
 		assert.NotNil(t, rows[i])
