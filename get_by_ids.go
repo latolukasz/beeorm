@@ -53,28 +53,42 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		}
 		redisPipeline.Exec(c)
 		if schema.hasLocalCache {
-			missingKeys = missingKeys[0:0]
+			hasZero := false
 			for i, key := range missingKeys {
 				row := lRanges[i].Result()
 				if len(row) > 0 {
-					if l == 1 {
+					if len(row) == 1 {
 						hasMissing = true
+						schema.localCache.setEntity(c, ids[key], emptyReflect)
 					} else {
 						value := reflect.New(schema.tElem)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, ids[key], value)
 						}
 						resultsSlice.Index(key).Set(value)
+						schema.localCache.setEntity(c, ids[key], value)
 					}
+					missingKeys[i] = 0
+					hasZero = true
 				} else {
-					missingKeys = append(missingKeys, key)
+					missingKeys[i] = key
 				}
+			}
+			if hasZero {
+				k := 0
+				for _, id := range missingKeys {
+					if id > 0 {
+						missingKeys[k] = id
+						k++
+					}
+				}
+				missingKeys = missingKeys[0:k]
 			}
 		} else {
 			for i, id := range ids {
 				row := lRanges[i].Result()
 				if len(row) > 0 {
-					if l == 1 {
+					if len(row) == 1 {
 						hasMissing = true
 					} else {
 						value := reflect.New(schema.tElem)

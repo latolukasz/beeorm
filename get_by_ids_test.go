@@ -48,6 +48,10 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
+	loggerRedis := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerRedis, false, true, false)
+	loggerLocal := &MockLogHandler{}
+	c.RegisterQueryLogger(loggerLocal, false, false, false)
 	rows := GetByIDs[*loadByIdsEntity](c, ids...)
 	assert.Len(t, rows, 10)
 	for i := 0; i < 10; i++ {
@@ -56,5 +60,69 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	}
 	if !local && !redis {
 		assert.Len(t, loggerDB.Logs, 1)
+	}
+	loggerDB.Clear()
+	if local {
+		lc, _ := schema.GetLocalCache()
+		lc.Clear(c)
+	}
+	if redis {
+		rc, _ := schema.GetRedisCache()
+		rc.FlushDB(c)
+	}
+	rows = GetByIDs[*loadByIdsEntity](c, ids...)
+	assert.Len(t, rows, 10)
+	for i := 0; i < 10; i++ {
+		assert.NotNil(t, rows[i])
+		assert.Equal(t, fmt.Sprintf("Name %d", i), rows[i].Name)
+	}
+	assert.Len(t, loggerDB.Logs, 1)
+	loggerDB.Clear()
+	if local || redis {
+		rows = GetByIDs[*loadByIdsEntity](c, ids...)
+		assert.Len(t, rows, 10)
+		for i := 0; i < 10; i++ {
+			assert.NotNil(t, rows[i])
+			assert.Equal(t, fmt.Sprintf("Name %d", i), rows[i].Name)
+		}
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+	loggerDB.Clear()
+
+	// invalid ids
+	rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+	assert.Len(t, rows, 3)
+	for i := 0; i < 3; i++ {
+		assert.Nil(t, rows[i])
+	}
+	assert.Len(t, loggerDB.Logs, 1)
+	loggerDB.Clear()
+	if local || redis {
+		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		assert.Len(t, rows, 3)
+		for i := 0; i < 3; i++ {
+			assert.Nil(t, rows[i])
+		}
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+	if local && redis {
+		lc, _ := schema.GetLocalCache()
+		lc.Clear(c)
+		loggerDB.Clear()
+		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		assert.Len(t, rows, 3)
+		for i := 0; i < 3; i++ {
+			assert.Nil(t, rows[i])
+		}
+		assert.Len(t, loggerDB.Logs, 0)
+		loggerLocal.Clear()
+		loggerRedis.Clear()
+		rows = GetByIDs[*loadByIdsEntity](c, 1, 2, 3)
+		assert.Len(t, rows, 3)
+		for i := 0; i < 3; i++ {
+			assert.Nil(t, rows[i])
+		}
+		assert.Len(t, loggerDB.Logs, 0)
+		assert.Len(t, loggerRedis.Logs, 0)
 	}
 }
