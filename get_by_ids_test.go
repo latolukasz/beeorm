@@ -125,4 +125,20 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.Len(t, loggerRedis.Logs, 0)
 	}
+
+	// missing one
+	rows = GetByIDs[*loadByIdsEntity](c, ids[0], 2, ids[1])
+	assert.Len(t, rows, 3)
+	assert.NotNil(t, rows[0])
+	assert.Nil(t, rows[1])
+	assert.NotNil(t, rows[2])
+
+	// duplicated
+	rows = GetByIDs[*loadByIdsEntity](c, ids[0], ids[0], ids[0])
+	assert.Len(t, rows, 3)
+	for i := 0; i < 3; i++ {
+		assert.NotNil(t, rows[i])
+		assert.Equal(t, ids[0], rows[i].ID)
+		assert.Equal(t, "Name 0", rows[i].Name)
+	}
 }
