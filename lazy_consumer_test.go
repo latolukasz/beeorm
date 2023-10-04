@@ -32,14 +32,14 @@ func TestLazyConsumer(t *testing.T) {
 	registry := &Registry{}
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{}, &flushEntityLazy{},
 		&flushEntityLazy2{}, &flushEntityLazy3{}, &flushEntityLazySecondRedis{})
-	schema := getEntitySchema[*flushEntity](c)
+	schema := getEntitySchema[flushEntity](c)
 	schema.DisableCache(true, true)
-	schema2 := getEntitySchema[*flushEntityReference](c)
+	schema2 := getEntitySchema[flushEntityReference](c)
 	schema2.DisableCache(true, true)
-	schema3 := getEntitySchema[*flushEntityLazy](c)
-	schema4 := getEntitySchema[*flushEntityLazy2](c)
-	schema5 := getEntitySchema[*flushEntityLazySecondRedis](c)
-	schema6 := getEntitySchema[*flushEntityLazy3](c)
+	schema3 := getEntitySchema[flushEntityLazy](c)
+	schema4 := getEntitySchema[flushEntityLazy2](c)
+	schema5 := getEntitySchema[flushEntityLazySecondRedis](c)
+	schema6 := getEntitySchema[flushEntityLazy3](c)
 
 	// more than one-page non-blocking mode
 	for i := 0; i < lazyConsumerPage+10; i++ {

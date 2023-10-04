@@ -234,7 +234,7 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
-	entitySchema.tSlice = reflect.SliceOf(entityType)
+	entitySchema.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
 	entitySchema.tags = extractTags(registry, entityType, "")
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
