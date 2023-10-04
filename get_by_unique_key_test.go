@@ -7,11 +7,11 @@ import (
 )
 
 type getByUniqueKeyEntity struct {
-	ID     uint64 `orm:"localCache;redisCache"`
-	Name   string `orm:"unique=Name"`
-	Age    uint8  `orm:"unique=Multi"`
-	Active uint8  `orm:"unique=Multi:2"`
-	Ref    *Reference[getByUniqueKeyReference]
+	ID     uint64                              `orm:"localCache;redisCache"`
+	Name   string                              `orm:"unique=Name"`
+	Age    uint8                               `orm:"unique=Multi"`
+	Active bool                                `orm:"unique=Multi:2"`
+	Ref    *Reference[getByUniqueKeyReference] `orm:"unique=Ref"`
 }
 
 type getByUniqueKeyReference struct {
@@ -41,16 +41,17 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	schema := GetEntitySchema[getByUniqueKeyEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	ref := NewEntity[getByUniqueKeyReference](c).TrackedEntity()
-	ref.Name = "Test Reference"
-
 	var ids []uint64
+	var refs []uint64
 	for i := 0; i < 10; i++ {
+		ref := NewEntity[getByUniqueKeyReference](c).TrackedEntity()
+		ref.Name = fmt.Sprintf("Ref %d", i)
 		entity = NewEntity[getByUniqueKeyEntity](c).TrackedEntity()
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
 		entity.Ref = NewReference[getByUniqueKeyReference](ref.ID)
 		ids = append(ids, entity.ID)
+		refs = append(refs, ref.ID)
 	}
 	err := c.Flush(false)
 	assert.NoError(t, err)
