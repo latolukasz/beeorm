@@ -11,7 +11,8 @@ func GetByID[E any](c Context, id uint64) (entity *E) {
 }
 
 func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entity *E) {
-	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
+	var e E
+	schema := c.engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {

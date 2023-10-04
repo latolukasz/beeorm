@@ -176,7 +176,7 @@ func TestFlushUpdateUpdateRedis(t *testing.T) {
 
 func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	registry := &Registry{}
-	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
+	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
 
 	schema := GetEntitySchema[flushEntity](c)
 	schema.DisableCache(!local, !redis)

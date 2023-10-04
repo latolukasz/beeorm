@@ -138,7 +138,7 @@ type editableEntity[E any] struct {
 }
 
 func (e *editableEntity[E]) ID() uint64 {
-	return e.value.Field(0).Uint()
+	return e.id
 }
 
 func (r *removableEntity[E]) ID() uint64 {
