@@ -143,7 +143,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
-				lc.setEntity(c, operation.ID(), emptyEntityInstance)
+				lc.setEntity(c, operation.ID(), nil)
 			})
 		}
 		rc, hasRedisCache := schema.GetRedisCache()

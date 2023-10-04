@@ -1,6 +1,6 @@
 package beeorm
 
-func ClearCacheByIDs[E Entity](c Context, ids ...uint64) {
+func ClearCacheByIDs[E any](c Context, ids ...uint64) {
 	schema := GetEntitySchema[E](c)
 	localPool, has := schema.GetLocalCache()
 	if has {

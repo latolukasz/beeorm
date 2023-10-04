@@ -26,16 +26,16 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	const size = 100
 	ids := make([]uint64, size)
 	for i := 0; i < size; i++ {
-		entity = NewEntity[*getByIdsEntity](c).TrackedEntity()
+		entity = NewEntity[getByIdsEntity](c).TrackedEntity()
 		entity.Name = "Name"
 		ids[i] = entity.ID
 	}
 	err := c.Flush(false)
 	assert.NoError(b, err)
-	_ = GetByIDs[*getByIdsEntity](c, ids...)
+	_ = GetByIDs[getByIdsEntity](c, ids...)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = GetByIDs[*getByIdsEntity](c, ids...)
+		_ = GetByIDs[getByIdsEntity](c, ids...)
 	}
 }

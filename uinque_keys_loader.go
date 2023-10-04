@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 )
@@ -90,11 +91,11 @@ func LoadUniqueKeys(c Context, debug bool) {
 						dotsToPrint := int((float64(executed) / float64(total)) * 100)
 						diff := dotsToPrint - dotsPrinted
 						if diff > 0 {
-							fmt.Print(strings.Repeat(".", diff))
+							log.Print(strings.Repeat(".", diff))
 						}
 					}
 					if debug {
-						fmt.Print("\n")
+						log.Print("\n")
 					}
 					if count < loadingUniqueKeysPage {
 						break

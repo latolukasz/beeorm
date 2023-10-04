@@ -139,7 +139,7 @@ func (r *Registry) Validate() (Engine, error) {
 	e.registry.plugins = r.plugins
 	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	for _, schema := range e.registry.entitySchemas {
-		_, err := checkStruct(e, schema, schema.t.Elem(), make(map[string]*IndexSchemaDefinition), nil, "")
+		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}
@@ -168,13 +168,17 @@ func (r *Registry) RegisterPlugin(plugin Plugin) {
 	r.plugins = append(r.plugins, plugin)
 }
 
-func (r *Registry) RegisterEntity(entity ...Entity) {
+func (r *Registry) RegisterEntity(entity ...any) {
 	if r.entities == nil {
 		r.entities = make(map[string]reflect.Type)
 	}
 	for _, e := range entity {
 		t := reflect.TypeOf(e)
-		r.entities[t.Elem().String()] = t
+		if t.Kind() == reflect.Ptr {
+			r.entities[t.Elem().String()] = t.Elem()
+		} else {
+			r.entities[t.String()] = t
+		}
 	}
 }
 

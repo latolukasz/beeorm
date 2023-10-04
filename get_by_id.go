@@ -5,20 +5,20 @@ import (
 	"strconv"
 )
 
-func GetByID[E Entity](c Context, id uint64) (entity E) {
+func GetByID[E any](c Context, id uint64) (entity *E) {
 	entity = getByID[E](c.(*contextImplementation), id, nil)
 	return
 }
 
-func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity) (entity E) {
+func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entity *E) {
 	schema := c.engine.registry.entitySchemas[reflect.TypeOf(entity)]
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {
-			if e.GetID() == 0 {
+			if e == nil {
 				return
 			}
-			entity = e.(E)
+			entity = e.(*E)
 			return
 		}
 	}
@@ -31,16 +31,16 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 		if len(row) > 0 {
 			if l == 1 {
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, emptyEntityInstance)
+					schema.localCache.setEntity(c, id, nil)
 				}
 				return
 			}
 			var value reflect.Value
 			if entityToFill == nil {
-				value = reflect.New(schema.tElem)
-				entity = value.Interface().(E)
+				value = reflect.New(schema.t)
+				entity = value.Interface().(*E)
 			} else {
-				entity = entityToFill.(E)
+				entity = entityToFill
 				value = reflect.ValueOf(entity)
 			}
 			if deserializeFromRedis(row, schema, value.Elem()) {
@@ -54,7 +54,7 @@ func getByID[E Entity](c *contextImplementation, id uint64, entityToFill Entity)
 	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
 	if !found {
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, id, emptyEntityInstance)
+			schema.localCache.setEntity(c, id, nil)
 		}
 		if hasRedis {
 			p := c.RedisPipeLine(cacheRedis.GetCode())

@@ -160,7 +160,7 @@ func getAllTables(db DBClient) []string {
 
 func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
-	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType().Elem(), indexes, nil, "")
+	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType(), indexes, nil, "")
 	checkError(err)
 	indexesSlice := make([]*IndexSchemaDefinition, 0)
 	for _, index := range indexes {

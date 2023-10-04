@@ -5,20 +5,20 @@ type referenceInterface interface {
 	SetID(id uint64)
 }
 
-func NewReference[E Entity](id uint64) *Reference[E] {
+func NewReference[E any](id uint64) *Reference[E] {
 	return &Reference[E]{id: id}
 }
 
-type Reference[E Entity] struct {
+type Reference[E any] struct {
 	schema EntitySchema
 	id     uint64
 }
 
-func (r *Reference[E]) GetEntity(c Context) E {
+func (r *Reference[E]) GetEntity(c Context) *E {
 	if r.id != 0 {
 		return GetByID[E](c, r.id)
 	}
-	return *new(E)
+	return nil
 }
 
 func (r *Reference[E]) EntitySchema() EntitySchema {

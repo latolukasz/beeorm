@@ -85,8 +85,6 @@ func (er *engineRegistryImplementation) DBPools() map[string]DB {
 
 func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 	switch entity.(type) {
-	case Entity:
-		return er.entitySchemas[reflect.TypeOf(entity)]
 	case reflect.Type:
 		return er.entitySchemas[entity.(reflect.Type)]
 	case string:
@@ -99,8 +97,13 @@ func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 			return nil
 		}
 		return er.entitySchemas[t]
+	default:
+		t := reflect.TypeOf(entity)
+		if t.Kind() == reflect.Ptr {
+			return er.entitySchemas[t.Elem()]
+		}
+		return er.entitySchemas[t]
 	}
-	return nil
 }
 
 func (er *engineRegistryImplementation) Plugins() []string {

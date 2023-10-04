@@ -19,11 +19,11 @@ var codeStartTime = uint64(time.Now().Unix())
 
 type CachedQuery struct{}
 
-func GetEntitySchema[E Entity](c Context) EntitySchema {
+func GetEntitySchema[E any](c Context) EntitySchema {
 	return getEntitySchema[E](c)
 }
 
-func getEntitySchema[E Entity](c Context) *entitySchema {
+func getEntitySchema[E any](c Context) *entitySchema {
 	ci := c.(*contextImplementation)
 	var entity E
 	schema, has := ci.engine.registry.entitySchemas[reflect.TypeOf(entity)]
@@ -80,7 +80,6 @@ type entitySchema struct {
 	tableName                  string
 	mysqlPoolCode              string
 	t                          reflect.Type
-	tElem                      reflect.Type
 	tSlice                     reflect.Type
 	fields                     *tableFields
 	engine                     Engine
@@ -235,9 +234,8 @@ func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters 
 
 func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	entitySchema.t = entityType
-	entitySchema.tElem = entityType.Elem()
 	entitySchema.tSlice = reflect.SliceOf(entityType)
-	entitySchema.tags = extractTags(registry, entityType.Elem(), "")
+	entitySchema.tags = extractTags(registry, entityType, "")
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
 	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
@@ -245,7 +243,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	if !has {
 		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolCode)
 	}
-	entitySchema.tableName = entitySchema.getTag("table", entityType.Elem().Name(), entityType.Elem().Name())
+	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
 	localCacheLimit := entitySchema.getTag("localCache", DefaultPoolCode, "")
 	redisCacheName := entitySchema.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
@@ -383,7 +381,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	entitySchema.fields = entitySchema.buildTableFields(entityType.Elem(), registry, 0, "", entitySchema.tags)
+	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 0, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
 	if len(entitySchema.fieldsQuery) > 0 {
 		entitySchema.fieldsQuery = entitySchema.fieldsQuery[1:]
@@ -419,7 +417,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.hasRedisCache = redisCacheName != ""
 	entitySchema.cacheKey = cacheKey
 
-	lazyList := entitySchema.getTag("custom_lazy_group", entitySchema.tElem.String(), "")
+	lazyList := entitySchema.getTag("custom_lazy_group", entitySchema.t.String(), "")
 	if lazyList == "" {
 		lazyList = flushLazyEventsList
 	}

@@ -4,13 +4,13 @@ import (
 	"reflect"
 )
 
-func Copy[E Entity](c Context, source E) EditableEntity[E] {
+func Copy[E any](c Context, source *E) EditableEntity[E] {
 	schema := getEntitySchema[E](c)
-	value := reflect.New(schema.tElem)
+	value := reflect.New(schema.t)
 	writable := &editableEntity[E]{}
 	writable.c = c
 	writable.schema = schema
-	writable.entity = value.Interface().(E)
+	writable.entity = value.Interface().(*E)
 	writable.value = value
 	writable.sourceValue = reflect.ValueOf(source)
 	copyEntity(writable.sourceValue.Elem(), value.Elem(), schema.fields)

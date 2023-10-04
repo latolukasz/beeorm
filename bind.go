@@ -45,7 +45,7 @@ func (b Bind) Get(key string) interface{} {
 
 func (m *insertableEntity[E]) getBind() (Bind, error) {
 	bind := Bind{}
-	bind["ID"] = strconv.FormatUint(m.entity.GetID(), 10)
+	bind["ID"] = strconv.FormatUint(m.id, 10)
 	schema := m.Schema()
 	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.getFields(), "")
 	if err != nil {

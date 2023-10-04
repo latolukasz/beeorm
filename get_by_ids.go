@@ -5,14 +5,14 @@ import (
 	"strconv"
 )
 
-func GetByIDs[E Entity](c Context, ids ...uint64) []E {
+func GetByIDs[E any](c Context, ids ...uint64) []*E {
 	results, _ := getByIDs[E](c.(*contextImplementation), ids)
 	return results
 }
 
-func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, hasMissing bool) {
+func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasMissing bool) {
 	schema := getEntitySchema[E](c)
-	resultsSlice := make([]E, len(ids))
+	resultsSlice := make([]*E, len(ids))
 	if len(ids) == 0 {
 		return resultsSlice, true
 	}
@@ -21,10 +21,10 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		for i, id := range ids {
 			fromLocalCache, hasInLocalCache := schema.localCache.getEntity(c, id)
 			if hasInLocalCache {
-				if fromLocalCache == emptyEntityInstance {
+				if fromLocalCache == nil {
 					hasMissing = true
 				} else {
-					resultsSlice[i] = fromLocalCache.(E)
+					resultsSlice[i] = fromLocalCache.(*E)
 				}
 			} else {
 				missingKeys = append(missingKeys, i)
@@ -59,10 +59,10 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 				if len(row) > 0 {
 					if len(row) == 1 {
 						hasMissing = true
-						schema.localCache.setEntity(c, ids[key], emptyEntityInstance)
+						schema.localCache.setEntity(c, ids[key], nil)
 					} else {
-						value := reflect.New(schema.tElem)
-						e := value.Interface().(E)
+						value := reflect.New(schema.t)
+						e := value.Interface().(*E)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, ids[key], e)
 						}
@@ -91,8 +91,8 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 					if len(row) == 1 {
 						hasMissing = true
 					} else {
-						value := reflect.New(schema.tElem)
-						e := value.Interface().(E)
+						value := reflect.New(schema.t)
+						e := value.Interface().(*E)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, id, e)
 						}
@@ -137,16 +137,16 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 		foundInDB++
 		pointers := prepareScan(schema)
 		res.Scan(pointers...)
-		value := reflect.New(schema.tElem)
+		value := reflect.New(schema.t)
 		deserializeFromDB(schema.fields, value.Elem(), pointers)
 		id := *pointers[0].(*uint64)
 		for i, originalID := range ids { // TODO too slow
 			if id == originalID {
-				resultsSlice[i] = value.Interface().(E)
+				resultsSlice[i] = value.Interface().(*E)
 			}
 		}
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, id, value.Interface().(E))
+			schema.localCache.setEntity(c, id, value.Interface().(*E))
 		}
 		if hasRedisCache {
 			bind := make(Bind)
@@ -166,7 +166,7 @@ func getByIDs[E Entity](c *contextImplementation, ids []uint64) (results []E, ha
 					break
 				}
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, emptyEntityInstance)
+					schema.localCache.setEntity(c, id, nil)
 				}
 				if hasRedisCache {
 					cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)

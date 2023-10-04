@@ -59,7 +59,7 @@ func TestLazyConsumer(t *testing.T) {
 
 	// more than one-page non-blocking mode
 	for i := 0; i < lazyConsumerPage+10; i++ {
-		reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+		reference := NewEntity[flushEntityReference](c).TrackedEntity()
 		reference.Name = "test reference " + strconv.Itoa(i)
 	}
 	err := c.Flush(true)
@@ -70,7 +70,7 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey+flushLazyEventsListErrorSuffix))
 
-	references := Search[*flushEntityReference](c, NewWhere("1"), nil)
+	references := Search[flushEntityReference](c, NewWhere("1"), nil)
 	assert.Len(t, references, lazyConsumerPage+10)
 	for i := 0; i < lazyConsumerPage+10; i++ {
 		assert.Equal(t, "test reference "+strconv.Itoa(i), references[i].Name)
@@ -89,7 +89,7 @@ func TestLazyConsumer(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 30)
 
-	reference := NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference := NewEntity[flushEntityReference](c).TrackedEntity()
 	reference.Name = "test reference block"
 	err = c.Flush(true)
 	assert.NoError(t, err)
@@ -98,22 +98,22 @@ func TestLazyConsumer(t *testing.T) {
 	time.Sleep(time.Millisecond * 200)
 	assert.True(t, consumerFinished)
 	assert.NoError(t, consumeErr)
-	references = Search[*flushEntityReference](c, NewWhere("1"), nil)
+	references = Search[flushEntityReference](c, NewWhere("1"), nil)
 	assert.Len(t, references, lazyConsumerPage+11)
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey+flushLazyEventsListErrorSuffix))
-	assert.Equal(t, "test reference block", GetByID[*flushEntityReference](c, reference.ID).Name)
+	assert.Equal(t, "test reference block", GetByID[flushEntityReference](c, reference.ID).Name)
 
 	// custom lazy group
-	reference = NewEntity[*flushEntityReference](c).TrackedEntity()
+	reference = NewEntity[flushEntityReference](c).TrackedEntity()
 	reference.Name = "test reference custom lazy group"
-	lazyEntity := NewEntity[*flushEntityLazy](c).TrackedEntity()
+	lazyEntity := NewEntity[flushEntityLazy](c).TrackedEntity()
 	lazyEntity.Name = "test reference custom lazy group"
-	lazyEntity2 := NewEntity[*flushEntityLazy2](c).TrackedEntity()
+	lazyEntity2 := NewEntity[flushEntityLazy2](c).TrackedEntity()
 	lazyEntity2.Name = "test reference custom lazy group"
-	lazyEntity3 := NewEntity[*flushEntityLazy3](c).TrackedEntity()
+	lazyEntity3 := NewEntity[flushEntityLazy3](c).TrackedEntity()
 	lazyEntity3.Name = "test reference custom lazy group"
-	lazyEntitySecondRedis := NewEntity[*flushEntityLazySecondRedis](c).TrackedEntity()
+	lazyEntitySecondRedis := NewEntity[flushEntityLazySecondRedis](c).TrackedEntity()
 	lazyEntitySecondRedis.Name = "test reference custom lazy group"
 	err = c.Flush(true)
 	assert.NoError(t, err)
@@ -129,11 +129,11 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema4.lazyCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis("second").LLen(c, schema5.lazyCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema6.lazyCacheKey))
-	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityReference](c, reference.ID).Name)
-	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazy](c, lazyEntity.ID).Name)
-	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazy2](c, lazyEntity2.ID).Name)
-	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazy3](c, lazyEntity3.ID).Name)
-	assert.Equal(t, "test reference custom lazy group", GetByID[*flushEntityLazySecondRedis](c, lazyEntitySecondRedis.ID).Name)
+	assert.Equal(t, "test reference custom lazy group", GetByID[flushEntityReference](c, reference.ID).Name)
+	assert.Equal(t, "test reference custom lazy group", GetByID[flushEntityLazy](c, lazyEntity.ID).Name)
+	assert.Equal(t, "test reference custom lazy group", GetByID[flushEntityLazy2](c, lazyEntity2.ID).Name)
+	assert.Equal(t, "test reference custom lazy group", GetByID[flushEntityLazy3](c, lazyEntity3.ID).Name)
+	assert.Equal(t, "test reference custom lazy group", GetByID[flushEntityLazySecondRedis](c, lazyEntitySecondRedis.ID).Name)
 
 	// broken event structure
 	c.Engine().Redis(DefaultPoolCode).RPush(c, schema2.lazyCacheKey, "invalid")
@@ -142,27 +142,27 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 
 	// invalid one event, duplicated key
-	e1 := NewEntity[*flushEntity](c).TrackedEntity()
+	e1 := NewEntity[flushEntity](c).TrackedEntity()
 	e1.Name = "Valid name 1"
-	e1.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	e2 := NewEntity[*flushEntity](c).TrackedEntity()
+	e1.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	e2 := NewEntity[flushEntity](c).TrackedEntity()
 	e2.Name = "Valid name 2"
-	e2.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	e3 := NewEntity[*flushEntity](c).TrackedEntity()
+	e2.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	e3 := NewEntity[flushEntity](c).TrackedEntity()
 	e3.Name = "Valid name 3"
-	e3.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	err = c.Flush(false)
 	assert.NoError(t, err)
 	c.Engine().Redis(DefaultPoolCode).FlushDB(c) // clearing duplicated key data
-	e1 = NewEntity[*flushEntity](c).TrackedEntity()
+	e1 = NewEntity[flushEntity](c).TrackedEntity()
 	e1.Name = "Valid name 4"
-	e1.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	e2 = NewEntity[*flushEntity](c).TrackedEntity()
+	e1.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	e2 = NewEntity[flushEntity](c).TrackedEntity()
 	e2.Name = "Valid name 2"
-	e2.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
-	e3 = NewEntity[*flushEntity](c).TrackedEntity()
+	e2.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	e3 = NewEntity[flushEntity](c).TrackedEntity()
 	e3.Name = "Valid name 5"
-	e3.ReferenceRequired = NewReference[*flushEntityReference](reference.ID)
+	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	err = c.Flush(true)
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
