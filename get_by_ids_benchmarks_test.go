@@ -20,7 +20,7 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
 	c := PrepareTables(nil, registry, entity)
-	schema := GetEntitySchema[*getByIdsEntity](c)
+	schema := GetEntitySchema[getByIdsEntity](c)
 	schema.DisableCache(!local, !redis)
 
 	const size = 100
