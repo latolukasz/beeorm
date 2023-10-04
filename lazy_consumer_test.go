@@ -13,17 +13,9 @@ type flushEntityLazy struct {
 	Name string `orm:"required"`
 }
 
-func (e *flushEntityLazy) GetID() uint64 {
-	return e.ID
-}
-
 type flushEntityLazySecondRedis struct {
 	ID   uint64 `orm:"custom_lazy_group=test-group;redisCache=second"`
 	Name string `orm:"required"`
-}
-
-func (e *flushEntityLazySecondRedis) GetID() uint64 {
-	return e.ID
 }
 
 type flushEntityLazy2 struct {
@@ -31,17 +23,9 @@ type flushEntityLazy2 struct {
 	Name string `orm:"required"`
 }
 
-func (e *flushEntityLazy2) GetID() uint64 {
-	return e.ID
-}
-
 type flushEntityLazy3 struct {
 	ID   uint64 `orm:"custom_lazy_group"`
 	Name string `orm:"required"`
-}
-
-func (e *flushEntityLazy3) GetID() uint64 {
-	return e.ID
 }
 
 func TestLazyConsumer(t *testing.T) {

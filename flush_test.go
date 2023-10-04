@@ -90,14 +90,6 @@ type flushEntityReference struct {
 	Name string `orm:"required"`
 }
 
-func (e *flushEntity) GetID() uint64 {
-	return e.ID
-}
-
-func (e *flushEntityReference) GetID() uint64 {
-	return e.ID
-}
-
 func TestFlushInsertLocalRedis(t *testing.T) {
 	testFlushInsert(t, false, true, true)
 }
@@ -573,7 +565,7 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 	err = c.Flush(false)
 	assert.NoError(t, err)
 
-	id := entity.GetID()
+	id := entity.ID
 
 	toDelete := DeleteEntity(c, entity)
 	assert.NotNil(t, toDelete.SourceEntity())

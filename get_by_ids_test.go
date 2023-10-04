@@ -11,10 +11,6 @@ type getByIdsEntity struct {
 	Name string `orm:"max=100"`
 }
 
-func (e *getByIdsEntity) GetID() uint64 {
-	return e.ID
-}
-
 func TestLoadByIdsNoCache(t *testing.T) {
 	testLoadByIds(t, false, false)
 }
