@@ -91,6 +91,7 @@ type entitySchema struct {
 	cachedIndexesTrackedFields map[string]bool
 	columnNames                []string
 	columnMapping              map[string]int
+	columnAttrToStringSetters  map[string]func(v any) string
 	uniqueIndices              map[string][]string
 	hasLocalCache              bool
 	localCache                 *localCache

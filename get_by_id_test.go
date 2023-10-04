@@ -11,23 +11,23 @@ type getByIdEntity struct {
 	Name string `orm:"max=100"`
 }
 
-func TestLoadByIdNoCache(t *testing.T) {
-	testLoadById(t, false, false)
+func TestGetByIdNoCache(t *testing.T) {
+	testGetById(t, false, false)
 }
 
-func TestLoadByIdLocalCache(t *testing.T) {
-	testLoadById(t, true, false)
+func TestGetByIdLocalCache(t *testing.T) {
+	testGetById(t, true, false)
 }
 
-func TestLoadByIdRedisCache(t *testing.T) {
-	testLoadById(t, false, true)
+func TestGetByIdRedisCache(t *testing.T) {
+	testGetById(t, false, true)
 }
 
-func TestLoadByIdLocalRedisCache(t *testing.T) {
-	testLoadById(t, true, true)
+func TestGetByIdLocalRedisCache(t *testing.T) {
+	testGetById(t, true, true)
 }
 
-func testLoadById(t *testing.T, local, redis bool) {
+func testGetById(t *testing.T, local, redis bool) {
 	var entity *getByIdEntity
 	c := PrepareTables(t, &Registry{}, entity)
 	schema := GetEntitySchema[getByIdEntity](c)

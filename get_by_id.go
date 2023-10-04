@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"reflect"
 	"strconv"
 )
@@ -13,6 +14,9 @@ func GetByID[E any](c Context, id uint64) (entity *E) {
 func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entity *E) {
 	var e E
 	schema := c.engine.registry.entitySchemas[reflect.TypeOf(e)]
+	if schema == nil {
+		panic(fmt.Errorf("entity '%T' is not registered", e))
+	}
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {
