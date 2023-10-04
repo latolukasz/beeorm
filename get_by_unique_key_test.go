@@ -60,4 +60,19 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	assert.NotNil(t, entity)
 	assert.Equal(t, ids[3], entity.ID)
 	assert.Equal(t, "Name 3", entity.Name)
+
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Multi", 4, false)
+	assert.NotNil(t, entity)
+	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, "Name 4", entity.Name)
+
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Multi", 4, 0)
+	assert.NotNil(t, entity)
+	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, "Name 4", entity.Name)
+
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Ref", refs[4])
+	assert.NotNil(t, entity)
+	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, "Name 4", entity.Name)
 }

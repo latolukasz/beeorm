@@ -587,7 +587,9 @@ func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttribute
 			return strconv.FormatUint(uint64(v.(uint8)), 10), nil
 		case uint16:
 			return strconv.FormatUint(uint64(v.(uint16)), 10), nil
-		case uint32, uint:
+		case uint:
+			return strconv.FormatUint(uint64(v.(uint)), 10), nil
+		case uint32:
 			return strconv.FormatUint(uint64(v.(uint32)), 10), nil
 		case uint64:
 			return strconv.FormatUint(v.(uint64), 10), nil
@@ -595,7 +597,9 @@ func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttribute
 			return strconv.FormatUint(uint64(v.(int8)), 10), nil
 		case int16:
 			return strconv.FormatUint(uint64(v.(int16)), 10), nil
-		case int32, int:
+		case int:
+			return strconv.FormatUint(uint64(v.(int)), 10), nil
+		case int32:
 			return strconv.FormatUint(uint64(v.(int32)), 10), nil
 		case int64:
 			return strconv.FormatUint(uint64(v.(int64)), 10), nil
@@ -725,6 +729,31 @@ func (entitySchema *entitySchema) buildBoolField(attributes schemaFieldAttribute
 	attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
 	entitySchema.mapBindToScanPointer[columnName] = scanBoolPointer
 	entitySchema.mapPointerToValue[columnName] = pointerBoolScan
+	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
+		switch v.(type) {
+		case bool:
+			if v.(bool) {
+				return "1", nil
+			}
+			return "0", nil
+		case string:
+			s := strings.ToLower(v.(string))
+			if s == "1" || s == "true" {
+				return "1", nil
+			} else if s == "0" || s == "false" {
+				return "0", nil
+			}
+		case int:
+			asInt := v.(int)
+			if asInt == 1 {
+				return "1", nil
+			} else if asInt == 0 {
+				return "0", nil
+			}
+			return strconv.FormatUint(uint64(v.(int)), 10), nil
+		}
+		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+	}
 }
 
 func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
