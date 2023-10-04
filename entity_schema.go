@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"hash/fnv"
 	"reflect"
-	"regexp"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -16,8 +15,6 @@ const flushLazyEventsList = "flush_lazy_events"
 const flushLazyEventsListErrorSuffix = ":err"
 
 var codeStartTime = uint64(time.Now().Unix())
-
-type CachedQuery struct{}
 
 func GetEntitySchema[E any](c Context) EntitySchema {
 	return getEntitySchema[E](c)
@@ -33,14 +30,6 @@ func getEntitySchema[E any](c Context) *entitySchema {
 	return schema
 }
 
-type CachedQueryDefinition struct {
-	One           bool
-	Query         string
-	TrackedFields []string
-	QueryFields   []string
-	OrderFields   []string
-}
-
 type EntitySchema interface {
 	GetTableName() string
 	GetEntityName() string
@@ -54,15 +43,12 @@ type EntitySchema interface {
 	GetRedisCache() (cache RedisCache, has bool)
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
-	GetCacheQueries() map[string]*CachedQueryDefinition
 	GetSchemaChanges(c Context) (has bool, alters []Alter)
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetPluginOption(plugin, key string) interface{}
 	GetCacheKey() string
 	DisableCache(local, redis bool)
-	getCachedIndexes(one, all bool) map[string]*CachedQueryDefinition
 	getFields() *tableFields
-	getCachedIndexesTrackedFields() map[string]bool
 	getTagBool(field, key string) bool
 	getFieldsQuery() string
 	getStructureHash() string
@@ -76,39 +62,37 @@ type SettableEntitySchema interface {
 	SetPluginOption(plugin, key string, value interface{})
 }
 
+type columnAttrToStringSetter func(v any) (string, error)
+
 type entitySchema struct {
-	tableName                  string
-	mysqlPoolCode              string
-	t                          reflect.Type
-	tSlice                     reflect.Type
-	fields                     *tableFields
-	engine                     Engine
-	fieldsQuery                string
-	tags                       map[string]map[string]string
-	cachedIndexes              map[string]*CachedQueryDefinition
-	cachedIndexesOne           map[string]*CachedQueryDefinition
-	cachedIndexesAll           map[string]*CachedQueryDefinition
-	cachedIndexesTrackedFields map[string]bool
-	columnNames                []string
-	columnMapping              map[string]int
-	columnAttrToStringSetters  map[string]func(v any) string
-	uniqueIndices              map[string][]string
-	hasLocalCache              bool
-	localCache                 *localCache
-	localCacheLimit            int
-	redisCacheName             string
-	hasRedisCache              bool
-	redisCache                 *redisCache
-	searchCacheName            string
-	cacheKey                   string
-	lazyCacheKey               string
-	structureHash              string
-	skipLogs                   []string
-	mapBindToScanPointer       mapBindToScanPointer
-	mapPointerToValue          mapPointerToValue
-	options                    map[string]map[string]interface{}
-	uuidServerID               uint64
-	uuidCounter                uint64
+	tableName                 string
+	mysqlPoolCode             string
+	t                         reflect.Type
+	tSlice                    reflect.Type
+	fields                    *tableFields
+	engine                    Engine
+	fieldsQuery               string
+	tags                      map[string]map[string]string
+	columnNames               []string
+	columnMapping             map[string]int
+	columnAttrToStringSetters map[string]columnAttrToStringSetter
+	uniqueIndices             map[string][]string
+	hasLocalCache             bool
+	localCache                *localCache
+	localCacheLimit           int
+	redisCacheName            string
+	hasRedisCache             bool
+	redisCache                *redisCache
+	searchCacheName           string
+	cacheKey                  string
+	lazyCacheKey              string
+	structureHash             string
+	skipLogs                  []string
+	mapBindToScanPointer      mapBindToScanPointer
+	mapPointerToValue         mapPointerToValue
+	options                   map[string]map[string]interface{}
+	uuidServerID              uint64
+	uuidCounter               uint64
 }
 
 type mapBindToScanPointer map[string]func() interface{}
@@ -221,10 +205,6 @@ func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
 	return entitySchema.uniqueIndices
 }
 
-func (entitySchema *entitySchema) GetCacheQueries() map[string]*CachedQueryDefinition {
-	return entitySchema.cachedIndexesAll
-}
-
 func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
 	pre, alters, post := getSchemaChanges(c, entitySchema)
 	final := pre
@@ -258,75 +238,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		cacheKey = entitySchema.mysqlPoolCode
 	}
 	cacheKey += entitySchema.tableName
-	cachedQueries := make(map[string]*CachedQueryDefinition)
-	cachedQueriesOne := make(map[string]*CachedQueryDefinition)
-	cachedQueriesAll := make(map[string]*CachedQueryDefinition)
-	cachedQueriesTrackedFields := make(map[string]bool)
-	for key, values := range entitySchema.tags {
-		isOne := false
-		query, has := values["query"]
-		if !has {
-			query, has = values["queryOne"]
-			isOne = true
-		}
-		queryOrigin := query
-		fields := make([]string, 0)
-		fieldsTracked := make([]string, 0)
-		fieldsQuery := make([]string, 0)
-		fieldsOrder := make([]string, 0)
-		if has {
-			re := regexp.MustCompile(":([A-Za-z\\d])+")
-			variables := re.FindAllString(query, -1)
-			for _, variable := range variables {
-				fieldName := variable[1:]
-				has := false
-				for _, v := range fields {
-					if v == fieldName {
-						has = true
-						break
-					}
-				}
-				if !has {
-					fields = append(fields, fieldName)
-				}
-				query = strings.Replace(query, variable, fmt.Sprintf("`%s`", fieldName), 1)
-			}
-			if query == "" {
-				query = "1 ORDER BY `ID`"
-			}
-			queryLower := strings.ToLower(queryOrigin)
-			posOrderBy := strings.Index(queryLower, "order by")
-			for _, f := range fields {
-				if f != "ID" {
-					fieldsTracked = append(fieldsTracked, f)
-				}
-				pos := strings.Index(queryOrigin, ":"+f)
-				if pos < posOrderBy || posOrderBy == -1 {
-					fieldsQuery = append(fieldsQuery, f)
-				}
-			}
-			if posOrderBy > -1 {
-				variables = re.FindAllString(queryOrigin[posOrderBy:], -1)
-				for _, variable := range variables {
-					fieldName := variable[1:]
-					fieldsOrder = append(fieldsOrder, fieldName)
-				}
-			}
-
-			if !isOne {
-				def := &CachedQueryDefinition{false, query, fieldsTracked, fieldsQuery, fieldsOrder}
-				cachedQueries[key] = def
-				cachedQueriesAll[key] = def
-			} else {
-				def := &CachedQueryDefinition{true, query, fieldsTracked, fieldsQuery, fieldsOrder}
-				cachedQueriesOne[key] = def
-				cachedQueriesAll[key] = def
-			}
-			for _, name := range fieldsTracked {
-				cachedQueriesTrackedFields[name] = true
-			}
-		}
-	}
 	uniqueIndices := make(map[string]map[int]string)
 	uniqueIndicesSimple := make(map[string][]string)
 	uniqueIndicesSimpleGlobal := make(map[string][]string)
@@ -382,6 +293,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
+	entitySchema.columnAttrToStringSetters = make(map[string]columnAttrToStringSetter)
 	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 0, "", entitySchema.tags)
 	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
 	if len(entitySchema.fieldsQuery) > 0 {
@@ -398,10 +310,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 
 	entitySchema.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
 	entitySchema.columnMapping = columnMapping
-	entitySchema.cachedIndexes = cachedQueries
-	entitySchema.cachedIndexesOne = cachedQueriesOne
-	entitySchema.cachedIndexesAll = cachedQueriesAll
-	entitySchema.cachedIndexesTrackedFields = cachedQueriesTrackedFields
 	entitySchema.hasLocalCache = localCacheLimit != ""
 	if entitySchema.hasLocalCache {
 		limit := 100000
@@ -462,67 +370,6 @@ func (entitySchema *entitySchema) validateIndexes(uniqueIndices map[string]map[i
 			if same == len(v) {
 				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, entitySchema.t.String())
 			}
-		}
-	}
-	for k, v := range entitySchema.cachedIndexesOne {
-		ok := false
-		for _, columns := range uniqueIndices {
-			if len(columns) != len(v.QueryFields) {
-				continue
-			}
-			valid := 0
-			for _, field1 := range v.QueryFields {
-				for _, field2 := range columns {
-					if field1 == field2 {
-						valid++
-					}
-				}
-			}
-			if valid == len(columns) {
-				ok = true
-			}
-		}
-		if !ok {
-			return fmt.Errorf("missing unique index for cached query '%s' in %s", k, entitySchema.t.String())
-		}
-	}
-	for k, v := range entitySchema.cachedIndexes {
-		if v.Query == "1 ORDER BY `ID`" {
-			continue
-		}
-		//first do we have query fields
-		ok := false
-		for _, columns := range all {
-			valid := 0
-			for _, field1 := range v.QueryFields {
-				for _, field2 := range columns {
-					if field1 == field2 {
-						valid++
-					}
-				}
-			}
-			if valid == len(v.QueryFields) {
-				if len(v.OrderFields) == 0 {
-					ok = true
-					break
-				}
-				valid := 0
-				key := len(columns)
-				for i := len(v.OrderFields); i > 0; i-- {
-					if columns[key] == v.OrderFields[i-1] {
-						valid++
-						key--
-						continue
-					}
-					break
-				}
-				if valid == len(v.OrderFields) {
-					ok = true
-				}
-			}
-		}
-		if !ok {
-			return fmt.Errorf("missing index for cached query '%s' in %s", k, entitySchema.t.String())
 		}
 	}
 	return nil
@@ -680,8 +527,6 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 		case "*float32",
 			"*float64":
 			entitySchema.buildFloatPointerField(attributes)
-		case "*beeorm.CachedQuery":
-			continue
 		case "*time.Time":
 			entitySchema.buildTimePointerField(attributes)
 		case "time.Time":
@@ -729,6 +574,34 @@ func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttribute
 	}
 	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*uint64)
+	}
+	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
+		switch v.(type) {
+		case string:
+			_, err := strconv.ParseUint(v.(string), 10, 64)
+			if err != nil {
+				return "", err
+			}
+			return v.(string), nil
+		case uint8:
+			return strconv.FormatUint(uint64(v.(uint8)), 10), nil
+		case uint16:
+			return strconv.FormatUint(uint64(v.(uint16)), 10), nil
+		case uint32, uint:
+			return strconv.FormatUint(uint64(v.(uint32)), 10), nil
+		case uint64:
+			return strconv.FormatUint(v.(uint64), 10), nil
+		case int8:
+			return strconv.FormatUint(uint64(v.(int8)), 10), nil
+		case int16:
+			return strconv.FormatUint(uint64(v.(int16)), 10), nil
+		case int32, int:
+			return strconv.FormatUint(uint64(v.(int32)), 10), nil
+		case int64:
+			return strconv.FormatUint(uint64(v.(int64)), 10), nil
+		default:
+			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		}
 	}
 }
 
@@ -828,6 +701,14 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 			return v.String
 		}
 		return nil
+	}
+	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
+		switch v.(type) {
+		case string:
+			return v.(string), nil
+		default:
+			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		}
 	}
 }
 
@@ -1033,21 +914,8 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) getCachedIndexes(one, all bool) map[string]*CachedQueryDefinition {
-	if one {
-		return entitySchema.cachedIndexes
-	} else if all {
-		return entitySchema.cachedIndexesAll
-	}
-	return entitySchema.cachedIndexes
-}
-
 func (entitySchema *entitySchema) getFields() *tableFields {
 	return entitySchema.fields
-}
-
-func (entitySchema *entitySchema) getCachedIndexesTrackedFields() map[string]bool {
-	return entitySchema.cachedIndexesTrackedFields
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

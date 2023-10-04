@@ -521,8 +521,6 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue = handleTime(attributes, true)
 	case "[]uint8":
 		definition, addDefaultNullIfNullable = handleBlob(attributes)
-	case "*beeorm.CachedQuery":
-		return nil, nil
 	default:
 		kind := field.Type.Kind().String()
 		if kind == "struct" {

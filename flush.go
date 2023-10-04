@@ -408,15 +408,19 @@ func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(
 func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
 	hField := ""
 	hasNil := false
+	hasInBind := false
 	for _, column := range indexColumns {
-		bindValue := bind[column]
+		bindValue, has := bind[column]
 		if bindValue == nullAsString {
 			hasNil = true
 			break
 		}
+		if has {
+			hasInBind = true
+		}
 		hField += bindValue
 	}
-	if hasNil {
+	if hasNil || !hasInBind {
 		return "", false
 	}
 	return hashString(hField), true

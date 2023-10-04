@@ -26,9 +26,11 @@ func GetByUniqueKey[E any](c Context, indexName string, attributes ...any) *E {
 		if attr == nil {
 			panic(fmt.Errorf("nil attribute for index name `%s` is not allowed", indexName))
 		}
-		sBuilder.WriteString(schema.columnAttrToStringSetters[columns[i]](attr))
+		val, err := schema.columnAttrToStringSetters[columns[i]](attr)
+		checkError(err)
+		sBuilder.WriteString(val)
 	}
-	hField := sBuilder.String()
+	hField := hashString(sBuilder.String())
 	cache, hasRedis := schema.GetRedisCache()
 	if !hasRedis {
 		cache = c.Engine().Redis(DefaultPoolCode)
