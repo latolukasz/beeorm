@@ -615,6 +615,20 @@ func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttr
 	columnName := attributes.GetColumnName()
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
+		switch v.(type) {
+		case uint64:
+			return strconv.FormatUint(v.(uint64), 10), nil
+		case int:
+			return strconv.FormatUint(uint64(v.(int)), 10), nil
+		default:
+			asRef, valid := v.(referenceInterface)
+			if valid {
+				return strconv.FormatUint(asRef.GetID(), 10), nil
+			}
+		}
+		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+	}
 }
 
 func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {

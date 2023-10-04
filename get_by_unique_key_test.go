@@ -41,8 +41,8 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	schema := GetEntitySchema[getByUniqueKeyEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	var ids []uint64
-	var refs []uint64
+	var entities []*getByUniqueKeyEntity
+	var refs []*getByUniqueKeyReference
 	for i := 0; i < 10; i++ {
 		ref := NewEntity[getByUniqueKeyReference](c).TrackedEntity()
 		ref.Name = fmt.Sprintf("Ref %d", i)
@@ -50,29 +50,34 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
 		entity.Ref = NewReference[getByUniqueKeyReference](ref.ID)
-		ids = append(ids, entity.ID)
-		refs = append(refs, ref.ID)
+		entities = append(entities, entity)
+		refs = append(refs, ref)
 	}
 	err := c.Flush(false)
 	assert.NoError(t, err)
 
 	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Name", "Name 3")
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[3], entity.ID)
+	assert.Equal(t, entities[3].ID, entity.ID)
 	assert.Equal(t, "Name 3", entity.Name)
 
 	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Multi", 4, false)
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 
 	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Multi", 4, 0)
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 
-	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Ref", refs[4])
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Ref", refs[4].ID)
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[4], entity.ID)
+	assert.Equal(t, entities[4].ID, entity.ID)
+	assert.Equal(t, "Name 4", entities[4].Name)
+
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Ref", entities[4].Ref)
+	assert.NotNil(t, entity)
+	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 }
