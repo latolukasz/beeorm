@@ -160,7 +160,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 	def()
 	if foundInDB < toSearch {
 		for i, id := range ids {
-			if reflect.ValueOf(resultsSlice[i]).IsZero() { // TODO TO SLOW and duplicated sets
+			if resultsSlice[i] == nil {
 				hasMissing = true
 				if !schema.hasLocalCache && !hasRedisCache {
 					break

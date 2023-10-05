@@ -3,7 +3,6 @@ package beeorm
 import (
 	"context"
 	"strings"
-	"sync"
 )
 
 type Meta map[string]string
@@ -51,7 +50,6 @@ type contextImplementation struct {
 	redisPipeLines         map[string]*RedisPipeLine
 	flushDBActions         map[string][]func(db DBBase)
 	flushPostActions       []func()
-	sync.Mutex
 }
 
 func (c *contextImplementation) getStringBuilder() *strings.Builder {

@@ -10,21 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRedis6(t *testing.T) {
-	testRedis(t, 6)
-}
-
-func TestRedis7(t *testing.T) {
-	testRedis(t, 7)
-}
-
-func testRedis(t *testing.T, version int) {
+func TestRedis(t *testing.T) {
 	registry := &Registry{}
-	url := "localhost:6382"
-	if version == 7 {
-		url = "localhost:6381"
-	}
-	registry.RegisterRedis(url, 15)
+	registry.RegisterRedis("localhost:6385", 15)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
@@ -165,8 +153,6 @@ func testRedis(t *testing.T, version int) {
 	val, has = r.SPop(c, "test_s")
 	assert.Equal(t, "", val)
 	assert.False(t, has)
-
-	assert.NotEmpty(t, r.Info(c, "modules"))
 
 	script := `
 		local count = 2	

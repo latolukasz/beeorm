@@ -107,6 +107,10 @@ func (lc *localCache) Remove(c Context, key string) {
 
 func (lc *localCache) removeEntity(c Context, id uint64) {
 	lc.cacheEntities.Delete(id)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %d", id), false)
+	}
 }
 
 func (lc *localCache) Clear(c Context) {
