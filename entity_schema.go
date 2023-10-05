@@ -239,8 +239,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	cacheKey += entitySchema.tableName
 	uniqueIndices := make(map[string]map[int]string)
-	uniqueIndicesSimple := make(map[string][]string)
-	uniqueIndicesSimpleGlobal := make(map[string][]string)
 	indices := make(map[string]map[int]string)
 	uniqueGlobal := entitySchema.getTag("unique", "", "")
 	if uniqueGlobal != "" {
@@ -248,12 +246,8 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		for _, part := range parts {
 			def := strings.Split(part, ":")
 			uniqueIndices[def[0]] = make(map[int]string)
-			uniqueIndicesSimple[def[0]] = make([]string, 0)
-			uniqueIndicesSimpleGlobal[def[0]] = make([]string, 0)
 			for i, field := range strings.Split(def[1], ",") {
 				uniqueIndices[def[0]][i+1] = field
-				uniqueIndicesSimple[def[0]] = append(uniqueIndicesSimple[def[0]], field)
-				uniqueIndicesSimpleGlobal[def[0]] = append(uniqueIndicesSimpleGlobal[def[0]], field)
 			}
 		}
 	}
@@ -271,10 +265,6 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 					uniqueIndices[parts[0]] = make(map[int]string)
 				}
 				uniqueIndices[parts[0]][int(id)] = k
-				if uniqueIndicesSimple[parts[0]] == nil {
-					uniqueIndicesSimple[parts[0]] = make([]string, 0)
-				}
-				uniqueIndicesSimple[parts[0]] = append(uniqueIndicesSimple[parts[0]], k)
 			}
 		}
 		keys, has = v["index"]
@@ -332,7 +322,13 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	}
 	entitySchema.lazyCacheKey = entitySchema.mysqlPoolCode + ":" + lazyList
 
-	entitySchema.uniqueIndices = uniqueIndicesSimple
+	entitySchema.uniqueIndices = make(map[string][]string)
+	for name, index := range uniqueIndices {
+		entitySchema.uniqueIndices[name] = make([]string, len(index))
+		for i := 1; i <= len(index); i++ {
+			entitySchema.uniqueIndices[name][i-1] = index[i]
+		}
+	}
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
 		if isInterfaceInitEntitySchema {
@@ -517,6 +513,8 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			entitySchema.buildStringField(attributes)
 		case "[]uint8":
 			fields.bytes = append(fields.bytes, i)
+			columnName := attributes.GetColumnName()
+			entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 		case "bool":
 			entitySchema.buildBoolField(attributes)
 		case "*bool":
@@ -575,38 +573,7 @@ func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttribute
 	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*uint64)
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
-		switch v.(type) {
-		case string:
-			_, err := strconv.ParseUint(v.(string), 10, 64)
-			if err != nil {
-				return "", err
-			}
-			return v.(string), nil
-		case uint8:
-			return strconv.FormatUint(uint64(v.(uint8)), 10), nil
-		case uint16:
-			return strconv.FormatUint(uint64(v.(uint16)), 10), nil
-		case uint:
-			return strconv.FormatUint(uint64(v.(uint)), 10), nil
-		case uint32:
-			return strconv.FormatUint(uint64(v.(uint32)), 10), nil
-		case uint64:
-			return strconv.FormatUint(v.(uint64), 10), nil
-		case int8:
-			return strconv.FormatUint(uint64(v.(int8)), 10), nil
-		case int16:
-			return strconv.FormatUint(uint64(v.(int16)), 10), nil
-		case int:
-			return strconv.FormatUint(uint64(v.(int)), 10), nil
-		case int32:
-			return strconv.FormatUint(uint64(v.(int32)), 10), nil
-		case int64:
-			return strconv.FormatUint(uint64(v.(int64)), 10), nil
-		default:
-			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
-		}
-	}
+	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
 func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
@@ -615,20 +582,7 @@ func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttr
 	columnName := attributes.GetColumnName()
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
-		switch v.(type) {
-		case uint64:
-			return strconv.FormatUint(v.(uint64), 10), nil
-		case int:
-			return strconv.FormatUint(uint64(v.(int)), 10), nil
-		default:
-			asRef, valid := v.(referenceInterface)
-			if valid {
-				return strconv.FormatUint(asRef.GetID(), 10), nil
-			}
-		}
-		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
-	}
+	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
 func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
@@ -648,6 +602,7 @@ func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAt
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
 func (entitySchema *entitySchema) buildIntField(attributes schemaFieldAttributes) {
@@ -660,6 +615,7 @@ func (entitySchema *entitySchema) buildIntField(attributes schemaFieldAttributes
 	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*int64)
 	}
+	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
 }
 
 func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
@@ -679,6 +635,7 @@ func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAtt
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerIntNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
 }
 
 func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
@@ -696,6 +653,7 @@ func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttribute
 		}
 		return nil
 	}
+	entitySchema.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes) {
@@ -720,14 +678,7 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 		}
 		return nil
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
-		switch v.(type) {
-		case string:
-			return v.(string), nil
-		default:
-			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
-		}
-	}
+	entitySchema.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
@@ -736,6 +687,7 @@ func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAt
 	attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition, attributes.Tags["required"] == "true"))
 	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
@@ -743,31 +695,7 @@ func (entitySchema *entitySchema) buildBoolField(attributes schemaFieldAttribute
 	attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
 	entitySchema.mapBindToScanPointer[columnName] = scanBoolPointer
 	entitySchema.mapPointerToValue[columnName] = pointerBoolScan
-	entitySchema.columnAttrToStringSetters[columnName] = func(v any) (string, error) {
-		switch v.(type) {
-		case bool:
-			if v.(bool) {
-				return "1", nil
-			}
-			return "0", nil
-		case string:
-			s := strings.ToLower(v.(string))
-			if s == "1" || s == "true" {
-				return "1", nil
-			} else if s == "0" || s == "false" {
-				return "0", nil
-			}
-		case int:
-			asInt := v.(int)
-			if asInt == 1 {
-				return "1", nil
-			} else if asInt == 0 {
-				return "0", nil
-			}
-			return strconv.FormatUint(uint64(v.(int)), 10), nil
-		}
-		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
-	}
+	entitySchema.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
@@ -775,6 +703,7 @@ func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAt
 	columnName := attributes.GetColumnName()
 	entitySchema.mapBindToScanPointer[columnName] = scanBoolNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerBoolNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
@@ -811,6 +740,7 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*float64)
 	}
+	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) {
@@ -842,6 +772,7 @@ func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldA
 	attributes.Fields.floatsNullableUnsigned = append(attributes.Fields.floatsNullableUnsigned, attributes.Tags["unsigned"] == "true")
 	entitySchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerFloatNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
 func (entitySchema *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
@@ -854,6 +785,7 @@ func (entitySchema *entitySchema) buildTimePointerField(attributes schemaFieldAt
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
+	entitySchema.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
 }
 
 func (entitySchema *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
@@ -866,6 +798,7 @@ func (entitySchema *entitySchema) buildTimeField(attributes schemaFieldAttribute
 	}
 	entitySchema.mapBindToScanPointer[columnName] = scanStringPointer
 	entitySchema.mapPointerToValue[columnName] = pointerStringScan
+	entitySchema.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
 }
 
 func (entitySchema *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,

@@ -4,14 +4,16 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
 	"testing"
+	"time"
 )
 
 type getByUniqueKeyEntity struct {
-	ID     uint64                              `orm:"localCache;redisCache"`
-	Name   string                              `orm:"unique=Name"`
-	Age    uint8                               `orm:"unique=Multi"`
-	Active bool                                `orm:"unique=Multi:2"`
-	Ref    *Reference[getByUniqueKeyReference] `orm:"unique=Ref"`
+	ID        uint64                              `orm:"localCache;redisCache"`
+	Name      string                              `orm:"unique=Name"`
+	Age       uint8                               `orm:"unique=Multi"`
+	Active    bool                                `orm:"unique=Multi:2"`
+	Ref       *Reference[getByUniqueKeyReference] `orm:"unique=Ref"`
+	BirthDate time.Time                           `orm:"time;unique=Time"`
 }
 
 type getByUniqueKeyReference struct {
@@ -43,6 +45,7 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 
 	var entities []*getByUniqueKeyEntity
 	var refs []*getByUniqueKeyReference
+	date := time.Now().UTC()
 	for i := 0; i < 10; i++ {
 		ref := NewEntity[getByUniqueKeyReference](c).TrackedEntity()
 		ref.Name = fmt.Sprintf("Ref %d", i)
@@ -50,6 +53,8 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
 		entity.Ref = NewReference[getByUniqueKeyReference](ref.ID)
+		date = date.Add(time.Hour)
+		entity.BirthDate = date
 		entities = append(entities, entity)
 		refs = append(refs, ref)
 	}
@@ -76,8 +81,9 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entities[4].Name)
 
-	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Ref", entities[4].Ref)
+	date = date.Add(time.Hour * -3)
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Time", date)
 	assert.NotNil(t, entity)
-	assert.Equal(t, entities[4].ID, entity.ID)
-	assert.Equal(t, "Name 4", entity.Name)
+	assert.Equal(t, entities[6].ID, entity.ID)
+	assert.Equal(t, "Name 6", entities[6].Name)
 }
