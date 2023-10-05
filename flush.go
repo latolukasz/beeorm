@@ -1,8 +1,8 @@
 package beeorm
 
 import (
-	"fmt"
 	jsoniter "github.com/json-iterator/go"
+	"reflect"
 	"strconv"
 	"strings"
 )
@@ -253,8 +253,17 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 					continue
 				}
 				//zapisanie do references cache
-				lc.setReference(c, id, "TODO")
-				fmt.Printf("YES %s\n", cacheKey)
+				idAsInt, _ := strconv.ParseUint(id, 10, 64)
+				c.flushPostActions = append(c.flushPostActions, func() {
+					values, has := lc.getReference(c, idAsInt)
+					if !has {
+						// pobrac z bazy
+					} else {
+						newValue := reflect.Append(values.(reflect.Value))
+					}
+					lc.setReference(c, idAsInt, "TODO")
+				})
+
 			}
 
 		}
