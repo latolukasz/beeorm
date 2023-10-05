@@ -33,19 +33,23 @@ type LocalCache interface {
 	getEntity(c Context, id uint64) (value any, ok bool)
 	setEntity(c Context, id uint64, value any)
 	removeEntity(c Context, id uint64)
+	getReference(c Context, id uint64) (value any, ok bool)
+	setReference(c Context, id uint64, value any)
+	removeReference(c Context, id uint64)
 	Clear(c Context)
 	GetObjectsCount() int
 }
 
 type localCache struct {
-	config        *localCachePoolConfig
-	ll            *list.List
-	cache         *xsync.Map
-	cacheEntities *xsync.MapOf[uint64, any]
-	storeEntities bool
+	config          *localCachePoolConfig
+	ll              *list.List
+	cache           *xsync.Map
+	cacheEntities   *xsync.MapOf[uint64, any]
+	cacheReferences *xsync.MapOf[uint64, any]
+	storeEntities   bool
 }
 
-func newLocalCache(dbCode string, limit int, storeEntities bool) *localCache {
+func newLocalCache(dbCode string, limit int, storeEntities, storeReferences bool) *localCache {
 	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}, storeEntities: storeEntities}
 	if limit > 0 {
 		c.ll = list.New()
@@ -53,6 +57,11 @@ func newLocalCache(dbCode string, limit int, storeEntities bool) *localCache {
 	c.cache = xsync.NewMap()
 	if storeEntities {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+	}
+	if storeReferences {
+		c.cacheReferences = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 			return u
 		})
 	}
@@ -76,7 +85,16 @@ func (lc *localCache) getEntity(c Context, id uint64) (value any, ok bool) {
 	value, ok = lc.cacheEntities.Load(id)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %d", id), ok)
+		lc.fillLogFields(c, "GET", fmt.Sprintf("GET ENTITY %d", id), ok)
+	}
+	return
+}
+
+func (lc *localCache) getReference(c Context, id uint64) (value any, ok bool) {
+	value, ok = lc.cacheReferences.Load(id)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "GET", fmt.Sprintf("GET REFERENCE %d", id), ok)
 	}
 	return
 }
@@ -85,7 +103,7 @@ func (lc *localCache) Set(c Context, key string, value interface{}) {
 	lc.cache.Store(key, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %s %v", key, value), false)
+		lc.fillLogFields(c, "SET ENTITY", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
 
@@ -93,7 +111,15 @@ func (lc *localCache) setEntity(c Context, id uint64, value any) {
 	lc.cacheEntities.Store(id, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET %d [entity value]", id), false)
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET ENTITY %d [entity value]", id), false)
+	}
+}
+
+func (lc *localCache) setReference(c Context, id uint64, value any) {
+	lc.cacheReferences.Store(id, value)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %d [entity value]", id), false)
 	}
 }
 
@@ -109,7 +135,15 @@ func (lc *localCache) removeEntity(c Context, id uint64) {
 	lc.cacheEntities.Delete(id)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %d", id), false)
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE ENTITY %d", id), false)
+	}
+}
+
+func (lc *localCache) removeReference(c Context, id uint64) {
+	lc.cacheReferences.Delete(id)
+	hasLog, _ := c.getLocalCacheLoggers()
+	if hasLog {
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE REFERENCE ENTITY %d", id), false)
 	}
 }
 

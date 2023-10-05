@@ -10,7 +10,7 @@ type getByReferenceEntity struct {
 	ID        uint64 `orm:"localCache;redisCache"`
 	Name      string
 	Ref       *Reference[getByReferenceReference] `orm:"index=Ref"`
-	RefCached *Reference[getByReferenceReference] `orm:"index=RefCached"`
+	RefCached *Reference[getByReferenceReference] `orm:"index=RefCached;cached"`
 }
 
 type getByReferenceReference struct {
@@ -50,6 +50,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 		entity = NewEntity[getByReferenceEntity](c).TrackedEntity()
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Ref = NewReference[getByReferenceReference](ref.ID)
+		entity.RefCached = NewReference[getByReferenceReference](ref.ID)
 		entities = append(entities, entity)
 	}
 	err := c.Flush(false)

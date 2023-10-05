@@ -65,9 +65,8 @@ type SettableEntitySchema interface {
 type columnAttrToStringSetter func(v any) (string, error)
 
 type referenceDefinition struct {
-	Strong   bool
-	Cached   bool
-	CacheKey string
+	Strong bool
+	Cached bool
 }
 
 type entitySchema struct {
@@ -84,6 +83,7 @@ type entitySchema struct {
 	columnAttrToStringSetters map[string]columnAttrToStringSetter
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
+	cachedReferences          map[string]referenceDefinition
 	hasLocalCache             bool
 	localCache                *localCache
 	localCacheLimit           int
@@ -225,6 +225,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
 	entitySchema.tags = extractTags(registry, entityType, "")
 	entitySchema.references = make(map[string]referenceDefinition)
+	entitySchema.cachedReferences = make(map[string]referenceDefinition)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
 	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
@@ -550,6 +551,9 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 				}
 			} else if f.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
 				entitySchema.buildReferenceField(attributes)
+				if attributes.Tags["cached"] == "true" {
+					fields.forcedOldBid[i] = true
+				}
 			} else {
 				panic(fmt.Errorf("field type %s is not supported", f.Type.String()))
 			}
@@ -596,7 +600,7 @@ func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttr
 		Strong: attributes.Tags["strong"] == "true",
 	}
 	if def.Cached {
-		def.CacheKey = entitySchema.cacheKey + ":" + columnName
+		entitySchema.cachedReferences[columnName] = def
 	}
 	entitySchema.references[columnName] = def
 }

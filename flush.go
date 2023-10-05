@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	jsoniter "github.com/json-iterator/go"
 	"strconv"
 	"strings"
@@ -246,6 +247,16 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			c.flushPostActions = append(c.flushPostActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getEntity())
 			})
+			for columnName := range schema.cachedReferences {
+				id := bind[columnName]
+				if id == nullAsString {
+					continue
+				}
+				//zapisanie do references cache
+				lc.setReference(c, id, "TODO")
+				fmt.Printf("YES %s\n", cacheKey)
+			}
+
 		}
 		if hasRedisCache {
 			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)

@@ -3,7 +3,6 @@ package beeorm
 import (
 	"fmt"
 	"reflect"
-	"strconv"
 )
 
 func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
@@ -28,13 +27,12 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		return Search[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 	}
 	// TODO add redis
-	cacheKey := def.CacheKey + ":" + strconv.FormatUint(id, 10)
 	if hasLocalCache {
-		fromCache, hasInCache := lc.Get(c, cacheKey)
+		fromCache, hasInCache := lc.getReference(c, id)
 		if !hasInCache {
 			ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 			rows := GetByIDs[E](c, ids...)
-			lc.Set(c, cacheKey, rows)
+			lc.setReference(c, id, rows)
 			return rows
 		}
 		return fromCache.([]*E)
