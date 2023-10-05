@@ -127,32 +127,29 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow[E any](c Context, where *Where, entityToFill *E, isSearch bool) (entity *E) {
+func searchRow[E any](c Context, where *Where) (entity *E) {
 	schema := getEntitySchema[E](c)
-	if isSearch {
-		where = runPluginInterfaceEntitySearch(c, where, schema)
-	}
-	whereQuery := where.String()
-	/* #nosec */
-	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
-
 	pool := schema.GetDB()
-	results, def := pool.Query(c, query, where.GetParameters()...)
-	defer def()
-	if !results.Next() {
+	whereQuery := where.String()
+
+	if schema.hasLocalCache {
+		query := "SELECT ID FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
+		var id uint64
+		if pool.QueryRow(c, query, []interface{}{&id}, where.parameters...) {
+			return GetByID[E](c, id)
+		}
 		return nil
 	}
+
+	/* #nosec */
+	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 	pointers := prepareScan(schema)
-	results.Scan(pointers...)
-	def()
-	var value reflect.Value
-	if entityToFill != nil {
-		entity = entityToFill
-		value = reflect.ValueOf(entity)
-	} else {
-		value = reflect.New(schema.t)
-		entity = value.Interface().(*E)
+	found := pool.QueryRow(c, query, pointers, where.GetParameters()...)
+	if !found {
+		return nil
 	}
+	value := reflect.New(schema.t)
+	entity = value.Interface().(*E)
 	deserializeFromDB(schema.getFields(), value.Elem(), pointers)
 	return entity
 }
@@ -175,10 +172,13 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 	schema := getEntitySchema[E](c)
 	entities := reflect.MakeSlice(schema.tSlice, 0, 0)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
-
+	if schema.hasLocalCache {
+		ids, total := SearchIDsWithCount[E](c, where, pager)
+		return GetByIDs[E](c, ids...), total
+	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT ID" + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetDB()
 	queryResults, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -198,7 +198,7 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 }
 
 func searchOne[E any](c Context, where *Where) *E {
-	return searchRow[E](c, where, nil, true)
+	return searchRow[E](c, where)
 }
 
 func searchIDs(c Context, schema EntitySchema, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
@@ -232,7 +232,7 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 			query := "SELECT count(1) FROM `" + schema.GetTableName() + "` WHERE " + where.String()
 			var foundTotal string
 			pool := schema.GetDB()
-			pool.QueryRow(c, NewWhere(query, where.GetParameters()...), &foundTotal)
+			pool.QueryRow(c, query, where.GetParameters(), &foundTotal)
 			totalRows, _ = strconv.Atoi(foundTotal)
 		} else {
 			totalRows += (pager.GetCurrentPage() - 1) * pager.GetPageSize()

@@ -41,7 +41,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				pointers[i+1] = &val
 			}
 			where.Append(" ORDER BY `ID`")
-			whereCount := NewWhere("SELECT COUNT(`ID`) FROM `" + schema.GetTableName() + "` WHERE " + where.String())
+			whereCount := "SELECT COUNT(`ID`) FROM `" + schema.GetTableName() + "` WHERE " + where.String()
 			selectWhere.Append(" FROM `" + schema.GetTableName() + "` WHERE ID > ? AND")
 			selectWhere.Append(where.String())
 
@@ -54,7 +54,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				print(".")
 			}
 			total := uint64(0)
-			db.QueryRow(c, whereCount, &total)
+			db.QueryRow(c, whereCount, []interface{}{&total})
 			if total == 0 {
 				if debug {
 					print(strings.Repeat(".", 100))

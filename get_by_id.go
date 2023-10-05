@@ -56,7 +56,14 @@ func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entit
 			}
 		}
 	}
-	entity = searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
+	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE ID = ? LIMIT 1"
+	pointers := prepareScan(schema)
+	found := schema.GetDB().QueryRow(c, query, pointers, id)
+	if found {
+		value := reflect.New(schema.t)
+		entity = value.Interface().(*E)
+		deserializeFromDB(schema.getFields(), value.Elem(), pointers)
+	}
 	if entity == nil {
 		if schema.hasLocalCache {
 			schema.localCache.setEntity(c, id, nil)

@@ -224,6 +224,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 	entitySchema.t = entityType
 	entitySchema.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
 	entitySchema.tags = extractTags(registry, entityType, "")
+	entitySchema.references = make(map[string]referenceDefinition)
 	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
 	entitySchema.mapPointerToValue = mapPointerToValue{}
 	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
@@ -590,6 +591,14 @@ func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttr
 	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
 	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
 	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+	def := referenceDefinition{
+		Cached: attributes.Tags["cached"] == "true",
+		Strong: attributes.Tags["strong"] == "true",
+	}
+	if def.Cached {
+		def.CacheKey = entitySchema.cacheKey + ":" + columnName
+	}
+	entitySchema.references[columnName] = def
 }
 
 func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {

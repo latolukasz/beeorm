@@ -310,7 +310,7 @@ type DBBase interface {
 	SetMockDBClient(mock DBClient)
 	Prepare(c Context, query string) (stmt PreparedStmt, close func())
 	Exec(c Context, query string, args ...interface{}) ExecResult
-	QueryRow(c Context, query *Where, toFill ...interface{}) (found bool)
+	QueryRow(c Context, query string, toFill []interface{}, args ...interface{}) (found bool)
 	Query(c Context, query string, args ...interface{}) (rows Rows, close func())
 }
 
@@ -419,16 +419,16 @@ func (db *dbImplementation) exec(c Context, query string, args ...interface{}) (
 	return &execResult{r: rows}, err
 }
 
-func (db *dbImplementation) QueryRow(c Context, query *Where, toFill ...interface{}) (found bool) {
+func (db *dbImplementation) QueryRow(c Context, query string, toFill []interface{}, args ...interface{}) (found bool) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
-	row := db.client.QueryRow(query.String(), query.GetParameters()...)
+	row := db.client.QueryRow(query, args...)
 	err := row.Scan(toFill...)
 	message := ""
 	if hasLogger {
-		message = query.String()
-		if len(query.GetParameters()) > 0 {
-			message += " " + fmt.Sprintf("%v", query.GetParameters())
+		message = query
+		if len(args) > 0 {
+			message += " " + fmt.Sprintf("%v", args)
 		}
 	}
 	if err != nil {

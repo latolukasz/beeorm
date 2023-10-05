@@ -169,7 +169,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 	engine := c.Engine()
 	pool := entitySchema.GetDB()
 	var skip string
-	hasTable := pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.GetTableName())), &skip)
+	hasTable := pool.QueryRow(c, fmt.Sprintf("SHOW TABLES LIKE '%s'", entitySchema.GetTableName()), []interface{}{&skip})
 	sqlSchema := &TableSQLSchemaDefinition{
 		context:       c,
 		EntitySchema:  entitySchema,
@@ -178,7 +178,7 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 		EntityColumns: columns}
 	if hasTable {
 		sqlSchema.DBTableColumns = make([]*ColumnSchemaDefinition, 0)
-		pool.QueryRow(c, NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.GetTableName())), &skip, &sqlSchema.DBCreateSchema)
+		pool.QueryRow(c, fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.GetTableName()), []interface{}{&skip, &sqlSchema.DBCreateSchema})
 		lines := strings.Split(sqlSchema.DBCreateSchema, "\n")
 		for x := 1; x < len(lines); x++ {
 			if lines[x][2] != 96 {
