@@ -27,7 +27,22 @@ var mySQLErrorCodesToSkip = []uint16{
 	2032, // Data truncated
 }
 
+const lazyConsumerLockName = "lazy_consumer"
+
 func ConsumeLazyFlushEvents(c Context, block bool) error {
+	lock, lockObtained := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, lazyConsumerLockName, time.Minute, 0)
+	if !lockObtained {
+		return nil
+	}
+	defer func() {
+		lock.Release(c)
+	}()
+	go func() {
+		time.Sleep(time.Second * 50)
+		if !lock.Refresh(c, time.Minute) {
+			lockObtained = false
+		}
+	}()
 	waitGroup := &sync.WaitGroup{}
 	ctxNoCancel := c.CloneWithContext(context.Background())
 	groups := make(map[DB]map[RedisCache]map[string]bool)
@@ -51,17 +66,18 @@ func ConsumeLazyFlushEvents(c Context, block bool) error {
 		}
 		redisGroup[schema.lazyCacheKey] = true
 		waitGroup.Add(1)
-		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), schema.lazyCacheKey, db, r, block, waitGroup)
+		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), schema.lazyCacheKey, db, r, block, waitGroup, &lockObtained)
 	}
 	waitGroup.Wait()
 	return nil
 }
 
-func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache, block bool, waitGroup *sync.WaitGroup) {
+func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache,
+	block bool, waitGroup *sync.WaitGroup, lockObtained *bool) {
 	defer waitGroup.Done()
 	var values []string
 	for {
-		if ctx.Err() != nil {
+		if ctx.Err() != nil || !*lockObtained {
 			return
 		}
 		values = r.LRange(c, list, 0, lazyConsumerPage-1)
