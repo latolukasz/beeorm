@@ -175,10 +175,12 @@ func (r *Registry) RegisterEntity(entity ...any) {
 	for _, e := range entity {
 		t := reflect.TypeOf(e)
 		if t.Kind() == reflect.Ptr {
-			r.entities[t.Elem().String()] = t.Elem()
-		} else {
-			r.entities[t.String()] = t
+			t = t.Elem()
 		}
+		if t.Kind().String() != "struct" {
+			panic(fmt.Errorf("invalid entity definition, must be struct, %T provided", e))
+		}
+		r.entities[t.String()] = t
 	}
 }
 

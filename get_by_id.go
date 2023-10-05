@@ -56,8 +56,8 @@ func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entit
 			}
 		}
 	}
-	entity, found := searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
-	if !found {
+	entity = searchRow[E](c, NewWhere("`ID` = ?", id), nil, false)
+	if entity == nil {
 		if schema.hasLocalCache {
 			schema.localCache.setEntity(c, id, nil)
 		}

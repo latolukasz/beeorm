@@ -16,17 +16,15 @@ func Search[E any](c Context, where *Where, pager *Pager) []*E {
 }
 
 func SearchIDsWithCount[E any](c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
-	var entity E
-	return searchIDs(c, reflect.TypeOf(entity), where, pager, true)
+	return searchIDs(c, GetEntitySchema[E](c), where, pager, true)
 }
 
 func SearchIDs[E any](c Context, where *Where, pager *Pager) []uint64 {
-	var entity E
-	ids, _ := searchIDs(c, reflect.TypeOf(entity), where, pager, false)
+	ids, _ := searchIDs(c, GetEntitySchema[E](c), where, pager, false)
 	return ids
 }
 
-func SearchOne[E any](c Context, where *Where) (entity *E, found bool) {
+func SearchOne[E any](c Context, where *Where) *E {
 	return searchOne[E](c, where)
 }
 
@@ -129,7 +127,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 	return start
 }
 
-func searchRow[E any](c Context, where *Where, entityToFill *E, isSearch bool) (entity *E, found bool) {
+func searchRow[E any](c Context, where *Where, entityToFill *E, isSearch bool) (entity *E) {
 	schema := getEntitySchema[E](c)
 	if isSearch {
 		where = runPluginInterfaceEntitySearch(c, where, schema)
@@ -142,7 +140,7 @@ func searchRow[E any](c Context, where *Where, entityToFill *E, isSearch bool) (
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
 	if !results.Next() {
-		return entity, false
+		return nil
 	}
 	pointers := prepareScan(schema)
 	results.Scan(pointers...)
@@ -156,7 +154,7 @@ func searchRow[E any](c Context, where *Where, entityToFill *E, isSearch bool) (
 		entity = value.Interface().(*E)
 	}
 	deserializeFromDB(schema.getFields(), value.Elem(), pointers)
-	return entity, true
+	return entity
 }
 
 func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema) *Where {
@@ -199,15 +197,14 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 	return entities.Interface().([]*E), totalRows
 }
 
-func searchOne[E any](c Context, where *Where) (entity *E, found bool) {
+func searchOne[E any](c Context, where *Where) *E {
 	return searchRow[E](c, where, nil, true)
 }
 
-func searchIDs(c Context, entity reflect.Type, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
+func searchIDs(c Context, schema EntitySchema, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	schema := c.Engine().Registry().EntitySchema(entity)
 	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
