@@ -64,6 +64,12 @@ type SettableEntitySchema interface {
 
 type columnAttrToStringSetter func(v any) (string, error)
 
+type referenceDefinition struct {
+	Strong   bool
+	Cached   bool
+	CacheKey string
+}
+
 type entitySchema struct {
 	tableName                 string
 	mysqlPoolCode             string
@@ -77,6 +83,7 @@ type entitySchema struct {
 	columnMapping             map[string]int
 	columnAttrToStringSetters map[string]columnAttrToStringSetter
 	uniqueIndices             map[string][]string
+	references                map[string]referenceDefinition
 	hasLocalCache             bool
 	localCache                *localCache
 	localCacheLimit           int
