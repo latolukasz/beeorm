@@ -31,15 +31,18 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		fromCache, hasInCache := lc.getReference(c, referenceName, id)
 		defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 		if !hasInCache {
-			def.Mutex.Lock()
-			defer def.Mutex.Unlock()
-			ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
-			rows := GetByIDs[E](c, ids...)
-			if defSchema.hasLocalCache {
-				lc.setReference(c, referenceName, id, rows)
-			} else {
-				lc.setReference(c, referenceName, id, ids)
-			}
+			var rows []*E
+			func() {
+				def.Mutex.Lock()
+				defer def.Mutex.Unlock()
+				ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
+				rows = GetByIDs[E](c, ids...)
+				if defSchema.hasLocalCache {
+					lc.setReference(c, referenceName, id, rows)
+				} else {
+					lc.setReference(c, referenceName, id, ids)
+				}
+			}()
 			return rows
 		}
 		if defSchema.hasLocalCache {

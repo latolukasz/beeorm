@@ -414,55 +414,59 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 					defSchema := c.engine.Registry().EntitySchema(refDef.Type).(*entitySchema)
 
 					if oldAsInt > 0 {
-						refDef.Mutex.Lock()
-						defer refDef.Mutex.Unlock()
-						fromCache, hasInCache := lc.getReference(c, refColumn, oldAsInt)
-						if hasInCache {
-							if defSchema.hasLocalCache {
-								val := reflect.ValueOf(fromCache)
-								index := -1
-								for i := 0; i < val.Len(); i++ {
-									if val.Index(i).Elem().Field(0).Uint() == oldAsInt {
-										index = i
-										break
-									}
-								}
-								if index > -1 {
-									newVal := reflect.MakeSlice(val.Type(), val.Len()-1, val.Len()-1)
-									j := 0
+						func() {
+							refDef.Mutex.Lock()
+							defer refDef.Mutex.Unlock()
+							fromCache, hasInCache := lc.getReference(c, refColumn, oldAsInt)
+							if hasInCache {
+								if defSchema.hasLocalCache {
+									val := reflect.ValueOf(fromCache)
+									index := -1
 									for i := 0; i < val.Len(); i++ {
-										if index == i {
-											continue
+										if val.Index(i).Elem().Field(0).Uint() == update.ID() {
+											index = i
+											break
 										}
-										newVal.Index(j).Set(val.Index(i))
-										j++
 									}
-									lc.setReference(c, refColumn, oldAsInt, newVal.Interface())
-								}
-							} else {
-								val := fromCache.([]uint64)
-								index := slices.Index(val, oldAsInt)
-								if index > -1 {
-									val = slices.Delete(val, index, index+1)
-									lc.setReference(c, refColumn, oldAsInt, val)
+									if index > -1 {
+										newVal := reflect.MakeSlice(val.Type(), val.Len()-1, val.Len()-1)
+										j := 0
+										for i := 0; i < val.Len(); i++ {
+											if index == i {
+												continue
+											}
+											newVal.Index(j).Set(val.Index(i))
+											j++
+										}
+										lc.setReference(c, refColumn, oldAsInt, newVal.Interface())
+									}
+								} else {
+									val := fromCache.([]uint64)
+									index := slices.Index(val, update.ID())
+									if index > -1 {
+										val = slices.Delete(val, index, index+1)
+										lc.setReference(c, refColumn, oldAsInt, val)
+									}
 								}
 							}
-						}
+						}()
 					}
 					if newAsInt > 0 {
-						refDef.Mutex.Lock()
-						defer refDef.Mutex.Unlock()
-						fromCache, hasInCache := lc.getReference(c, refColumn, newAsInt)
-						if hasInCache {
-							if defSchema.hasLocalCache {
-								val := reflect.Append(reflect.ValueOf(fromCache), update.getValue())
-								lc.setReference(c, refColumn, newAsInt, val.Interface())
-							} else {
-								val := fromCache.([]uint64)
-								val = append(val, update.ID())
-								lc.setReference(c, refColumn, newAsInt, val)
+						func() {
+							refDef.Mutex.Lock()
+							defer refDef.Mutex.Unlock()
+							fromCache, hasInCache := lc.getReference(c, refColumn, newAsInt)
+							if hasInCache {
+								if defSchema.hasLocalCache {
+									val := reflect.Append(reflect.ValueOf(fromCache), update.getValue())
+									lc.setReference(c, refColumn, newAsInt, val.Interface())
+								} else {
+									val := fromCache.([]uint64)
+									val = append(val, update.ID())
+									lc.setReference(c, refColumn, newAsInt, val)
+								}
 							}
-						}
+						}()
 					}
 				})
 			}
