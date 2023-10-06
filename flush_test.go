@@ -622,14 +622,14 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	c.RegisterQueryLogger(loggerLocal, false, false, true)
 
 	// empty entity
-	editedEntity := EditEdit[flushEntity](c, newEntity).TrackedEntity()
+	editedEntity := EditEntity[flushEntity](c, newEntity).TrackedEntity()
 	assert.Equal(t, "Name", editedEntity.Name)
 	assert.Equal(t, newEntity.ReferenceRequired, editedEntity.ReferenceRequired)
 	assert.NoError(t, c.Flush(lazy))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// editing to full entity
-	editedEntityFull := EditEdit[flushEntity](c, editedEntity)
+	editedEntityFull := EditEntity[flushEntity](c, editedEntity)
 	editedEntity = editedEntityFull.TrackedEntity()
 	editedEntity.City = "New York"
 	editedEntity.Name = "Test name"
@@ -755,12 +755,12 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	}
 
 	loggerDB.Clear()
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	assert.NoError(t, c.Flush(lazy))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// rounding dates
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	editedEntity.Name = "rounding dates"
 	editedEntity.City = "rounding dates"
@@ -781,7 +781,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 
 	// same dates
 	loggerDB.Clear()
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	editedEntity.TimeNullable = &timeNullable
@@ -789,7 +789,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// same times
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
@@ -797,7 +797,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// rounding floats
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Name = "rounding floats"
 	editedEntity.City = "rounding floats"
 	editedEntity.Float64 = 1.123456
@@ -817,7 +817,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	loggerDB.Clear()
 
 	// same floats
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Float64 = 1.123456
 	editedEntity.Decimal = 1.123
 	floatNullable = 1.1234
@@ -828,12 +828,12 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// same set
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B}
 	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A}
 	assert.NoError(t, c.Flush(lazy))
 	assert.Len(t, loggerDB.Logs, 0)
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B, testEnumDefinition.B}
 	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
 	assert.NoError(t, c.Flush(lazy))
@@ -842,7 +842,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	// invalid values
 
 	// empty string
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Name = ""
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[Name] empty string not allowed")
@@ -850,13 +850,13 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	c.ClearFlush()
 
 	// string too long
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Name = strings.Repeat("a", 256)
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
 	c.ClearFlush()
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.City = strings.Repeat("a", 41)
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
@@ -865,13 +865,13 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.NoError(t, c.Flush(lazy))
 
 	// invalid decimal
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Decimal = 1234
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
 	c.ClearFlush()
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Decimal = 123
 	decimalNullable = 1234
 	editedEntity.DecimalNullable = &decimalNullable
@@ -883,7 +883,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	editedEntity.DecimalNullable = &decimalNullable
 
 	// float signed
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Float64Unsigned = -1
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
@@ -899,7 +899,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	editedEntity.FloatNullable = &floatNullable
 
 	// invalid enum, set
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.EnumNotNull = ""
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
@@ -925,7 +925,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	c.ClearFlush()
 
 	// Time
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Time = time.Now().Local()
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[Time] time must be in UTC location")
@@ -960,7 +960,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	newEntity.Name = "Name 2"
 	assert.NoError(t, c.Flush(lazy))
 
-	editedEntity = EditEdit[flushEntity](c, editedEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, editedEntity).TrackedEntity()
 	editedEntity.Name = "Name 2"
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
@@ -969,7 +969,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	c.ClearFlush()
 
-	editedEntity = EditEdit[flushEntity](c, newEntity).TrackedEntity()
+	editedEntity = EditEntity[flushEntity](c, newEntity).TrackedEntity()
 	editedEntity.Name = "Name 3"
 	assert.NoError(t, c.Flush(lazy))
 

@@ -3,6 +3,7 @@ package beeorm
 import (
 	jsoniter "github.com/json-iterator/go"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -252,22 +253,24 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 				if id == nullAsString {
 					continue
 				}
+				refColumn := columnName
+				refDef := def
 				c.flushPostActions = append(c.flushPostActions, func() {
 					idAsInt, _ := strconv.ParseUint(id, 10, 64)
-					defSchema := c.engine.Registry().EntitySchema(def.Type).(*entitySchema)
-					def.Mutex.Lock()
-					defer def.Mutex.Unlock()
-					fromCache, hasInCache := lc.getReference(c, columnName, idAsInt)
+					defSchema := c.engine.Registry().EntitySchema(refDef.Type).(*entitySchema)
+					refDef.Mutex.Lock()
+					defer refDef.Mutex.Unlock()
+					fromCache, hasInCache := lc.getReference(c, refColumn, idAsInt)
 					if !hasInCache {
 						return
 					}
 					if defSchema.hasLocalCache {
 						val := reflect.Append(reflect.ValueOf(fromCache), insert.getValue())
-						lc.setReference(c, columnName, idAsInt, val.Interface())
+						lc.setReference(c, refColumn, idAsInt, val.Interface())
 					} else {
 						val := fromCache.([]uint64)
 						val = append(val, insert.ID())
-						lc.setReference(c, columnName, idAsInt, val)
+						lc.setReference(c, refColumn, idAsInt, val)
 					}
 				})
 			}
@@ -390,6 +393,79 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.getFields())
 				lc.setEntity(c, operation.ID(), update.getEntity())
 			})
+			for columnName, def := range schema.cachedReferences {
+				id, has := newBind[columnName]
+				if !has {
+					continue
+				}
+				before := oldBind[columnName]
+				refColumn := columnName
+				refDef := def
+				c.flushPostActions = append(c.flushPostActions, func() {
+					newAsInt := uint64(0)
+					oldAsInt := uint64(0)
+					if id != nullAsString {
+						newAsInt, _ = strconv.ParseUint(id, 10, 64)
+					}
+					if before != nullAsString {
+						oldAsInt, _ = strconv.ParseUint(before, 10, 64)
+					}
+
+					defSchema := c.engine.Registry().EntitySchema(refDef.Type).(*entitySchema)
+
+					if oldAsInt > 0 {
+						refDef.Mutex.Lock()
+						defer refDef.Mutex.Unlock()
+						fromCache, hasInCache := lc.getReference(c, refColumn, oldAsInt)
+						if hasInCache {
+							if defSchema.hasLocalCache {
+								val := reflect.ValueOf(fromCache)
+								index := -1
+								for i := 0; i < val.Len(); i++ {
+									if val.Index(i).Elem().Field(0).Uint() == oldAsInt {
+										index = i
+										break
+									}
+								}
+								if index > -1 {
+									newVal := reflect.MakeSlice(val.Type(), val.Len()-1, val.Len()-1)
+									j := 0
+									for i := 0; i < val.Len(); i++ {
+										if index == i {
+											continue
+										}
+										newVal.Index(j).Set(val.Index(i))
+										j++
+									}
+									lc.setReference(c, refColumn, oldAsInt, newVal.Interface())
+								}
+							} else {
+								val := fromCache.([]uint64)
+								index := slices.Index(val, oldAsInt)
+								if index > -1 {
+									val = slices.Delete(val, index, index+1)
+									lc.setReference(c, refColumn, oldAsInt, val)
+								}
+							}
+						}
+					}
+					if newAsInt > 0 {
+						refDef.Mutex.Lock()
+						defer refDef.Mutex.Unlock()
+						fromCache, hasInCache := lc.getReference(c, refColumn, newAsInt)
+						if hasInCache {
+							if defSchema.hasLocalCache {
+								val := reflect.Append(reflect.ValueOf(fromCache), update.getValue())
+								lc.setReference(c, refColumn, newAsInt, val.Interface())
+							} else {
+								val := fromCache.([]uint64)
+								val = append(val, update.ID())
+								lc.setReference(c, refColumn, newAsInt, val)
+							}
+						}
+					}
+				})
+			}
 		}
 		if hasRedisCache {
 			p := c.RedisPipeLine(rc.GetCode())

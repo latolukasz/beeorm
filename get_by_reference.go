@@ -29,13 +29,23 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	// TODO add redis
 	if hasLocalCache {
 		fromCache, hasInCache := lc.getReference(c, referenceName, id)
+		defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 		if !hasInCache {
+			def.Mutex.Lock()
+			defer def.Mutex.Unlock()
 			ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 			rows := GetByIDs[E](c, ids...)
-			lc.setReference(c, referenceName, id, rows)
+			if defSchema.hasLocalCache {
+				lc.setReference(c, referenceName, id, rows)
+			} else {
+				lc.setReference(c, referenceName, id, ids)
+			}
 			return rows
 		}
-		return fromCache.([]*E)
+		if defSchema.hasLocalCache {
+			return fromCache.([]*E)
+		}
+		return GetByIDs[E](c, fromCache.([]uint64)...)
 	}
 	return make([]*E, 0)
 }

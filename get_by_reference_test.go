@@ -101,4 +101,33 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
+
+	// Update set to nil
+	entity = EditEntity[getByReferenceEntity](c, rows[0]).TrackedEntity()
+	entity.Ref = nil
+	entity.RefCached = nil
+	entity.RefCachedNoCache = nil
+	err = c.Flush(false)
+	assert.NoError(t, err)
+	loggerDB.Clear()
+
+	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
+	assert.Len(t, rows, 9)
+	assert.Equal(t, entities[1].ID, rows[0].ID)
+	assert.Equal(t, entities[1].Name, rows[0].Name)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+	loggerDB.Clear()
+
+	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", ref.ID)
+	assert.Len(t, rows2, 9)
+	assert.Equal(t, entities[1].ID, rows2[0].ID)
+	assert.Equal(t, entities[1].Name, rows2[0].Name)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+	loggerDB.Clear()
+
+	// TODO delete
 }

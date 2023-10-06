@@ -183,7 +183,7 @@ func DeleteEntity[E any](c Context, source *E) RemovableEntity[E] {
 	return toRemove
 }
 
-func EditEdit[E any](c Context, source *E) EditableEntity[E] {
+func EditEntity[E any](c Context, source *E) EditableEntity[E] {
 	writable := Copy[E](c, source).(*editableEntity[E])
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source

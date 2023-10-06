@@ -121,7 +121,7 @@ func (lc *localCache) setReference(c Context, reference string, id uint64, value
 	lc.cacheReferences[reference].Store(id, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %s %d [value]", reference, id), false)
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %s %d %v", reference, id, value), false)
 	}
 }
 
