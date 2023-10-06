@@ -119,8 +119,7 @@ func (r *Registry) Validate() (Engine, error) {
 		e.registry.entitySchemas[entityType] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
-			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit,
-				true, len(schema.cachedReferences) > 0)
+			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, schema)
 		}
 	}
 	for k, v := range r.localCaches {
@@ -222,7 +221,7 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	if r.localCaches == nil {
 		r.localCaches = make(map[string]LocalCache)
 	}
-	r.localCaches[dbCode] = newLocalCache(dbCode, size, false, false)
+	r.localCaches[dbCode] = newLocalCache(dbCode, size, nil)
 }
 
 func (r *Registry) RegisterRedis(address string, db int, code ...string) {

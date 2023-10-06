@@ -28,11 +28,11 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	}
 	// TODO add redis
 	if hasLocalCache {
-		fromCache, hasInCache := lc.getReference(c, id)
+		fromCache, hasInCache := lc.getReference(c, referenceName, id)
 		if !hasInCache {
 			ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 			rows := GetByIDs[E](c, ids...)
-			lc.setReference(c, id, rows)
+			lc.setReference(c, referenceName, id, rows)
 			return rows
 		}
 		return fromCache.([]*E)

@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -67,6 +68,8 @@ type columnAttrToStringSetter func(v any) (string, error)
 type referenceDefinition struct {
 	Strong bool
 	Cached bool
+	Type   reflect.Type
+	Mutex  *sync.Mutex
 }
 
 type entitySchema struct {
@@ -146,32 +149,32 @@ type tableFields struct {
 	structsFields             []*tableFields
 }
 
-func (entitySchema *entitySchema) GetTableName() string {
-	return entitySchema.tableName
+func (e *entitySchema) GetTableName() string {
+	return e.tableName
 }
 
-func (entitySchema *entitySchema) GetEntityName() string {
-	return entitySchema.t.String()
+func (e *entitySchema) GetEntityName() string {
+	return e.t.String()
 }
 
-func (entitySchema *entitySchema) GetType() reflect.Type {
-	return entitySchema.t
+func (e *entitySchema) GetType() reflect.Type {
+	return e.t
 }
 
-func (entitySchema *entitySchema) DropTable(c Context) {
-	pool := entitySchema.GetDB()
-	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (e *entitySchema) DropTable(c Context) {
+	pool := e.GetDB()
+	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), e.tableName))
 }
 
-func (entitySchema *entitySchema) TruncateTable(c Context) {
-	pool := entitySchema.GetDB()
-	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
-	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (e *entitySchema) TruncateTable(c Context) {
+	pool := e.GetDB()
+	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), e.tableName))
 }
 
-func (entitySchema *entitySchema) UpdateSchema(c Context) {
-	pool := entitySchema.GetDB()
-	has, alters := entitySchema.GetSchemaChanges(c)
+func (e *entitySchema) UpdateSchema(c Context) {
+	pool := e.GetDB()
+	has, alters := e.GetSchemaChanges(c)
 	if has {
 		for _, alter := range alters {
 			_ = pool.Exec(c, alter.SQL)
@@ -179,63 +182,63 @@ func (entitySchema *entitySchema) UpdateSchema(c Context) {
 	}
 }
 
-func (entitySchema *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
-	entitySchema.UpdateSchema(c)
-	pool := entitySchema.GetDB()
-	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
-	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), entitySchema.tableName))
+func (e *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
+	e.UpdateSchema(c)
+	pool := e.GetDB()
+	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), e.tableName))
 }
 
-func (entitySchema *entitySchema) GetDB() DB {
-	return entitySchema.engine.DB(entitySchema.mysqlPoolCode)
+func (e *entitySchema) GetDB() DB {
+	return e.engine.DB(e.mysqlPoolCode)
 }
 
-func (entitySchema *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
-	if !entitySchema.hasLocalCache {
+func (e *entitySchema) GetLocalCache() (cache LocalCache, has bool) {
+	if !e.hasLocalCache {
 		return nil, false
 	}
-	return entitySchema.localCache, true
+	return e.localCache, true
 }
 
-func (entitySchema *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
-	if !entitySchema.hasRedisCache {
+func (e *entitySchema) GetRedisCache() (cache RedisCache, has bool) {
+	if !e.hasRedisCache {
 		return nil, false
 	}
-	return entitySchema.redisCache, true
+	return e.redisCache, true
 }
 
-func (entitySchema *entitySchema) GetColumns() []string {
-	return entitySchema.columnNames
+func (e *entitySchema) GetColumns() []string {
+	return e.columnNames
 }
 
-func (entitySchema *entitySchema) GetUniqueIndexes() map[string][]string {
-	return entitySchema.uniqueIndices
+func (e *entitySchema) GetUniqueIndexes() map[string][]string {
+	return e.uniqueIndices
 }
 
-func (entitySchema *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
-	pre, alters, post := getSchemaChanges(c, entitySchema)
+func (e *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
+	pre, alters, post := getSchemaChanges(c, e)
 	final := pre
 	final = append(final, alters...)
 	final = append(final, post...)
 	return len(final) > 0, final
 }
 
-func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Type) error {
-	entitySchema.t = entityType
-	entitySchema.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
-	entitySchema.tags = extractTags(registry, entityType, "")
-	entitySchema.references = make(map[string]referenceDefinition)
-	entitySchema.cachedReferences = make(map[string]referenceDefinition)
-	entitySchema.mapBindToScanPointer = mapBindToScanPointer{}
-	entitySchema.mapPointerToValue = mapPointerToValue{}
-	entitySchema.mysqlPoolCode = entitySchema.getTag("mysql", "default", DefaultPoolCode)
-	_, has := registry.mysqlPools[entitySchema.mysqlPoolCode]
+func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
+	e.t = entityType
+	e.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
+	e.tags = extractTags(registry, entityType, "")
+	e.references = make(map[string]referenceDefinition)
+	e.cachedReferences = make(map[string]referenceDefinition)
+	e.mapBindToScanPointer = mapBindToScanPointer{}
+	e.mapPointerToValue = mapPointerToValue{}
+	e.mysqlPoolCode = e.getTag("mysql", "default", DefaultPoolCode)
+	_, has := registry.mysqlPools[e.mysqlPoolCode]
 	if !has {
-		return fmt.Errorf("mysql pool '%s' not found", entitySchema.mysqlPoolCode)
+		return fmt.Errorf("mysql pool '%s' not found", e.mysqlPoolCode)
 	}
-	entitySchema.tableName = entitySchema.getTag("table", entityType.Name(), entityType.Name())
-	localCacheLimit := entitySchema.getTag("localCache", DefaultPoolCode, "")
-	redisCacheName := entitySchema.getTag("redisCache", DefaultPoolCode, "")
+	e.tableName = e.getTag("table", entityType.Name(), entityType.Name())
+	localCacheLimit := e.getTag("localCache", DefaultPoolCode, "")
+	redisCacheName := e.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
 		_, has = registry.redisPools[redisCacheName]
 		if !has {
@@ -243,13 +246,13 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 		}
 	}
 	cacheKey := ""
-	if entitySchema.mysqlPoolCode != DefaultPoolCode {
-		cacheKey = entitySchema.mysqlPoolCode
+	if e.mysqlPoolCode != DefaultPoolCode {
+		cacheKey = e.mysqlPoolCode
 	}
-	cacheKey += entitySchema.tableName
+	cacheKey += e.tableName
 	uniqueIndices := make(map[string]map[int]string)
 	indices := make(map[string]map[int]string)
-	uniqueGlobal := entitySchema.getTag("unique", "", "")
+	uniqueGlobal := e.getTag("unique", "", "")
 	if uniqueGlobal != "" {
 		parts := strings.Split(uniqueGlobal, "|")
 		for _, part := range parts {
@@ -260,7 +263,7 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	for k, v := range entitySchema.tags {
+	for k, v := range e.tags {
 		keys, has := v["unique"]
 		if has {
 			values := strings.Split(keys, ",")
@@ -292,65 +295,65 @@ func (entitySchema *entitySchema) init(registry *Registry, entityType reflect.Ty
 			}
 		}
 	}
-	entitySchema.columnAttrToStringSetters = make(map[string]columnAttrToStringSetter)
-	entitySchema.fields = entitySchema.buildTableFields(entityType, registry, 0, "", entitySchema.tags)
-	entitySchema.columnNames, entitySchema.fieldsQuery = entitySchema.fields.buildColumnNames("")
-	if len(entitySchema.fieldsQuery) > 0 {
-		entitySchema.fieldsQuery = entitySchema.fieldsQuery[1:]
+	e.columnAttrToStringSetters = make(map[string]columnAttrToStringSetter)
+	e.fields = e.buildTableFields(entityType, registry, 0, "", e.tags)
+	e.columnNames, e.fieldsQuery = e.fields.buildColumnNames("")
+	if len(e.fieldsQuery) > 0 {
+		e.fieldsQuery = e.fieldsQuery[1:]
 	}
 	columnMapping := make(map[string]int)
-	for i, name := range entitySchema.columnNames {
+	for i, name := range e.columnNames {
 		columnMapping[name] = i
 	}
-	cacheKey = hashString(cacheKey + entitySchema.fieldsQuery)
+	cacheKey = hashString(cacheKey + e.fieldsQuery)
 	cacheKey = cacheKey[0:5]
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cacheKey))
 
-	entitySchema.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
-	entitySchema.columnMapping = columnMapping
-	entitySchema.hasLocalCache = localCacheLimit != ""
-	if entitySchema.hasLocalCache {
+	e.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
+	e.columnMapping = columnMapping
+	e.hasLocalCache = localCacheLimit != ""
+	if e.hasLocalCache {
 		limit := 100000
 		if localCacheLimit != DefaultPoolCode {
 			userLimit, err := strconv.Atoi(localCacheLimit)
 			if err != nil || userLimit <= 0 {
-				return fmt.Errorf("invalid local cache limit for '%s'", entitySchema.t.String())
+				return fmt.Errorf("invalid local cache limit for '%s'", e.t.String())
 			}
 			limit = userLimit
 		}
-		entitySchema.localCacheLimit = limit
+		e.localCacheLimit = limit
 	}
-	entitySchema.redisCacheName = redisCacheName
-	entitySchema.hasRedisCache = redisCacheName != ""
-	entitySchema.cacheKey = cacheKey
+	e.redisCacheName = redisCacheName
+	e.hasRedisCache = redisCacheName != ""
+	e.cacheKey = cacheKey
 
-	lazyList := entitySchema.getTag("custom_lazy_group", entitySchema.t.String(), "")
+	lazyList := e.getTag("custom_lazy_group", e.t.String(), "")
 	if lazyList == "" {
 		lazyList = flushLazyEventsList
 	}
-	entitySchema.lazyCacheKey = entitySchema.mysqlPoolCode + ":" + lazyList
+	e.lazyCacheKey = e.mysqlPoolCode + ":" + lazyList
 
-	entitySchema.uniqueIndices = make(map[string][]string)
+	e.uniqueIndices = make(map[string][]string)
 	for name, index := range uniqueIndices {
-		entitySchema.uniqueIndices[name] = make([]string, len(index))
+		e.uniqueIndices[name] = make([]string, len(index))
 		for i := 1; i <= len(index); i++ {
-			entitySchema.uniqueIndices[name][i-1] = index[i]
+			e.uniqueIndices[name][i-1] = index[i]
 		}
 	}
 	for _, plugin := range registry.plugins {
 		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
 		if isInterfaceInitEntitySchema {
-			err := interfaceInitEntitySchema.InterfaceInitEntitySchema(entitySchema, registry)
+			err := interfaceInitEntitySchema.InterfaceInitEntitySchema(e, registry)
 			if err != nil {
 				return err
 			}
 		}
 	}
-	return entitySchema.validateIndexes(uniqueIndices, indices)
+	return e.validateIndexes(uniqueIndices, indices)
 }
 
-func (entitySchema *entitySchema) validateIndexes(uniqueIndices map[string]map[int]string, indices map[string]map[int]string) error {
+func (e *entitySchema) validateIndexes(uniqueIndices map[string]map[int]string, indices map[string]map[int]string) error {
 	all := make(map[string]map[int]string)
 	for k, v := range uniqueIndices {
 		all[k] = v
@@ -373,26 +376,26 @@ func (entitySchema *entitySchema) validateIndexes(uniqueIndices map[string]map[i
 				break
 			}
 			if same == len(v) {
-				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, entitySchema.t.String())
+				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, e.t.String())
 			}
 		}
 	}
 	return nil
 }
 
-func (entitySchema *entitySchema) getTag(key, trueValue, defaultValue string) string {
-	userValue, has := entitySchema.tags["ID"][key]
+func (e *entitySchema) getTag(key, trueValue, defaultValue string) string {
+	userValue, has := e.tags["ID"][key]
 	if has {
 		if userValue == "true" {
 			return trueValue
 		}
 		return userValue
 	}
-	return entitySchema.GetTag("ID", key, trueValue, defaultValue)
+	return e.GetTag("ID", key, trueValue, defaultValue)
 }
 
-func (entitySchema *entitySchema) GetTag(field, key, trueValue, defaultValue string) string {
-	userValue, has := entitySchema.tags[field][key]
+func (e *entitySchema) GetTag(field, key, trueValue, defaultValue string) string {
+	userValue, has := e.tags[field][key]
 	if has {
 		if userValue == "true" {
 			return trueValue
@@ -402,74 +405,74 @@ func (entitySchema *entitySchema) GetTag(field, key, trueValue, defaultValue str
 	return defaultValue
 }
 
-func (entitySchema *entitySchema) getTagBool(field, key string) bool {
-	tag := entitySchema.GetTag(field, key, "1", "")
+func (e *entitySchema) getTagBool(field, key string) bool {
+	tag := e.GetTag(field, key, "1", "")
 	return tag == "1"
 }
 
-func (entitySchema *entitySchema) getFieldsQuery() string {
-	return entitySchema.fieldsQuery
+func (e *entitySchema) getFieldsQuery() string {
+	return e.fieldsQuery
 }
 
-func (entitySchema *entitySchema) getStructureHash() string {
-	return entitySchema.structureHash
+func (e *entitySchema) getStructureHash() string {
+	return e.structureHash
 }
 
-func (entitySchema *entitySchema) getTags() map[string]map[string]string {
-	return entitySchema.tags
+func (e *entitySchema) getTags() map[string]map[string]string {
+	return e.tags
 }
 
-func (entitySchema *entitySchema) uuid() uint64 {
-	return (entitySchema.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&entitySchema.uuidCounter, 1)
+func (e *entitySchema) uuid() uint64 {
+	return (e.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&e.uuidCounter, 1)
 }
 
-func (entitySchema *entitySchema) getLazyRedisCode() string {
-	if entitySchema.hasRedisCache {
-		return entitySchema.redisCacheName
+func (e *entitySchema) getLazyRedisCode() string {
+	if e.hasRedisCache {
+		return e.redisCacheName
 	}
 	return DefaultPoolCode
 }
 
-func (entitySchema *entitySchema) GetPluginOption(plugin, key string) interface{} {
-	if entitySchema.options == nil {
+func (e *entitySchema) GetPluginOption(plugin, key string) interface{} {
+	if e.options == nil {
 		return nil
 	}
-	values, has := entitySchema.options[plugin]
+	values, has := e.options[plugin]
 	if !has {
 		return nil
 	}
 	return values[key]
 }
 
-func (entitySchema *entitySchema) GetCacheKey() string {
-	return entitySchema.cacheKey
+func (e *entitySchema) GetCacheKey() string {
+	return e.cacheKey
 }
 
-func (entitySchema *entitySchema) DisableCache(local, redis bool) {
+func (e *entitySchema) DisableCache(local, redis bool) {
 	if local {
-		entitySchema.localCacheLimit = 0
-		entitySchema.hasLocalCache = false
+		e.localCacheLimit = 0
+		e.hasLocalCache = false
 	}
 	if redis {
-		entitySchema.redisCacheName = ""
-		entitySchema.hasRedisCache = false
+		e.redisCacheName = ""
+		e.hasRedisCache = false
 	}
 }
 
-func (entitySchema *entitySchema) SetPluginOption(plugin, key string, value interface{}) {
-	if entitySchema.options == nil {
-		entitySchema.options = map[string]map[string]interface{}{plugin: {key: value}}
+func (e *entitySchema) SetPluginOption(plugin, key string, value interface{}) {
+	if e.options == nil {
+		e.options = map[string]map[string]interface{}{plugin: {key: value}}
 	} else {
-		before, has := entitySchema.options[plugin]
+		before, has := e.options[plugin]
 		if !has {
-			entitySchema.options[plugin] = map[string]interface{}{key: value}
+			e.options[plugin] = map[string]interface{}{key: value}
 		} else {
 			before[key] = value
 		}
 	}
 }
 
-func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
+func (e *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	fields.forcedOldBid = make(map[int]bool)
@@ -499,58 +502,58 @@ func (entitySchema *entitySchema) buildTableFields(t reflect.Type, registry *Reg
 			"uint16",
 			"uint32",
 			"uint64":
-			entitySchema.buildUintField(attributes)
+			e.buildUintField(attributes)
 		case "*uint",
 			"*uint8",
 			"*uint16",
 			"*uint32",
 			"*uint64":
-			entitySchema.buildUintPointerField(attributes)
+			e.buildUintPointerField(attributes)
 		case "int",
 			"int8",
 			"int16",
 			"int32",
 			"int64":
-			entitySchema.buildIntField(attributes)
+			e.buildIntField(attributes)
 		case "*int",
 			"*int8",
 			"*int16",
 			"*int32",
 			"*int64":
-			entitySchema.buildIntPointerField(attributes)
+			e.buildIntPointerField(attributes)
 		case "string":
-			entitySchema.buildStringField(attributes)
+			e.buildStringField(attributes)
 		case "[]uint8":
 			fields.bytes = append(fields.bytes, i)
 			columnName := attributes.GetColumnName()
-			entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+			e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 		case "bool":
-			entitySchema.buildBoolField(attributes)
+			e.buildBoolField(attributes)
 		case "*bool":
-			entitySchema.buildBoolPointerField(attributes)
+			e.buildBoolPointerField(attributes)
 		case "float32",
 			"float64":
-			entitySchema.buildFloatField(attributes)
+			e.buildFloatField(attributes)
 		case "*float32",
 			"*float64":
-			entitySchema.buildFloatPointerField(attributes)
+			e.buildFloatPointerField(attributes)
 		case "*time.Time":
-			entitySchema.buildTimePointerField(attributes)
+			e.buildTimePointerField(attributes)
 		case "time.Time":
-			entitySchema.buildTimeField(attributes)
+			e.buildTimeField(attributes)
 		default:
 			k := f.Type.Kind().String()
 			if k == "struct" {
-				entitySchema.buildStructField(attributes, registry, schemaTags)
+				e.buildStructField(attributes, registry, schemaTags)
 			} else if f.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				definition := reflect.New(f.Type).Interface().(EnumValues).EnumValues()
 				if f.Type.Kind().String() == "string" {
-					entitySchema.buildEnumField(attributes, definition)
+					e.buildEnumField(attributes, definition)
 				} else {
-					entitySchema.buildStringSliceField(attributes, definition)
+					e.buildStringSliceField(attributes, definition)
 				}
 			} else if f.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
-				entitySchema.buildReferenceField(attributes)
+				e.buildReferenceField(attributes)
 				if attributes.Tags["cached"] == "true" {
 					fields.forcedOldBid[i] = true
 				}
@@ -575,37 +578,41 @@ func (attributes schemaFieldAttributes) GetColumnName() string {
 	return attributes.Prefix + attributes.Field.Name
 }
 
-func (entitySchema *entitySchema) buildUintField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 	attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
 	columnName := attributes.GetColumnName()
-	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+	e.mapBindToScanPointer[columnName] = func() interface{} {
 		v := uint64(0)
 		return &v
 	}
-	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*uint64)
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
-func (entitySchema *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 	attributes.Fields.references = append(attributes.Fields.references, attributes.Index)
 	attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, attributes.Tags["required"] == "true")
 	columnName := attributes.GetColumnName()
-	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+	e.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	e.mapPointerToValue[columnName] = pointerUintNullableScan
+	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+	refType := reflect.New(attributes.Field.Type.Elem()).Interface().(referenceInterface).getType()
 	def := referenceDefinition{
 		Cached: attributes.Tags["cached"] == "true",
 		Strong: attributes.Tags["strong"] == "true",
+		Type:   refType,
+		Mutex:  new(sync.Mutex),
 	}
+
 	if def.Cached {
-		entitySchema.cachedReferences[columnName] = def
+		e.cachedReferences[columnName] = def
 	}
-	entitySchema.references[columnName] = def
+	e.references[columnName] = def
 }
 
-func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
 	attributes.Fields.uIntegersNullable = append(attributes.Fields.uIntegersNullable, attributes.Index)
 	columnName := attributes.GetColumnName()
 	switch attributes.TypeName {
@@ -620,25 +627,25 @@ func (entitySchema *entitySchema) buildUintPointerField(attributes schemaFieldAt
 	case "*uint64":
 		attributes.Fields.uIntegersNullableSize = append(attributes.Fields.uIntegersNullableSize, 64)
 	}
-	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerUintNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+	e.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	e.mapPointerToValue[columnName] = pointerUintNullableScan
+	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
-func (entitySchema *entitySchema) buildIntField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildIntField(attributes schemaFieldAttributes) {
 	attributes.Fields.integers = append(attributes.Fields.integers, attributes.Index)
 	columnName := attributes.GetColumnName()
-	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+	e.mapBindToScanPointer[columnName] = func() interface{} {
 		v := int64(0)
 		return &v
 	}
-	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*int64)
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
+	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
 }
 
-func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
 	attributes.Fields.integersNullable = append(attributes.Fields.integersNullable, attributes.Index)
 	columnName := attributes.GetColumnName()
 	switch attributes.TypeName {
@@ -653,30 +660,30 @@ func (entitySchema *entitySchema) buildIntPointerField(attributes schemaFieldAtt
 	case "*int64":
 		attributes.Fields.integersNullableSize = append(attributes.Fields.integersNullableSize, 64)
 	}
-	entitySchema.mapBindToScanPointer[columnName] = scanIntNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerIntNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
+	e.mapBindToScanPointer[columnName] = scanIntNullablePointer
+	e.mapPointerToValue[columnName] = pointerIntNullableScan
+	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
 }
 
-func (entitySchema *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
+func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
 	def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
 	attributes.Fields.enums = append(attributes.Fields.enums, def)
-	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+	e.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
 	}
-	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		v := val.(*sql.NullString)
 		if v.Valid {
 			return v.String
 		}
 		return nil
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
+	e.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
 	stringLength := 255
@@ -688,45 +695,45 @@ func (entitySchema *entitySchema) buildStringField(attributes schemaFieldAttribu
 	}
 	attributes.Fields.stringMaxLengths = append(attributes.Fields.stringMaxLengths, stringLength)
 	attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
-	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+	e.mapBindToScanPointer[columnName] = func() interface{} {
 		return &sql.NullString{}
 	}
-	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		v := val.(*sql.NullString)
 		if v.Valid {
 			return v.String
 		}
 		return nil
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
+	e.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
+func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
 	attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition, attributes.Tags["required"] == "true"))
-	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+	e.mapBindToScanPointer[columnName] = scanStringNullablePointer
+	e.mapPointerToValue[columnName] = pointerStringNullableScan
+	e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	attributes.Fields.booleans = append(attributes.Fields.booleans, attributes.Index)
-	entitySchema.mapBindToScanPointer[columnName] = scanBoolPointer
-	entitySchema.mapPointerToValue[columnName] = pointerBoolScan
-	entitySchema.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
+	e.mapBindToScanPointer[columnName] = scanBoolPointer
+	e.mapPointerToValue[columnName] = pointerBoolScan
+	e.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
 	attributes.Fields.booleansNullable = append(attributes.Fields.booleansNullable, attributes.Index)
 	columnName := attributes.GetColumnName()
-	entitySchema.mapBindToScanPointer[columnName] = scanBoolNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerBoolNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
+	e.mapBindToScanPointer[columnName] = scanBoolNullablePointer
+	e.mapPointerToValue[columnName] = pointerBoolNullableScan
+	e.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	precision := 8
 	decimalSize := -1
@@ -753,17 +760,17 @@ func (entitySchema *entitySchema) buildFloatField(attributes schemaFieldAttribut
 	attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
 	attributes.Fields.floatsDecimalSize = append(attributes.Fields.floatsDecimalSize, decimalSize)
 	attributes.Fields.floatsUnsigned = append(attributes.Fields.floatsUnsigned, attributes.Tags["unsigned"] == "true")
-	entitySchema.mapBindToScanPointer[columnName] = func() interface{} {
+	e.mapBindToScanPointer[columnName] = func() interface{} {
 		v := float64(0)
 		return &v
 	}
-	entitySchema.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
 		return *val.(*float64)
 	}
-	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+	e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	precision := 8
 	decimalSize := -1
@@ -790,12 +797,12 @@ func (entitySchema *entitySchema) buildFloatPointerField(attributes schemaFieldA
 	attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
 	attributes.Fields.floatsNullableDecimalSize = append(attributes.Fields.floatsNullableDecimalSize, decimalSize)
 	attributes.Fields.floatsNullableUnsigned = append(attributes.Fields.floatsNullableUnsigned, attributes.Tags["unsigned"] == "true")
-	entitySchema.mapBindToScanPointer[columnName] = scanFloatNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerFloatNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+	e.mapBindToScanPointer[columnName] = scanFloatNullablePointer
+	e.mapPointerToValue[columnName] = pointerFloatNullableScan
+	e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
 }
 
-func (entitySchema *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	_, hasTime := attributes.Tags["time"]
 	if hasTime {
@@ -803,12 +810,12 @@ func (entitySchema *entitySchema) buildTimePointerField(attributes schemaFieldAt
 	} else {
 		attributes.Fields.datesNullable = append(attributes.Fields.datesNullable, attributes.Index)
 	}
-	entitySchema.mapBindToScanPointer[columnName] = scanStringNullablePointer
-	entitySchema.mapPointerToValue[columnName] = pointerStringNullableScan
-	entitySchema.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
+	e.mapBindToScanPointer[columnName] = scanStringNullablePointer
+	e.mapPointerToValue[columnName] = pointerStringNullableScan
+	e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
 }
 
-func (entitySchema *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 	columnName := attributes.GetColumnName()
 	_, hasTime := attributes.Tags["time"]
 	if hasTime {
@@ -816,19 +823,19 @@ func (entitySchema *entitySchema) buildTimeField(attributes schemaFieldAttribute
 	} else {
 		attributes.Fields.dates = append(attributes.Fields.dates, attributes.Index)
 	}
-	entitySchema.mapBindToScanPointer[columnName] = scanStringPointer
-	entitySchema.mapPointerToValue[columnName] = pointerStringScan
-	entitySchema.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
+	e.mapBindToScanPointer[columnName] = scanStringPointer
+	e.mapPointerToValue[columnName] = pointerStringScan
+	e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
 }
 
-func (entitySchema *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
+func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
 	schemaTags map[string]map[string]string) {
 	attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
 	subPrefix := ""
 	if !attributes.Field.Anonymous {
 		subPrefix = attributes.Field.Name
 	}
-	subFields := entitySchema.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
+	subFields := e.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
 	attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
 }
 
@@ -910,8 +917,8 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 	return make(map[string]map[string]string)
 }
 
-func (entitySchema *entitySchema) getFields() *tableFields {
-	return entitySchema.fields
+func (e *entitySchema) getFields() *tableFields {
+	return e.fields
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

@@ -1,8 +1,11 @@
 package beeorm
 
+import "reflect"
+
 type referenceInterface interface {
 	GetID() uint64
 	SetID(id uint64)
+	getType() reflect.Type
 }
 
 func NewReference[E any](id uint64) *Reference[E] {
@@ -10,8 +13,7 @@ func NewReference[E any](id uint64) *Reference[E] {
 }
 
 type Reference[E any] struct {
-	schema EntitySchema
-	id     uint64
+	id uint64
 }
 
 func (r *Reference[E]) GetEntity(c Context) *E {
@@ -21,14 +23,15 @@ func (r *Reference[E]) GetEntity(c Context) *E {
 	return nil
 }
 
-func (r *Reference[E]) EntitySchema() EntitySchema {
-	return nil
-}
-
 func (r *Reference[E]) GetID() uint64 {
 	return r.id
 }
 
 func (r *Reference[E]) SetID(id uint64) {
 	r.id = id
+}
+
+func (r *Reference[E]) getType() reflect.Type {
+	var e E
+	return reflect.TypeOf(e)
 }

@@ -33,9 +33,9 @@ type LocalCache interface {
 	getEntity(c Context, id uint64) (value any, ok bool)
 	setEntity(c Context, id uint64, value any)
 	removeEntity(c Context, id uint64)
-	getReference(c Context, id uint64) (value any, ok bool)
-	setReference(c Context, id uint64, value any)
-	removeReference(c Context, id uint64)
+	getReference(c Context, reference string, id uint64) (value any, ok bool)
+	setReference(c Context, reference string, id uint64, value any)
+	removeReference(c Context, reference string, id uint64)
 	Clear(c Context)
 	GetObjectsCount() int
 }
@@ -45,25 +45,27 @@ type localCache struct {
 	ll              *list.List
 	cache           *xsync.Map
 	cacheEntities   *xsync.MapOf[uint64, any]
-	cacheReferences *xsync.MapOf[uint64, any]
-	storeEntities   bool
+	cacheReferences map[string]*xsync.MapOf[uint64, any]
 }
 
-func newLocalCache(dbCode string, limit int, storeEntities, storeReferences bool) *localCache {
-	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}, storeEntities: storeEntities}
+func newLocalCache(dbCode string, limit int, schema *entitySchema) *localCache {
+	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}}
 	if limit > 0 {
 		c.ll = list.New()
 	}
 	c.cache = xsync.NewMap()
-	if storeEntities {
+	if schema != nil && schema.hasLocalCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 			return u
 		})
-	}
-	if storeReferences {
-		c.cacheReferences = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
-			return u
-		})
+		if len(schema.cachedReferences) > 0 {
+			c.cacheReferences = make(map[string]*xsync.MapOf[uint64, any])
+			for reference := range schema.cachedReferences {
+				c.cacheReferences[reference] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
+					return u
+				})
+			}
+		}
 	}
 	return c
 }
@@ -90,11 +92,11 @@ func (lc *localCache) getEntity(c Context, id uint64) (value any, ok bool) {
 	return
 }
 
-func (lc *localCache) getReference(c Context, id uint64) (value any, ok bool) {
-	value, ok = lc.cacheReferences.Load(id)
+func (lc *localCache) getReference(c Context, reference string, id uint64) (value any, ok bool) {
+	value, ok = lc.cacheReferences[reference].Load(id)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "GET", fmt.Sprintf("GET REFERENCE %d", id), ok)
+		lc.fillLogFields(c, "GET", fmt.Sprintf("GET REFERENCE %s %d", reference, id), ok)
 	}
 	return
 }
@@ -115,11 +117,11 @@ func (lc *localCache) setEntity(c Context, id uint64, value any) {
 	}
 }
 
-func (lc *localCache) setReference(c Context, id uint64, value any) {
-	lc.cacheReferences.Store(id, value)
+func (lc *localCache) setReference(c Context, reference string, id uint64, value any) {
+	lc.cacheReferences[reference].Store(id, value)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %d [entity value]", id), false)
+		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %s %d [value]", reference, id), false)
 	}
 }
 
@@ -139,18 +141,23 @@ func (lc *localCache) removeEntity(c Context, id uint64) {
 	}
 }
 
-func (lc *localCache) removeReference(c Context, id uint64) {
-	lc.cacheReferences.Delete(id)
+func (lc *localCache) removeReference(c Context, reference string, id uint64) {
+	lc.cacheReferences[reference].Delete(id)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE REFERENCE ENTITY %d", id), false)
+		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE REFERENCE %s %d", reference, id), false)
 	}
 }
 
 func (lc *localCache) Clear(c Context) {
 	lc.cache.Clear()
-	if lc.storeEntities {
+	if lc.cacheEntities != nil {
 		lc.cacheEntities.Clear()
+	}
+	if lc.cacheReferences != nil {
+		for _, cache := range lc.cacheReferences {
+			cache.Clear()
+		}
 	}
 	if lc.config.limit > 0 {
 		lc.ll = list.New()
@@ -163,8 +170,13 @@ func (lc *localCache) Clear(c Context) {
 
 func (lc *localCache) GetObjectsCount() int {
 	total := lc.cache.Size()
-	if lc.storeEntities {
+	if lc.cacheEntities != nil {
 		total += lc.cacheEntities.Size()
+	}
+	if lc.cacheReferences != nil {
+		for _, cache := range lc.cacheReferences {
+			total += cache.Size()
+		}
 	}
 	return total
 }

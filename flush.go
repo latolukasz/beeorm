@@ -247,25 +247,30 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			c.flushPostActions = append(c.flushPostActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getEntity())
 			})
-			for columnName := range schema.cachedReferences {
+			for columnName, def := range schema.cachedReferences {
 				id := bind[columnName]
 				if id == nullAsString {
 					continue
 				}
-				//zapisanie do references cache
-				idAsInt, _ := strconv.ParseUint(id, 10, 64)
 				c.flushPostActions = append(c.flushPostActions, func() {
-					values, has := lc.getReference(c, idAsInt)
-					if !has {
-						// pobrac z bazy
-					} else {
-						newValue := reflect.Append(values.(reflect.Value))
+					idAsInt, _ := strconv.ParseUint(id, 10, 64)
+					defSchema := c.engine.Registry().EntitySchema(def.Type).(*entitySchema)
+					def.Mutex.Lock()
+					defer def.Mutex.Unlock()
+					fromCache, hasInCache := lc.getReference(c, columnName, idAsInt)
+					if !hasInCache {
+						return
 					}
-					lc.setReference(c, idAsInt, "TODO")
+					if defSchema.hasLocalCache {
+						val := reflect.Append(reflect.ValueOf(fromCache), insert.getValue())
+						lc.setReference(c, columnName, idAsInt, val.Interface())
+					} else {
+						val := fromCache.([]uint64)
+						val = append(val, insert.ID())
+						lc.setReference(c, columnName, idAsInt, val)
+					}
 				})
-
 			}
-
 		}
 		if hasRedisCache {
 			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
