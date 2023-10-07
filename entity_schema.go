@@ -306,7 +306,7 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 		columnMapping[name] = i
 	}
 	cacheKey = hashString(cacheKey + e.fieldsQuery)
-	cacheKey = cacheKey[0:7]
+	cacheKey = cacheKey[0:5]
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cacheKey))
 
