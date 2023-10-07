@@ -553,7 +553,7 @@ func (tableSchema *tableSchema) init(registry *Registry, entityType reflect.Type
 	}
 	tableSchema.idIndex = columnMapping["ID"]
 	cachePrefix = fmt.Sprintf("%x", sha256.Sum256([]byte(cachePrefix+tableSchema.fieldsQuery)))
-	cachePrefix = cachePrefix[0:7]
+	cachePrefix = cachePrefix[0:5]
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cachePrefix))
 
