@@ -65,6 +65,7 @@ type RedisCache interface {
 	ZScore(c Context, key, member string) float64
 	MGet(c Context, keys ...string) []interface{}
 	SAdd(c Context, key string, members ...interface{}) int64
+	SMembers(c Context, key string) []string
 	SCard(c Context, key string) int64
 	SPop(c Context, key string) (string, bool)
 	SPopN(c Context, key string, max int64) []string
@@ -691,6 +692,18 @@ func (r *redisCache) SAdd(c Context, key string, members ...interface{}) int64 {
 			message += fmt.Sprintf(" %v", v)
 		}
 		r.fillLogFields(c, "SADD", message, start, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *redisCache) SMembers(c Context, key string) []string {
+	hasLogger, _ := c.getRedisLoggers()
+	start := getNow(hasLogger)
+	val, err := r.client.SMembers(c.Ctx(), key).Result()
+	if hasLogger {
+		message := "SMEMBERS " + key
+		r.fillLogFields(c, "SMEMBERS", message, start, false, err)
 	}
 	checkError(err)
 	return val

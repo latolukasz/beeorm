@@ -157,4 +157,13 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache2.ID)
 	assert.Len(t, rows2, 1)
 	assert.Equal(t, "Name 3", rows2[0].Name)
+
+	DeleteEntity(c, entities[7])
+	err = c.Flush(false)
+	assert.NoError(t, err)
+	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
+	assert.Len(t, rows, 7)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
 }

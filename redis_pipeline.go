@@ -80,6 +80,15 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 	rp.pipeLine.Set(rp.c.Ctx(), key, value, expiration)
 }
 
+func (rp *RedisPipeLine) SAdd(key string, members ...interface{}) {
+	rp.commands++
+	hasLog, _ := rp.c.getRedisLoggers()
+	if hasLog {
+		rp.log = append(rp.log, fmt.Sprintf("SADD %s %v", key, members))
+	}
+	rp.pipeLine.SAdd(rp.c.Ctx(), key, members...)
+}
+
 func (rp *RedisPipeLine) MSet(pairs ...interface{}) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()

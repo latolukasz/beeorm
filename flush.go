@@ -71,11 +71,11 @@ func (c *contextImplementation) flush(lazy bool) error {
 			}
 		}()
 	}
-	for _, action := range c.flushPostActions {
-		action()
-	}
 	for _, pipeline := range c.redisPipeLines {
 		pipeline.Exec(c)
+	}
+	for _, action := range c.flushPostActions {
+		action()
 	}
 	c.ClearFlush()
 	return nil
@@ -248,32 +248,30 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			c.flushPostActions = append(c.flushPostActions, func() {
 				lc.setEntity(c, insert.ID(), insert.getEntity())
 			})
-			for columnName, def := range schema.cachedReferences {
-				id := bind[columnName]
-				if id == nullAsString {
-					continue
-				}
-				refColumn := columnName
-				refDef := def
-				c.flushPostActions = append(c.flushPostActions, func() {
-					idAsInt, _ := strconv.ParseUint(id, 10, 64)
-					defSchema := c.engine.Registry().EntitySchema(refDef.Type).(*entitySchema)
-					refDef.Mutex.Lock()
-					defer refDef.Mutex.Unlock()
-					fromCache, hasInCache := lc.getReference(c, refColumn, idAsInt)
-					if !hasInCache {
-						return
-					}
-					if defSchema.hasLocalCache {
-						val := reflect.Append(reflect.ValueOf(fromCache), insert.getValue())
-						lc.setReference(c, refColumn, idAsInt, val.Interface())
-					} else {
-						val := fromCache.([]uint64)
-						val = append(val, insert.ID())
-						lc.setReference(c, refColumn, idAsInt, val)
-					}
-				})
+		}
+		for columnName := range schema.cachedReferences {
+			id := bind[columnName]
+			if id == nullAsString {
+				continue
 			}
+			refColumn := columnName
+			c.flushPostActions = append(c.flushPostActions, func() {
+				if schema.hasLocalCache {
+					idAsInt, _ := strconv.ParseUint(id, 10, 64)
+					lc.removeReference(c, refColumn, idAsInt)
+				}
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+				if !hasRedisCache {
+					rc = c.Engine().Redis(DefaultPoolCode)
+				}
+				if rc.Exists(c, redisSetKey) > 0 {
+					c.RedisPipeLine(rc.GetCode()).SAdd(redisSetKey, id)
+				} else if lazy {
+					p := c.RedisPipeLine(rc.GetCode())
+					fillReferenceInRedis(c, schema, refColumn, id, redisSetKey, p)
+					p.SAdd(redisSetKey, id)
+				}
+			})
 		}
 		if hasRedisCache {
 			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
