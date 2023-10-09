@@ -2,8 +2,9 @@ package beeorm
 
 import (
 	"fmt"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // BenchmarkGetByReferenceLocalCache-10    	35836004	        29.10 ns/op	       0 B/op	       0 allocs/op

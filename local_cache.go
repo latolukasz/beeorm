@@ -3,8 +3,9 @@ package beeorm
 import (
 	"container/list"
 	"fmt"
-	"github.com/puzpuzpuz/xsync/v2"
 	"hash/maphash"
+
+	"github.com/puzpuzpuz/xsync/v2"
 )
 
 type LocalCachePoolConfig interface {

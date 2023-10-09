@@ -1,9 +1,10 @@
 package beeorm
 
 import (
-	jsoniter "github.com/json-iterator/go"
 	"strconv"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 type entitySqlOperations map[FlushType][]EntityFlush

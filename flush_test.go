@@ -1,10 +1,11 @@
 package beeorm
 
 import (
-	"github.com/stretchr/testify/assert"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type flushStruct struct {

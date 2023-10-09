@@ -2,11 +2,12 @@ package beeorm
 
 import (
 	"context"
-	"github.com/go-sql-driver/mysql"
-	jsoniter "github.com/json-iterator/go"
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/go-sql-driver/mysql"
+	jsoniter "github.com/json-iterator/go"
 )
 
 const lazyConsumerPage = 1000

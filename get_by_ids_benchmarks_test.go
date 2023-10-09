@@ -1,8 +1,9 @@
 package beeorm
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // BenchmarkLoadByIDsLocalCache-10    	 1565151	       763.9 ns/op	     896 B/op	       1 allocs/op
