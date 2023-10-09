@@ -170,6 +170,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	DeleteEntity(c, entities[7])
 	err = c.Flush(false)
 	assert.NoError(t, err)
+	loggerDB.Clear()
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
 	assert.Len(t, rows, 7)
 	if local || redis {
