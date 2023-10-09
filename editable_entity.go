@@ -180,9 +180,6 @@ func DeleteEntity[E any](c Context, source *E) RemovableEntity[E] {
 	schema := getEntitySchema[E](c)
 	toRemove.schema = schema
 	ci.trackedEntities = append(ci.trackedEntities, toRemove)
-	//for name, def := schema.strongReferences {
-	//
-	//}
 	return toRemove
 }
 

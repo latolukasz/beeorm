@@ -9,7 +9,6 @@ type referenceInterface interface {
 }
 
 type referenceDefinition struct {
-	Strong bool
 	Cached bool
 	Type   reflect.Type
 }
