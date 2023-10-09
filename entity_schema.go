@@ -99,6 +99,7 @@ type tableFields struct {
 	forcedOldBid              map[int]bool
 	prefix                    string
 	uIntegers                 []int
+	uIntegersArray            []int
 	integers                  []int
 	references                []int
 	referencesRequired        []bool
@@ -448,6 +449,12 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
 			TypeName: f.Type.String(),
 		}
 		fields.fields[i] = f
+		if f.Type.Kind().String() == "array" {
+			attributes.IsArray = true
+			attributes.ArrayLen = f.Type.Len()
+			attributes.TypeName = f.Type.Elem().String()
+		}
+
 		switch attributes.TypeName {
 		case "uint",
 			"uint8",
@@ -524,6 +531,8 @@ type schemaFieldAttributes struct {
 	Fields   *tableFields
 	Index    int
 	Prefix   string
+	IsArray  bool
+	ArrayLen int
 }
 
 func (attributes schemaFieldAttributes) GetColumnName() string {
@@ -531,16 +540,30 @@ func (attributes schemaFieldAttributes) GetColumnName() string {
 }
 
 func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
-	attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
-	columnName := attributes.GetColumnName()
-	e.mapBindToScanPointer[columnName] = func() interface{} {
-		v := uint64(0)
-		return &v
+	columnNamePrefix := attributes.GetColumnName()
+	if !attributes.IsArray {
+		attributes.Fields.uIntegersArray = append(attributes.Fields.uIntegersArray, attributes.Index)
+	} else {
+		attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
 	}
-	e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
-		return *val.(*uint64)
+	for i := 0; i <= attributes.ArrayLen; i++ {
+		columnName := columnNamePrefix
+		if attributes.IsArray {
+			if i == attributes.ArrayLen {
+				break
+			}
+			columnName += "_" + strconv.Itoa(i)
+
+		}
+		e.mapBindToScanPointer[columnName] = func() interface{} {
+			v := uint64(0)
+			return &v
+		}
+		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+			return *val.(*uint64)
+		}
+		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 	}
-	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
 }
 
 func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {

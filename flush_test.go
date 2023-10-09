@@ -84,6 +84,7 @@ type flushEntity struct {
 	Reference            *Reference[flushEntityReference]
 	ReferenceRequired    *Reference[flushEntityReference] `orm:"required"`
 	flushStructAnonymous
+	UintsArray [3]uint64
 }
 
 type flushEntityReference struct {
