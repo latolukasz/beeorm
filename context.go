@@ -22,8 +22,6 @@ type Context interface {
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)
 	EnableQueryDebug()
 	EnableQueryDebugCustom(mysql, redis, local bool)
-	SetPluginOption(plugin, key string, value interface{})
-	GetPluginOption(plugin, key string) interface{}
 	SetMetaData(key, value string)
 	GetMetaData() Meta
 	getDBLoggers() (bool, []LogHandler)
@@ -43,7 +41,6 @@ type contextImplementation struct {
 	hasRedisLogger         bool
 	hasDBLogger            bool
 	hasLocalCacheLogger    bool
-	options                map[string]map[string]interface{}
 	meta                   Meta
 	stringBuilder          *strings.Builder
 	stringBuilder2         *strings.Builder
@@ -85,7 +82,6 @@ func (c *contextImplementation) CloneWithContext(ctx context.Context) Context {
 		hasDBLogger:            c.hasDBLogger,
 		hasLocalCacheLogger:    c.hasLocalCacheLogger,
 		meta:                   c.meta,
-		options:                c.options,
 	}
 }
 
@@ -104,30 +100,6 @@ func (c *contextImplementation) RedisPipeLine(pool string) *RedisPipeLine {
 		c.redisPipeLines[pool] = pipeline
 	}
 	return pipeline
-}
-
-func (c *contextImplementation) SetPluginOption(plugin, key string, value interface{}) {
-	if c.options == nil {
-		c.options = map[string]map[string]interface{}{plugin: {key: value}}
-	} else {
-		before, has := c.options[plugin]
-		if !has {
-			c.options[plugin] = map[string]interface{}{key: value}
-		} else {
-			before[key] = value
-		}
-	}
-}
-
-func (c *contextImplementation) GetPluginOption(plugin, key string) interface{} {
-	if c.options == nil {
-		return nil
-	}
-	values, has := c.options[plugin]
-	if !has {
-		return nil
-	}
-	return values[key]
 }
 
 func (c *contextImplementation) SetMetaData(key, value string) {

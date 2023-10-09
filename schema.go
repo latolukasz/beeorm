@@ -220,15 +220,6 @@ func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, 
 			}
 		}
 	}
-
-	for _, pluginCode := range engine.Registry().Plugins() {
-		plugin := engine.Registry().Plugin(pluginCode)
-		pluginInterfaceTableSQLSchemaDefinition, isPluginInterfaceTableSQLSchemaDefinition := plugin.(PluginInterfaceTableSQLSchemaDefinition)
-		if isPluginInterfaceTableSQLSchemaDefinition {
-			err = pluginInterfaceTableSQLSchemaDefinition.PluginInterfaceTableSQLSchemaDefinition(c, sqlSchema)
-			checkError(err)
-		}
-	}
 	if sqlSchema.PreAlters != nil {
 		preAlters = append(preAlters, sqlSchema.PreAlters...)
 	}

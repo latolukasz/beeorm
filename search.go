@@ -154,24 +154,12 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	return entity
 }
 
-func runPluginInterfaceEntitySearch(c Context, where *Where, schema EntitySchema) *Where {
-	for _, pluginCode := range c.Engine().Registry().Plugins() {
-		plugin := c.Engine().Registry().Plugin(pluginCode)
-		interfaceEntitySearch, isInterfaceEntitySearch := plugin.(PluginInterfaceEntitySearch)
-		if isInterfaceEntitySearch {
-			where = interfaceEntitySearch.PluginInterfaceEntitySearch(c, schema, where)
-		}
-	}
-	return where
-}
-
 func search[E any](c Context, where *Where, pager *Pager, withCount bool) (results []*E, totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
 	schema := getEntitySchema[E](c)
 	entities := reflect.MakeSlice(schema.tSlice, 0, 0)
-	where = runPluginInterfaceEntitySearch(c, where, schema)
 	if schema.hasLocalCache {
 		ids, total := SearchIDsWithCount[E](c, where, pager)
 		return GetByIDs[E](c, ids...), total
@@ -205,7 +193,6 @@ func searchIDs(c Context, schema EntitySchema, where *Where, pager *Pager, withC
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
-	where = runPluginInterfaceEntitySearch(c, where, schema)
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()

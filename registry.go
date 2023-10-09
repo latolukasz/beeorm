@@ -26,7 +26,6 @@ type Registry struct {
 	entities        map[string]reflect.Type
 	defaultEncoding string
 	defaultCollate  string
-	plugins         []Plugin
 }
 
 func NewRegistry() *Registry {
@@ -136,7 +135,6 @@ func (r *Registry) Validate() (Engine, error) {
 			schema.redisCache = e.redisServers[schema.redisCacheName].(*redisCache)
 		}
 	}
-	e.registry.plugins = r.plugins
 	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	for _, schema := range e.registry.entitySchemas {
 		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
@@ -158,14 +156,6 @@ func (r *Registry) SetDefaultCollate(collate string) {
 
 func (r *Registry) GetDefaultCollate() string {
 	return r.defaultCollate
-}
-
-func (r *Registry) RegisterPlugin(plugin Plugin) {
-	interfaceInitRegistry, isInterfaceInitRegistry := plugin.(PluginInterfaceInitRegistry)
-	if isInterfaceInitRegistry {
-		interfaceInitRegistry.PluginInterfaceInitRegistry(r)
-	}
-	r.plugins = append(r.plugins, plugin)
 }
 
 func (r *Registry) RegisterEntity(entity ...any) {

@@ -45,7 +45,6 @@ type EntitySchema interface {
 	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(c Context) (has bool, alters []Alter)
 	GetTag(field, key, trueValue, defaultValue string) string
-	GetPluginOption(plugin, key string) interface{}
 	GetCacheKey() string
 	DisableCache(local, redis bool)
 	getFields() *tableFields
@@ -55,11 +54,6 @@ type EntitySchema interface {
 	getTags() map[string]map[string]string
 	uuid() uint64
 	getForcedRedisCode() string
-}
-
-type SettableEntitySchema interface {
-	EntitySchema
-	SetPluginOption(plugin, key string, value interface{})
 }
 
 type columnAttrToStringSetter func(v any) (string, error)
@@ -98,7 +92,6 @@ type entitySchema struct {
 	skipLogs                  []string
 	mapBindToScanPointer      mapBindToScanPointer
 	mapPointerToValue         mapPointerToValue
-	options                   map[string]map[string]interface{}
 	uuidServerID              uint64
 	uuidCounter               uint64
 }
@@ -339,15 +332,6 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 			e.uniqueIndices[name][i-1] = index[i]
 		}
 	}
-	for _, plugin := range registry.plugins {
-		interfaceInitEntitySchema, isInterfaceInitEntitySchema := plugin.(PluginInterfaceInitEntitySchema)
-		if isInterfaceInitEntitySchema {
-			err := interfaceInitEntitySchema.InterfaceInitEntitySchema(e, registry)
-			if err != nil {
-				return err
-			}
-		}
-	}
 	return e.validateIndexes(uniqueIndices, indices)
 }
 
@@ -431,17 +415,6 @@ func (e *entitySchema) getForcedRedisCode() string {
 	return DefaultPoolCode
 }
 
-func (e *entitySchema) GetPluginOption(plugin, key string) interface{} {
-	if e.options == nil {
-		return nil
-	}
-	values, has := e.options[plugin]
-	if !has {
-		return nil
-	}
-	return values[key]
-}
-
 func (e *entitySchema) GetCacheKey() string {
 	return e.cacheKey
 }
@@ -454,19 +427,6 @@ func (e *entitySchema) DisableCache(local, redis bool) {
 	if redis {
 		e.redisCacheName = ""
 		e.hasRedisCache = false
-	}
-}
-
-func (e *entitySchema) SetPluginOption(plugin, key string, value interface{}) {
-	if e.options == nil {
-		e.options = map[string]map[string]interface{}{plugin: {key: value}}
-	} else {
-		before, has := e.options[plugin]
-		if !has {
-			e.options[plugin] = map[string]interface{}{key: value}
-		} else {
-			before[key] = value
-		}
 	}
 }
 

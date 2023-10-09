@@ -15,8 +15,6 @@ type EngineRegistry interface {
 	LocalCachePools() map[string]LocalCache
 	RedisPools() map[string]RedisCache
 	Entities() map[string]reflect.Type
-	Plugins() []string
-	Plugin(code string) Plugin
 	DefaultDBCollate() string
 	DefaultDBEncoding() string
 	getDefaultQueryLogger() LogHandler
@@ -36,7 +34,6 @@ type engineRegistryImplementation struct {
 	oneAppMode            bool
 	entities              map[string]reflect.Type
 	entitySchemas         map[reflect.Type]*entitySchema
-	plugins               []Plugin
 	defaultQueryLogger    *defaultLogLogger
 	defaultDBEncoding     string
 	defaultDBCollate      string
@@ -104,23 +101,6 @@ func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 		}
 		return er.entitySchemas[t]
 	}
-}
-
-func (er *engineRegistryImplementation) Plugins() []string {
-	codes := make([]string, len(er.plugins))
-	for i, plugin := range er.plugins {
-		codes[i] = plugin.GetCode()
-	}
-	return codes
-}
-
-func (er *engineRegistryImplementation) Plugin(code string) Plugin {
-	for _, plugin := range er.plugins {
-		if plugin.GetCode() == code {
-			return plugin
-		}
-	}
-	return nil
 }
 
 func (er *engineRegistryImplementation) getDBTables() map[string]map[string]bool {
