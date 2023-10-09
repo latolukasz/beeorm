@@ -66,6 +66,7 @@ type RedisCache interface {
 	MGet(c Context, keys ...string) []interface{}
 	SAdd(c Context, key string, members ...interface{}) int64
 	SMembers(c Context, key string) []string
+	SIsMember(c Context, key string, member interface{}) bool
 	SCard(c Context, key string) int64
 	SPop(c Context, key string) (string, bool)
 	SPopN(c Context, key string, max int64) []string
@@ -704,6 +705,17 @@ func (r *redisCache) SMembers(c Context, key string) []string {
 	if hasLogger {
 		message := "SMEMBERS " + key
 		r.fillLogFields(c, "SMEMBERS", message, start, false, err)
+	}
+	checkError(err)
+	return val
+}
+
+func (r *redisCache) SIsMember(c Context, key string, member interface{}) bool {
+	hasLogger, _ := c.getRedisLoggers()
+	start := getNow(hasLogger)
+	val, err := r.client.SIsMember(c.Ctx(), key, member).Result()
+	if hasLogger {
+		r.fillLogFields(c, "SISMEMBER", fmt.Sprintf("SISMEMBER %s %v", key, member), start, false, err)
 	}
 	checkError(err)
 	return val

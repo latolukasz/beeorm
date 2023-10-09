@@ -3,8 +3,11 @@ package beeorm
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strconv"
 )
+
+const redisValidSetValue = "Y"
 
 func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	if id == 0 {
@@ -48,33 +51,43 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	redisSetKey := schema.cacheKey + ":" + referenceName + ":" + idAsString
 	fromRedis := rc.SMembers(c, redisSetKey)
 	if len(fromRedis) > 0 {
-		if fromRedis[0] == cacheNilValue {
-			fromRedis = fromRedis[1:]
-		}
-		if len(fromRedis) == 0 {
-			if hasLocalCache {
-				lc.setReference(c, referenceName, id, cacheNilValue)
+		ids := make([]uint64, len(fromRedis))
+		k := 0
+		hasValidValue := false
+		for _, value := range fromRedis {
+			if value == redisValidSetValue {
+				hasValidValue = true
+				continue
+			} else if value == cacheNilValue {
+				continue
 			}
-			return make([]*E, 0)
+			ids[k], _ = strconv.ParseUint(value, 10, 64)
+			k++
 		}
-		ids := make([]uint64, len(fromRedis)-1)
-		for i, value := range fromRedis {
-			ids[i], _ = strconv.ParseUint(value, 10, 64)
-		}
-		values := GetByIDs[E](c, ids...)
-		if hasLocalCache {
-			if len(values) == 0 {
-				lc.setReference(c, referenceName, id, cacheNilValue)
-			} else {
-				defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
-				if defSchema.hasLocalCache {
-					lc.setReference(c, referenceName, id, values)
+		if hasValidValue {
+			if k == 0 {
+				if hasLocalCache {
+					lc.setReference(c, referenceName, id, cacheNilValue)
+				}
+				return make([]*E, 0)
+			}
+			ids = ids[0:k]
+			slices.Sort(ids)
+			values := GetByIDs[E](c, ids...)
+			if hasLocalCache {
+				if len(values) == 0 {
+					lc.setReference(c, referenceName, id, cacheNilValue)
 				} else {
-					lc.setReference(c, referenceName, id, ids)
+					defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
+					if defSchema.hasLocalCache {
+						lc.setReference(c, referenceName, id, values)
+					} else {
+						lc.setReference(c, referenceName, id, ids)
+					}
 				}
 			}
+			return values
 		}
-		return values
 	}
 	if hasLocalCache {
 		ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
@@ -87,7 +100,11 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		for i, value := range ids {
 			idsForRedis[i] = strconv.FormatUint(value, 10)
 		}
-		rc.SAdd(c, redisSetKey, idsForRedis...)
+		p := c.RedisPipeLine(rc.GetCode())
+		p.Del(redisSetKey)
+		p.SAdd(redisSetKey, redisValidSetValue)
+		p.SAdd(redisSetKey, idsForRedis...)
+		p.Exec(c)
 		values := GetByIDs[E](c, ids...)
 		defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 		if defSchema.hasLocalCache {
@@ -99,26 +116,14 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	}
 	values := Search[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 	if len(values) == 0 {
-		rc.SAdd(c, redisSetKey, cacheNilValue)
+		rc.SAdd(c, redisSetKey, redisValidSetValue, cacheNilValue)
 	} else {
-		idsForRedis := make([]interface{}, len(values))
+		idsForRedis := make([]interface{}, len(values)+1)
+		idsForRedis[0] = redisValidSetValue
 		for i, value := range values {
-			idsForRedis[i] = strconv.FormatUint(reflect.ValueOf(value).Elem().Field(0).Uint(), 10)
+			idsForRedis[i+1] = strconv.FormatUint(reflect.ValueOf(value).Elem().Field(0).Uint(), 10)
 		}
 		rc.SAdd(c, redisSetKey, idsForRedis...)
 	}
 	return values
-}
-
-func fillReferenceInRedis(c Context, schema *entitySchema, referenceName, id, redisSetKey string, p *RedisPipeLine) {
-	ids, _ := searchIDs(c, schema, NewWhere("`"+referenceName+"` = ?", id), nil, false)
-	if len(ids) == 0 {
-		p.SAdd(redisSetKey, cacheNilValue)
-		return
-	}
-	members := make([]interface{}, len(ids))
-	for i, value := range ids {
-		members[i] = value
-	}
-	p.SAdd(redisSetKey, members...)
 }

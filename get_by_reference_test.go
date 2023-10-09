@@ -3,6 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
+	"os"
 	"testing"
 )
 
@@ -49,6 +50,15 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	loggerDB := &MockLogHandler{}
 	c.RegisterQueryLogger(loggerDB, true, false, false)
 
+	// getting missing rows
+	rows := GetByReference[getByReferenceEntity](c, "RefCached", 1)
+	assert.Len(t, rows, 0)
+	loggerDB.Clear()
+	rows = GetByReference[getByReferenceEntity](c, "RefCached", 1)
+	assert.Len(t, rows, 0)
+	assert.Len(t, loggerDB.Logs, 0)
+	loggerDB.Clear()
+
 	var entities []*getByReferenceEntity
 	ref := NewEntity[getByReferenceReference](c).TrackedEntity()
 	ref.Name = "Ref 1"
@@ -70,7 +80,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	assert.NoError(t, err)
 
 	loggerDB.Clear()
-	rows := GetByReference[getByReferenceEntity](c, "Ref", ref.ID)
+	rows = GetByReference[getByReferenceEntity](c, "Ref", ref.ID)
 	assert.Len(t, rows, 10)
 	assert.Equal(t, entities[0].ID, rows[0].ID)
 	assert.Equal(t, entities[0].Name, rows[0].Name)
@@ -111,7 +121,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	entity.Ref = nil
 	entity.RefCached = nil
 	entity.RefCachedNoCache = nil
+	c.EnableQueryDebug()
 	err = c.Flush(false)
+	os.Exit(1)
 	assert.NoError(t, err)
 	loggerDB.Clear()
 
