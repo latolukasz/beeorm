@@ -123,16 +123,15 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 	lc, hasLocalCache := schema.GetLocalCache()
 	for _, operation := range operations {
 		uniqueIndexes := schema.GetUniqueIndexes()
+		var bind Bind
+		var err error
+		deleteFlush := operation.(entityFlushDelete)
 		if len(uniqueIndexes) > 0 {
-			deleteFlush := operation.(entityFlushDelete)
-			bind, err := deleteFlush.getOldBind()
+			bind, err = deleteFlush.getOldBind()
 			if err != nil {
 				return err
 			}
-			cache, hasRedis := schema.GetRedisCache()
-			if !hasRedis {
-				cache = c.Engine().Redis(DefaultPoolCode)
-			}
+			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.GetCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
@@ -151,6 +150,27 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
 			c.RedisPipeLine(rc.GetCode()).Del(cacheKey)
 			c.RedisPipeLine(rc.GetCode()).LPush(cacheKey, "")
+		}
+		for columnName := range schema.cachedReferences {
+			if bind == nil {
+				bind, err = deleteFlush.getOldBind()
+				if err != nil {
+					return err
+				}
+			}
+			id := bind[columnName]
+			if id == nullAsString {
+				continue
+			}
+			refColumn := columnName
+			if schema.hasLocalCache {
+				c.flushPostActions = append(c.flushPostActions, func() {
+					idAsInt, _ := strconv.ParseUint(id, 10, 64)
+					lc.removeReference(c, refColumn, idAsInt)
+				})
+			}
+			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
 	}
 	return nil

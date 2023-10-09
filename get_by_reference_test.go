@@ -3,7 +3,6 @@ package beeorm
 import (
 	"fmt"
 	"github.com/stretchr/testify/assert"
-	"os"
 	"testing"
 )
 
@@ -169,11 +168,16 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	assert.Equal(t, "Name 3", rows2[0].Name)
 
 	DeleteEntity(c, entities[7])
-	c.EnableQueryDebug()
 	err = c.Flush(false)
-	os.Exit(1)
 	assert.NoError(t, err)
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
+	assert.Len(t, rows, 7)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	loggerDB.Clear()
+	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache.ID)
 	assert.Len(t, rows, 7)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
