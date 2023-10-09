@@ -54,7 +54,7 @@ func ConsumeLazyFlushEvents(c Context, block bool) error {
 			dbGroup = make(map[RedisCache]map[string]bool)
 			groups[db] = dbGroup
 		}
-		r := c.Engine().Redis(schema.getLazyRedisCode())
+		r := c.Engine().Redis(schema.getForcedRedisCode())
 		redisGroup, has := dbGroup[r]
 		if !has {
 			redisGroup = make(map[string]bool)

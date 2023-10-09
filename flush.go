@@ -2,8 +2,6 @@ package beeorm
 
 import (
 	jsoniter "github.com/json-iterator/go"
-	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 )
@@ -119,7 +117,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		})
 	} else {
 		data := `["` + sql + `"]"`
-		c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, data)
+		c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, data)
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()
@@ -185,10 +183,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
-			cache, hasRedis := schema.GetRedisCache()
-			if !hasRedis {
-				cache = c.Engine().Redis(DefaultPoolCode)
-			}
+			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.GetCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
@@ -242,7 +237,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			data = append(data, s.String())
 			data = append(data, lazyData...)
 			asJson, _ := jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, asJson)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJson)
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -262,10 +257,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
-			if !hasRedisCache {
-				rc = c.Engine().Redis(DefaultPoolCode)
-			}
-			c.RedisPipeLine(rc.GetCode()).SAdd(redisSetKey, id)
+			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {
 			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
@@ -372,7 +364,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		if lazy {
 			lazyArgs[0] = sql
 			asJson, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
-			c.RedisPipeLine(schema.getLazyRedisCode()).RPush(schema.lazyCacheKey, asJson)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJson)
 		} else {
 			c.appendDBAction(schema, func(db DBBase) {
 				db.Exec(c, sql, args...)
@@ -385,89 +377,47 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.getFields())
 				lc.setEntity(c, operation.ID(), update.getEntity())
 			})
-			for columnName, def := range schema.cachedReferences {
-				id, has := newBind[columnName]
-				if !has {
-					continue
-				}
-				before := oldBind[columnName]
-				refColumn := columnName
-				refDef := def
-				c.flushPostActions = append(c.flushPostActions, func() {
-					newAsInt := uint64(0)
-					oldAsInt := uint64(0)
-					if id != nullAsString {
-						newAsInt, _ = strconv.ParseUint(id, 10, 64)
-					}
-					if before != nullAsString {
-						oldAsInt, _ = strconv.ParseUint(before, 10, 64)
-					}
-
-					defSchema := c.engine.Registry().EntitySchema(refDef.Type).(*entitySchema)
-
-					if oldAsInt > 0 {
-						func() {
-							refDef.Mutex.Lock()
-							defer refDef.Mutex.Unlock()
-							fromCache, hasInCache := lc.getReference(c, refColumn, oldAsInt)
-							if hasInCache {
-								if defSchema.hasLocalCache {
-									val := reflect.ValueOf(fromCache)
-									index := -1
-									for i := 0; i < val.Len(); i++ {
-										if val.Index(i).Elem().Field(0).Uint() == update.ID() {
-											index = i
-											break
-										}
-									}
-									if index > -1 {
-										newVal := reflect.MakeSlice(val.Type(), val.Len()-1, val.Len()-1)
-										j := 0
-										for i := 0; i < val.Len(); i++ {
-											if index == i {
-												continue
-											}
-											newVal.Index(j).Set(val.Index(i))
-											j++
-										}
-										lc.setReference(c, refColumn, oldAsInt, newVal.Interface())
-									}
-								} else {
-									val := fromCache.([]uint64)
-									index := slices.Index(val, update.ID())
-									if index > -1 {
-										val = slices.Delete(val, index, index+1)
-										lc.setReference(c, refColumn, oldAsInt, val)
-									}
-								}
-							}
-						}()
-					}
-					if newAsInt > 0 {
-						func() {
-							refDef.Mutex.Lock()
-							defer refDef.Mutex.Unlock()
-							fromCache, hasInCache := lc.getReference(c, refColumn, newAsInt)
-							if hasInCache {
-								if defSchema.hasLocalCache {
-									val := reflect.Append(reflect.ValueOf(fromCache), update.getValue())
-									lc.setReference(c, refColumn, newAsInt, val.Interface())
-								} else {
-									val := fromCache.([]uint64)
-									val = append(val, update.ID())
-									lc.setReference(c, refColumn, newAsInt, val)
-								}
-							}
-						}()
-					}
-				})
-			}
 		}
 		if hasRedisCache {
 			p := c.RedisPipeLine(rc.GetCode())
 			for column, val := range newBind {
 				index := int64(schema.columnMapping[column] + 1)
 				p.LSet(schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
+			}
+		}
+		for columnName := range schema.cachedReferences {
+			id, has := newBind[columnName]
+			if !has {
+				continue
+			}
+			before := oldBind[columnName]
+			refColumn := columnName
+
+			newAsInt := uint64(0)
+			oldAsInt := uint64(0)
+			if id != nullAsString {
+				newAsInt, _ = strconv.ParseUint(id, 10, 64)
+			}
+			if before != nullAsString {
+				oldAsInt, _ = strconv.ParseUint(before, 10, 64)
+			}
+			if oldAsInt > 0 {
+				if hasLocalCache {
+					c.flushPostActions = append(c.flushPostActions, func() {
+						lc.removeReference(c, refColumn, oldAsInt)
+					})
+				}
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + before
+				c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(update.ID(), 10))
+			}
+			if newAsInt > 0 {
+				if hasLocalCache {
+					c.flushPostActions = append(c.flushPostActions, func() {
+						lc.removeReference(c, refColumn, newAsInt)
+					})
+				}
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}
 	}

@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -55,7 +54,7 @@ type EntitySchema interface {
 	getStructureHash() string
 	getTags() map[string]map[string]string
 	uuid() uint64
-	getLazyRedisCode() string
+	getForcedRedisCode() string
 }
 
 type SettableEntitySchema interface {
@@ -69,7 +68,6 @@ type referenceDefinition struct {
 	Strong bool
 	Cached bool
 	Type   reflect.Type
-	Mutex  *sync.Mutex
 }
 
 type entitySchema struct {
@@ -426,7 +424,7 @@ func (e *entitySchema) uuid() uint64 {
 	return (e.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&e.uuidCounter, 1)
 }
 
-func (e *entitySchema) getLazyRedisCode() string {
+func (e *entitySchema) getForcedRedisCode() string {
 	if e.hasRedisCache {
 		return e.redisCacheName
 	}
@@ -603,7 +601,6 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		Cached: attributes.Tags["cached"] == "true",
 		Strong: attributes.Tags["strong"] == "true",
 		Type:   refType,
-		Mutex:  new(sync.Mutex),
 	}
 
 	if def.Cached {

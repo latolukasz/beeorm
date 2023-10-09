@@ -89,6 +89,15 @@ func (rp *RedisPipeLine) SAdd(key string, members ...interface{}) {
 	rp.pipeLine.SAdd(rp.c.Ctx(), key, members...)
 }
 
+func (rp *RedisPipeLine) SRem(key string, members ...interface{}) {
+	rp.commands++
+	hasLog, _ := rp.c.getRedisLoggers()
+	if hasLog {
+		rp.log = append(rp.log, fmt.Sprintf("SREM %s %v", key, members))
+	}
+	rp.pipeLine.SRem(rp.c.Ctx(), key, members...)
+}
+
 func (rp *RedisPipeLine) MSet(pairs ...interface{}) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
