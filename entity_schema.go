@@ -58,12 +58,6 @@ type EntitySchema interface {
 
 type columnAttrToStringSetter func(v any) (string, error)
 
-type referenceDefinition struct {
-	Strong bool
-	Cached bool
-	Type   reflect.Type
-}
-
 type entitySchema struct {
 	tableName                 string
 	mysqlPoolCode             string
@@ -79,6 +73,7 @@ type entitySchema struct {
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
+	strongReferences          map[string]referenceDefinition
 	hasLocalCache             bool
 	localCache                *localCache
 	localCacheLimit           int
@@ -220,6 +215,7 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	e.tags = extractTags(registry, entityType, "")
 	e.references = make(map[string]referenceDefinition)
 	e.cachedReferences = make(map[string]referenceDefinition)
+	e.strongReferences = make(map[string]referenceDefinition)
 	e.mapBindToScanPointer = mapBindToScanPointer{}
 	e.mapPointerToValue = mapPointerToValue{}
 	e.mysqlPoolCode = e.getTag("mysql", "default", DefaultPoolCode)
@@ -565,6 +561,9 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 
 	if def.Cached {
 		e.cachedReferences[columnName] = def
+	}
+	if def.Strong {
+		e.strongReferences[columnName] = def
 	}
 	e.references[columnName] = def
 }

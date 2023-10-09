@@ -117,7 +117,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	}
 
 	// Update set to nil
-	entity = EditEntity[getByReferenceEntity](c, rows[0]).TrackedEntity()
+	entity = EditEntity(c, rows[0]).TrackedEntity()
 	entity.Ref = nil
 	entity.RefCached = nil
 	entity.RefCachedNoCache = nil

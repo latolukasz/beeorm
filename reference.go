@@ -8,6 +8,12 @@ type referenceInterface interface {
 	getType() reflect.Type
 }
 
+type referenceDefinition struct {
+	Strong bool
+	Cached bool
+	Type   reflect.Type
+}
+
 func NewReference[E any](id uint64) *Reference[E] {
 	return &Reference[E]{id: id}
 }
