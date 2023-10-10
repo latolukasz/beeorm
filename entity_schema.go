@@ -115,7 +115,9 @@ type tableFields struct {
 	strings                   []int
 	stringsArray              []int
 	stringMaxLengths          []int
+	stringMaxLengthsArray     []int
 	stringsRequired           []bool
+	stringsRequiredArray      []bool
 	stringsEnums              []int
 	stringsEnumsArray         []int
 	enums                     []*enumDefinition
@@ -718,7 +720,6 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
 	}
 	for _, columnName := range attributes.GetColumnNames() {
-		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
 		stringLength := 255
 		length := attributes.Tags["length"]
 		if length == "max" {
@@ -726,8 +727,13 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 		} else if length != "" {
 			stringLength, _ = strconv.Atoi(length)
 		}
-		attributes.Fields.stringMaxLengths = append(attributes.Fields.stringMaxLengths, stringLength)
-		attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
+		if attributes.IsArray {
+			attributes.Fields.stringMaxLengthsArray = append(attributes.Fields.stringMaxLengthsArray, stringLength)
+			attributes.Fields.stringsRequiredArray = append(attributes.Fields.stringsRequiredArray, attributes.Tags["required"] == "true")
+		} else {
+			attributes.Fields.stringMaxLengths = append(attributes.Fields.stringMaxLengths, stringLength)
+			attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
+		}
 		e.mapBindToScanPointer[columnName] = func() interface{} {
 			return &sql.NullString{}
 		}
@@ -1018,12 +1024,10 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.booleansArray...)
 	ids = append(ids, fields.floats...)
 	ids = append(ids, fields.floatsArray...)
-	timesStart := len(ids)
 	ids = append(ids, fields.times...)
 	ids = append(ids, fields.timesArray...)
 	ids = append(ids, fields.dates...)
 	ids = append(ids, fields.datesArray...)
-	timesEnd := len(ids)
 	ids = append(ids, fields.strings...)
 	ids = append(ids, fields.stringsArray...)
 	ids = append(ids, fields.uIntegersNullable...)
@@ -1040,18 +1044,21 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	ids = append(ids, fields.booleansNullableArray...)
 	ids = append(ids, fields.floatsNullable...)
 	ids = append(ids, fields.floatsNullableArray...)
-	timesNullableStart := len(ids)
 	ids = append(ids, fields.timesNullable...)
 	ids = append(ids, fields.timesNullableArray...)
 	ids = append(ids, fields.datesNullable...)
 	ids = append(ids, fields.datesNullableArray...)
-	timesNullableEnd := len(ids)
-	for k, i := range ids {
-		name := subFieldPrefix + fields.fields[i].Name
-		columns = append(columns, name)
-		if (k >= timesStart && k < timesEnd) || (k >= timesNullableStart && k < timesNullableEnd) {
-			fieldsQuery += ",TO_SECONDS(`" + name + "`)"
+	for _, index := range ids {
+		l := fields.arrays[index]
+		if l > 0 {
+			for i := 1; i <= l; i++ {
+				name := subFieldPrefix + fields.fields[index].Name + "_" + strconv.Itoa(i)
+				columns = append(columns, name)
+				fieldsQuery += ",`" + name + "`"
+			}
 		} else {
+			name := subFieldPrefix + fields.fields[index].Name
+			columns = append(columns, name)
 			fieldsQuery += ",`" + name + "`"
 		}
 	}
