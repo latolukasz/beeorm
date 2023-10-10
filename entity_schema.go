@@ -151,6 +151,7 @@ type tableFields struct {
 	structs                   []int
 	structsArray              []int
 	structsFields             []*tableFields
+	structsFieldsArray        []*tableFields
 }
 
 func (e *entitySchema) GetTableName() string {
@@ -909,10 +910,8 @@ func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, regist
 	schemaTags map[string]map[string]string) {
 	if attributes.IsArray {
 		attributes.Fields.structsArray = append(attributes.Fields.structsArray, attributes.Index)
-		for _, columnName := range attributes.GetColumnNames() {
-			subFields := e.buildTableFields(attributes.Field.Type.Elem(), registry, 0, columnName, schemaTags)
-			attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
-		}
+		subFields := e.buildTableFields(attributes.Field.Type.Elem(), registry, 0, attributes.Field.Name, schemaTags)
+		attributes.Fields.structsFieldsArray = append(attributes.Fields.structsFieldsArray, subFields)
 	} else {
 		attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
 		subPrefix := ""
@@ -1065,6 +1064,15 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 		subColumns, subQuery := subFields.buildColumnNames(prefixName)
 		columns = append(columns, subColumns...)
 		fieldsQuery += subQuery
+	}
+	for z, k := range fields.structsArray {
+		l := fields.arrays[k]
+		for i := 1; i <= l; i++ {
+			attr := fields.structsFieldsArray[z]
+			subColumns, subQuery := attr.buildColumnNames(attr.prefix + "_" + strconv.Itoa(i) + "_")
+			columns = append(columns, subColumns...)
+			fieldsQuery += subQuery
+		}
 	}
 	return columns, fieldsQuery
 }
