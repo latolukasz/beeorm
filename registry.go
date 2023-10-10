@@ -137,7 +137,7 @@ func (r *Registry) Validate() (Engine, error) {
 	}
 	e.registry.defaultQueryLogger = &defaultLogLogger{maxPoolLen: maxPoolLen, logger: log.New(os.Stderr, "", 0)}
 	for _, schema := range e.registry.entitySchemas {
-		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "")
+		_, err := checkStruct(e, schema, schema.t, make(map[string]*IndexSchemaDefinition), nil, "", -1)
 		if err != nil {
 			return nil, errors.Wrapf(err, "invalid entity struct '%s'", schema.t.String())
 		}

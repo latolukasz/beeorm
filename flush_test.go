@@ -49,30 +49,43 @@ type flushEntity struct {
 	ID                   uint64 `orm:"localCache;redisCache"`
 	City                 string `orm:"unique=city;length=40"`
 	Name                 string `orm:"unique=name;required"`
+	StringArray          [2]string
 	Age                  int
+	IntArray             [2]int
 	Uint                 uint
+	UintArray            [2]int
 	UintNullable         *uint
+	UintNullableArray    [2]*uint
 	IntNullable          *int
+	IntNullableArray     [2]*int
 	BoolNullable         *bool
-	FloatNullable        *float64 `orm:"precision=3;unsigned"`
-	Float32Nullable      *float32 `orm:"precision=4"`
+	BoolNullableArray    [2]*bool
+	FloatNullable        *float64    `orm:"precision=3;unsigned"`
+	FloatNullableArray   [2]*float64 `orm:"precision=3;unsigned"`
+	Float32Nullable      *float32    `orm:"precision=4"`
 	SetNullable          testSet
+	SetNullableArray     [2]testSet
 	SetNotNull           testSet `orm:"required"`
 	EnumNullable         testEnum
+	EnumNullableArray    [2]testEnum
 	EnumNotNull          testEnum `orm:"required"`
 	Ignored              []string `orm:"ignore"`
 	Blob                 []uint8
 	Bool                 bool
-	Float64              float64  `orm:"precision=5"`
-	Decimal              float64  `orm:"decimal=5,2"`
-	DecimalNullable      *float64 `orm:"decimal=5,2"`
-	Float64Unsigned      float64  `orm:"unsigned"`
+	BoolArray            [2]bool
+	Float64              float64    `orm:"precision=5"`
+	Float64Array         [2]float64 `orm:"precision=5"`
+	Decimal              float64    `orm:"decimal=5,2"`
+	DecimalNullable      *float64   `orm:"decimal=5,2"`
+	Float64Unsigned      float64    `orm:"unsigned"`
 	Float64Signed        float64
 	Time                 time.Time
+	TimeArray            [2]time.Time
 	TimeWithTime         time.Time `orm:"time"`
 	TimeNullable         *time.Time
 	TimeWithTimeNullable *time.Time `orm:"time"`
 	FlushStruct          flushStruct
+	FlushStructArray     [2]flushStruct
 	Int8Nullable         *int8
 	Int16Nullable        *int16
 	Int32Nullable        *int32
@@ -82,9 +95,9 @@ type flushEntity struct {
 	Uint32Nullable       *uint32
 	Uint64Nullable       *uint64
 	Reference            *Reference[flushEntityReference]
+	ReferenceArray       [2]*Reference[flushEntityReference]
 	ReferenceRequired    *Reference[flushEntityReference] `orm:"required"`
 	flushStructAnonymous
-	UintsArray [3]uint64
 }
 
 type flushEntityReference struct {

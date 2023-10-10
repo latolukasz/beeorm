@@ -102,7 +102,9 @@ type tableFields struct {
 	uIntegersArray            []int
 	integers                  []int
 	references                []int
+	referencesArray           []int
 	referencesRequired        []bool
+	referencesRequiredArray   []bool
 	uIntegersNullable         []int
 	uIntegersNullableSize     []int
 	integersNullable          []int
@@ -132,7 +134,9 @@ type tableFields struct {
 	times                     []int
 	dates                     []int
 	structs                   []int
+	structsArray              []int
 	structsFields             []*tableFields
+	structsFieldsArray        []*tableFields
 }
 
 func (e *entitySchema) GetTableName() string {
@@ -501,17 +505,21 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
 		case "time.Time":
 			e.buildTimeField(attributes)
 		default:
-			k := f.Type.Kind().String()
+			fType := f.Type
+			if attributes.IsArray {
+				fType = fType.Elem()
+			}
+			k := fType.Kind().String()
 			if k == "struct" {
 				e.buildStructField(attributes, registry, schemaTags)
-			} else if f.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
-				definition := reflect.New(f.Type).Interface().(EnumValues).EnumValues()
-				if f.Type.Kind().String() == "string" {
+			} else if fType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+				definition := reflect.New(fType).Interface().(EnumValues).EnumValues()
+				if fType.Kind().String() == "string" {
 					e.buildEnumField(attributes, definition)
 				} else {
 					e.buildStringSliceField(attributes, definition)
 				}
-			} else if f.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
+			} else if fType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
 				e.buildReferenceField(attributes)
 				if attributes.Tags["cached"] == "true" {
 					fields.forcedOldBid[i] = true
@@ -552,7 +560,7 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 			if i == attributes.ArrayLen {
 				break
 			}
-			columnName += "_" + strconv.Itoa(i)
+			columnName += "_" + strconv.Itoa(i+1)
 
 		}
 		e.mapBindToScanPointer[columnName] = func() interface{} {
@@ -567,22 +575,38 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 }
 
 func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
-	attributes.Fields.references = append(attributes.Fields.references, attributes.Index)
-	attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, attributes.Tags["required"] == "true")
-	columnName := attributes.GetColumnName()
-	e.mapBindToScanPointer[columnName] = scanIntNullablePointer
-	e.mapPointerToValue[columnName] = pointerUintNullableScan
-	e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
-	refType := reflect.New(attributes.Field.Type.Elem()).Interface().(referenceInterface).getType()
-	def := referenceDefinition{
-		Cached: attributes.Tags["cached"] == "true",
-		Type:   refType,
-	}
 
-	if def.Cached {
-		e.cachedReferences[columnName] = def
+	columnNamePrefix := attributes.GetColumnName()
+	fType := attributes.Field.Type
+	if attributes.IsArray {
+		fType = fType.Elem()
 	}
-	e.references[columnName] = def
+	for i := 0; i <= attributes.ArrayLen; i++ {
+		columnName := columnNamePrefix
+		if attributes.IsArray {
+			if i == attributes.ArrayLen {
+				break
+			}
+			columnName += "_" + strconv.Itoa(i+1)
+			attributes.Fields.referencesArray = append(attributes.Fields.referencesArray, attributes.Index)
+			attributes.Fields.referencesRequiredArray = append(attributes.Fields.referencesRequiredArray, attributes.Tags["required"] == "true")
+		} else {
+			attributes.Fields.references = append(attributes.Fields.references, attributes.Index)
+			attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, attributes.Tags["required"] == "true")
+		}
+		e.mapBindToScanPointer[columnName] = scanIntNullablePointer
+		e.mapPointerToValue[columnName] = pointerUintNullableScan
+		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+		refType := reflect.New(fType.Elem()).Interface().(referenceInterface).getType()
+		def := referenceDefinition{
+			Cached: attributes.Tags["cached"] == "true",
+			Type:   refType,
+		}
+		if def.Cached {
+			e.cachedReferences[columnName] = def
+		}
+		e.references[columnName] = def
+	}
 }
 
 func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
@@ -803,13 +827,19 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 
 func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
 	schemaTags map[string]map[string]string) {
-	attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
 	subPrefix := ""
 	if !attributes.Field.Anonymous {
 		subPrefix = attributes.Field.Name
 	}
-	subFields := e.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
-	attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
+	if attributes.IsArray {
+		attributes.Fields.structsArray = append(attributes.Fields.structsArray, attributes.Index)
+		subFields := e.buildTableFields(attributes.Field.Type.Elem(), registry, 0, subPrefix, schemaTags)
+		attributes.Fields.structsFieldsArray = append(attributes.Fields.structsFieldsArray, subFields)
+	} else {
+		attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
+		subFields := e.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
+		attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
+	}
 }
 
 func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {

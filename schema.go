@@ -160,7 +160,7 @@ func getAllTables(db DBClient) []string {
 
 func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
-	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType(), indexes, nil, "")
+	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType(), indexes, nil, "", -1)
 	checkError(err)
 	indexesSlice := make([]*IndexSchemaDefinition, 0)
 	for _, index := range indexes {
@@ -423,129 +423,154 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 	var addNotNullIfNotSet bool
 	addDefaultNullIfNullable := true
 	defaultValue := "nil"
-	var typeAsString = field.Type.String()
 	columnName := prefix + field.Name
-
 	attributes := schema.getTags()[columnName]
-
 	_, has := attributes["ignore"]
 	if has {
 		return nil, nil
 	}
-
-	keys := []string{"index", "unique"}
-	for _, key := range keys {
-		indexAttribute, has := attributes[key]
-		unique := key == "unique"
-		if has {
-			indexColumns := strings.Split(indexAttribute, ",")
-			for _, value := range indexColumns {
-				indexColumn := strings.Split(value, ":")
-				location := 1
-				if len(indexColumn) > 1 {
-					userLocation, err := strconv.Atoi(indexColumn[1])
-					if err != nil {
-						return nil, fmt.Errorf("invalid index position '%s' in index '%s'", indexColumn[1], indexColumn[0])
-					}
-					location = userLocation
-				}
-				current, has := indexes[indexColumn[0]]
-				if !has {
-					current = &IndexSchemaDefinition{Name: indexColumn[0], Unique: unique, columnsMap: map[int]string{location: prefix + field.Name}}
-					indexes[indexColumn[0]] = current
-				} else {
-					current.columnsMap[location] = prefix + field.Name
-				}
-			}
+	var columns []*ColumnSchemaDefinition
+	isArray := false
+	arrayLen := 0
+	fieldType := field.Type
+	if field.Type.Kind().String() == "array" {
+		fieldType = fieldType.Elem()
+		isArray = true
+		arrayLen = field.Type.Len()
+		if arrayLen > 100 {
+			return nil, fmt.Errorf("array len for column %s exceeded limit of 100", columnName)
 		}
 	}
 
-	required, hasRequired := attributes["required"]
-	isRequired := hasRequired && required == "true"
-
-	var err error
-	switch typeAsString {
-	case "uint",
-		"uint8",
-		"uint32",
-		"uint64",
-		"int8",
-		"int16",
-		"int32",
-		"int64",
-		"int":
-		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, false)
-	case "*uint",
-		"*uint8",
-		"*uint32",
-		"*uint64",
-		"*int8",
-		"*int16",
-		"*int32",
-		"*int64",
-		"*int":
-		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
-	case "uint16":
-		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, false)
-	case "*uint16":
-		definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
-	case "bool":
-		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"
-	case "*bool":
-		definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", false, "nil"
-	case "string":
-		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleString(engine, attributes, !isRequired)
-		if err != nil {
-			return nil, err
-		}
-	case "float32":
-		definition, addNotNullIfNotSet, defaultValue = handleFloat("float", attributes, false)
-	case "float64":
-		definition, addNotNullIfNotSet, defaultValue = handleFloat("double", attributes, false)
-	case "*float32":
-		definition, addNotNullIfNotSet, defaultValue = handleFloat("float", attributes, true)
-	case "*float64":
-		definition, addNotNullIfNotSet, defaultValue = handleFloat("double", attributes, true)
-	case "time.Time":
-		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue = handleTime(attributes, false)
-	case "*time.Time":
-		definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue = handleTime(attributes, true)
-	case "[]uint8":
-		definition, addDefaultNullIfNullable = handleBlob(attributes)
-	default:
-		kind := field.Type.Kind().String()
-		if kind == "struct" {
-			subFieldPrefix := prefix
-			structFields, err := checkStruct(engine, schema, field.Type, indexes, field, subFieldPrefix)
-			checkError(err)
-			return structFields, nil
-		} else if field.Type.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
-			definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
-		} else if field.Type.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
-			fieldType := "ENUM"
-			if field.Type.Kind().String() == "slice" {
-				fieldType = "SET"
+	for i := 0; i <= arrayLen; i++ {
+		columnName = prefix + field.Name
+		if isArray {
+			if i == arrayLen {
+				break
 			}
-			def := reflect.New(field.Type).Interface().(EnumValues)
-			definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum(fieldType, engine, def, !isRequired)
+			columnName += "_" + strconv.Itoa(i+1)
+		}
+		keys := []string{"index", "unique"}
+		for _, key := range keys {
+			indexAttribute, has := attributes[key]
+			unique := key == "unique"
+			if has {
+				indexColumns := strings.Split(indexAttribute, ",")
+				for _, value := range indexColumns {
+					indexColumn := strings.Split(value, ":")
+					location := 1
+					if len(indexColumn) > 1 {
+						userLocation, err := strconv.Atoi(indexColumn[1])
+						if err != nil {
+							return nil, fmt.Errorf("invalid index position '%s' in index '%s'", indexColumn[1], indexColumn[0])
+						}
+						location = userLocation
+					}
+					current, has := indexes[indexColumn[0]]
+					if !has {
+						current = &IndexSchemaDefinition{Name: indexColumn[0], Unique: unique, columnsMap: map[int]string{location: prefix + field.Name}}
+						indexes[indexColumn[0]] = current
+					} else {
+						current.columnsMap[location] = prefix + field.Name
+					}
+				}
+			}
+		}
+
+		required, hasRequired := attributes["required"]
+		isRequired := hasRequired && required == "true"
+
+		var err error
+		typeAsString := fieldType.String()
+		switch typeAsString {
+		case "uint",
+			"uint8",
+			"uint32",
+			"uint64",
+			"int8",
+			"int16",
+			"int32",
+			"int64",
+			"int":
+			definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, false)
+		case "*uint",
+			"*uint8",
+			"*uint32",
+			"*uint64",
+			"*int8",
+			"*int16",
+			"*int32",
+			"*int64",
+			"*int":
+			definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
+		case "uint16":
+			definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, false)
+		case "*uint16":
+			definition, addNotNullIfNotSet, defaultValue = handleInt(typeAsString, attributes, true)
+		case "bool":
+			definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", true, "'0'"
+		case "*bool":
+			definition, addNotNullIfNotSet, defaultValue = "tinyint(1)", false, "nil"
+		case "string":
+			definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleString(engine, attributes, !isRequired)
 			if err != nil {
 				return nil, err
 			}
-		} else {
-			return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
+		case "float32":
+			definition, addNotNullIfNotSet, defaultValue = handleFloat("float", attributes, false)
+		case "float64":
+			definition, addNotNullIfNotSet, defaultValue = handleFloat("double", attributes, false)
+		case "*float32":
+			definition, addNotNullIfNotSet, defaultValue = handleFloat("float", attributes, true)
+		case "*float64":
+			definition, addNotNullIfNotSet, defaultValue = handleFloat("double", attributes, true)
+		case "time.Time":
+			definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue = handleTime(attributes, false)
+		case "*time.Time":
+			definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue = handleTime(attributes, true)
+		case "[]uint8":
+			definition, addDefaultNullIfNullable = handleBlob(attributes)
+		default:
+			kind := fieldType.Kind().String()
+			if kind == "struct" {
+				subFieldPrefix := prefix
+				arrayIndex := -1
+				if isArray {
+					arrayIndex = i + 1
+				}
+				structFields, err := checkStruct(engine, schema, fieldType, indexes, field, subFieldPrefix, arrayIndex)
+				checkError(err)
+				columns = append(columns, structFields...)
+				continue
+			} else if fieldType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
+				definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
+			} else if fieldType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+				fieldDef := "ENUM"
+				if field.Type.Kind().String() == "slice" {
+					fieldDef = "SET"
+				}
+				def := reflect.New(fieldType).Interface().(EnumValues)
+				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum(fieldDef, engine, def, !isRequired)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
+			}
 		}
+		isNotNull := false
+		if addNotNullIfNotSet || isRequired {
+			definition += " NOT NULL"
+			isNotNull = true
+		}
+		if defaultValue != "nil" && columnName != "ID" {
+			definition += " DEFAULT " + defaultValue
+		} else if !isNotNull && addDefaultNullIfNullable {
+			definition += " DEFAULT NULL"
+		}
+		columns = append(columns, &ColumnSchemaDefinition{columnName, fmt.Sprintf("`%s` %s", columnName, definition)})
 	}
-	isNotNull := false
-	if addNotNullIfNotSet || isRequired {
-		definition += " NOT NULL"
-		isNotNull = true
-	}
-	if defaultValue != "nil" && columnName != "ID" {
-		definition += " DEFAULT " + defaultValue
-	} else if !isNotNull && addDefaultNullIfNullable {
-		definition += " DEFAULT NULL"
-	}
-	return []*ColumnSchemaDefinition{{columnName, fmt.Sprintf("`%s` %s", columnName, definition)}}, nil
+	return columns, nil
 }
 
 func handleInt(typeAsString string, attributes map[string]string, nullable bool) (string, bool, string) {
@@ -690,7 +715,7 @@ type ColumnSchemaDefinition struct {
 }
 
 func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
-	subField *reflect.StructField, subFieldPrefix string) ([]*ColumnSchemaDefinition, error) {
+	subField *reflect.StructField, subFieldPrefix string, arrayIndex int) ([]*ColumnSchemaDefinition, error) {
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {
 		f, hasID := t.FieldByName("ID")
@@ -708,6 +733,9 @@ func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, index
 		prefix := subFieldPrefix
 		if subField != nil && !subField.Anonymous {
 			prefix += subField.Name
+			if arrayIndex > 0 {
+				prefix += "_" + strconv.Itoa(arrayIndex) + "_"
+			}
 		}
 		fieldColumns, err := checkColumn(engine, entitySchema, &field, indexes, prefix)
 		if err != nil {
