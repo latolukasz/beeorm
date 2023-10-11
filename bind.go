@@ -71,249 +71,486 @@ func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
 	return bind, nil
 }
 
+func fillBindForUint(bind Bind, v uint64, column string) {
+	if v > 0 {
+		bind[column] = strconv.FormatUint(v, 10)
+	} else {
+		bind[column] = zeroAsString
+	}
+}
+
+func fillBindForReference(bind Bind, f reflect.Value, required bool, column string) error {
+	if f.IsNil() {
+		if required {
+			return &BindError{Field: column, Message: "nil value not allowed"}
+		}
+		f.SetZero()
+		bind[column] = nullAsString
+	} else {
+		reference := f.Interface().(referenceInterface)
+		if required && reference.GetID() == 0 {
+			return &BindError{Field: column, Message: "ID zero not allowed"}
+		}
+		bind[column] = strconv.FormatUint(reference.GetID(), 10)
+	}
+	return nil
+}
+
+func fillBindForInt(bind Bind, v int64, column string) {
+	if v > 0 {
+		bind[column] = strconv.FormatInt(v, 10)
+	} else {
+		bind[column] = zeroAsString
+	}
+}
+
+func fillBindForBool(bind Bind, v bool, column string) {
+	if v {
+		bind[column] = ""
+	} else {
+		bind[column] = zeroAsString
+	}
+}
+
+func fillBindForFloat(bind Bind, f reflect.Value, column string, floatsPrecision, floatsSize, floatsDecimalSize int, floatsUnsigned bool) error {
+	v := f.Float()
+	if v == 0 {
+		bind[column] = zeroAsString
+		return nil
+	}
+	if floatsUnsigned && v < 0 {
+		return &BindError{Field: column, Message: "negative value not allowed"}
+	}
+	roundV := roundFloat(v, floatsPrecision)
+	val := strconv.FormatFloat(roundV, 'f', floatsPrecision, floatsSize)
+	decimalSize := floatsDecimalSize
+	if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
+		return &BindError{Field: column,
+			Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+	}
+	bind[column] = val
+	if v != roundV {
+		f.SetFloat(roundV)
+	}
+	return nil
+}
+
+func fillBindForTime(bind Bind, f reflect.Value, column string) error {
+	v := f.Interface().(time.Time)
+	if v.Location() != time.UTC {
+		return &BindError{Field: column, Message: "time must be in UTC location"}
+	}
+	v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
+	if v != v2 {
+		f.Set(reflect.ValueOf(v2))
+	}
+	bind[column] = v2.Format(time.DateTime)
+	return nil
+}
+
+func fillBindForDate(bind Bind, f reflect.Value, column string) error {
+	v := f.Interface().(time.Time)
+	if v.Location() != time.UTC {
+		return &BindError{Field: column, Message: "time must be in UTC location"}
+	}
+	v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
+	if v != v2 {
+		f.Set(reflect.ValueOf(v2))
+	}
+	bind[column] = v2.Format(time.DateOnly)
+	return nil
+}
+
+func fillBindForString(bind Bind, f reflect.Value, column string, stringMaxLengths int, isRequired bool) error {
+	v := f.String()
+	if len(v) > stringMaxLengths {
+		return &BindError{Field: column,
+			Message: fmt.Sprintf("text too long, max %d allowed", stringMaxLengths)}
+	}
+	if v == "" {
+		if isRequired {
+			return &BindError{Field: column, Message: "empty string not allowed"}
+		}
+		bind[column] = nullAsString
+	} else {
+		bind[column] = v
+	}
+	return nil
+}
+
+func fillBindForUIntegersNullable(bind Bind, f reflect.Value, column string) {
+	if !f.IsNil() {
+		bind[column] = strconv.FormatUint(f.Elem().Uint(), 10)
+		return
+	}
+	bind[column] = nullAsString
+}
+
+func fillBindForIntegersNullable(bind Bind, f reflect.Value, column string) {
+	if !f.IsNil() {
+		bind[column] = strconv.FormatInt(f.Elem().Int(), 10)
+		return
+	}
+	bind[column] = nullAsString
+}
+
+func fillBindForBytes(bind Bind, f reflect.Value, column string) {
+	v := f.Bytes()
+	if v == nil {
+		bind[column] = nullAsString
+	} else {
+		bind[column] = string(v)
+	}
+}
+
+func fillBindForEnums(bind Bind, f reflect.Value, def *enumDefinition, column string) error {
+	val := f.String()
+	if val == "" {
+		if def.required {
+			return &BindError{Field: column, Message: "empty value not allowed"}
+		} else {
+			bind[column] = nullAsString
+		}
+		return nil
+	}
+	if !slices.Contains(def.GetFields(), val) {
+		return &BindError{Field: column, Message: fmt.Sprintf("invalid value: %s", val)}
+	}
+	bind[column] = val
+	return nil
+}
+
+func fillBindForSets(bind Bind, c Context, f reflect.Value, def *enumDefinition, column string) error {
+	if f.IsNil() || f.Len() == 0 {
+		if def.required {
+			return &BindError{Field: column, Message: "empty value not allowed"}
+		}
+		bind[column] = nullAsString
+		return nil
+	}
+	s := c.getStringBuilder()
+	for j := 0; j < f.Len(); j++ {
+		v := f.Index(j).String()
+		if !slices.Contains(def.GetFields(), v) {
+			return &BindError{Field: column, Message: fmt.Sprintf("invalid value: %s", v)}
+		}
+		if j > 0 {
+			s.WriteString(",")
+		}
+		s.WriteString(v)
+	}
+	bind[column] = s.String()
+	return nil
+}
+
+func fillBindForBooleansNullable(bind Bind, f reflect.Value, column string) {
+	if !f.IsNil() {
+		if f.Elem().Bool() {
+			bind[column] = "1"
+		} else {
+			bind[column] = zeroAsString
+		}
+		return
+	}
+	bind[column] = nullAsString
+}
+
+func fillBindForFloatsNullable(bind Bind, f reflect.Value, column string, unsigned bool, precision, size, decimalSize int) error {
+	if !f.IsNil() {
+		v := f.Elem().Float()
+		if v == 0 {
+			bind[column] = zeroAsString
+			return nil
+		}
+		if unsigned && v < 0 {
+			return &BindError{Field: column, Message: "negative value not allowed"}
+		}
+		roundV := roundFloat(v, precision)
+		val := strconv.FormatFloat(roundV, 'f', precision, size)
+		if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
+			return &BindError{Field: column,
+				Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+		}
+		bind[column] = val
+		if v != roundV {
+			f.Elem().SetFloat(roundV)
+		}
+		return nil
+	}
+	bind[column] = nullAsString
+	return nil
+}
+
+func fillBindForTimesNullable(bind Bind, f reflect.Value, column string) error {
+	if !f.IsNil() {
+		v := f.Elem().Interface().(time.Time)
+		if v.Location() != time.UTC {
+			return &BindError{Field: column, Message: "time must be in UTC location"}
+		}
+		v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
+		if v != v2 {
+			f.Set(reflect.ValueOf(&v2))
+		}
+		bind[column] = v2.Format(time.DateTime)
+		return nil
+	}
+	bind[column] = nullAsString
+	return nil
+}
+
+func fillBindForDatesNullable(bind Bind, f reflect.Value, column string) error {
+	if !f.IsNil() {
+		v := f.Elem().Interface().(time.Time)
+		if v.Location() != time.UTC {
+			return &BindError{Field: column, Message: "time must be in UTC location"}
+		}
+		v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
+		if v != v2 {
+			f.Set(reflect.ValueOf(&v2))
+		}
+		bind[column] = v2.Format(time.DateOnly)
+		return nil
+	}
+	bind[column] = nullAsString
+	return nil
+}
+
 func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
-		v := source.Field(i).Uint()
-		if v > 0 {
-			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(v, 10)
-		} else {
-			bind[prefix+fields.fields[i].Name] = zeroAsString
+		fillBindForUint(bind, source.Field(i).Uint(), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.uIntegersArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForUint(bind, f.Index(j).Uint(), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.references {
 		f := source.Field(i)
 		required := fields.referencesRequired[k]
-		if f.IsNil() {
-			if required {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "nil value not allowed"}
+		err := fillBindForReference(bind, f, required, prefix+fields.fields[i].Name)
+		if err != nil {
+			return err
+		}
+	}
+	for k, i := range fields.referencesArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			required := fields.referencesRequiredArray[k]
+			err := fillBindForReference(bind, f.Index(j), required, prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
-			f.SetZero()
-			bind[prefix+fields.fields[i].Name] = nullAsString
-		} else {
-			reference := f.Interface().(referenceInterface)
-			if required && reference.GetID() == 0 {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "ID zero not allowed"}
-			}
-			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(reference.GetID(), 10)
 		}
 	}
 	for _, i := range fields.integers {
-		v := source.Field(i).Int()
-		if v != 0 {
-			bind[prefix+fields.fields[i].Name] = strconv.FormatInt(v, 10)
-		} else {
-			bind[prefix+fields.fields[i].Name] = zeroAsString
+		fillBindForInt(bind, source.Field(i).Int(), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.integersArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForInt(bind, f.Index(j).Int(), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
 	}
 	for _, i := range fields.booleans {
-		if source.Field(i).Bool() {
-			bind[prefix+fields.fields[i].Name] = "1"
-		} else {
-			bind[prefix+fields.fields[i].Name] = zeroAsString
+		fillBindForBool(bind, source.Field(i).Bool(), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.booleansArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForBool(bind, f.Index(j).Bool(), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
-
 	}
 	for k, i := range fields.floats {
+		err := fillBindForFloat(bind, source.Field(i), prefix+fields.fields[i].Name,
+			fields.floatsPrecision[k], fields.floatsSize[k], fields.floatsDecimalSize[k], fields.floatsUnsigned[k])
+		if err != nil {
+			return err
+		}
+	}
+	for k, i := range fields.floatsArray {
 		f := source.Field(i)
-		v := f.Float()
-		if v == 0 {
-			bind[prefix+fields.fields[i].Name] = zeroAsString
-			continue
-		}
-		if fields.floatsUnsigned[k] && v < 0 {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
-		}
-		roundV := roundFloat(v, fields.floatsPrecision[k])
-		val := strconv.FormatFloat(roundV, 'f', fields.floatsPrecision[k], fields.floatsSize[k])
-		decimalSize := fields.floatsDecimalSize[k]
-		if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
-			return &BindError{Field: prefix + fields.fields[i].Name,
-				Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
-		}
-		bind[prefix+fields.fields[i].Name] = val
-		if v != roundV {
-			f.SetFloat(roundV)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForFloat(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1),
+				fields.floatsPrecisionArray[k], fields.floatsSizeArray[k], fields.floatsDecimalSizeArray[k], fields.floatsUnsignedArray[k])
+			if err != nil {
+				return err
+			}
 		}
 	}
 	for _, i := range fields.times {
+		err := fillBindForTime(bind, source.Field(i), prefix+fields.fields[i].Name)
+		if err != nil {
+			return err
+		}
+	}
+	for _, i := range fields.timesArray {
 		f := source.Field(i)
-		v := f.Interface().(time.Time)
-		if v.Location() != time.UTC {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForTime(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
+			}
 		}
-		v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
-		if v != v2 {
-			f.Set(reflect.ValueOf(v2))
-		}
-		bind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
 	}
 	for _, i := range fields.dates {
+		err := fillBindForDate(bind, source.Field(i), prefix+fields.fields[i].Name)
+		if err != nil {
+			return err
+		}
+	}
+	for _, i := range fields.datesArray {
 		f := source.Field(i)
-		v := f.Interface().(time.Time)
-		if v.Location() != time.UTC {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForDate(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
+			}
 		}
-		v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
-		if v != v2 {
-			f.Set(reflect.ValueOf(v2))
-		}
-		bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
 	}
 	for k, i := range fields.strings {
-		v := source.Field(i).String()
-		if len(v) > fields.stringMaxLengths[k] {
-			return &BindError{Field: prefix + fields.fields[i].Name,
-				Message: fmt.Sprintf("text too long, max %d allowed", fields.stringMaxLengths[k])}
+		err := fillBindForString(bind, source.Field(i), prefix+fields.fields[i].Name, fields.stringMaxLengths[k], fields.stringsRequired[k])
+		if err != nil {
+			return err
 		}
-		if v == "" {
-			isRequired := fields.stringsRequired[k]
-			if isRequired {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty string not allowed"}
+	}
+	for k, i := range fields.stringsArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForString(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1), fields.stringMaxLengths[k], fields.stringsRequired[k])
+			if err != nil {
+				return err
 			}
-			bind[prefix+fields.fields[i].Name] = nullAsString
-		} else {
-			bind[prefix+fields.fields[i].Name] = v
 		}
 	}
 	for _, i := range fields.uIntegersNullable {
+		fillBindForUIntegersNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.uIntegersNullableArray {
 		f := source.Field(i)
-		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = strconv.FormatUint(f.Elem().Uint(), 10)
-			continue
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForUIntegersNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
-		bind[fields.fields[i].Name] = nullAsString
 	}
 	for _, i := range fields.integersNullable {
+		fillBindForIntegersNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.integersNullableArray {
 		f := source.Field(i)
-		if !f.IsNil() {
-			bind[prefix+fields.fields[i].Name] = strconv.FormatInt(f.Elem().Int(), 10)
-			continue
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForIntegersNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
-		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for k, i := range fields.stringsEnums {
-		val := source.Field(i).String()
-		def := fields.enums[k]
-		if val == "" {
-			if def.required {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
-			} else {
-				bind[prefix+fields.fields[i].Name] = nullAsString
+		err := fillBindForEnums(bind, source.Field(i), fields.enums[k], prefix+fields.fields[i].Name)
+		if err != nil {
+			return nil
+		}
+	}
+	for k, i := range fields.stringsEnumsArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForEnums(bind, f.Index(j), fields.enumsArray[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return nil
 			}
-			continue
 		}
-		if !slices.Contains(def.GetFields(), val) {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", val)}
-		}
-		bind[prefix+fields.fields[i].Name] = val
 	}
 	for _, i := range fields.bytes {
-		v := source.Field(i).Bytes()
-		if v == nil {
-			bind[prefix+fields.fields[i].Name] = nullAsString
-		} else {
-			bind[prefix+fields.fields[i].Name] = string(v)
+		fillBindForBytes(bind, source.Field(i), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.bytesArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForBytes(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.sliceStringsSets {
+		err := fillBindForSets(bind, c, source.Field(i), fields.sets[k], prefix+fields.fields[i].Name)
+		if err != nil {
+			return err
+		}
+	}
+	for k, i := range fields.sliceStringsSetsArray {
 		f := source.Field(i)
-		def := fields.sets[k]
-		if f.IsNil() || f.Len() == 0 {
-			if def.required {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
-			} else {
-				bind[prefix+fields.fields[i].Name] = nullAsString
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForSets(bind, c, f.Index(j), fields.sets[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
-		} else {
-			s := c.getStringBuilder()
-			for j := 0; j < f.Len(); j++ {
-				v := f.Index(j).String()
-				if !slices.Contains(def.GetFields(), v) {
-					return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v)}
-				}
-				if j > 0 {
-					s.WriteString(",")
-				}
-				s.WriteString(v)
-			}
-			bind[prefix+fields.fields[i].Name] = s.String()
 		}
 	}
 	for _, i := range fields.booleansNullable {
+		fillBindForBooleansNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
+	}
+	for _, i := range fields.booleansNullableArray {
 		f := source.Field(i)
-		if !f.IsNil() {
-			if f.Elem().Bool() {
-				bind[prefix+fields.fields[i].Name] = "1"
-			} else {
-				bind[prefix+fields.fields[i].Name] = zeroAsString
-			}
-			continue
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindForBooleansNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 		}
-		bind[prefix+fields.fields[i].Name] = nullAsString
 	}
 	for k, i := range fields.floatsNullable {
-		f := source.Field(i)
-		if !f.IsNil() {
-			v := f.Elem().Float()
-			if v == 0 {
-				bind[prefix+fields.fields[i].Name] = zeroAsString
-				continue
-			}
-			if fields.floatsNullableUnsigned[k] && v < 0 {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
-			}
-			roundV := roundFloat(v, fields.floatsNullablePrecision[k])
-			val := strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
-			decimalSize := fields.floatsNullableDecimalSize[k]
-			if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
-				return &BindError{Field: prefix + fields.fields[i].Name,
-					Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
-			}
-			bind[prefix+fields.fields[i].Name] = val
-			if v != roundV {
-				f.Elem().SetFloat(roundV)
-			}
-			continue
+		err := fillBindForFloatsNullable(bind, source.Field(i), prefix+fields.fields[i].Name, fields.floatsNullableUnsigned[k],
+			fields.floatsNullablePrecision[k], fields.floatsNullableSize[k], fields.floatsNullableDecimalSize[k])
+		if err != nil {
+			return err
 		}
-		bind[prefix+fields.fields[i].Name] = nullAsString
+	}
+	for k, i := range fields.floatsNullableArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForFloatsNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1), fields.floatsNullableUnsignedArray[k],
+				fields.floatsNullablePrecisionArray[k], fields.floatsNullableDecimalSizeArray[k], fields.floatsNullableDecimalSizeArray[k])
+			if err != nil {
+				return err
+			}
+		}
 	}
 	for _, i := range fields.timesNullable {
-		f := source.Field(i)
-		if !f.IsNil() {
-			v := f.Elem().Interface().(time.Time)
-			if v.Location() != time.UTC {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
-			}
-			v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
-			if v != v2 {
-				f.Set(reflect.ValueOf(&v2))
-			}
-			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
-			continue
+		err := fillBindForTimesNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
+		if err != nil {
+			return nil
 		}
-		bind[prefix+fields.fields[i].Name] = nullAsString
+	}
+	for _, i := range fields.timesNullableArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForTimesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return nil
+			}
+		}
 	}
 	for _, i := range fields.datesNullable {
-		f := source.Field(i)
-		if !f.IsNil() {
-			v := f.Elem().Interface().(time.Time)
-			if v.Location() != time.UTC {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
-			}
-			v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
-			if v != v2 {
-				f.Set(reflect.ValueOf(&v2))
-			}
-			bind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
-			continue
+		err := fillBindForDatesNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
+		if err != nil {
+			return nil
 		}
-		bind[prefix+fields.fields[i].Name] = nullAsString
+	}
+	for _, i := range fields.datesNullableArray {
+		f := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindForTimesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			if err != nil {
+				return nil
+			}
+		}
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
 		err := fillBindFromOneSource(c, bind, source.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
+		}
+	}
+	for j, i := range fields.structsArray {
+		f := source.Field(i)
+		for k := 0; k < fields.arrays[i]; k++ {
+			sub := fields.structsFieldsArray[j]
+			err := fillBindFromOneSource(c, bind, f.Index(k), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

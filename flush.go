@@ -201,7 +201,6 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		if err != nil {
 			return err
 		}
-
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
 			cache := c.Engine().Redis(schema.getForcedRedisCode())

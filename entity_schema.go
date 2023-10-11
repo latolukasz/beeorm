@@ -142,6 +142,7 @@ type tableFields struct {
 	floatsDecimalSize              []int
 	floatsDecimalSizeArray         []int
 	floatsSize                     []int
+	floatsSizeArray                []int
 	floatsUnsigned                 []bool
 	floatsUnsignedArray            []bool
 	floatsNullable                 []int
@@ -589,7 +590,7 @@ func (attributes schemaFieldAttributes) GetColumnNames() []string {
 
 func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 	if attributes.IsArray {
-		attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
+		attributes.Fields.uIntegersArray = append(attributes.Fields.uIntegersArray, attributes.Index)
 	} else {
 		attributes.Fields.uIntegers = append(attributes.Fields.uIntegers, attributes.Index)
 	}
@@ -868,9 +869,17 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 			decimalSize := -1
 			if attributes.TypeName == "float32" {
 				precision = 4
-				attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
+				if attributes.IsArray {
+					attributes.Fields.floatsSizeArray = append(attributes.Fields.floatsSizeArray, 64)
+				} else {
+					attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
+				}
 			} else {
-				attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
+				if attributes.IsArray {
+					attributes.Fields.floatsSizeArray = append(attributes.Fields.floatsSizeArray, 64)
+				} else {
+					attributes.Fields.floatsSize = append(attributes.Fields.floatsSize, 64)
+				}
 			}
 			precisionAttribute, has := attributes.Tags["precision"]
 			if has {

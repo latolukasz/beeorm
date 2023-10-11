@@ -53,7 +53,7 @@ type flushEntity struct {
 	Age                  int
 	IntArray             [2]int
 	Uint                 uint
-	UintArray            [2]int
+	UintArray            [2]uint
 	UintNullable         *uint
 	UintNullableArray    [2]*uint
 	IntNullable          *int
