@@ -41,88 +41,212 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.uIntegersArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := uint64(0)
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.references {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.referencesArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullInt64{}
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.integers {
 		v := int64(0)
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.integersArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := int64(0)
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.booleans {
 		v := uint64(0)
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.booleansArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := uint64(0)
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.floats {
 		v := float64(0)
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.floatsArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := float64(0)
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.times {
-		v := int64(0)
+		v := ""
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.timesArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := ""
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.dates {
-		v := int64(0)
+		v := ""
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.datesArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := ""
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.strings {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.stringsArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.uIntegersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.uIntegersNullableArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullInt64{}
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.integersNullable {
 		v := sql.NullInt64{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.integersNullableArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullInt64{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.stringsEnums {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.stringsEnumsArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.bytes {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.bytesArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.sliceStringsSets {
 		v := sql.NullString{}
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.sliceStringsSetsArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
 	}
 	for range fields.booleansNullable {
 		v := sql.NullBool{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.booleansNullable {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullBool{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.floatsNullable {
 		v := sql.NullFloat64{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.floatsNullableArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullFloat64{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.timesNullable {
-		v := sql.NullInt64{}
+		v := sql.NullString{}
 		pointers[start] = &v
 		start++
 	}
+	for _, i := range fields.timesNullableArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
+	}
 	for range fields.datesNullable {
-		v := sql.NullInt64{}
+		v := sql.NullString{}
 		pointers[start] = &v
 		start++
+	}
+	for _, i := range fields.datesNullableArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := sql.NullString{}
+			pointers[start] = &v
+			start++
+		}
 	}
 	for _, subFields := range fields.structsFields {
 		start = prepareScanForFields(subFields, start, pointers)
+	}
+	for k, i := range fields.structsArray {
+		for j := 0; j < fields.arrays[i]; j++ {
+			start = prepareScanForFields(fields.structsFieldsArray[k], start, pointers)
+		}
 	}
 	return start
 }
