@@ -197,7 +197,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []interface{}
 		pointers[start] = &v
 		start++
 	}
-	for _, i := range fields.booleansNullable {
+	for _, i := range fields.booleansNullableArray {
 		for j := 0; j < fields.arrays[i]; j++ {
 			v := sql.NullBool{}
 			pointers[start] = &v
