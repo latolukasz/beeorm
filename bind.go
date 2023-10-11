@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-const zeroDateSeconds = 31622400
 const timeStampSeconds = 62167219200
 const nullAsString = "NULL"
 const zeroAsString = "0"

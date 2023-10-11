@@ -233,6 +233,13 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		elem.Field(i).SetUint(*pointers[index].(*uint64))
 		index++
 	}
+	for _, i := range fields.uIntegersArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			f.Index(j).SetUint(*pointers[index].(*uint64))
+			index++
+		}
+	}
 	for _, i := range fields.references {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
@@ -246,35 +253,100 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
+	for _, i := range fields.referencesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullInt64)
+			if v.Valid {
+				arrayField := f.Index(j)
+				val := reflect.New(arrayField.Type().Elem())
+				reference := val.Interface().(referenceInterface)
+				reference.SetID(uint64(v.Int64))
+				arrayField.Set(val)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for _, i := range fields.integers {
 		elem.Field(i).SetInt(*pointers[index].(*int64))
 		index++
+	}
+	for _, i := range fields.integersArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			f.Index(j).SetInt(*pointers[index].(*int64))
+			index++
+		}
 	}
 	for _, i := range fields.booleans {
 		elem.Field(i).SetBool(*pointers[index].(*uint64) > 0)
 		index++
 	}
+	for _, i := range fields.booleansArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			f.Index(j).SetBool(*pointers[index].(*uint64) > 0)
+			index++
+		}
+	}
 	for _, i := range fields.floats {
 		elem.Field(i).SetFloat(*pointers[index].(*float64))
 		index++
 	}
+	for _, i := range fields.floatsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			f.Index(j).SetFloat(*pointers[index].(*float64))
+			index++
+		}
+	}
 	for _, i := range fields.times {
-		v := *pointers[index].(*int64)
-		if v == zeroDateSeconds {
+		v := *pointers[index].(*string)
+		if v == zeroTimeAsString {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0).UTC()))
+			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+			elem.Field(i).Set(reflect.ValueOf(t))
 		}
 		index++
 	}
+	for _, i := range fields.timesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := *pointers[index].(*string)
+			if v == zeroTimeAsString {
+				f.Index(j).SetZero()
+			} else {
+				t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+				f.Index(j).Set(reflect.ValueOf(t))
+			}
+			index++
+		}
+	}
 	for _, i := range fields.dates {
-		v := *pointers[index].(*int64)
-		if v == zeroDateSeconds {
+		v := *pointers[index].(*string)
+		if v == zeroDateAsString {
 			elem.Field(i).SetZero()
 		} else {
-			elem.Field(i).Set(reflect.ValueOf(time.Unix(v-timeStampSeconds, 0).UTC()))
+			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+			elem.Field(i).Set(reflect.ValueOf(t))
 		}
 		index++
+	}
+	for _, i := range fields.datesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := *pointers[index].(*string)
+			if v == zeroDateAsString {
+				f.Index(j).SetZero()
+			} else {
+				t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+				f.Index(j).Set(reflect.ValueOf(t))
+			}
+			index++
+		}
 	}
 	for _, i := range fields.strings {
 		elem.Field(i).SetString(pointers[index].(*sql.NullString).String)
@@ -358,12 +430,12 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		index++
 	}
 	for _, i := range fields.timesNullable {
-		v := pointers[index].(*sql.NullInt64)
+		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			if v.Int64 == zeroDateSeconds {
+			if v.String == zeroTimeAsString {
 				elem.Field(i).SetZero()
 			} else {
-				t := time.Unix(v.Int64-timeStampSeconds, 0).UTC()
+				t, _ := time.ParseInLocation(time.DateTime, v.String, time.UTC)
 				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
@@ -372,12 +444,12 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		index++
 	}
 	for _, i := range fields.datesNullable {
-		v := pointers[index].(*sql.NullInt64)
+		v := pointers[index].(*sql.NullString)
 		if v.Valid {
-			if v.Int64 == zeroDateSeconds {
+			if v.String == zeroDateAsString {
 				elem.Field(i).SetZero()
 			} else {
-				t := time.Unix(v.Int64-timeStampSeconds, 0).UTC()
+				t, _ := time.ParseInLocation(time.DateOnly, v.String, time.UTC)
 				elem.Field(i).Set(reflect.ValueOf(&t))
 			}
 		} else {
