@@ -96,7 +96,7 @@ func fillBindForReference(bind Bind, f reflect.Value, required bool, column stri
 }
 
 func fillBindForInt(bind Bind, v int64, column string) {
-	if v > 0 {
+	if v != 0 {
 		bind[column] = strconv.FormatInt(v, 10)
 	} else {
 		bind[column] = zeroAsString
@@ -105,7 +105,7 @@ func fillBindForInt(bind Bind, v int64, column string) {
 
 func fillBindForBool(bind Bind, v bool, column string) {
 	if v {
-		bind[column] = ""
+		bind[column] = "1"
 	} else {
 		bind[column] = zeroAsString
 	}
@@ -443,7 +443,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.stringsEnums {
 		err := fillBindForEnums(bind, source.Field(i), fields.enums[k], prefix+fields.fields[i].Name)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 	for k, i := range fields.stringsEnumsArray {
@@ -451,7 +451,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindForEnums(bind, f.Index(j), fields.enumsArray[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 	}
@@ -473,7 +473,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.sliceStringsSetsArray {
 		f := source.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindForSets(bind, c, f.Index(j), fields.sets[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			err := fillBindForSets(bind, c, f.Index(j), fields.setsArray[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
@@ -499,7 +499,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		f := source.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindForFloatsNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1), fields.floatsNullableUnsignedArray[k],
-				fields.floatsNullablePrecisionArray[k], fields.floatsNullableDecimalSizeArray[k], fields.floatsNullableDecimalSizeArray[k])
+				fields.floatsNullablePrecisionArray[k], fields.floatsNullableSizeArray[k], fields.floatsNullableDecimalSizeArray[k])
 			if err != nil {
 				return err
 			}
@@ -508,7 +508,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.timesNullable {
 		err := fillBindForTimesNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 	for _, i := range fields.timesNullableArray {
@@ -516,14 +516,14 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindForTimesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 	}
 	for _, i := range fields.datesNullable {
 		err := fillBindForDatesNullable(bind, source.Field(i), prefix+fields.fields[i].Name)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 	for _, i := range fields.datesNullableArray {
@@ -531,7 +531,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindForTimesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
-				return nil
+				return err
 			}
 		}
 	}

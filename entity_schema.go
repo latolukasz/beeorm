@@ -154,6 +154,7 @@ type tableFields struct {
 	floatsNullableUnsigned         []bool
 	floatsNullableUnsignedArray    []bool
 	floatsNullableSize             []int
+	floatsNullableSizeArray        []int
 	timesNullable                  []int
 	timesNullableArray             []int
 	datesNullable                  []int
@@ -517,10 +518,7 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
 		case "string":
 			e.buildStringField(attributes)
 		case "[]uint8":
-			fields.bytes = append(fields.bytes, i)
-			for _, columnName := range attributes.GetColumnNames() {
-				e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
-			}
+			e.buildBytesField(attributes)
 		case "bool":
 			e.buildBoolField(attributes)
 		case "*bool":
@@ -811,6 +809,17 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 
 }
 
+func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
+	if attributes.IsArray {
+		attributes.Fields.bytesArray = append(attributes.Fields.bytesArray, attributes.Index)
+	} else {
+		attributes.Fields.bytes = append(attributes.Fields.bytes, attributes.Index)
+	}
+	for _, columnName := range attributes.GetColumnNames() {
+		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+	}
+}
+
 func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
 	if attributes.IsArray {
 		attributes.Fields.sliceStringsSetsArray = append(attributes.Fields.sliceStringsSetsArray, attributes.Index)
@@ -927,9 +936,17 @@ func (e *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) 
 			decimalSize := -1
 			if attributes.TypeName == "*float32" {
 				precision = 4
-				attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 32)
+				if attributes.IsArray {
+					attributes.Fields.floatsNullableSizeArray = append(attributes.Fields.floatsNullableSizeArray, 32)
+				} else {
+					attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 32)
+				}
 			} else {
-				attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 64)
+				if attributes.IsArray {
+					attributes.Fields.floatsNullableSizeArray = append(attributes.Fields.floatsNullableSizeArray, 64)
+				} else {
+					attributes.Fields.floatsNullableSize = append(attributes.Fields.floatsNullableSize, 64)
+				}
 			}
 			precisionAttribute, has := attributes.Tags["precision"]
 			if has {

@@ -546,7 +546,7 @@ func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField,
 				definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
 			} else if fieldType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				fieldDef := "ENUM"
-				if field.Type.Kind().String() == "slice" {
+				if fieldType.Kind().String() == "slice" {
 					fieldDef = "SET"
 				}
 				def := reflect.New(fieldType).Interface().(EnumValues)

@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -46,57 +47,69 @@ var testEnumDefinition = struct {
 }
 
 type flushEntity struct {
-	ID                   uint64 `orm:"localCache;redisCache"`
-	City                 string `orm:"unique=city;length=40"`
-	Name                 string `orm:"unique=name;required"`
-	StringArray          [2]string
-	Age                  int
-	IntArray             [2]int
-	Uint                 uint
-	UintArray            [2]uint
-	UintNullable         *uint
-	UintNullableArray    [2]*uint
-	IntNullable          *int
-	IntNullableArray     [2]*int
-	BoolNullable         *bool
-	BoolNullableArray    [2]*bool
-	FloatNullable        *float64    `orm:"precision=3;unsigned"`
-	FloatNullableArray   [2]*float64 `orm:"precision=3;unsigned"`
-	Float32Nullable      *float32    `orm:"precision=4"`
-	SetNullable          testSet
-	SetNullableArray     [2]testSet
-	SetNotNull           testSet `orm:"required"`
-	EnumNullable         testEnum
-	EnumNullableArray    [2]testEnum
-	EnumNotNull          testEnum `orm:"required"`
-	Ignored              []string `orm:"ignore"`
-	Blob                 []uint8
-	Bool                 bool
-	BoolArray            [2]bool
-	Float64              float64    `orm:"precision=5"`
-	Float64Array         [2]float64 `orm:"precision=5"`
-	Decimal              float64    `orm:"decimal=5,2"`
-	DecimalNullable      *float64   `orm:"decimal=5,2"`
-	Float64Unsigned      float64    `orm:"unsigned"`
-	Float64Signed        float64
-	Time                 time.Time
-	TimeArray            [2]time.Time
-	TimeWithTime         time.Time `orm:"time"`
-	TimeNullable         *time.Time
-	TimeWithTimeNullable *time.Time `orm:"time"`
-	FlushStruct          flushStruct
-	FlushStructArray     [2]flushStruct
-	Int8Nullable         *int8
-	Int16Nullable        *int16
-	Int32Nullable        *int32
-	Int64Nullable        *int64
-	Uint8Nullable        *uint8
-	Uint16Nullable       *uint16
-	Uint32Nullable       *uint32
-	Uint64Nullable       *uint64
-	Reference            *Reference[flushEntityReference]
-	ReferenceArray       [2]*Reference[flushEntityReference]
-	ReferenceRequired    *Reference[flushEntityReference] `orm:"required"`
+	ID                        uint64 `orm:"localCache;redisCache"`
+	City                      string `orm:"unique=city;length=40"`
+	Name                      string `orm:"unique=name;required"`
+	StringArray               [2]string
+	Age                       int
+	IntArray                  [2]int
+	Uint                      uint
+	UintArray                 [2]uint
+	UintNullable              *uint
+	UintNullableArray         [2]*uint
+	IntNullable               *int
+	IntNullableArray          [2]*int
+	BoolNullable              *bool
+	BoolNullableArray         [2]*bool
+	FloatNullable             *float64    `orm:"precision=3;unsigned"`
+	FloatNullableArray        [2]*float64 `orm:"precision=3;unsigned"`
+	Float32Nullable           *float32    `orm:"precision=4"`
+	Float32NullableArray      [2]*float32 `orm:"precision=4"`
+	SetNullable               testSet
+	SetNullableArray          [2]testSet
+	SetNotNull                testSet `orm:"required"`
+	EnumNullable              testEnum
+	EnumNullableArray         [2]testEnum
+	EnumNotNull               testEnum `orm:"required"`
+	Ignored                   []string `orm:"ignore"`
+	Blob                      []uint8
+	BlobArray                 [2][]uint8
+	Bool                      bool
+	BoolArray                 [2]bool
+	Float64                   float64     `orm:"precision=5"`
+	Float64Array              [2]float64  `orm:"precision=5"`
+	Float32                   float32     `orm:"precision=5"`
+	Float32Array              [2]float32  `orm:"precision=5"`
+	Decimal                   float64     `orm:"decimal=5,2"`
+	DecimalArray              [2]float64  `orm:"decimal=5,2"`
+	DecimalNullable           *float64    `orm:"decimal=5,2"`
+	DecimalNullableArray      [2]*float64 `orm:"decimal=5,2"`
+	Float64Unsigned           float64     `orm:"unsigned"`
+	Float64UnsignedArray      [2]float64  `orm:"unsigned"`
+	Float64Signed             float64
+	Float64SignedArray        [2]float64
+	Time                      time.Time
+	TimeArray                 [2]time.Time
+	TimeWithTime              time.Time    `orm:"time"`
+	TimeWithTimeArray         [2]time.Time `orm:"time"`
+	TimeNullable              *time.Time
+	TimeNullableArray         [2]*time.Time
+	TimeWithTimeNullable      *time.Time    `orm:"time"`
+	TimeWithTimeNullableArray [2]*time.Time `orm:"time"`
+	FlushStruct               flushStruct
+	FlushStructArray          [2]flushStruct
+	Int8Nullable              *int8
+	Int16Nullable             *int16
+	Int32Nullable             *int32
+	Int64Nullable             *int64
+	Uint8Nullable             *uint8
+	Uint16Nullable            *uint16
+	Uint32Nullable            *uint32
+	Uint32NullableArray       [2]*uint32
+	Uint64Nullable            *uint64
+	Reference                 *Reference[flushEntityReference]
+	ReferenceArray            [2]*Reference[flushEntityReference]
+	ReferenceRequired         *Reference[flushEntityReference] `orm:"required"`
 	flushStructAnonymous
 }
 
@@ -246,6 +259,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.Nil(t, entity.Blob)
 	assert.False(t, entity.Bool)
 	assert.Equal(t, 0.0, entity.Float64)
+	assert.Equal(t, float32(0.0), entity.Float32)
 	assert.Equal(t, 0.0, entity.Decimal)
 	assert.Nil(t, entity.DecimalNullable)
 	assert.Equal(t, 0.0, entity.Float64Unsigned)
@@ -272,6 +286,37 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.Nil(t, entity.Reference)
 	assert.NotNil(t, reference.ID, entity.ReferenceRequired)
 
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, "", entity.StringArray[i])
+		assert.Equal(t, 0, entity.IntArray[i])
+		assert.Equal(t, uint(0), entity.UintArray[i])
+		assert.Nil(t, entity.UintNullableArray[i])
+		assert.Nil(t, entity.IntNullableArray[i])
+		assert.Nil(t, entity.BoolNullableArray[i])
+		assert.Nil(t, entity.Float32NullableArray[i])
+		assert.Nil(t, entity.SetNullableArray[i])
+		assert.Equal(t, testEnum(""), entity.EnumNullableArray[i])
+		assert.Nil(t, entity.BlobArray[i])
+		assert.Equal(t, false, entity.BoolArray[i])
+		assert.Equal(t, float64(0), entity.Float64Array[i])
+		assert.Equal(t, float32(0), entity.Float32Array[i])
+		assert.Equal(t, float64(0), entity.DecimalArray[i])
+		assert.Nil(t, entity.DecimalNullableArray[i])
+		assert.Equal(t, float64(0), entity.Float64UnsignedArray[i])
+		assert.Equal(t, float64(0), entity.Float64SignedArray[i])
+		assert.Equal(t, new(time.Time).UTC(), entity.TimeArray[i])
+		assert.Equal(t, new(time.Time).UTC(), entity.TimeWithTimeArray[i])
+		assert.Nil(t, entity.TimeNullableArray[i])
+		assert.Nil(t, entity.TimeWithTimeNullableArray[i])
+		assert.Nil(t, entity.Uint32NullableArray[i])
+		assert.Nil(t, entity.ReferenceArray[i])
+		assert.Nil(t, entity.FlushStructArray[i].TestTime)
+		assert.Equal(t, 0, entity.FlushStructArray[i].Age)
+		assert.Equal(t, "", entity.FlushStructArray[i].Name2)
+		assert.Equal(t, "", entity.FlushStructArray[i].Sub.Name3)
+		assert.Equal(t, 0, entity.FlushStructArray[i].Sub.Age3)
+	}
+
 	// Adding full entity
 	newEntity = NewEntity[flushEntity](c).TrackedEntity()
 	newEntity.City = "New York"
@@ -295,6 +340,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	newEntity.Blob = []byte("test binary")
 	newEntity.Bool = true
 	newEntity.Float64 = 986.2322
+	newEntity.Float32 = 86.232
 	newEntity.Decimal = 78.24
 	decimalNullable := 123.23
 	newEntity.DecimalNullable = &decimalNullable
@@ -332,6 +378,35 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	newEntity.SubAge = 123
 	newEntity.Reference = NewReference[flushEntityReference](reference.ID)
 	newEntity.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	for i := 0; i < 2; i++ {
+		newEntity.StringArray[i] = fmt.Sprintf("Test %d", i)
+		newEntity.IntArray[i] = i + 1
+		newEntity.UintArray[i] = uint(i + 1)
+		newEntity.UintNullableArray[i] = &newEntity.UintArray[i]
+		newEntity.IntNullableArray[i] = &newEntity.IntArray[i]
+		newEntity.BoolArray[i] = true
+		newEntity.BoolNullableArray[i] = &newEntity.BoolArray[i]
+		newEntity.Float64Array[i] = float64(i + 1)
+		newEntity.Float32Array[i] = float32(i + 1)
+		newEntity.DecimalArray[i] = float64(i + 1)
+		newEntity.Float64UnsignedArray[i] = float64(i + 1)
+		newEntity.Float64SignedArray[i] = float64(i + 1)
+		newEntity.Float32NullableArray[i] = &newEntity.Float32Array[i]
+		newEntity.SetNullableArray[i] = testSet{testEnumDefinition.B, testEnumDefinition.C}
+		newEntity.EnumNullableArray[i] = testEnumDefinition.C
+		newEntity.BlobArray[i] = []byte(fmt.Sprintf("Test %d", i))
+		newEntity.DecimalNullableArray[i] = &newEntity.DecimalArray[i]
+		newEntity.TimeArray[i] = time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
+		newEntity.TimeWithTimeArray[i] = time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
+		newEntity.TimeNullableArray[i] = &newEntity.TimeWithTimeArray[i]
+		newEntity.TimeWithTimeNullableArray[i] = &newEntity.TimeWithTimeArray[i]
+		newEntity.Uint32NullableArray[i] = &uint32Nullable
+		newEntity.ReferenceArray[i] = NewReference[flushEntityReference](reference.ID)
+		newEntity.FlushStructArray[i].Age = i + 1
+		newEntity.FlushStructArray[i].Name2 = fmt.Sprintf("Name %d", i)
+		newEntity.FlushStructArray[i].Sub.Name3 = fmt.Sprintf("Name %d", i)
+		newEntity.FlushStructArray[i].Sub.Age3 = i + 1
+	}
 	assert.NoError(t, c.Flush(lazy))
 	if lazy {
 		err = ConsumeLazyFlushEvents(c, false)
@@ -356,6 +431,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.Equal(t, []byte("test binary"), entity.Blob)
 	assert.True(t, entity.Bool)
 	assert.Equal(t, 986.2322, entity.Float64)
+	assert.Equal(t, float32(86.232), entity.Float32)
 	assert.Equal(t, 78.24, entity.Decimal)
 	assert.Equal(t, 123.23, *entity.DecimalNullable)
 	assert.Equal(t, 8932.299423, entity.Float64Unsigned)
@@ -381,6 +457,35 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.Equal(t, float32(123), entity.SubAge)
 	assert.Equal(t, reference.ID, entity.Reference.GetID())
 	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, fmt.Sprintf("Test %d", i), entity.StringArray[i])
+		assert.Equal(t, i+1, entity.IntArray[i])
+		assert.Equal(t, uint(i+1), entity.UintArray[i])
+		assert.Equal(t, uint(i+1), *entity.UintNullableArray[i])
+		assert.Equal(t, i+1, *entity.IntNullableArray[i])
+		assert.True(t, *entity.BoolNullableArray[i])
+		assert.Equal(t, float32(i+1), *entity.Float32NullableArray[i])
+		assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
+		assert.Equal(t, testEnumDefinition.C, entity.EnumNullableArray[i])
+		assert.Equal(t, []byte(fmt.Sprintf("Test %d", i)), entity.BlobArray[i])
+		assert.True(t, entity.BoolArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64Array[i])
+		assert.Equal(t, float32(i+1), entity.Float32Array[i])
+		assert.Equal(t, float64(i+1), entity.DecimalArray[i])
+		assert.Equal(t, float64(i+1), *entity.DecimalNullableArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64UnsignedArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64SignedArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), entity.TimeArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), entity.TimeWithTimeArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), *entity.TimeNullableArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), *entity.TimeWithTimeNullableArray[i])
+		assert.Equal(t, uint32(2923), *entity.Uint32NullableArray[i])
+		assert.Equal(t, entity.Reference.GetID(), entity.ReferenceArray[i].GetID())
+		assert.Equal(t, i+1, entity.FlushStructArray[i].Age)
+		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Name2)
+		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Sub.Name3)
+		assert.Equal(t, i+1, entity.FlushStructArray[i].Sub.Age3)
+	}
 
 	// rounding dates
 	newEntity = NewEntity[flushEntity](c).TrackedEntity()
@@ -482,7 +587,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 
 	// invalid enum, set
 	newEntity = NewEntity[flushEntity](c).TrackedEntity()
-	newEntity.Name = "Name"
+	newEntity.Name = "Name 2"
 	newEntity.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	newEntity.EnumNotNull = ""
 	err = c.Flush(lazy)
