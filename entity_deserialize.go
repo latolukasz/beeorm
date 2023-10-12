@@ -352,6 +352,13 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		elem.Field(i).SetString(pointers[index].(*sql.NullString).String)
 		index++
 	}
+	for _, i := range fields.stringsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			f.Index(j).SetString(pointers[index].(*sql.NullString).String)
+			index++
+		}
+	}
 	for _, i := range fields.uIntegersNullable {
 		v := pointers[index].(*sql.NullInt64)
 		if v.Valid {
@@ -363,6 +370,21 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			elem.Field(i).SetZero()
 		}
 		index++
+	}
+	for _, i := range fields.uIntegersNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullInt64)
+			if v.Valid {
+				field := f.Index(j)
+				val := reflect.New(field.Type().Elem())
+				val.Elem().SetUint(uint64(v.Int64))
+				field.Set(val)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
 	}
 	for _, i := range fields.integersNullable {
 		v := pointers[index].(*sql.NullInt64)
@@ -376,10 +398,33 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
+	for _, i := range fields.integersNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullInt64)
+			if v.Valid {
+				field := f.Index(j)
+				val := reflect.New(field.Type().Elem())
+				val.Elem().SetInt(v.Int64)
+				field.Set(val)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for _, i := range fields.stringsEnums {
 		v := pointers[index].(*sql.NullString)
 		elem.Field(i).SetString(v.String)
 		index++
+	}
+	for _, i := range fields.stringsEnumsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullString)
+			f.Index(j).SetString(v.String)
+			index++
+		}
 	}
 	for _, i := range fields.bytes {
 		v := pointers[index].(*sql.NullString)
@@ -389,6 +434,18 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			elem.Field(i).SetZero()
 		}
 		index++
+	}
+	for _, i := range fields.bytesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullString)
+			if v.Valid {
+				f.Index(j).SetBytes([]byte(v.String))
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
 	}
 	for _, i := range fields.sliceStringsSets {
 		v := pointers[index].(*sql.NullString)
@@ -405,6 +462,24 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
+	for _, i := range fields.sliceStringsSetsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullString)
+			if v.Valid && v.String != "" {
+				field := f.Index(j)
+				values := strings.Split(v.String, ",")
+				setValues := reflect.MakeSlice(field.Type(), len(values), len(values))
+				for k, val := range strings.Split(v.String, ",") {
+					setValues.Index(k).SetString(val)
+				}
+				field.Set(setValues)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for _, i := range fields.booleansNullable {
 		v := pointers[index].(*sql.NullBool)
 		if v.Valid {
@@ -417,6 +492,21 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
+	for _, i := range fields.booleansNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullBool)
+			if v.Valid {
+				field := f.Index(j)
+				val := reflect.New(field.Type().Elem())
+				val.Elem().SetBool(v.Bool)
+				field.Set(val)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for _, i := range fields.floatsNullable {
 		v := pointers[index].(*sql.NullFloat64)
 		if v.Valid {
@@ -428,6 +518,21 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 			elem.Field(i).SetZero()
 		}
 		index++
+	}
+	for _, i := range fields.floatsNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullFloat64)
+			if v.Valid {
+				field := f.Index(j)
+				val := reflect.New(field.Type().Elem())
+				val.Elem().SetFloat(v.Float64)
+				field.Set(val)
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
 	}
 	for _, i := range fields.timesNullable {
 		v := pointers[index].(*sql.NullString)
@@ -443,6 +548,23 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
+	for _, i := range fields.timesNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullString)
+			if v.Valid {
+				if v.String == zeroTimeAsString {
+					f.Index(j).SetZero()
+				} else {
+					t, _ := time.ParseInLocation(time.DateTime, v.String, time.UTC)
+					f.Index(j).Set(reflect.ValueOf(&t))
+				}
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for _, i := range fields.datesNullable {
 		v := pointers[index].(*sql.NullString)
 		if v.Valid {
@@ -457,9 +579,31 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 		index++
 	}
-
+	for _, i := range fields.datesNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			v := pointers[index].(*sql.NullString)
+			if v.Valid {
+				if v.String == zeroDateAsString {
+					f.Index(j).SetZero()
+				} else {
+					t, _ := time.ParseInLocation(time.DateOnly, v.String, time.UTC)
+					f.Index(j).Set(reflect.ValueOf(&t))
+				}
+			} else {
+				f.Index(j).SetZero()
+			}
+			index++
+		}
+	}
 	for k, i := range fields.structs {
 		index = deserializeStructFromDB(elem.Field(i), index, fields.structsFields[k], pointers)
+	}
+	for k, i := range fields.structsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			index = deserializeStructFromDB(f.Index(j), index, fields.structsFieldsArray[k], pointers)
+		}
 	}
 	return index
 }
