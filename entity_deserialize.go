@@ -23,13 +23,14 @@ func deserializeFromRedis(data []string, schema EntitySchema, elem reflect.Value
 
 func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect.Value, index int) int {
 	for _, i := range fields.uIntegers {
-		v := data[index]
+		deserializeUintFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetUint(0)
-		} else {
-			val, _ := strconv.ParseUint(v, 10, 64)
-			elem.Field(i).SetUint(val)
+	}
+	for _, i := range fields.uIntegersArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			deserializeUintFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.references {
@@ -46,6 +47,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			f.Set(val)
 		}
 	}
+	for _, i := range fields.referencesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.integers {
 		v := data[index]
 		index++
@@ -56,10 +63,22 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			elem.Field(i).SetInt(val)
 		}
 	}
+	for _, i := range fields.integersArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.booleans {
 		v := data[index]
 		index++
 		elem.Field(i).SetBool(v == "1")
+	}
+	for _, i := range fields.booleansArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
 	}
 	for _, i := range fields.floats {
 		v := data[index]
@@ -69,6 +88,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		} else {
 			val, _ := strconv.ParseFloat(v, 64)
 			elem.Field(i).SetFloat(val)
+		}
+	}
+	for _, i := range fields.floatsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
 		}
 	}
 	for _, i := range fields.times {
@@ -82,6 +107,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			f.SetZero()
 		}
 	}
+	for _, i := range fields.timesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.dates {
 		v := data[index]
 		index++
@@ -93,10 +124,22 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			f.SetZero()
 		}
 	}
+	for _, i := range fields.datesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.strings {
 		v := data[index]
 		index++
 		elem.Field(i).SetString(v)
+	}
+	for _, i := range fields.stringsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
 	}
 	for k, i := range fields.uIntegersNullable {
 		v := data[index]
@@ -123,6 +166,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 		elem.Field(i).SetZero()
 	}
+	for _, i := range fields.uIntegersNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for k, i := range fields.integersNullable {
 		v := data[index]
 		index++
@@ -148,9 +197,21 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 		elem.Field(i).SetZero()
 	}
+	for _, i := range fields.integersNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.stringsEnums {
 		elem.Field(i).SetString(data[index])
 		index++
+	}
+	for _, i := range fields.stringsEnumsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
 	}
 	for _, i := range fields.bytes {
 		v := data[index]
@@ -159,6 +220,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			elem.Field(i).SetZero()
 		} else {
 			elem.Field(i).SetBytes([]byte(v))
+		}
+	}
+	for _, i := range fields.bytesArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
 		}
 	}
 	for _, i := range fields.sliceStringsSets {
@@ -177,6 +244,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			f.SetZero()
 		}
 	}
+	for _, i := range fields.sliceStringsSetsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.booleansNullable {
 		v := data[index]
 		index++
@@ -185,6 +258,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		} else {
 			b := v == "1"
 			elem.Field(i).Set(reflect.ValueOf(&b))
+		}
+	}
+	for _, i := range fields.booleansNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
 		}
 	}
 	for j, i := range fields.floatsNullable {
@@ -202,6 +281,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 		elem.Field(i).SetZero()
 	}
+	for _, i := range fields.floatsNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for _, i := range fields.timesNullable {
 		v := data[index]
 		index++
@@ -210,6 +295,12 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			elem.Field(i).Set(reflect.ValueOf(&t))
 		} else {
 			elem.Field(i).SetZero()
+		}
+	}
+	for _, i := range fields.timesNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
 		}
 	}
 	for _, i := range fields.datesNullable {
@@ -222,10 +313,31 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 			elem.Field(i).SetZero()
 		}
 	}
+	for _, i := range fields.datesNullableArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	for j, i := range fields.structs {
 		index = deserializeFieldsFromRedis(data, fields.structsFields[j], elem.Field(i), index)
 	}
+	for _, i := range fields.structsArray {
+		f := elem.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+
+		}
+	}
 	return index
+}
+
+func deserializeUintFromRedis(v string, f reflect.Value) {
+	if v == "" {
+		f.SetUint(0)
+	} else {
+		val, _ := strconv.ParseUint(v, 10, 64)
+		f.SetUint(val)
+	}
 }
 
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
