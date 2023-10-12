@@ -529,7 +529,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for _, i := range fields.datesNullableArray {
 		f := source.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindForTimesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			err := fillBindForDatesNullable(bind, f.Index(j), prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
