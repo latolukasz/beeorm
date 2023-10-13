@@ -181,10 +181,10 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		deserializeFloatPointersFromRedis(data[index], elem.Field(i), fields.floatsNullableSize[j])
 		index++
 	}
-	for _, i := range fields.floatsNullableArray {
+	for k, i := range fields.floatsNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			deserializeFloatPointersFromRedis(data[index], f.Index(j), fields.floatsNullableSizeArray[j])
+			deserializeFloatPointersFromRedis(data[index], f.Index(j), fields.floatsNullableSizeArray[k])
 			index++
 		}
 	}
@@ -253,7 +253,7 @@ func deserializeIntFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeBoolFromRedis(v string, f reflect.Value) {
-	f.SetBool(v != zeroAsString)
+	f.SetBool(v == "1")
 }
 
 func deserializeFloatFromRedis(v string, f reflect.Value) {
