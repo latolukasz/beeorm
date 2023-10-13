@@ -400,369 +400,189 @@ func deserializeDatePointersFromRedis(v string, f reflect.Value) {
 
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
 	for _, i := range fields.uIntegers {
-		elem.Field(i).SetUint(*pointers[index].(*uint64))
+		deserializeUintFromDB(elem.Field(i), *pointers[index].(*uint64))
 		index++
 	}
 	for _, i := range fields.uIntegersArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			f.Index(j).SetUint(*pointers[index].(*uint64))
+			deserializeUintFromDB(f.Index(j), *pointers[index].(*uint64))
 			index++
 		}
 	}
 	for _, i := range fields.references {
-		v := pointers[index].(*sql.NullInt64)
-		if v.Valid {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			reference := val.Interface().(referenceInterface)
-			reference.SetID(uint64(v.Int64))
-			f.Set(val)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeReferenceFromDB(elem.Field(i), *pointers[index].(*sql.NullInt64))
 		index++
 	}
 	for _, i := range fields.referencesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullInt64)
-			if v.Valid {
-				arrayField := f.Index(j)
-				val := reflect.New(arrayField.Type().Elem())
-				reference := val.Interface().(referenceInterface)
-				reference.SetID(uint64(v.Int64))
-				arrayField.Set(val)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeReferenceFromDB(f.Index(j), *pointers[index].(*sql.NullInt64))
 			index++
 		}
 	}
 	for _, i := range fields.integers {
-		elem.Field(i).SetInt(*pointers[index].(*int64))
+		deserializeIntFromDB(elem.Field(i), *pointers[index].(*int64))
 		index++
 	}
 	for _, i := range fields.integersArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			f.Index(j).SetInt(*pointers[index].(*int64))
+			deserializeIntFromDB(f.Index(j), *pointers[index].(*int64))
 			index++
 		}
 	}
 	for _, i := range fields.booleans {
-		elem.Field(i).SetBool(*pointers[index].(*uint64) > 0)
+		deserializeBoolFromDB(elem.Field(i), *pointers[index].(*uint64))
 		index++
 	}
 	for _, i := range fields.booleansArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			f.Index(j).SetBool(*pointers[index].(*uint64) > 0)
+			deserializeBoolFromDB(f.Index(j), *pointers[index].(*uint64))
 			index++
 		}
 	}
 	for _, i := range fields.floats {
-		elem.Field(i).SetFloat(*pointers[index].(*float64))
+		deserializeFloatFromDB(elem.Field(i), *pointers[index].(*float64))
 		index++
 	}
 	for _, i := range fields.floatsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			f.Index(j).SetFloat(*pointers[index].(*float64))
+			deserializeFloatFromDB(f.Index(j), *pointers[index].(*float64))
 			index++
 		}
 	}
 	for _, i := range fields.times {
-		v := *pointers[index].(*string)
-		if v == zeroTimeAsString {
-			elem.Field(i).SetZero()
-		} else {
-			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
-			elem.Field(i).Set(reflect.ValueOf(t))
-		}
+		deserializeTimeFromDB(elem.Field(i), *pointers[index].(*string))
 		index++
 	}
 	for _, i := range fields.timesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := *pointers[index].(*string)
-			if v == zeroTimeAsString {
-				f.Index(j).SetZero()
-			} else {
-				t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
-				f.Index(j).Set(reflect.ValueOf(t))
-			}
+			deserializeTimeFromDB(f.Index(j), *pointers[index].(*string))
 			index++
 		}
 	}
 	for _, i := range fields.dates {
-		v := *pointers[index].(*string)
-		if v == zeroDateAsString {
-			elem.Field(i).SetZero()
-		} else {
-			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
-			elem.Field(i).Set(reflect.ValueOf(t))
-		}
+		deserializeDateFromDB(elem.Field(i), *pointers[index].(*string))
 		index++
 	}
 	for _, i := range fields.datesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := *pointers[index].(*string)
-			if v == zeroDateAsString {
-				f.Index(j).SetZero()
-			} else {
-				t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
-				f.Index(j).Set(reflect.ValueOf(t))
-			}
+			deserializeDateFromDB(f.Index(j), *pointers[index].(*string))
 			index++
 		}
 	}
 	for _, i := range fields.strings {
-		elem.Field(i).SetString(pointers[index].(*sql.NullString).String)
+		deserializeStringFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.stringsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			f.Index(j).SetString(pointers[index].(*sql.NullString).String)
+			deserializeStringFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
 	for _, i := range fields.uIntegersNullable {
-		v := pointers[index].(*sql.NullInt64)
-		if v.Valid {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			val.Elem().SetUint(uint64(v.Int64))
-			f.Set(val)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeUIntegerPointersFromDB(elem.Field(i), *pointers[index].(*sql.NullInt64))
 		index++
 	}
 	for _, i := range fields.uIntegersNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullInt64)
-			if v.Valid {
-				field := f.Index(j)
-				val := reflect.New(field.Type().Elem())
-				val.Elem().SetUint(uint64(v.Int64))
-				field.Set(val)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeUIntegerPointersFromDB(f.Index(j), *pointers[index].(*sql.NullInt64))
 			index++
 		}
 	}
 	for _, i := range fields.integersNullable {
-		v := pointers[index].(*sql.NullInt64)
-		if v.Valid {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			val.Elem().SetInt(v.Int64)
-			f.Set(val)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeIntegerPointersFromDB(elem.Field(i), *pointers[index].(*sql.NullInt64))
 		index++
 	}
 	for _, i := range fields.integersNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullInt64)
-			if v.Valid {
-				field := f.Index(j)
-				val := reflect.New(field.Type().Elem())
-				val.Elem().SetInt(v.Int64)
-				field.Set(val)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeIntegerPointersFromDB(f.Index(j), *pointers[index].(*sql.NullInt64))
 			index++
 		}
 	}
 	for _, i := range fields.stringsEnums {
-		v := pointers[index].(*sql.NullString)
-		elem.Field(i).SetString(v.String)
+		deserializeStringFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.stringsEnumsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullString)
-			f.Index(j).SetString(v.String)
+			deserializeStringFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
 	for _, i := range fields.bytes {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			elem.Field(i).SetBytes([]byte(v.String))
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeBytesFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.bytesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullString)
-			if v.Valid {
-				f.Index(j).SetBytes([]byte(v.String))
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeBytesFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
 	for _, i := range fields.sliceStringsSets {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid && v.String != "" {
-			f := elem.Field(i)
-			values := strings.Split(v.String, ",")
-			setValues := reflect.MakeSlice(f.Type(), len(values), len(values))
-			for j, val := range strings.Split(v.String, ",") {
-				setValues.Index(j).SetString(val)
-			}
-			f.Set(setValues)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeSliceStringFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.sliceStringsSetsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullString)
-			if v.Valid && v.String != "" {
-				field := f.Index(j)
-				values := strings.Split(v.String, ",")
-				setValues := reflect.MakeSlice(field.Type(), len(values), len(values))
-				for k, val := range strings.Split(v.String, ",") {
-					setValues.Index(k).SetString(val)
-				}
-				field.Set(setValues)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeSliceStringFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		v := pointers[index].(*sql.NullBool)
-		if v.Valid {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			val.Elem().SetBool(v.Bool)
-			f.Set(val)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeBoolPointersFromDB(elem.Field(i), *pointers[index].(*sql.NullBool))
 		index++
 	}
 	for _, i := range fields.booleansNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullBool)
-			if v.Valid {
-				field := f.Index(j)
-				val := reflect.New(field.Type().Elem())
-				val.Elem().SetBool(v.Bool)
-				field.Set(val)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeBoolPointersFromDB(f.Index(j), *pointers[index].(*sql.NullBool))
 			index++
 		}
 	}
 	for _, i := range fields.floatsNullable {
-		v := pointers[index].(*sql.NullFloat64)
-		if v.Valid {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			val.Elem().SetFloat(v.Float64)
-			f.Set(val)
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeFloatPointersFromDB(elem.Field(i), *pointers[index].(*sql.NullFloat64))
 		index++
 	}
 	for _, i := range fields.floatsNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullFloat64)
-			if v.Valid {
-				field := f.Index(j)
-				val := reflect.New(field.Type().Elem())
-				val.Elem().SetFloat(v.Float64)
-				field.Set(val)
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeFloatPointersFromDB(f.Index(j), *pointers[index].(*sql.NullFloat64))
 			index++
 		}
 	}
 	for _, i := range fields.timesNullable {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			if v.String == zeroTimeAsString {
-				elem.Field(i).SetZero()
-			} else {
-				t, _ := time.ParseInLocation(time.DateTime, v.String, time.UTC)
-				elem.Field(i).Set(reflect.ValueOf(&t))
-			}
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeTimePointersFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.timesNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullString)
-			if v.Valid {
-				if v.String == zeroTimeAsString {
-					f.Index(j).SetZero()
-				} else {
-					t, _ := time.ParseInLocation(time.DateTime, v.String, time.UTC)
-					f.Index(j).Set(reflect.ValueOf(&t))
-				}
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeTimePointersFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
 	for _, i := range fields.datesNullable {
-		v := pointers[index].(*sql.NullString)
-		if v.Valid {
-			if v.String == zeroDateAsString {
-				elem.Field(i).SetZero()
-			} else {
-				t, _ := time.ParseInLocation(time.DateOnly, v.String, time.UTC)
-				elem.Field(i).Set(reflect.ValueOf(&t))
-			}
-		} else {
-			elem.Field(i).SetZero()
-		}
+		deserializeDatePointersFromDB(elem.Field(i), *pointers[index].(*sql.NullString))
 		index++
 	}
 	for _, i := range fields.datesNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			v := pointers[index].(*sql.NullString)
-			if v.Valid {
-				if v.String == zeroDateAsString {
-					f.Index(j).SetZero()
-				} else {
-					t, _ := time.ParseInLocation(time.DateOnly, v.String, time.UTC)
-					f.Index(j).Set(reflect.ValueOf(&t))
-				}
-			} else {
-				f.Index(j).SetZero()
-			}
+			deserializeDatePointersFromDB(f.Index(j), *pointers[index].(*sql.NullString))
 			index++
 		}
 	}
@@ -776,4 +596,140 @@ func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields,
 		}
 	}
 	return index
+}
+
+func deserializeUintFromDB(f reflect.Value, v uint64) {
+	f.SetUint(v)
+}
+
+func deserializeReferenceFromDB(f reflect.Value, v sql.NullInt64) {
+	if v.Valid {
+		val := reflect.New(f.Type().Elem())
+		reference := val.Interface().(referenceInterface)
+		reference.SetID(uint64(v.Int64))
+		f.Set(val)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeIntFromDB(f reflect.Value, v int64) {
+	f.SetInt(v)
+}
+
+func deserializeBoolFromDB(f reflect.Value, v uint64) {
+	f.SetBool(v != 0)
+}
+
+func deserializeFloatFromDB(f reflect.Value, v float64) {
+	f.SetFloat(v)
+}
+
+func deserializeTimeFromDB(f reflect.Value, v string) {
+	if v == zeroTimeAsString {
+		f.SetZero()
+	} else {
+		t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+		f.Set(reflect.ValueOf(t))
+	}
+}
+
+func deserializeDateFromDB(f reflect.Value, v string) {
+	if v == zeroDateAsString {
+		f.SetZero()
+	} else {
+		t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+		f.Set(reflect.ValueOf(t))
+	}
+}
+
+func deserializeStringFromDB(f reflect.Value, v sql.NullString) {
+	f.SetString(v.String)
+}
+
+func deserializeUIntegerPointersFromDB(f reflect.Value, v sql.NullInt64) {
+	if v.Valid {
+		val := reflect.New(f.Type().Elem())
+		val.Elem().SetUint(uint64(v.Int64))
+		f.Set(val)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeIntegerPointersFromDB(f reflect.Value, v sql.NullInt64) {
+	if v.Valid {
+		val := reflect.New(f.Type().Elem())
+		val.Elem().SetInt(v.Int64)
+		f.Set(val)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeBytesFromDB(f reflect.Value, v sql.NullString) {
+	if v.Valid {
+		f.SetBytes([]byte(v.String))
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeSliceStringFromDB(f reflect.Value, v sql.NullString) {
+	if v.Valid && v.String != "" {
+		values := strings.Split(v.String, ",")
+		setValues := reflect.MakeSlice(f.Type(), len(values), len(values))
+		for j, val := range strings.Split(v.String, ",") {
+			setValues.Index(j).SetString(val)
+		}
+		f.Set(setValues)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeBoolPointersFromDB(f reflect.Value, v sql.NullBool) {
+	if v.Valid {
+		val := reflect.New(f.Type().Elem())
+		val.Elem().SetBool(v.Bool)
+		f.Set(val)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeFloatPointersFromDB(f reflect.Value, v sql.NullFloat64) {
+	if v.Valid {
+		val := reflect.New(f.Type().Elem())
+		val.Elem().SetFloat(v.Float64)
+		f.Set(val)
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeTimePointersFromDB(f reflect.Value, v sql.NullString) {
+	if v.Valid {
+		if v.String == zeroTimeAsString {
+			f.SetZero()
+			return
+		}
+		t, _ := time.ParseInLocation(time.DateTime, v.String, time.UTC)
+		f.Set(reflect.ValueOf(&t))
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeDatePointersFromDB(f reflect.Value, v sql.NullString) {
+	if v.Valid {
+		if v.String == zeroDateAsString {
+			f.SetZero()
+			return
+		}
+		t, _ := time.ParseInLocation(time.DateOnly, v.String, time.UTC)
+		f.Set(reflect.ValueOf(&t))
+		return
+	}
+	f.SetZero()
 }
