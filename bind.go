@@ -566,6 +566,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			fillBindsForUint(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
+	TODO
 	for k, i := range fields.references {
 		v1 := uint64(0)
 		v2 := uint64(0)
