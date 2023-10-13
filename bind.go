@@ -566,69 +566,35 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			fillBindsForUint(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
-	TODO
 	for k, i := range fields.references {
-		v1 := uint64(0)
-		v2 := uint64(0)
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		isRequired := fields.referencesRequired[k]
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Interface().(referenceInterface).GetID()
-			if isRequired && v1 == 0 {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "nil value not allowed"}
-			}
-		} else if isRequired {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "nil value not allowed"}
+		err := fillBindsForReference(f1, f2, bind, oldBind, fields, i, fields.referencesRequired[k], prefix, "")
+		if err != nil {
+			return err
 		}
-		if !v2IsNil {
-			v2 = f2.Interface().(referenceInterface).GetID()
-		}
-		if v1IsNil != v2IsNil || v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = strconv.FormatUint(v1, 10)
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = strconv.FormatUint(v2, 10)
-			}
-		} else if fields.forcedOldBid[i] {
-			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nullAsString
-			} else {
-				oldBind[prefix+fields.fields[i].Name] = strconv.FormatUint(v2, 10)
+	}
+	for k, i := range fields.referencesArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForReference(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.referencesRequiredArray[k], prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
 	for _, i := range fields.integers {
-		v1 := source.Field(i).Int()
-		v2 := before.Field(i).Int()
-		if v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1 == 0 {
-				bind[name] = zeroAsString
-			} else {
-				bind[name] = strconv.FormatInt(v1, 10)
-			}
-			if v2 == 0 {
-				oldBind[name] = zeroAsString
-			} else {
-				oldBind[name] = strconv.FormatInt(v2, 10)
-			}
-		} else if fields.forcedOldBid[i] {
-			if v2 == 0 {
-				oldBind[prefix+fields.fields[i].Name] = zeroAsString
-			} else {
-				oldBind[prefix+fields.fields[i].Name] = strconv.FormatInt(v2, 10)
-			}
+		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.integersArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForInt(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
+	ss
 	for _, i := range fields.booleans {
 		v1 := source.Field(i).Bool()
 		v2 := before.Field(i).Bool()
@@ -1119,6 +1085,44 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	return nil
 }
 
+func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, isRequired bool, prefix, suffix string) error {
+	v1 := uint64(0)
+	v2 := uint64(0)
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Interface().(referenceInterface).GetID()
+		if isRequired && v1 == 0 {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
+		}
+	} else if isRequired {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
+	}
+	if !v2IsNil {
+		v2 = f2.Interface().(referenceInterface).GetID()
+	}
+	if v1IsNil != v2IsNil || v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = strconv.FormatUint(v1, 10)
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = strconv.FormatUint(v2, 10)
+		}
+	} else if fields.forcedOldBid[i] {
+		if v2IsNil {
+			oldBind[prefix+fields.fields[i].Name+suffix] = nullAsString
+		} else {
+			oldBind[prefix+fields.fields[i].Name+suffix] = strconv.FormatUint(v2, 10)
+		}
+	}
+	return nil
+}
+
 func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := f1.Uint()
 	v2 := f2.Uint()
@@ -1139,6 +1143,30 @@ func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 			oldBind[prefix+fields.fields[i].Name+suffix] = zeroAsString
 		} else {
 			oldBind[prefix+fields.fields[i].Name+suffix] = strconv.FormatUint(v2, 10)
+		}
+	}
+}
+
+func fillBindsForInt(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := f1.Int()
+	v2 := f2.Int()
+	if v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == 0 {
+			bind[name] = zeroAsString
+		} else {
+			bind[name] = strconv.FormatInt(v1, 10)
+		}
+		if v2 == 0 {
+			oldBind[name] = zeroAsString
+		} else {
+			oldBind[name] = strconv.FormatInt(v2, 10)
+		}
+	} else if fields.forcedOldBid[i] {
+		if v2 == 0 {
+			oldBind[prefix+fields.fields[i].Name+suffix] = zeroAsString
+		} else {
+			oldBind[prefix+fields.fields[i].Name+suffix] = strconv.FormatInt(v2, 10)
 		}
 	}
 }
