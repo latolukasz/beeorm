@@ -21,6 +21,13 @@ func copyEntity(source, target reflect.Value, fields *tableFields) {
 	for _, i := range fields.uIntegers {
 		target.Field(i).SetUint(source.Field(i).Uint())
 	}
+	for _, i := range fields.uIntegersArray {
+		fTarget := target.Field(i)
+		fSource := source.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fTarget.Index(j).SetUint(fSource.Index(j).Uint())
+		}
+	}
 	for _, i := range fields.references {
 		target.Field(i).Set(source.Field(i))
 	}

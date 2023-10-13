@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -809,8 +810,39 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	editedEntity.SubAge = 123
 	editedEntity.Reference = NewReference[flushEntityReference](reference.ID)
 	editedEntity.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
+	for i := 0; i < 2; i++ {
+		editedEntity.StringArray[i] = fmt.Sprintf("Test %d", i)
+		editedEntity.IntArray[i] = i + 1
+		editedEntity.UintArray[i] = uint(i + 1)
+		editedEntity.UintNullableArray[i] = &editedEntity.UintArray[i]
+		editedEntity.IntNullableArray[i] = &editedEntity.IntArray[i]
+		editedEntity.BoolArray[i] = true
+		editedEntity.BoolNullableArray[i] = &editedEntity.BoolArray[i]
+		editedEntity.Float64Array[i] = float64(i + 1)
+		editedEntity.Float32Array[i] = float32(i + 1)
+		editedEntity.DecimalArray[i] = float64(i + 1)
+		editedEntity.Float64UnsignedArray[i] = float64(i + 1)
+		editedEntity.Float64SignedArray[i] = float64(i + 1)
+		editedEntity.Float32NullableArray[i] = &editedEntity.Float32Array[i]
+		editedEntity.SetNullableArray[i] = testSet{testEnumDefinition.B, testEnumDefinition.C}
+		editedEntity.EnumNullableArray[i] = testEnumDefinition.C
+		editedEntity.BlobArray[i] = []byte(fmt.Sprintf("Test %d", i))
+		editedEntity.DecimalNullableArray[i] = &editedEntity.DecimalArray[i]
+		editedEntity.TimeArray[i] = time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
+		editedEntity.TimeWithTimeArray[i] = time.Date(1982, 11, 4, 21, 0, 5, 6, time.UTC)
+		editedEntity.TimeNullableArray[i] = &editedEntity.TimeWithTimeArray[i]
+		editedEntity.TimeWithTimeNullableArray[i] = &editedEntity.TimeWithTimeArray[i]
+		editedEntity.Uint32NullableArray[i] = &uint32Nullable
+		editedEntity.ReferenceArray[i] = NewReference[flushEntityReference](reference.ID)
+		editedEntity.FlushStructArray[i].Age = i + 1
+		editedEntity.FlushStructArray[i].Name2 = fmt.Sprintf("Name %d", i)
+		editedEntity.FlushStructArray[i].Sub.Name3 = fmt.Sprintf("Name %d", i)
+		editedEntity.FlushStructArray[i].Sub.Age3 = i + 1
+	}
+
 	loggerLocal.Clear()
 	assert.NoError(t, c.Flush(lazy))
+	os.Exit(1)
 	if !lazy {
 		assert.Len(t, loggerDB.Logs, 1)
 	} else {

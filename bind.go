@@ -557,26 +557,13 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 
 func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
-		v1 := source.Field(i).Uint()
-		v2 := before.Field(i).Uint()
-		if v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1 == 0 {
-				bind[name] = zeroAsString
-			} else {
-				bind[name] = strconv.FormatUint(v1, 10)
-			}
-			if v2 == 0 {
-				oldBind[name] = zeroAsString
-			} else {
-				oldBind[name] = strconv.FormatUint(v2, 10)
-			}
-		} else if fields.forcedOldBid[i] {
-			if v2 == 0 {
-				oldBind[prefix+fields.fields[i].Name] = zeroAsString
-			} else {
-				oldBind[prefix+fields.fields[i].Name] = strconv.FormatUint(v2, 10)
-			}
+		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.uIntegersArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForUint(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.references {
@@ -1129,6 +1116,30 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	return nil
+}
+
+func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := f1.Uint()
+	v2 := f2.Uint()
+	if v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == 0 {
+			bind[name] = zeroAsString
+		} else {
+			bind[name] = strconv.FormatUint(v1, 10)
+		}
+		if v2 == 0 {
+			oldBind[name] = zeroAsString
+		} else {
+			oldBind[name] = strconv.FormatUint(v2, 10)
+		}
+	} else if fields.forcedOldBid[i] {
+		if v2 == 0 {
+			oldBind[prefix+fields.fields[i].Name+suffix] = zeroAsString
+		} else {
+			oldBind[prefix+fields.fields[i].Name+suffix] = strconv.FormatUint(v2, 10)
+		}
+	}
 }
 
 func roundFloat(val float64, precision int) float64 {
