@@ -34,298 +34,189 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 		}
 	}
 	for _, i := range fields.references {
-		v := data[index]
+		deserializeReferencesFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetZero()
-		} else {
-			f := elem.Field(i)
-			val := reflect.New(f.Type().Elem())
-			reference := val.Interface().(referenceInterface)
-			valInt, _ := strconv.ParseUint(v, 10, 64)
-			reference.SetID(valInt)
-			f.Set(val)
-		}
 	}
 	for _, i := range fields.referencesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeReferencesFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.integers {
-		v := data[index]
+		deserializeIntFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetInt(0)
-		} else {
-			val, _ := strconv.ParseInt(v, 10, 64)
-			elem.Field(i).SetInt(val)
-		}
 	}
 	for _, i := range fields.integersArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeIntFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.booleans {
-		v := data[index]
+		deserializeBoolFromRedis(data[index], elem.Field(i))
 		index++
-		elem.Field(i).SetBool(v == "1")
 	}
 	for _, i := range fields.booleansArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeBoolFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.floats {
-		v := data[index]
+		deserializeFloatFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetFloat(0)
-		} else {
-			val, _ := strconv.ParseFloat(v, 64)
-			elem.Field(i).SetFloat(val)
-		}
 	}
 	for _, i := range fields.floatsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeFloatFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.times {
-		v := data[index]
+		deserializeTimeFromRedis(data[index], elem.Field(i))
 		index++
-		f := elem.Field(i)
-		if v != "" {
-			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
-			f.Set(reflect.ValueOf(t))
-		} else {
-			f.SetZero()
-		}
 	}
 	for _, i := range fields.timesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeTimeFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.dates {
-		v := data[index]
+		deserializeDateFromRedis(data[index], elem.Field(i))
 		index++
-		f := elem.Field(i)
-		if v != "" {
-			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
-			f.Set(reflect.ValueOf(t))
-		} else {
-			f.SetZero()
-		}
 	}
 	for _, i := range fields.datesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeDateFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.strings {
-		v := data[index]
+		deserializeStringFromRedis(data[index], elem.Field(i))
 		index++
-		elem.Field(i).SetString(v)
 	}
 	for _, i := range fields.stringsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeStringFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for k, i := range fields.uIntegersNullable {
-		v := data[index]
+		deserializeUIntegersPointersFromRedis(data[index], elem.Field(i), fields.uIntegersNullableSize[k])
 		index++
-		if v != "" {
-			asInt, _ := strconv.ParseUint(v, 10, 64)
-			switch fields.uIntegersNullableSize[k] {
-			case 0:
-				val := uint(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 8:
-				val := uint8(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 16:
-				val := uint16(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 32:
-				val := uint32(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 64:
-				elem.Field(i).Set(reflect.ValueOf(&asInt))
-			}
-			continue
-		}
-		elem.Field(i).SetZero()
 	}
-	for _, i := range fields.uIntegersNullableArray {
+	for k, i := range fields.uIntegersNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeUIntegersPointersFromRedis(data[index], f.Index(j), fields.uIntegersNullableSizeArray[k])
+			index++
 		}
 	}
 	for k, i := range fields.integersNullable {
-		v := data[index]
+		deserializeIntegersPointersFromRedis(data[index], elem.Field(i), fields.integersNullableSize[k])
 		index++
-		if v != "" {
-			asInt, _ := strconv.ParseInt(v, 10, 64)
-			switch fields.integersNullableSize[k] {
-			case 0:
-				val := int(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 8:
-				val := int8(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 16:
-				val := int16(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 32:
-				val := int32(asInt)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			case 64:
-				elem.Field(i).Set(reflect.ValueOf(&asInt))
-			}
-			continue
-		}
-		elem.Field(i).SetZero()
 	}
-	for _, i := range fields.integersNullableArray {
+	for k, i := range fields.integersNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeIntegersPointersFromRedis(data[index], f.Index(j), fields.integersNullableSizeArray[k])
+			index++
 		}
 	}
 	for _, i := range fields.stringsEnums {
-		elem.Field(i).SetString(data[index])
+		deserializeStringFromRedis(data[index], elem.Field(i))
 		index++
 	}
 	for _, i := range fields.stringsEnumsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeStringFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.bytes {
-		v := data[index]
+		deserializeBytesFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetZero()
-		} else {
-			elem.Field(i).SetBytes([]byte(v))
-		}
 	}
 	for _, i := range fields.bytesArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeBytesFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.sliceStringsSets {
-		v := data[index]
+		deserializeSliceStringFromRedis(data[index], elem.Field(i))
 		index++
-		f := elem.Field(i)
-		if v != "" {
-			values := strings.Split(v, ",")
-			l := len(values)
-			newSlice := reflect.MakeSlice(f.Type(), l, l)
-			for j, val := range values {
-				newSlice.Index(j).SetString(val)
-			}
-			f.Set(newSlice)
-		} else {
-			f.SetZero()
-		}
 	}
 	for _, i := range fields.sliceStringsSetsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeSliceStringFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		v := data[index]
+		deserializeBoolPointersFromRedis(data[index], elem.Field(i))
 		index++
-		if v == "" {
-			elem.Field(i).SetZero()
-		} else {
-			b := v == "1"
-			elem.Field(i).Set(reflect.ValueOf(&b))
-		}
+
 	}
 	for _, i := range fields.booleansNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeBoolPointersFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for j, i := range fields.floatsNullable {
-		v := data[index]
+		deserializeFloatPointersFromRedis(data[index], elem.Field(i), fields.floatsNullableSize[j])
 		index++
-		if v != "" {
-			asFloat, _ := strconv.ParseFloat(v, 64)
-			if fields.floatsNullableSize[j] == 32 {
-				val := float32(asFloat)
-				elem.Field(i).Set(reflect.ValueOf(&val))
-			} else {
-				elem.Field(i).Set(reflect.ValueOf(&asFloat))
-			}
-			continue
-		}
-		elem.Field(i).SetZero()
 	}
 	for _, i := range fields.floatsNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeFloatPointersFromRedis(data[index], f.Index(j), fields.floatsNullableSizeArray[j])
+			index++
 		}
 	}
 	for _, i := range fields.timesNullable {
-		v := data[index]
+		deserializeTimePointersFromRedis(data[index], elem.Field(i))
 		index++
-		if v != "" {
-			t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
-			elem.Field(i).Set(reflect.ValueOf(&t))
-		} else {
-			elem.Field(i).SetZero()
-		}
 	}
 	for _, i := range fields.timesNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeTimePointersFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for _, i := range fields.datesNullable {
-		v := data[index]
+		deserializeDatePointersFromRedis(data[index], elem.Field(i))
 		index++
-		if v != "" {
-			t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
-			elem.Field(i).Set(reflect.ValueOf(&t))
-		} else {
-			elem.Field(i).SetZero()
-		}
 	}
 	for _, i := range fields.datesNullableArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			deserializeDatePointersFromRedis(data[index], f.Index(j))
+			index++
 		}
 	}
 	for j, i := range fields.structs {
 		index = deserializeFieldsFromRedis(data, fields.structsFields[j], elem.Field(i), index)
 	}
-	for _, i := range fields.structsArray {
+	for k, i := range fields.structsArray {
 		f := elem.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-
+			index = deserializeFieldsFromRedis(data, fields.structsFieldsArray[k], f.Index(j), index)
 		}
 	}
 	return index
@@ -338,6 +229,173 @@ func deserializeUintFromRedis(v string, f reflect.Value) {
 		val, _ := strconv.ParseUint(v, 10, 64)
 		f.SetUint(val)
 	}
+}
+
+func deserializeReferencesFromRedis(v string, f reflect.Value) {
+	if v == "" {
+		f.SetZero()
+	} else {
+		val := reflect.New(f.Type().Elem())
+		reference := val.Interface().(referenceInterface)
+		valInt, _ := strconv.ParseUint(v, 10, 64)
+		reference.SetID(valInt)
+		f.Set(val)
+	}
+}
+
+func deserializeIntFromRedis(v string, f reflect.Value) {
+	if v == "" {
+		f.SetInt(0)
+	} else {
+		val, _ := strconv.ParseInt(v, 10, 64)
+		f.SetInt(val)
+	}
+}
+
+func deserializeBoolFromRedis(v string, f reflect.Value) {
+	f.SetBool(v != zeroAsString)
+}
+
+func deserializeFloatFromRedis(v string, f reflect.Value) {
+	if v == "" {
+		f.SetFloat(0)
+	} else {
+		val, _ := strconv.ParseFloat(v, 64)
+		f.SetFloat(val)
+	}
+}
+
+func deserializeTimeFromRedis(v string, f reflect.Value) {
+	if v != "" {
+		t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+		f.Set(reflect.ValueOf(t))
+	} else {
+		f.SetZero()
+	}
+}
+
+func deserializeDateFromRedis(v string, f reflect.Value) {
+	if v != "" {
+		t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+		f.Set(reflect.ValueOf(t))
+	} else {
+		f.SetZero()
+	}
+}
+
+func deserializeStringFromRedis(v string, f reflect.Value) {
+	f.SetString(v)
+}
+
+func deserializeUIntegersPointersFromRedis(v string, f reflect.Value, size int) {
+	if v != "" {
+		asInt, _ := strconv.ParseUint(v, 10, 64)
+		switch size {
+		case 0:
+			val := uint(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 8:
+			val := uint8(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 16:
+			val := uint16(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 32:
+			val := uint32(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 64:
+			f.Set(reflect.ValueOf(&asInt))
+		}
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeIntegersPointersFromRedis(v string, f reflect.Value, size int) {
+	if v != "" {
+		asInt, _ := strconv.ParseInt(v, 10, 64)
+		switch size {
+		case 0:
+			val := int(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 8:
+			val := int8(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 16:
+			val := int16(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 32:
+			val := int32(asInt)
+			f.Set(reflect.ValueOf(&val))
+		case 64:
+			f.Set(reflect.ValueOf(&asInt))
+		}
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeBytesFromRedis(v string, f reflect.Value) {
+	if v == "" {
+		f.SetZero()
+	} else {
+		f.SetBytes([]byte(v))
+	}
+}
+
+func deserializeSliceStringFromRedis(v string, f reflect.Value) {
+	if v != "" {
+		values := strings.Split(v, ",")
+		l := len(values)
+		newSlice := reflect.MakeSlice(f.Type(), l, l)
+		for j, val := range values {
+			newSlice.Index(j).SetString(val)
+		}
+		f.Set(newSlice)
+	} else {
+		f.SetZero()
+	}
+}
+
+func deserializeBoolPointersFromRedis(v string, f reflect.Value) {
+	if v == cacheNilValue {
+		f.SetZero()
+	} else {
+		b := v != zeroAsString
+		f.Set(reflect.ValueOf(&b))
+	}
+}
+
+func deserializeFloatPointersFromRedis(v string, f reflect.Value, size int) {
+	if v != "" {
+		asFloat, _ := strconv.ParseFloat(v, 64)
+		if size == 32 {
+			val := float32(asFloat)
+			f.Set(reflect.ValueOf(&val))
+			return
+		}
+		f.Set(reflect.ValueOf(&asFloat))
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeTimePointersFromRedis(v string, f reflect.Value) {
+	if v != "" {
+		t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
+		f.Set(reflect.ValueOf(&t))
+		return
+	}
+	f.SetZero()
+}
+
+func deserializeDatePointersFromRedis(v string, f reflect.Value) {
+	if v != "" {
+		t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
+		f.Set(reflect.ValueOf(&t))
+		return
+	}
+	f.SetZero()
 }
 
 func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
