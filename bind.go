@@ -631,25 +631,22 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for _, i := range fields.times {
-		f := source.Field(i)
-		v1 := f.Interface().(time.Time)
-		if v1.Location() != time.UTC {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
-		}
-		v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
-		if v1 != v1Check {
-			f.Set(reflect.ValueOf(v1Check))
-			v1 = v1Check
-		}
-		v2 := before.Field(i).Interface().(time.Time)
-		if v1.Unix() != v2.Unix() {
-			name := prefix + fields.fields[i].Name
-			bind[name] = v1.Format(time.DateTime)
-			oldBind[name] = v2.Format(time.DateTime)
-		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateTime)
+		err := fillBindsForTime(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		if err != nil {
+			return err
 		}
 	}
+	for _, i := range fields.timesArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForTime(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
+			}
+		}
+	}
+	ss
 	for _, i := range fields.dates {
 		f := source.Field(i)
 		v1 := f.Interface().(time.Time)
@@ -1172,6 +1169,27 @@ func fillBindsForBool(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 			oldBind[prefix+fields.fields[i].Name] = zeroAsString
 		}
 	}
+}
+
+func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+	v1 := f1.Interface().(time.Time)
+	if v1.Location() != time.UTC {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
+	}
+	v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
+	if v1 != v1Check {
+		f1.Set(reflect.ValueOf(v1Check))
+		v1 = v1Check
+	}
+	v2 := f2.Interface().(time.Time)
+	if v1.Unix() != v2.Unix() {
+		name := prefix + fields.fields[i].Name + suffix
+		bind[name] = v1.Format(time.DateTime)
+		oldBind[name] = v2.Format(time.DateTime)
+	} else if fields.forcedOldBid[i] {
+		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateTime)
+	}
+	return nil
 }
 
 func fillBindsForFloat(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
