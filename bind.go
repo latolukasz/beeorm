@@ -543,8 +543,8 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for j, i := range fields.structsArray {
 		f := source.Field(i)
+		sub := fields.structsFieldsArray[j]
 		for k := 0; k < fields.arrays[i]; k++ {
-			sub := fields.structsFieldsArray[j]
 			err := fillBindFromOneSource(c, bind, f.Index(k), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
 			if err != nil {
 				return err
@@ -815,6 +815,17 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		err := fillBindFromTwoSources(c, bind, oldBind, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
+		}
+	}
+	for k, i := range fields.structsArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		sub := fields.structsFieldsArray[k]
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindFromTwoSources(c, bind, oldBind, f1.Index(j).Field(i), f2.Index(j).Field(i), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil
