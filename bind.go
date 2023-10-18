@@ -11,7 +11,6 @@ import (
 	"time"
 )
 
-const timeStampSeconds = 62167219200
 const nullAsString = "NULL"
 const zeroAsString = "0"
 const zeroTimeAsString = "0001-01-01 00:00:00"
@@ -618,10 +617,10 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	for k, i := range fields.floatsArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		precision := fields.floatsPrecision[k]
-		unsigned := fields.floatsUnsigned[k]
-		decimalSize := fields.floatsDecimalSize[k]
-		floatSize := fields.floatsSize[k]
+		precision := fields.floatsPrecisionArray[k]
+		unsigned := fields.floatsUnsignedArray[k]
+		decimalSize := fields.floatsDecimalSizeArray[k]
+		floatSize := fields.floatsSizeArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindsForFloat(f1.Index(j), f2.Index(j), bind, oldBind, fields,
 				i, precision, decimalSize, floatSize, unsigned, prefix, "")
@@ -646,229 +645,100 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	ss
 	for _, i := range fields.dates {
-		f := source.Field(i)
-		v1 := f.Interface().(time.Time)
-		if v1.Location() != time.UTC {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
+		err := fillBindsForDate(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		if err != nil {
+			return err
 		}
-		v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
-		if v1 != v1Check {
-			f.Set(reflect.ValueOf(v1Check))
-			v1 = v1Check
-		}
-		v2 := before.Field(i).Interface().(time.Time)
-		if v1.Unix() != v2.Unix() {
-			name := prefix + fields.fields[i].Name
-			bind[name] = v1.Format(time.DateOnly)
-			oldBind[name] = v2.Format(time.DateOnly)
-		} else if fields.forcedOldBid[i] {
-			oldBind[prefix+fields.fields[i].Name] = v2.Format(time.DateOnly)
+	}
+	for _, i := range fields.datesArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForDate(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
+			}
 		}
 	}
 	for k, i := range fields.strings {
-		v1 := source.Field(i).String()
-		if len(v1) > fields.stringMaxLengths[k] {
-			return &BindError{Field: prefix + fields.fields[i].Name,
-				Message: fmt.Sprintf("text too long, max %d allowed", fields.stringMaxLengths[k])}
+		err := fillBindsForString(source.Field(i), before.Field(i), bind, oldBind, fields, i,
+			fields.stringMaxLengths[k], fields.stringsRequired[k], prefix, "")
+		if err != nil {
+			return err
 		}
-		if v1 == "" {
-			isRequired := fields.stringsRequired[k]
-			if isRequired {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty string not allowed"}
-			}
-		}
-		v2 := before.Field(i).String()
-		if v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			bind[name] = v1
-			oldBind[name] = v2
-			if fields.stringsRequired[k] {
-				if v1 == "" {
-					bind[name] = nullAsString
-				}
-				if v2 == "" {
-					oldBind[name] = nullAsString
-				}
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			oldBind[name] = v2
-			if v2 == "" {
-				oldBind[name] = nullAsString
+	}
+	for k, i := range fields.stringsArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		maxLength := fields.stringMaxLengthsArray[k]
+		isRequired := fields.stringsRequiredArray[k]
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForString(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, maxLength, isRequired, prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
 	for _, i := range fields.uIntegersNullable {
-		v1 := uint64(0)
-		v2 := uint64(0)
+		fillBindsForUIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.uIntegersNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Elem().Uint()
-		}
-		if !v2IsNil {
-			v2 = f2.Elem().Uint()
-		}
-		if v1IsNil != v2IsNil || v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = strconv.FormatUint(v1, 10)
-			}
-			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nullAsString
-			} else {
-				oldBind[name] = strconv.FormatUint(v2, 10)
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[prefix+fields.fields[i].Name] = nullAsString
-			} else {
-				oldBind[name] = strconv.FormatUint(v2, 10)
-			}
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForUIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for _, i := range fields.integersNullable {
-		v1 := int64(0)
-		v2 := int64(0)
+		fillBindsForIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.integersNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Elem().Int()
-		}
-		if !v2IsNil {
-			v2 = f2.Elem().Int()
-		}
-		if v1IsNil != v2IsNil || v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = strconv.FormatInt(v1, 10)
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = strconv.FormatInt(v2, 10)
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = strconv.FormatInt(v2, 10)
-			}
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.stringsEnums {
-		v1 := source.Field(i).String()
-		v2 := before.Field(i).String()
-		def := fields.enums[k]
-		if v1 == "" {
-			if def.required {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
-			}
-		} else if !slices.Contains(def.GetFields(), v1) {
-			return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v1)}
+		err := fillBindsForEnum(source.Field(i), before.Field(i), bind, oldBind, fields, i, fields.enums[k], prefix, "")
+		if err != nil {
+			return err
 		}
-		if v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1 == "" && !def.required {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = v1
-			}
-			if v2 == "" && !def.required {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2 == "" && !def.required {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2
+	}
+	for k, i := range fields.stringsEnumsArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForEnum(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.enumsArray[k], prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
 	for _, i := range fields.bytes {
-		v1 := source.Field(i).Bytes()
-		v2 := before.Field(i).Bytes()
-		if !bytes.Equal(v1, v2) {
-			name := prefix + fields.fields[i].Name
-			if v1 == nil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = string(v1)
-			}
-			if v2 == nil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = string(v2)
-			}
-		} else if fields.forcedOldBid[i] {
-			if v2 == nil {
-				oldBind[prefix+fields.fields[i].Name] = nullAsString
-			} else {
-				oldBind[prefix+fields.fields[i].Name] = string(v2)
-			}
+		fillBindsForBytes(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.bytesArray {
+		f1 := source.Field(i)
+		f2 := before.Field(i)
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForBytes(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.sliceStringsSets {
+		err := fillBindsForSet(source.Field(i), before.Field(i), bind, oldBind, fields, i, fields.sets[k], prefix, "")
+		if err != nil {
+			return err
+		}
+	}
+	for k, i := range fields.sliceStringsSetsArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		def := fields.sets[k]
-		if f1.IsNil() || f1.Len() == 0 {
-			if def.required {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "empty value not allowed"}
-			}
-		}
-		var v1 []string
-		var v2 []string
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			for j := 0; j < f1.Len(); j++ {
-				v := f1.Index(j).String()
-				if !slices.Contains(def.GetFields(), v) {
-					return &BindError{Field: prefix + fields.fields[i].Name, Message: fmt.Sprintf("invalid value: %s", v)}
-				}
-				v1 = append(v1, v)
-			}
-		}
-		if !v2IsNil {
-			for j := 0; j < f2.Len(); j++ {
-				v := f2.Index(j).String()
-				v2 = append(v2, v)
-			}
-		}
-		if v1IsNil != v2IsNil || !compareSlices(v1, v2) {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = strings.Join(v1, ",")
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = strings.Join(v2, ",")
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = strings.Join(v2, ",")
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForSet(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.setsArray[k], prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -1188,6 +1058,232 @@ func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		oldBind[name] = v2.Format(time.DateTime)
 	} else if fields.forcedOldBid[i] {
 		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateTime)
+	}
+	return nil
+}
+
+func fillBindsForDate(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+	v1 := f1.Interface().(time.Time)
+	if v1.Location() != time.UTC {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
+	}
+	v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
+	if v1 != v1Check {
+		f1.Set(reflect.ValueOf(v1Check))
+		v1 = v1Check
+	}
+	v2 := f2.Interface().(time.Time)
+	if v1.Unix() != v2.Unix() {
+		name := prefix + fields.fields[i].Name + suffix
+		bind[name] = v1.Format(time.DateOnly)
+		oldBind[name] = v2.Format(time.DateOnly)
+	} else if fields.forcedOldBid[i] {
+		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateOnly)
+	}
+	return nil
+}
+
+func fillBindsForString(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, maxLength int, isRequired bool, prefix, suffix string) error {
+	v1 := f1.String()
+	if len(v1) > maxLength {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix,
+			Message: fmt.Sprintf("text too long, max %d allowed", maxLength)}
+	}
+	if v1 == "" {
+		if isRequired {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "empty string not allowed"}
+		}
+	}
+	v2 := f2.String()
+	if v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		bind[name] = v1
+		oldBind[name] = v2
+		if isRequired {
+			if v1 == "" {
+				bind[name] = nullAsString
+			}
+			if v2 == "" {
+				oldBind[name] = nullAsString
+			}
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		oldBind[name] = v2
+		if v2 == "" {
+			oldBind[name] = nullAsString
+		}
+	}
+	return nil
+}
+
+func fillBindsForUIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := uint64(0)
+	v2 := uint64(0)
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Elem().Uint()
+	}
+	if !v2IsNil {
+		v2 = f2.Elem().Uint()
+	}
+	if v1IsNil != v2IsNil || v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = strconv.FormatUint(v1, 10)
+		}
+		if v2IsNil {
+			oldBind[prefix+fields.fields[i].Name] = nullAsString
+		} else {
+			oldBind[name] = strconv.FormatUint(v2, 10)
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[prefix+fields.fields[i].Name] = nullAsString
+		} else {
+			oldBind[name] = strconv.FormatUint(v2, 10)
+		}
+	}
+}
+
+func fillBindsForIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := int64(0)
+	v2 := int64(0)
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Elem().Int()
+	}
+	if !v2IsNil {
+		v2 = f2.Elem().Int()
+	}
+	if v1IsNil != v2IsNil || v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = strconv.FormatInt(v1, 10)
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = strconv.FormatInt(v2, 10)
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = strconv.FormatInt(v2, 10)
+		}
+	}
+}
+
+func fillBindsForEnum(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
+	v1 := f1.String()
+	v2 := f2.String()
+	if v1 == "" {
+		if def.required {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "empty value not allowed"}
+		}
+	} else if !slices.Contains(def.GetFields(), v1) {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: fmt.Sprintf("invalid value: %s", v1)}
+	}
+	if v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == "" && !def.required {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = v1
+		}
+		if v2 == "" && !def.required {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2 == "" && !def.required {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2
+		}
+	}
+	return nil
+}
+
+func fillBindsForBytes(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := f1.Bytes()
+	v2 := f2.Bytes()
+	if !bytes.Equal(v1, v2) {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == nil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = string(v1)
+		}
+		if v2 == nil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = string(v2)
+		}
+	} else if fields.forcedOldBid[i] {
+		if v2 == nil {
+			oldBind[prefix+fields.fields[i].Name+suffix] = nullAsString
+		} else {
+			oldBind[prefix+fields.fields[i].Name+suffix] = string(v2)
+		}
+	}
+}
+
+func fillBindsForSet(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
+	if f1.IsNil() || f1.Len() == 0 {
+		if def.required {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "empty value not allowed"}
+		}
+	}
+	var v1 []string
+	var v2 []string
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		for j := 0; j < f1.Len(); j++ {
+			v := f1.Index(j).String()
+			if !slices.Contains(def.GetFields(), v) {
+				return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: fmt.Sprintf("invalid value: %s", v)}
+			}
+			v1 = append(v1, v)
+		}
+	}
+	if !v2IsNil {
+		for j := 0; j < f2.Len(); j++ {
+			v := f2.Index(j).String()
+			v2 = append(v2, v)
+		}
+	}
+	if v1IsNil != v2IsNil || !compareSlices(v1, v2) {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = strings.Join(v1, ",")
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = strings.Join(v2, ",")
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = strings.Join(v2, ",")
+		}
 	}
 	return nil
 }
