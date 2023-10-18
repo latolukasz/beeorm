@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -842,7 +841,6 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 
 	loggerLocal.Clear()
 	assert.NoError(t, c.Flush(lazy))
-	os.Exit(1)
 	if !lazy {
 		assert.Len(t, loggerDB.Logs, 1)
 	} else {
@@ -899,6 +897,35 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.Equal(t, float32(123), entity.SubAge)
 	assert.Equal(t, reference.ID, entity.Reference.GetID())
 	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, fmt.Sprintf("Test %d", i), entity.StringArray[i])
+		assert.Equal(t, i+1, entity.IntArray[i])
+		assert.Equal(t, uint(i+1), entity.UintArray[i])
+		assert.Equal(t, uint(i+1), *entity.UintNullableArray[i])
+		assert.Equal(t, i+1, *entity.IntNullableArray[i])
+		assert.True(t, *entity.BoolNullableArray[i])
+		assert.Equal(t, float32(i+1), *entity.Float32NullableArray[i])
+		assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
+		assert.Equal(t, testEnumDefinition.C, entity.EnumNullableArray[i])
+		assert.Equal(t, []byte(fmt.Sprintf("Test %d", i)), entity.BlobArray[i])
+		assert.True(t, entity.BoolArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64Array[i])
+		assert.Equal(t, float32(i+1), entity.Float32Array[i])
+		assert.Equal(t, float64(i+1), entity.DecimalArray[i])
+		assert.Equal(t, float64(i+1), *entity.DecimalNullableArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64UnsignedArray[i])
+		assert.Equal(t, float64(i+1), entity.Float64SignedArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), entity.TimeArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), entity.TimeWithTimeArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), *entity.TimeNullableArray[i])
+		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), *entity.TimeWithTimeNullableArray[i])
+		assert.Equal(t, uint32(2923), *entity.Uint32NullableArray[i])
+		assert.Equal(t, entity.Reference.GetID(), entity.ReferenceArray[i].GetID())
+		assert.Equal(t, i+1, entity.FlushStructArray[i].Age)
+		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Name2)
+		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Sub.Name3)
+		assert.Equal(t, i+1, entity.FlushStructArray[i].Sub.Age3)
+	}
 	if local {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.Len(t, loggerLocal.Logs, 1)
