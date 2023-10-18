@@ -743,99 +743,42 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		v1 := false
-		v2 := false
+		fillBindsForBoolNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+	}
+	for _, i := range fields.booleansNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Elem().Bool()
-		}
-		if !v2IsNil {
-			v2 = f2.Elem().Bool()
-		}
-		if v1IsNil != v2IsNil || v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1 {
-				bind[name] = "1"
-			} else {
-				bind[name] = zeroAsString
-			}
-			if v2 {
-				oldBind[name] = "1"
-			} else {
-				oldBind[name] = zeroAsString
-			}
-			if v1IsNil {
-				bind[name] = nullAsString
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else if v2 {
-				oldBind[name] = "1"
-			} else {
-				oldBind[name] = zeroAsString
-			}
+		for j := 0; j < fields.arrays[i]; j++ {
+			fillBindsForBoolNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.floatsNullable {
-		v1 := ""
-		v2 := ""
+		precision := fields.floatsNullablePrecision[k]
+		unsigned := fields.floatsNullableUnsigned[k]
+		decimalSize := fields.floatsNullableDecimalSize[k]
+		floatSize := fields.floatsNullableSize[k]
+		err := fillBindsForFloatNullable(source.Field(i), before.Field(i), bind, oldBind, fields,
+			i, precision, decimalSize, floatSize, unsigned, prefix, "")
+		if err != nil {
+			return err
+		}
+	}
+	for k, i := range fields.floatsNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			f := f1.Elem().Float()
-			if fields.floatsNullableUnsigned[k] && f < 0 {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "negative value not allowed"}
-			}
-			roundV := roundFloat(f, fields.floatsNullablePrecision[k])
-			v1 = strconv.FormatFloat(roundV, 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
-			if f != roundV {
-				if fields.floatsNullableSize[k] == 32 {
-					roundV32 := float32(roundV)
-					f1.Set(reflect.ValueOf(&roundV32))
-				} else {
-					f1.Set(reflect.ValueOf(&roundV))
-				}
-			}
-			decimalSize := fields.floatsNullableDecimalSize[k]
-			if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
-				return &BindError{Field: prefix + fields.fields[i].Name,
-					Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
-			}
-		}
-		if !v2IsNil {
-			v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', fields.floatsNullablePrecision[k], fields.floatsNullableSize[k])
-		}
-		if v1IsNil != v2IsNil || v1 != v2 {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = v1
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2
+		precision := fields.floatsNullablePrecisionArray[k]
+		unsigned := fields.floatsNullableUnsignedArray[k]
+		decimalSize := fields.floatsNullableDecimalSizeArray[k]
+		floatSize := fields.floatsNullableSizeArray[k]
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForFloatNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields,
+				i, precision, decimalSize, floatSize, unsigned, prefix, "")
+			if err != nil {
+				return err
 			}
 		}
 	}
+	ss
 	for _, i := range fields.timesNullable {
 		var v1 time.Time
 		var v2 time.Time
@@ -1286,6 +1229,98 @@ func fillBindsForSet(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFiel
 		}
 	}
 	return nil
+}
+
+func fillBindsForFloatNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
+	v1 := ""
+	v2 := ""
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		f := f1.Elem().Float()
+		if unsigned && f < 0 {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "negative value not allowed"}
+		}
+		roundV := roundFloat(f, precision)
+		v1 = strconv.FormatFloat(roundV, 'f', precision, floatSize)
+		if f != roundV {
+			if floatSize == 32 {
+				roundV32 := float32(roundV)
+				f1.Set(reflect.ValueOf(&roundV32))
+			} else {
+				f1.Set(reflect.ValueOf(&roundV))
+			}
+		}
+		if decimalSize != -1 && strings.Index(v1, ".") > decimalSize {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix,
+				Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+		}
+	}
+	if !v2IsNil {
+		v2 = strconv.FormatFloat(f2.Elem().Float(), 'f', precision, floatSize)
+	}
+	if v1IsNil != v2IsNil || v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = v1
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2
+		}
+	}
+	return nil
+}
+
+func fillBindsForBoolNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+	v1 := false
+	v2 := false
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Elem().Bool()
+	}
+	if !v2IsNil {
+		v2 = f2.Elem().Bool()
+	}
+	if v1IsNil != v2IsNil || v1 != v2 {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 {
+			bind[name] = "1"
+		} else {
+			bind[name] = zeroAsString
+		}
+		if v2 {
+			oldBind[name] = "1"
+		} else {
+			oldBind[name] = zeroAsString
+		}
+		if v1IsNil {
+			bind[name] = nullAsString
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else if v2 {
+			oldBind[name] = "1"
+		} else {
+			oldBind[name] = zeroAsString
+		}
+	}
 }
 
 func fillBindsForFloat(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
