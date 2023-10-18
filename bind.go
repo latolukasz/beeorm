@@ -584,7 +584,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		}
 	}
 	for _, i := range fields.integers {
-		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForInt(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
 	}
 	for _, i := range fields.integersArray {
 		f1 := source.Field(i)
@@ -623,7 +623,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		floatSize := fields.floatsSizeArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindsForFloat(f1.Index(j), f2.Index(j), bind, oldBind, fields,
-				i, precision, decimalSize, floatSize, unsigned, prefix, "")
+				i, precision, decimalSize, floatSize, unsigned, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
@@ -772,7 +772,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		floatSize := fields.floatsNullableSizeArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
 			err := fillBindsForFloatNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields,
-				i, precision, decimalSize, floatSize, unsigned, prefix, "")
+				i, precision, decimalSize, floatSize, unsigned, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
@@ -822,7 +822,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		f2 := before.Field(i)
 		sub := fields.structsFieldsArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindFromTwoSources(c, bind, oldBind, f1.Index(j).Field(i), f2.Index(j).Field(i), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
+			err := fillBindFromTwoSources(c, bind, oldBind, f1.Index(j), f2.Index(j), sub, prefix+sub.prefix+"_"+strconv.Itoa(j+1)+"_")
 			if err != nil {
 				return err
 			}
