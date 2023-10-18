@@ -778,88 +778,35 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 			}
 		}
 	}
-	ss
 	for _, i := range fields.timesNullable {
-		var v1 time.Time
-		var v2 time.Time
+		err := fillBindsForTimeNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		if err != nil {
+			return err
+		}
+	}
+	for _, i := range fields.timesNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Elem().Interface().(time.Time)
-			if v1.Location() != time.UTC {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
-			}
-			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
-			if vFinal != v1 {
-				f1.Set(reflect.ValueOf(&vFinal))
-				v1 = vFinal
-			}
-		}
-		if !v2IsNil {
-			v2 = f2.Elem().Interface().(time.Time)
-		}
-		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = v1.Format(time.DateTime)
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2.Format(time.DateTime)
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2.Format(time.DateTime)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForTimeNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
 	for _, i := range fields.datesNullable {
-		var v1 time.Time
-		var v2 time.Time
+		err := fillBindsForDateNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		if err != nil {
+			return err
+		}
+	}
+	for _, i := range fields.datesNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		v1IsNil := f1.IsNil()
-		v2IsNil := f2.IsNil()
-		if !v1IsNil {
-			v1 = f1.Elem().Interface().(time.Time)
-			if v1.Location() != time.UTC {
-				return &BindError{Field: prefix + fields.fields[i].Name, Message: "time must be in UTC location"}
-			}
-			vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
-			if vFinal != v1 {
-				f1.Set(reflect.ValueOf(&vFinal))
-				v1 = vFinal
-			}
-		}
-		if !v2IsNil {
-			v2 = f2.Elem().Interface().(time.Time)
-		}
-		if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
-			name := prefix + fields.fields[i].Name
-			if v1IsNil {
-				bind[name] = nullAsString
-			} else {
-				bind[name] = v1.Format(time.DateOnly)
-			}
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2.Format(time.DateOnly)
-			}
-		} else if fields.forcedOldBid[i] {
-			name := prefix + fields.fields[i].Name
-			if v2IsNil {
-				oldBind[name] = nullAsString
-			} else {
-				oldBind[name] = v2.Format(time.DateOnly)
+		for j := 0; j < fields.arrays[i]; j++ {
+			err := fillBindsForDateNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			if err != nil {
+				return err
 			}
 		}
 	}
@@ -1001,6 +948,90 @@ func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		oldBind[name] = v2.Format(time.DateTime)
 	} else if fields.forcedOldBid[i] {
 		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateTime)
+	}
+	return nil
+}
+
+func fillBindsForTimeNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+	var v1 time.Time
+	var v2 time.Time
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Elem().Interface().(time.Time)
+		if v1.Location() != time.UTC {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
+		}
+		vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
+		if vFinal != v1 {
+			f1.Set(reflect.ValueOf(&vFinal))
+			v1 = vFinal
+		}
+	}
+	if !v2IsNil {
+		v2 = f2.Elem().Interface().(time.Time)
+	}
+	if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = v1.Format(time.DateTime)
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2.Format(time.DateTime)
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2.Format(time.DateTime)
+		}
+	}
+	return nil
+}
+
+func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+	var v1 time.Time
+	var v2 time.Time
+	v1IsNil := f1.IsNil()
+	v2IsNil := f2.IsNil()
+	if !v1IsNil {
+		v1 = f1.Elem().Interface().(time.Time)
+		if v1.Location() != time.UTC {
+			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
+		}
+		vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
+		if vFinal != v1 {
+			f1.Set(reflect.ValueOf(&vFinal))
+			v1 = vFinal
+		}
+	}
+	if !v2IsNil {
+		v2 = f2.Elem().Interface().(time.Time)
+	}
+	if v1IsNil != v2IsNil || v1.Unix() != v2.Unix() {
+		name := prefix + fields.fields[i].Name + suffix
+		if v1IsNil {
+			bind[name] = nullAsString
+		} else {
+			bind[name] = v1.Format(time.DateOnly)
+		}
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2.Format(time.DateOnly)
+		}
+	} else if fields.forcedOldBid[i] {
+		name := prefix + fields.fields[i].Name + suffix
+		if v2IsNil {
+			oldBind[name] = nullAsString
+		} else {
+			oldBind[name] = v2.Format(time.DateOnly)
+		}
 	}
 	return nil
 }
