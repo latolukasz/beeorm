@@ -201,11 +201,6 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		if err != nil {
 			return err
 		}
-		//for k, v := range bind {
-		//	if k == "SetNullableArray_1" {
-		//		fmt.Printf("%s = [%s]\n", k, v)
-		//	}
-		//}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
 			cache := c.Engine().Redis(schema.getForcedRedisCode())

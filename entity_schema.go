@@ -625,7 +625,7 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanIntNullablePointer
 		e.mapPointerToValue[columnName] = pointerUintNullableScan
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
-		if i == 1 {
+		if i == 0 {
 			refType := reflect.New(fType.Elem()).Interface().(referenceInterface).getType()
 			def := referenceDefinition{
 				Cached: attributes.Tags["cached"] == "true",

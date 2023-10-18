@@ -9,25 +9,18 @@ import (
 
 const redisValidSetValue = "Y"
 
-func getByReference[E any](c Context, obh E, referenceName string, id uint64) []*E {
-	var e E
-	fmt.Printf("SSSS %T %T\n", obh, e)
-	return GetByReference[E](c, referenceName, id)
-}
-
 func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 	if id == 0 {
 		return nil
 	}
 	var e E
-	fmt.Printf("VVVV %T\n", e)
 	schema := c.(*contextImplementation).engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
 	def, has := schema.references[referenceName]
 	if !has {
-		panic(fmt.Errorf("unknows reference name `%s`", referenceName))
+		panic(fmt.Errorf("unknow reference name `%s`", referenceName))
 	}
 	lc, hasLocalCache := schema.GetLocalCache()
 	if !def.Cached {
