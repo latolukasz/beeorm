@@ -174,6 +174,30 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
 			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
+		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
+		if hasLogTable {
+			data := make([]string, 6)
+			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`) VALUES(?,?,?,?,?)"
+			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+			data[2] = strconv.FormatUint(operation.ID(), 10)
+			data[3] = time.Now().Format(time.DateTime)
+			if len(c.meta) > 0 {
+				asJson, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+				data[4] = asJson
+			} else {
+				data[4] = nullAsString
+			}
+			if bind == nil {
+				bind, err = deleteFlush.getOldBind()
+				if err != nil {
+					return err
+				}
+			}
+			asJson, _ := jsoniter.ConfigFastest.MarshalToString(bind)
+			data[5] = asJson
+			asJson, _ = jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJson)
+		}
 	}
 	return nil
 }
@@ -263,7 +287,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]string, 6)
-			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`) VALUES(?,?,?,?,?)"
+			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`After`) VALUES(?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = bind["ID"]
 			data[3] = time.Now().Format(time.DateTime)
