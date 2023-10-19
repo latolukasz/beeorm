@@ -60,4 +60,33 @@ func TestLogTable(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Len(t, bind, 1)
 	assert.Equal(t, "test case", bind["source"])
+
+	entity = EditEntity(c, entity).TrackedEntity()
+	entity.Name = "Test 3"
+	entity.Age = 40
+	err = c.Flush(false)
+	assert.NoError(t, err)
+	err = ConsumeLazyFlushEvents(c, false)
+	assert.Nil(t, err)
+	logs = Search[LogEntity[logTableEntity]](c, NewWhere("1"), nil)
+	assert.Len(t, logs, 3)
+	assert.Equal(t, entity.ID, logs[2].EntityID)
+	assert.NotNil(t, logs[2].Meta)
+	assert.NotNil(t, logs[2].After)
+	assert.NotNil(t, logs[2].Before)
+	bind = nil
+	err = jsoniter.ConfigFastest.Unmarshal(logs[2].Meta, &bind)
+	assert.NoError(t, err)
+	assert.Len(t, bind, 1)
+	assert.Equal(t, "test case", bind["source"])
+	bind = nil
+	err = jsoniter.ConfigFastest.Unmarshal(logs[2].Before, &bind)
+	assert.NoError(t, err)
+	assert.Equal(t, "Test 2", bind["Name"])
+	assert.Equal(t, "30", bind["Age"])
+	bind = nil
+	err = jsoniter.ConfigFastest.Unmarshal(logs[2].After, &bind)
+	assert.NoError(t, err)
+	assert.Equal(t, "Test 3", bind["Name"])
+	assert.Equal(t, "40", bind["Age"])
 }

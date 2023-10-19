@@ -410,6 +410,27 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			})
 		}
 
+		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
+		if hasLogTable {
+			data := make([]string, 7)
+			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
+			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+			data[2] = strconv.FormatUint(update.ID(), 10)
+			data[3] = time.Now().Format(time.DateTime)
+			if len(c.meta) > 0 {
+				asJson, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+				data[4] = asJson
+			} else {
+				data[4] = nullAsString
+			}
+			asJson, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
+			data[5] = asJson
+			asJson, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
+			data[6] = asJson
+			asJson, _ = jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJson)
+		}
+
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
 				sourceValue := update.getSourceValue()
