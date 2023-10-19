@@ -46,6 +46,7 @@ func (r *Registry) Validate() (Engine, error) {
 	e.registry.oneAppMode = r.oneAppMode
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
+	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
 	e.registry.defaultDBCollate = r.defaultCollate
 	e.registry.defaultDBEncoding = r.defaultEncoding
@@ -119,6 +120,16 @@ func (r *Registry) Validate() (Engine, error) {
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, schema)
+		}
+	}
+	for _, entityType := range r.entities {
+		logEntity, isLogEntity := reflect.New(entityType).Interface().(logEntityInterface)
+		if isLogEntity {
+			logSchema := e.registry.entitySchemas[entityType]
+			targetType := logEntity.getLogEntityTarget()
+			targetSchema := e.registry.entitySchemas[targetType]
+			logSchema.tableName = "_LogEntity_" + targetSchema.mysqlPoolCode + "_" + targetType.Name()
+			e.registry.entityLogSchemas[targetType] = logSchema
 		}
 	}
 	for k, v := range r.localCaches {

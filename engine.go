@@ -34,6 +34,7 @@ type engineRegistryImplementation struct {
 	oneAppMode            bool
 	entities              map[string]reflect.Type
 	entitySchemas         map[reflect.Type]*entitySchema
+	entityLogSchemas      map[reflect.Type]*entitySchema
 	defaultQueryLogger    *defaultLogLogger
 	defaultDBEncoding     string
 	defaultDBCollate      string
