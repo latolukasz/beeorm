@@ -8,9 +8,9 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-type entitySqlOperations map[FlushType][]EntityFlush
-type schemaSqlOperations map[*entitySchema]entitySqlOperations
-type sqlOperations map[DB]schemaSqlOperations
+type entitySQLOperations map[FlushType][]EntityFlush
+type schemaSQLOperations map[*entitySchema]entitySQLOperations
+type sqlOperations map[DB]schemaSQLOperations
 
 func (c *contextImplementation) Flush(lazy bool) error {
 	return c.flush(lazy)
@@ -182,8 +182,8 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			data[2] = strconv.FormatUint(operation.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(c.meta) > 0 {
-				asJson, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
-				data[4] = asJson
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+				data[4] = asJSON
 			} else {
 				data[4] = nullAsString
 			}
@@ -193,10 +193,10 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 					return err
 				}
 			}
-			asJson, _ := jsoniter.ConfigFastest.MarshalToString(bind)
-			data[5] = asJson
-			asJson, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJson)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
+			data[5] = asJSON
+			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
 		}
 	}
 	return nil
@@ -281,8 +281,8 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			data := make([]string, 0, len(lazyData)+1)
 			data = append(data, s.String())
 			data = append(data, lazyData...)
-			asJson, _ := jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJson)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJSON)
 		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
@@ -292,15 +292,15 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			data[2] = bind["ID"]
 			data[3] = time.Now().Format(time.DateTime)
 			if len(c.meta) > 0 {
-				asJson, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
-				data[4] = asJson
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+				data[4] = asJSON
 			} else {
 				data[4] = nullAsString
 			}
-			asJson, _ := jsoniter.ConfigFastest.MarshalToString(bind)
-			data[5] = asJson
-			asJson, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJson)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
+			data[5] = asJSON
+			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -426,8 +426,8 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		sql := s.String()
 		if lazy {
 			lazyArgs[0] = sql
-			asJson, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJson)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJSON)
 		} else {
 			c.appendDBAction(schema, func(db DBBase) {
 				db.Exec(c, sql, args...)
@@ -442,17 +442,17 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			data[2] = strconv.FormatUint(update.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(c.meta) > 0 {
-				asJson, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
-				data[4] = asJson
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+				data[4] = asJSON
 			} else {
 				data[4] = nullAsString
 			}
-			asJson, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
-			data[5] = asJson
-			asJson, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
-			data[6] = asJson
-			asJson, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJson)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
+			data[5] = asJSON
+			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
+			data[6] = asJSON
+			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
 		}
 
 		if hasLocalCache {
@@ -515,7 +515,7 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 		db := c.engine.DB(schema.mysqlPoolCode)
 		poolSQLGroup, has := sqlGroup[db]
 		if !has {
-			poolSQLGroup = make(schemaSqlOperations)
+			poolSQLGroup = make(schemaSQLOperations)
 			sqlGroup[db] = poolSQLGroup
 		}
 		tableSQLGroup, has := poolSQLGroup[schema]

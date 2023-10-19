@@ -67,13 +67,13 @@ func ConsumeLazyFlushEvents(c Context, block bool) error {
 		}
 		redisGroup[schema.lazyCacheKey] = true
 		waitGroup.Add(1)
-		go consumeLazyEvents(ctxNoCancel.Clone(), c.Ctx(), schema.lazyCacheKey, db, r, block, waitGroup, &lockObtained)
+		go consumeLazyEvents(c.Ctx(), ctxNoCancel.Clone(), schema.lazyCacheKey, db, r, block, waitGroup, &lockObtained)
 	}
 	waitGroup.Wait()
 	return nil
 }
 
-func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache,
+func consumeLazyEvents(ctx context.Context, c Context, list string, db DB, r RedisCache,
 	block bool, waitGroup *sync.WaitGroup, lockObtained *bool) {
 	defer waitGroup.Done()
 	var values []string
@@ -83,7 +83,7 @@ func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r Red
 		}
 		values = r.LRange(c, list, 0, lazyConsumerPage-1)
 		if len(values) > 0 {
-			handleLazyEvents(c, ctx, list, db, r, values)
+			handleLazyEvents(ctx, c, list, db, r, values)
 		}
 		if len(values) < lazyConsumerPage {
 			if !block || ctx.Err() != nil {
@@ -94,7 +94,7 @@ func consumeLazyEvents(c Context, ctx context.Context, list string, db DB, r Red
 	}
 }
 
-func handleLazyEvents(c Context, ctx context.Context, list string, db DB, r RedisCache, values []string) {
+func handleLazyEvents(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
 	operations := len(values)
 	inTX := operations > 1
 	func() {
@@ -119,7 +119,7 @@ func handleLazyEvents(c Context, ctx context.Context, list string, db DB, r Redi
 				if inTX {
 					d.(DBTransaction).Rollback(c)
 				}
-				handleLazyEventsOneByOne(c, ctx, list, db, r, values)
+				handleLazyEventsOneByOne(ctx, c, list, db, r, values)
 				return
 			}
 		}
@@ -165,7 +165,7 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 	return nil
 }
 
-func handleLazyEventsOneByOne(c Context, ctx context.Context, list string, db DB, r RedisCache, values []string) {
+func handleLazyEventsOneByOne(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
 	for _, event := range values {
 		if ctx.Err() != nil {
 			return
