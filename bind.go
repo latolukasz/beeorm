@@ -1,3 +1,4 @@
+// Package beeorm keeps main code od BeeORM
 package beeorm
 
 import (
@@ -52,10 +53,10 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 	return bind, nil
 }
 
-func (e *editableEntity[E]) getBind() (new, old Bind, err error) {
-	new = Bind{}
-	old = Bind{}
-	err = fillBindFromTwoSources(e.c, new, old, e.value.Elem(), reflect.ValueOf(e.source).Elem(), GetEntitySchema[E](e.c).getFields(), "")
+func (e *editableEntity[E]) getBind() (newBind, oldBind Bind, err error) {
+	newBind = Bind{}
+	oldBind = Bind{}
+	err = fillBindFromTwoSources(e.c, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), GetEntitySchema[E](e.c).getFields(), "")
 	return
 }
 
@@ -206,9 +207,8 @@ func fillBindForEnums(bind Bind, f reflect.Value, def *enumDefinition, column st
 	if val == "" {
 		if def.required {
 			return &BindError{Field: column, Message: "empty value not allowed"}
-		} else {
-			bind[column] = nullAsString
 		}
+		bind[column] = nullAsString
 		return nil
 	}
 	if !slices.Contains(def.GetFields(), val) {

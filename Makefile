@@ -34,7 +34,7 @@ check: format-check cyclo ## Linting and static analysis
 		exit 1; \
 	fi
 
-	@go get -u github.com/mgechev/revive
+	@go install github.com/mgechev/revive@latest
 	@revive -config revive.toml -formatter friendly
 
 cyclo: ## Cyclomatic complexities analysis
