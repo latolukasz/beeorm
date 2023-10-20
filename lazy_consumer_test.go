@@ -60,6 +60,7 @@ func TestLazyConsumer(t *testing.T) {
 	i := 0
 	for references.Next() {
 		assert.Equal(t, "test reference "+strconv.Itoa(i), references.Entity().Name)
+		i++
 	}
 
 	// more than one-page blocking mode
@@ -85,7 +86,7 @@ func TestLazyConsumer(t *testing.T) {
 	assert.True(t, consumerFinished)
 	assert.NoError(t, consumeErr)
 	references = Search[flushEntityReference](c, NewWhere("1"), nil)
-	assert.Len(t, references, lazyConsumerPage+11)
+	assert.Equal(t, lazyConsumerPage+11, references.Len())
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey+flushLazyEventsListErrorSuffix))
 	assert.Equal(t, "test reference block", GetByID[flushEntityReference](c, reference.ID).Name)

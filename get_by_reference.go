@@ -78,7 +78,7 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 				} else {
 					defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 					if defSchema.hasLocalCache {
-						lc.setReference(c, referenceName, id, values)
+						lc.setReference(c, referenceName, id, values.all())
 					} else {
 						lc.setReference(c, referenceName, id, ids)
 					}
@@ -106,7 +106,7 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 		values := GetByIDs[E](c, ids...)
 		defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 		if defSchema.hasLocalCache {
-			lc.setReference(c, referenceName, id, values)
+			lc.setReference(c, referenceName, id, values.all())
 		} else {
 			lc.setReference(c, referenceName, id, ids)
 		}
@@ -123,6 +123,7 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 			idsForRedis[i+1] = strconv.FormatUint(reflect.ValueOf(values.Entity()).Elem().Field(0).Uint(), 10)
 			i++
 		}
+		values.reset()
 		rc.SAdd(c, redisSetKey, idsForRedis...)
 	}
 	return values

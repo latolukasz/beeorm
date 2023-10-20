@@ -38,7 +38,7 @@ func TestLogTable(t *testing.T) {
 	var bind Bind
 	err = jsoniter.ConfigFastest.Unmarshal(log.After, &bind)
 	assert.NoError(t, err)
-	assert.Equal(t, bind, 3)
+	assert.Len(t, bind, 3)
 	assert.Equal(t, strconv.FormatUint(entity.ID, 10), bind["ID"])
 	assert.Equal(t, "Test", bind["Name"])
 	assert.Equal(t, "18", bind["Age"])

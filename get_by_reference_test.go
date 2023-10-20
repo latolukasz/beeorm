@@ -52,10 +52,10 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	// getting missing rows
 	rows := GetByReference[getByReferenceEntity](c, "RefCached", 1)
-	assert.Len(t, rows, 0)
+	assert.Equal(t, 0, rows.Len())
 	loggerDB.Clear()
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", 1)
-	assert.Len(t, rows, 0)
+	assert.Equal(t, 0, rows.Len())
 	assert.Len(t, loggerDB.Logs, 0)
 	loggerDB.Clear()
 
@@ -110,16 +110,16 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	rows2 := GetByReference[getByReferenceEntity](c, "RefCachedNoCache", ref.ID)
 	assert.Equal(t, 10, rows2.Len())
-	rows.Next()
-	e = rows.Entity()
+	rows2.Next()
+	e = rows2.Entity()
 	assert.Equal(t, entities[0].ID, e.ID)
 	assert.Equal(t, entities[0].Name, e.Name)
 	assert.Len(t, loggerDB.Logs, 1)
 	loggerDB.Clear()
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", ref.ID)
 	assert.Equal(t, 10, rows2.Len())
-	rows.Next()
-	e = rows.Entity()
+	rows2.Next()
+	e = rows2.Entity()
 	assert.Equal(t, entities[0].ID, e.ID)
 	assert.Equal(t, entities[0].Name, e.Name)
 	if local || redis {
@@ -148,8 +148,8 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache.ID)
 	assert.Equal(t, 9, rows2.Len())
-	rows.Next()
-	e = rows.Entity()
+	rows2.Next()
+	e = rows2.Entity()
 	assert.Equal(t, entities[1].ID, e.ID)
 	assert.Equal(t, entities[1].Name, e.Name)
 	if local || redis {
@@ -167,7 +167,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
-	assert.Len(t, rows, 8)
+	assert.Equal(t, 8, rows.Len())
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
@@ -178,7 +178,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	assert.Equal(t, "Name 3", e.Name)
 
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache.ID)
-	assert.Len(t, rows2, 8)
+	assert.Equal(t, 8, rows2.Len())
 
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache2.ID)
 	assert.Equal(t, 1, rows2.Len())
@@ -191,14 +191,14 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	assert.NoError(t, err)
 	loggerDB.Clear()
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
-	assert.Len(t, rows, 7)
+	assert.Equal(t, 7, rows.Len())
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
 
 	loggerDB.Clear()
 	rows2 = GetByReference[getByReferenceEntity](c, "RefCachedNoCache", refNoCache.ID)
-	assert.Len(t, rows, 7)
+	assert.Equal(t, 7, rows.Len())
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}

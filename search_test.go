@@ -26,7 +26,7 @@ func TestSearch(t *testing.T) {
 
 	rows, total := SearchWithCount[searchEntity](c, NewWhere("ID > ?", ids[1]), nil)
 	assert.Equal(t, 8, total)
-	assert.Len(t, rows, 8)
+	assert.Equal(t, 8, rows.Len())
 
 	foundIDs, total := SearchIDsWithCount[searchEntity](c, NewWhere("ID > ?", ids[1]), nil)
 	assert.Equal(t, 8, total)
