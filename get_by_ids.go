@@ -5,35 +5,21 @@ import (
 	"strconv"
 )
 
-func GetByIDs[E any](c Context, ids ...uint64) []*E {
-	results, _ := getByIDs[E](c.(*contextImplementation), ids)
-	return results
+func GetByIDs[E any](c Context, ids ...uint64) EntityIterator[E] {
+	return getByIDs[E](c.(*contextImplementation), ids)
 }
 
-func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasMissing bool) {
+func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 	schema := getEntitySchema[E](c)
-	resultsSlice := make([]*E, len(ids))
 	if len(ids) == 0 {
-		return resultsSlice, true
+		return &emptyResultsIterator[E]{}
 	}
-	var missingKeys []int
 	if schema.hasLocalCache {
-		for i, id := range ids {
-			fromLocalCache, hasInLocalCache := schema.localCache.getEntity(c, id)
-			if hasInLocalCache {
-				if fromLocalCache == nil {
-					hasMissing = true
-				} else {
-					resultsSlice[i] = fromLocalCache.(*E)
-				}
-			} else {
-				missingKeys = append(missingKeys, i)
-			}
-		}
-		if missingKeys == nil {
-			return resultsSlice, hasMissing
-		}
+		return &localCacheIDsIterator[E]{c: c, schema: schema, ids: ids, index: -1}
 	}
+	results := &entityIterator[E]{index: -1}
+	results.rows = make([]*E, len(ids))
+	var missingKeys []int
 	cacheRedis, hasRedisCache := schema.GetRedisCache()
 	var redisPipeline *RedisPipeLine
 	if hasRedisCache {
@@ -58,7 +44,6 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 				row := lRanges[i].Result()
 				if len(row) > 0 {
 					if len(row) == 1 {
-						hasMissing = true
 						schema.localCache.setEntity(c, ids[key], nil)
 					} else {
 						value := reflect.New(schema.t)
@@ -66,7 +51,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
 							schema.localCache.setEntity(c, ids[key], e)
 						}
-						resultsSlice[key] = e
+						results.rows[key] = e
 					}
 					missingKeys[i] = 0
 					hasZero = true
@@ -89,22 +74,21 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 				row := lRanges[i].Result()
 				if len(row) > 0 {
 					if len(row) == 1 {
-						hasMissing = true
-					} else {
-						value := reflect.New(schema.t)
-						e := value.Interface().(*E)
-						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-							schema.localCache.setEntity(c, id, e)
-						}
-						resultsSlice[i] = e
+						continue
 					}
+					value := reflect.New(schema.t)
+					e := value.Interface().(*E)
+					if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
+						schema.localCache.setEntity(c, id, e)
+					}
+					results.rows[i] = e
 				} else {
 					missingKeys = append(missingKeys, i)
 				}
 			}
 		}
 		if len(missingKeys) == 0 {
-			return resultsSlice, hasMissing
+			return results
 		}
 	}
 	sBuilder := c.getStringBuilder()
@@ -142,7 +126,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 		id := *pointers[0].(*uint64)
 		for i, originalID := range ids { // TODO too slow
 			if id == originalID {
-				resultsSlice[i] = value.Interface().(*E)
+				results.rows[i] = value.Interface().(*E)
 			}
 		}
 		if schema.hasLocalCache {
@@ -160,8 +144,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 	def()
 	if foundInDB < toSearch {
 		for i, id := range ids {
-			if resultsSlice[i] == nil {
-				hasMissing = true
+			if results.rows[i] == nil {
 				if !schema.hasLocalCache && !hasRedisCache {
 					break
 				}
@@ -180,5 +163,5 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) (results []*E, hasM
 	if execRedisPipeline {
 		redisPipeline.Exec(c)
 	}
-	return resultsSlice, hasMissing
+	return results
 }

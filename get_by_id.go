@@ -7,16 +7,17 @@ import (
 )
 
 func GetByID[E any](c Context, id uint64) (entity *E) {
-	entity = getByID[E](c.(*contextImplementation), id, nil)
-	return
-}
-
-func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entity *E) {
 	var e E
-	schema := c.engine.registry.entitySchemas[reflect.TypeOf(e)]
+	cE := c.(*contextImplementation)
+	schema := cE.engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
+	entity = getByID[E](cE, id, schema)
+	return
+}
+
+func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (entity *E) {
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {
@@ -40,14 +41,8 @@ func getByID[E any](c *contextImplementation, id uint64, entityToFill *E) (entit
 				}
 				return
 			}
-			var value reflect.Value
-			if entityToFill == nil {
-				value = reflect.New(schema.t)
-				entity = value.Interface().(*E)
-			} else {
-				entity = entityToFill
-				value = reflect.ValueOf(entity)
-			}
+			value := reflect.New(schema.t)
+			entity = value.Interface().(*E)
 			if deserializeFromRedis(row, schema, value.Elem()) {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(c, id, entity)

@@ -6,11 +6,11 @@ import (
 	"strconv"
 )
 
-func SearchWithCount[E any](c Context, where *Where, pager *Pager) (results []*E, totalRows int) {
+func SearchWithCount[E any](c Context, where *Where, pager *Pager) (results EntityIterator[E], totalRows int) {
 	return search[E](c, where, pager, true)
 }
 
-func Search[E any](c Context, where *Where, pager *Pager) []*E {
+func Search[E any](c Context, where *Where, pager *Pager) EntityIterator[E] {
 	results, _ := search[E](c, where, pager, false)
 	return results
 }
@@ -278,15 +278,18 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	return entity
 }
 
-func search[E any](c Context, where *Where, pager *Pager, withCount bool) (results []*E, totalRows int) {
+func search[E any](c Context, where *Where, pager *Pager, withCount bool) (results EntityIterator[E], totalRows int) {
 	if pager == nil {
 		pager = NewPager(1, 50000)
 	}
 	schema := getEntitySchema[E](c)
-	entities := reflect.MakeSlice(schema.tSlice, 0, 0)
+	entities := make([]*E, 0)
 	if schema.hasLocalCache {
 		ids, total := SearchIDsWithCount[E](c, where, pager)
-		return GetByIDs[E](c, ids...), total
+		if total == 0 {
+			return &emptyResultsIterator[E]{}, 0
+		}
+		return &localCacheIDsIterator[E]{c: c.(*contextImplementation), schema: schema, ids: ids, index: -1}, total
 	}
 	whereQuery := where.String()
 	/* #nosec */
@@ -301,12 +304,14 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 		queryResults.Scan(pointers...)
 		value := reflect.New(schema.t)
 		deserializeFromDB(schema.getFields(), value.Elem(), pointers)
-		entities = reflect.Append(entities, value)
+		entities = append(entities, value.Interface().(*E))
 		i++
 	}
 	def()
 	totalRows = getTotalRows(c, withCount, pager, where, schema, i)
-	return entities.Interface().([]*E), totalRows
+	resultsIterator := &entityIterator[E]{index: -1}
+	resultsIterator.rows = entities
+	return resultsIterator, totalRows
 }
 
 func searchOne[E any](c Context, where *Where) *E {

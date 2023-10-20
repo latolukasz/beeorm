@@ -6,17 +6,18 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// BenchmarkLoadByIDsLocalCache-10    	 1565151	       763.9 ns/op	     896 B/op	       1 allocs/op
-func BenchmarkLoadByIDsLocalCache(b *testing.B) {
-	benchmarkLoadByIDsCache(b, true, false)
+// BenchmarkGetByIDsLocalCache-10    	 1565151	       763.9 ns/op	     896 B/op	       1 allocs/op
+// BenchmarkGetByIDsLocalCache-10    	 1420578	       835.7 ns/op	      48 B/op	       1 allocs/op
+func BenchmarkGetByIDsLocalCache(b *testing.B) {
+	benchmarkGetByIDsCache(b, true, false)
 }
 
-// BenchmarkLoadByIDsRedisCache-10    	     301	   5092551 ns/op	   42032 B/op	    1118 allocs/op
-func BenchmarkLoadByIDsRedisCache(b *testing.B) {
-	benchmarkLoadByIDsCache(b, false, true)
+// BenchmarkGetByIDsRedisCache-10    	     301	   5092551 ns/op	   42032 B/op	    1118 allocs/op
+func BenchmarkGetByIDsRedisCache(b *testing.B) {
+	benchmarkGetByIDsCache(b, false, true)
 }
 
-func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
+func benchmarkGetByIDsCache(b *testing.B, local, redis bool) {
 	entity := &getByIdsEntity{}
 	registry := &Registry{}
 	registry.RegisterLocalCache(10000)
@@ -37,6 +38,9 @@ func benchmarkLoadByIDsCache(b *testing.B, local, redis bool) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = GetByIDs[getByIdsEntity](c, ids...)
+		rows := GetByIDs[getByIdsEntity](c, ids...)
+		for rows.Next() {
+			rows.Entity()
+		}
 	}
 }

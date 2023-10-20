@@ -9,7 +9,7 @@ import (
 
 const redisValidSetValue = "Y"
 
-func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
+func GetByReference[E any](c Context, referenceName string, id uint64) EntityIterator[E] {
 	if id == 0 {
 		return nil
 	}
@@ -30,11 +30,13 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		fromCache, hasInCache := lc.getReference(c, referenceName, id)
 		if hasInCache {
 			if fromCache == cacheNilValue {
-				return make([]*E, 0)
+				return &emptyResultsIterator[E]{}
 			}
 			defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
 			if defSchema.hasLocalCache {
-				return fromCache.([]*E)
+				results := &entityIterator[E]{index: -1}
+				results.rows = fromCache.([]*E)
+				return results
 			}
 			return GetByIDs[E](c, fromCache.([]uint64)...)
 		}
@@ -65,13 +67,13 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 				if hasLocalCache {
 					lc.setReference(c, referenceName, id, cacheNilValue)
 				}
-				return make([]*E, 0)
+				return &emptyResultsIterator[E]{}
 			}
 			ids = ids[0:k]
 			slices.Sort(ids)
 			values := GetByIDs[E](c, ids...)
 			if hasLocalCache {
-				if len(values) == 0 {
+				if values.Len() == 0 {
 					lc.setReference(c, referenceName, id, cacheNilValue)
 				} else {
 					defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
@@ -90,7 +92,7 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		if len(ids) == 0 {
 			lc.setReference(c, referenceName, id, cacheNilValue)
 			rc.SAdd(c, redisSetKey, cacheNilValue)
-			return make([]*E, 0)
+			return &emptyResultsIterator[E]{}
 		}
 		idsForRedis := make([]interface{}, len(ids))
 		for i, value := range ids {
@@ -111,13 +113,15 @@ func GetByReference[E any](c Context, referenceName string, id uint64) []*E {
 		return values
 	}
 	values := Search[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
-	if len(values) == 0 {
+	if values.Len() == 0 {
 		rc.SAdd(c, redisSetKey, redisValidSetValue, cacheNilValue)
 	} else {
-		idsForRedis := make([]interface{}, len(values)+1)
+		idsForRedis := make([]interface{}, values.Len()+1)
 		idsForRedis[0] = redisValidSetValue
-		for i, value := range values {
-			idsForRedis[i+1] = strconv.FormatUint(reflect.ValueOf(value).Elem().Field(0).Uint(), 10)
+		i := 0
+		for values.Next() {
+			idsForRedis[i+1] = strconv.FormatUint(reflect.ValueOf(values.Entity()).Elem().Field(0).Uint(), 10)
+			i++
 		}
 		rc.SAdd(c, redisSetKey, idsForRedis...)
 	}
