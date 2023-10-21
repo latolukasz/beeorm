@@ -2,7 +2,7 @@ name: Check & test
 on:
   push:
     branches:
-      - v2
+      - v3
   pull_request:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.19
+          go-version: 1.21
 
       - name: Check out code
         uses: actions/checkout@v2
@@ -36,29 +36,18 @@ jobs:
     name: Test & coverage
     runs-on: ubuntu-latest
     services:
-      redis:
-        image: redis:6.2.7
+      dragonfly:
+        image: docker.dragonflydb.io/dragonflydb/dragonfly
         ports:
-          - 6382:6379
-      redis7:
-        image: redis:7.0.7
-        ports:
-          - 6381:6379
+          - 6385:6379
       mysql:
-        image: mysql:5.7
+        image: mysql/mysql-server:8.0
         env:
           MYSQL_ROOT_PASSWORD: root
+          MYSQL_ROOT_HOST: "%"
         ports:
-          - 3311:3306
+          - 3377:3306
         options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
-      mysql8:
-        image: mysql:8
-        env:
-          MYSQL_ROOT_PASSWORD: root
-        ports:
-          - 3312:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=5s --health-timeout=5s --health-retries=3
-
     steps:
 
       - name: Configure sysctl limits
@@ -71,7 +60,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v1
         with:
-          go-version: 1.19
+          go-version: 1.21
 
       - name: Check out code
         uses: actions/checkout@v2
@@ -79,14 +68,8 @@ jobs:
       - name: Create database
         run: |
           sudo apt-get update
-          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
-          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_schema;'
-          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'CREATE DATABASE IF NOT EXISTS test_log;'
-          mysql -uroot -h127.0.0.1 --port=3311 -proot -e 'set global max_connections = 300;'
-          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
-          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test_schema;'
-          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'CREATE DATABASE IF NOT EXISTS test_log;'
-          mysql -uroot -h127.0.0.1 --port=3312 -proot -e 'set global max_connections = 300;'
+          mysql -uroot -h127.0.0.1 --port=3377 -proot -e 'CREATE DATABASE IF NOT EXISTS test;'
+          mysql -uroot -h127.0.0.1 --port=3377 -proot -e 'set global max_connections = 300;'
 
       - name: Run unit tests with coverage.
         run: |
