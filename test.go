@@ -23,8 +23,8 @@ func (h *MockLogHandler) Clear() {
 func PrepareTables(t *testing.T, registry *Registry, entities ...any) (c Context) {
 	poolOptions := MySQLPoolOptions{}
 	registry.RegisterMySQLPool("root:root@tcp(localhost:3377)/test", poolOptions)
-	registry.RegisterRedis("localhost:6385", 0)
-	registry.RegisterRedis("localhost:6385", 1, "second")
+	registry.RegisterRedis("localhost:6385", 0, DefaultPoolCode, nil)
+	registry.RegisterRedis("localhost:6385", 1, "second", nil)
 	registry.RegisterLocalCache(1000)
 
 	registry.RegisterEntity(entities...)

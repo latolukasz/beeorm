@@ -86,17 +86,17 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	if err != nil {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
 	}
+	var options *RedisOptions
 	if len(parts) == 2 && parts[1] != "" {
 		values, err := url.ParseQuery(parts[1])
 		if err != nil {
 			panic(fmt.Errorf("redis uri '%v' is not valid", value))
 		}
 		if values.Has("user") && values.Has("password") {
-			registry.RegisterRedisWithCredentials(uri, values.Get("user"), values.Get("password"), int(db), key)
-			return
+			options = &RedisOptions{User: values.Get("user"), Password: values.Get("password")}
 		}
 	}
-	registry.RegisterRedis(uri, int(db), key)
+	registry.RegisterRedis(uri, int(db), key, options)
 }
 
 func validateSentinel(registry *Registry, value interface{}, key string) {
@@ -122,17 +122,18 @@ func validateSentinel(registry *Registry, value interface{}, key string) {
 			}
 			db = int(nr)
 		}
+		options := &RedisOptions{Master: master, Sentinels: asStrings}
 		if len(parts) == 2 && parts[1] != "" {
-			values, err := url.ParseQuery(parts[1])
+			extra, err := url.ParseQuery(parts[1])
 			if err != nil {
 				panic(fmt.Errorf("sentinel uri '%v' is not valid", master))
 			}
-			if values.Has("user") && values.Has("password") {
-				registry.RegisterRedisSentinelWithCredentials(master, values.Get("user"), values.Get("password"), db, asStrings, key)
-				return
+			if extra.Has("user") && extra.Has("password") {
+				options.User = extra.Get("user")
+				options.Password = extra.Get("password")
 			}
 		}
-		registry.RegisterRedisSentinel(master, db, asStrings, key)
+		registry.RegisterRedis("", db, key, options)
 	}
 }
 

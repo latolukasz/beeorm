@@ -225,50 +225,45 @@ func (r *Registry) RegisterLocalCache(size int, code ...string) {
 	r.localCaches[dbCode] = newLocalCache(dbCode, size, nil)
 }
 
-func (r *Registry) RegisterRedis(address string, db int, code ...string) {
-	r.RegisterRedisWithCredentials(address, "", "", db, code...)
+type RedisOptions struct {
+	User            string
+	Password        string
+	Master          string
+	Sentinels       []string
+	SentinelOptions *redis.FailoverOptions
 }
 
-func (r *Registry) RegisterRedisWithCredentials(address, user, password string, db int, code ...string) {
-	options := &redis.Options{
+func (r *Registry) RegisterRedis(address string, db int, poolCode string, options *RedisOptions) {
+	if options != nil && len(options.Sentinels) > 0 {
+		sentinelOptions := options.SentinelOptions
+		if sentinelOptions == nil {
+			sentinelOptions = &redis.FailoverOptions{
+				MasterName:      options.Master,
+				SentinelAddrs:   options.Sentinels,
+				DB:              db,
+				ConnMaxIdleTime: time.Minute * 2,
+				Username:        options.User,
+				Password:        options.Password,
+			}
+		}
+		client := redis.NewFailoverClient(sentinelOptions)
+		r.registerRedis(client, poolCode, fmt.Sprintf("%v", options.Sentinels), db)
+		return
+	}
+	redisOptions := &redis.Options{
 		Addr:            address,
 		DB:              db,
 		ConnMaxIdleTime: time.Minute * 2,
-		Username:        user,
-		Password:        password,
+	}
+	if options != nil {
+		redisOptions.Username = options.User
+		redisOptions.Password = options.Password
 	}
 	if strings.HasSuffix(address, ".sock") {
-		options.Network = "unix"
+		redisOptions.Network = "unix"
 	}
-	client := redis.NewClient(options)
-	r.registerRedis(client, code, address, db)
-}
-
-func (r *Registry) RegisterRedisSentinel(masterName string, db int, sentinels []string, code ...string) {
-	r.RegisterRedisSentinelWithCredentials(masterName, "", "", db, sentinels, code...)
-}
-
-func (r *Registry) RegisterRedisSentinelWithCredentials(masterName, user, password string, db int, sentinels []string, code ...string) {
-	options := &redis.FailoverOptions{
-		MasterName:      masterName,
-		SentinelAddrs:   sentinels,
-		DB:              db,
-		ConnMaxIdleTime: time.Minute * 2,
-		Username:        user,
-		Password:        password,
-	}
-	client := redis.NewFailoverClient(options)
-	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), db)
-}
-
-func (r *Registry) RegisterRedisSentinelWithOptions(opts redis.FailoverOptions, db int, sentinels []string, code ...string) {
-	opts.DB = db
-	opts.SentinelAddrs = sentinels
-	if opts.ConnMaxIdleTime == 0 {
-		opts.ConnMaxIdleTime = time.Minute * 2
-	}
-	client := redis.NewFailoverClient(&opts)
-	r.registerRedis(client, code, fmt.Sprintf("%v", sentinels), db)
+	client := redis.NewClient(redisOptions)
+	r.registerRedis(client, poolCode, address, db)
 }
 
 func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
@@ -286,16 +281,12 @@ func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolO
 	r.mysqlPools[dbCode] = db
 }
 
-func (r *Registry) registerRedis(client *redis.Client, code []string, address string, db int) {
-	dbCode := DefaultPoolCode
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	redisCache := &redisCacheConfig{code: dbCode, client: client, address: address, db: db}
+func (r *Registry) registerRedis(client *redis.Client, code string, address string, db int) {
+	redisPool := &redisCacheConfig{code: code, client: client, address: address, db: db}
 	if r.redisPools == nil {
 		r.redisPools = make(map[string]RedisPoolConfig)
 	}
-	r.redisPools[dbCode] = redisCache
+	r.redisPools[code] = redisPool
 }
 
 type RedisPoolConfig interface {

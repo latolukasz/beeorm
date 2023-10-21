@@ -12,7 +12,7 @@ import (
 
 func TestRedis(t *testing.T) {
 	registry := &Registry{}
-	registry.RegisterRedis("localhost:6385", 15)
+	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, nil)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
@@ -179,7 +179,7 @@ func TestRedis(t *testing.T) {
 	assert.Equal(t, int64(0), r.Exists(c, "a"))
 
 	registry = &Registry{}
-	registry.RegisterRedis("localhost:6399", 15)
+	registry.RegisterRedis("localhost:6399", 15, DefaultPoolCode, nil)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
 	c = validatedRegistry.NewContext(context.Background())
@@ -190,7 +190,7 @@ func TestRedis(t *testing.T) {
 	})
 
 	registry = &Registry{}
-	registry.RegisterRedisWithCredentials("localhost:6385", "user", "pass", 15)
+	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, &RedisOptions{User: "user", Password: "pass"})
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
 	c = validatedRegistry.NewContext(context.Background())
