@@ -3,7 +3,6 @@ package beeorm
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/bsm/redislock"
@@ -54,7 +53,6 @@ func (l *Locker) Obtain(c Context, key string, ttl time.Duration, waitTimeout ti
 		} else {
 			limit = int(waitTimeout / time.Second)
 		}
-		log.Printf("INTERVAL %s %d\n", interval, limit)
 		options.RetryStrategy = redislock.LimitRetry(redislock.LinearBackoff(interval), limit)
 	}
 	redisLock, err := l.locker.Obtain(c.Ctx(), key, ttl, options)
