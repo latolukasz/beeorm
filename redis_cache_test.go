@@ -190,11 +190,11 @@ func TestRedis(t *testing.T) {
 	})
 
 	registry = &Registry{}
-	registry.RegisterRedisWithCredentials("localhost:6382", "user", "pass", 15)
+	registry.RegisterRedisWithCredentials("localhost:6385", "user", "pass", 15)
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
 	c = validatedRegistry.NewContext(context.Background())
-	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
+	assert.PanicsWithError(t, "ERR Could not authorize user: user", func() {
 		c.Engine().Redis(DefaultPoolCode).Incr(c, "test")
 	})
 }

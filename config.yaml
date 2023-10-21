@@ -6,7 +6,7 @@ default:
     ConnMaxLifetime: 30
     MaxOpenConnections: 10
     MaxIdleConnections: 10
-  redis: localhost:6382:0
+  redis: localhost:6385:0
   streams:
     stream-1:
       - test-group-1
@@ -27,13 +27,13 @@ third:
       - 192.156.23.15:26379
       - 192.156.23.16:26379
 default_queue:
-  redis: localhost:6382:1:test_namespace
+  redis: localhost:6385:1:test_namespace
 sockets:
   redis: /var/redis.sock:1
 sockets_namespace:
   redis: /var/redis.sock:2:test_namespace
 redis_credentials:
-  redis: localhost:6382:11?user=test&password=test2
+  redis: localhost:6385:11?user=test&password=test2
   sentinel:
     master:1?user=test&password=test2:
       - :26379
