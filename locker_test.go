@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"context"
-	"log"
 	"testing"
 	"time"
 
@@ -31,14 +30,9 @@ func TestLocker(t *testing.T) {
 
 	left := lock.TTL(c)
 	assert.LessOrEqual(t, left.Microseconds(), time.Second.Microseconds())
+	lock.Release(c) // dragonfly-db fix
 
-	log.Printf("STARTED\n")
-	func() {
-		defer func() {
-			log.Printf("ENDED\n")
-		}()
-		_, has = l.Obtain(c, "test_key", time.Second*10, time.Second*10)
-	}()
+	_, has = l.Obtain(c, "test_key", time.Second*10, time.Second*10)
 	assert.True(t, has)
 
 	lock.Release(c)
