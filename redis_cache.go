@@ -46,7 +46,6 @@ type RedisCache interface {
 	LRem(c Context, key string, count int64, value interface{})
 	Ltrim(c Context, key string, start, stop int64)
 	HSetNx(c Context, key, field string, value interface{}) bool
-	hDelUints(c Context, key string, fields ...uint64)
 	HMGet(c Context, key string, fields ...string) map[string]interface{}
 	HGetAll(c Context, key string) map[string]string
 	HGet(c Context, key, field string) (value string, has bool)
@@ -420,24 +419,6 @@ func (r *redisCache) HDel(c Context, key string, fields ...string) {
 	_, err := r.client.HDel(c.Ctx(), key, fields...).Result()
 	if hasLogger {
 		message := "HDEL " + key + " " + strings.Join(fields, " ")
-		r.fillLogFields(c, "HDEL", message, start, false, err)
-	}
-	checkError(err)
-}
-
-func (r *redisCache) hDelUints(c Context, key string, fields ...uint64) {
-	hasLogger, _ := c.getRedisLoggers()
-	start := getNow(hasLogger)
-	args := make([]interface{}, 2+len(fields))
-	args[0] = "hdel"
-	args[1] = key
-	for i, field := range fields {
-		args[2+i] = field
-	}
-	cmd := redis.NewIntCmd(c.Ctx(), args...)
-	err := r.client.Process(c.Ctx(), cmd)
-	if hasLogger {
-		message := fmt.Sprintf("HDEL %s %v", key, fields)
 		r.fillLogFields(c, "HDEL", message, start, false, err)
 	}
 	checkError(err)
