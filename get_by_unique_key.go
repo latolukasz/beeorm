@@ -14,7 +14,7 @@ func GetByUniqueKey[E any](c Context, indexName string, attributes ...any) *E {
 	}
 	columns, has := schema.uniqueIndices[indexName]
 	if !has {
-		panic(fmt.Errorf("unknows index name `%s`", indexName))
+		panic(fmt.Errorf("unknown index name `%s`", indexName))
 	}
 	if len(columns) != len(attributes) {
 		panic(fmt.Errorf("invalid number of index `%s` attributes, got %d, %d expected",

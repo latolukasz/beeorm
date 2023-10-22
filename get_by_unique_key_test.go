@@ -67,6 +67,9 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	assert.Equal(t, entities[3].ID, entity.ID)
 	assert.Equal(t, "Name 3", entity.Name)
 
+	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Name", "Missing")
+	assert.Nil(t, entity)
+
 	entity = GetByUniqueKey[getByUniqueKeyEntity](c, "Multi", 4, false)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[4].ID, entity.ID)
@@ -87,4 +90,20 @@ func testGetByUniqueKey(t *testing.T, local, redis bool) {
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[6].ID, entity.ID)
 	assert.Equal(t, "Name 6", entities[6].Name)
+
+	assert.PanicsWithError(t, "invalid number of index `Name` attributes, got 2, 1 expected", func() {
+		GetByUniqueKey[getByUniqueKeyEntity](c, "Name", "a", "b")
+	})
+
+	assert.PanicsWithError(t, "unknown index name `Invalid`", func() {
+		GetByUniqueKey[getByUniqueKeyEntity](c, "Invalid")
+	})
+
+	assert.PanicsWithError(t, "nil attribute for index name `Name` is not allowed", func() {
+		GetByUniqueKey[getByUniqueKeyEntity](c, "Name", nil)
+	})
+
+	assert.PanicsWithError(t, "entity 'time.Time' is not registered", func() {
+		GetByUniqueKey[time.Time](c, "Name", nil)
+	})
 }
