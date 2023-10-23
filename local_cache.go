@@ -36,10 +36,15 @@ func newLocalCache(code string, schema *entitySchema) *localCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 			return u
 		})
-		if len(schema.cachedReferences) > 0 {
+		if len(schema.cachedReferences) > 0 || schema.cacheAll {
 			c.cacheReferences = make(map[string]*xsync.MapOf[uint64, any])
 			for reference := range schema.cachedReferences {
 				c.cacheReferences[reference] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
+					return u
+				})
+			}
+			if schema.cacheAll {
+				c.cacheReferences[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 					return u
 				})
 			}

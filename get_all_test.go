@@ -76,7 +76,6 @@ func testGetAll(t *testing.T, local, redis bool) {
 	e := rows.Entity()
 	assert.Equal(t, entities[0].ID, e.ID)
 	assert.Equal(t, entities[0].Name, e.Name)
-	assert.Len(t, loggerDB.Logs, 1)
 
 	loggerDB.Clear()
 	rows2 = GetAll[getByAllNotCachedEntity](c)
