@@ -13,7 +13,7 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 		case string:
 			_, err := strconv.ParseUint(v.(string), 10, 64)
 			if err != nil {
-				return "", err
+				return "", fmt.Errorf("invalid number for column `%s`", columnName)
 			}
 			return v.(string), nil
 		case uint8:
@@ -74,7 +74,7 @@ func createStringColumnSetter(columnName string) func(v any) (string, error) {
 
 func createNotSupportedColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
-		return "", fmt.Errorf("type %T not supported, column `%s`", v, columnName)
+		return "", fmt.Errorf("type %T is not supported, column `%s`", v, columnName)
 	}
 }
 
@@ -100,7 +100,6 @@ func createBoolColumnSetter(columnName string) func(v any) (string, error) {
 			} else if asInt == 0 {
 				return "0", nil
 			}
-			return strconv.FormatUint(uint64(v.(int)), 10), nil
 		}
 		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
 	}
