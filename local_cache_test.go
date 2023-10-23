@@ -9,7 +9,7 @@ import (
 
 func TestLocalCache(t *testing.T) {
 	registry := &Registry{}
-	registry.RegisterLocalCache(100)
+	registry.RegisterLocalCache(DefaultPoolCode)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
 	c := validatedRegistry.NewContext(context.Background())
@@ -19,8 +19,7 @@ func TestLocalCache(t *testing.T) {
 	c.RegisterQueryLogger(testQueryLog, false, false, true)
 
 	lc := c.Engine().LocalCache(DefaultPoolCode)
-	assert.Equal(t, DefaultPoolCode, lc.GetPoolConfig().GetCode())
-	assert.Equal(t, 100, lc.GetPoolConfig().GetLimit())
+	assert.Equal(t, DefaultPoolCode, lc.GetCode())
 
 	val, has := lc.Get(c, "test_get")
 	assert.False(t, has)

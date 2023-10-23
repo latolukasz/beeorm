@@ -119,7 +119,7 @@ func (r *Registry) Validate() (Engine, error) {
 		e.registry.entitySchemas[entityType] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
-			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, schema)
+			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema)
 		}
 	}
 	for _, entityType := range r.entities {
@@ -214,15 +214,11 @@ func (r *Registry) EnableOneAppMode() {
 	r.oneAppMode = true
 }
 
-func (r *Registry) RegisterLocalCache(size int, code ...string) {
-	dbCode := DefaultPoolCode
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
+func (r *Registry) RegisterLocalCache(code string) {
 	if r.localCaches == nil {
 		r.localCaches = make(map[string]LocalCache)
 	}
-	r.localCaches[dbCode] = newLocalCache(dbCode, size, nil)
+	r.localCaches[code] = newLocalCache(code, nil)
 }
 
 type RedisOptions struct {

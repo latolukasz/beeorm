@@ -48,7 +48,6 @@ type EntitySchema interface {
 	GetCacheKey() string
 	DisableCache(local, redis bool)
 	getFields() *tableFields
-	getTagBool(field, key string) bool
 	getFieldsQuery() string
 	getStructureHash() string
 	getTags() map[string]map[string]string
@@ -75,7 +74,6 @@ type entitySchema struct {
 	cachedReferences          map[string]referenceDefinition
 	hasLocalCache             bool
 	localCache                *localCache
-	localCacheLimit           int
 	redisCacheName            string
 	hasRedisCache             bool
 	redisCache                *redisCache
@@ -257,7 +255,6 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 		return fmt.Errorf("mysql pool '%s' not found", e.mysqlPoolCode)
 	}
 	e.tableName = e.getTag("table", entityType.Name(), entityType.Name())
-	localCacheLimit := e.getTag("localCache", DefaultPoolCode, "")
 	redisCacheName := e.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
 		_, has = registry.redisPools[redisCacheName]
@@ -332,18 +329,7 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 
 	e.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
 	e.columnMapping = columnMapping
-	e.hasLocalCache = localCacheLimit != ""
-	if e.hasLocalCache {
-		limit := 100000
-		if localCacheLimit != DefaultPoolCode {
-			userLimit, err := strconv.Atoi(localCacheLimit)
-			if err != nil || userLimit <= 0 {
-				return fmt.Errorf("invalid local cache limit for '%s'", e.t.String())
-			}
-			limit = userLimit
-		}
-		e.localCacheLimit = limit
-	}
+	e.hasLocalCache = e.getTag("localCache", "true", "") == "true"
 	e.redisCacheName = redisCacheName
 	e.hasRedisCache = redisCacheName != ""
 	e.cacheKey = cacheKey
@@ -416,11 +402,6 @@ func (e *entitySchema) GetTag(field, key, trueValue, defaultValue string) string
 	return defaultValue
 }
 
-func (e *entitySchema) getTagBool(field, key string) bool {
-	tag := e.GetTag(field, key, "1", "")
-	return tag == "1"
-}
-
 func (e *entitySchema) getFieldsQuery() string {
 	return e.fieldsQuery
 }
@@ -450,7 +431,6 @@ func (e *entitySchema) GetCacheKey() string {
 
 func (e *entitySchema) DisableCache(local, redis bool) {
 	if local {
-		e.localCacheLimit = 0
 		e.hasLocalCache = false
 	}
 	if redis {

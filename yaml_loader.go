@@ -26,8 +26,7 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 				valAsString := validateOrmString(value, key)
 				r.SetDefaultCollate(valAsString)
 			case "local_cache":
-				number := validateOrmInt(value, key)
-				r.RegisterLocalCache(number, key)
+				r.RegisterLocalCache(key)
 			}
 		}
 	}

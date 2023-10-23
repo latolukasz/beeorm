@@ -13,7 +13,7 @@ default:
       - test-group-2
     stream-2:
       - test-group-1
-  local_cache: 1000
+  local_cache: true
 another:
   sentinel:
     master:1:

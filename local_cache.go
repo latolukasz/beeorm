@@ -1,35 +1,16 @@
 package beeorm
 
 import (
-	"container/list"
 	"fmt"
 	"hash/maphash"
 
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
-type LocalCachePoolConfig interface {
-	GetCode() string
-	GetLimit() int
-}
-
-type localCachePoolConfig struct {
-	code  string
-	limit int
-}
-
-func (p *localCachePoolConfig) GetCode() string {
-	return p.code
-}
-
-func (p *localCachePoolConfig) GetLimit() int {
-	return p.limit
-}
-
 type LocalCache interface {
 	Set(c Context, key string, value interface{})
 	Remove(c Context, key string)
-	GetPoolConfig() LocalCachePoolConfig
+	GetCode() string
 	Get(c Context, key string) (value interface{}, ok bool)
 	getEntity(c Context, id uint64) (value any, ok bool)
 	setEntity(c Context, id uint64, value any)
@@ -42,18 +23,14 @@ type LocalCache interface {
 }
 
 type localCache struct {
-	config          *localCachePoolConfig
-	ll              *list.List
+	code            string
 	cache           *xsync.Map
 	cacheEntities   *xsync.MapOf[uint64, any]
 	cacheReferences map[string]*xsync.MapOf[uint64, any]
 }
 
-func newLocalCache(dbCode string, limit int, schema *entitySchema) *localCache {
-	c := &localCache{config: &localCachePoolConfig{code: dbCode, limit: limit}}
-	if limit > 0 {
-		c.ll = list.New()
-	}
+func newLocalCache(code string, schema *entitySchema) *localCache {
+	c := &localCache{code: code}
 	c.cache = xsync.NewMap()
 	if schema != nil && schema.hasLocalCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
@@ -71,8 +48,8 @@ func newLocalCache(dbCode string, limit int, schema *entitySchema) *localCache {
 	return c
 }
 
-func (lc *localCache) GetPoolConfig() LocalCachePoolConfig {
-	return lc.config
+func (lc *localCache) GetCode() string {
+	return lc.code
 }
 
 func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
@@ -160,9 +137,6 @@ func (lc *localCache) Clear(c Context) {
 			cache.Clear()
 		}
 	}
-	if lc.config.limit > 0 {
-		lc.ll = list.New()
-	}
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "CLEAR", "CLEAR", false)
@@ -184,5 +158,5 @@ func (lc *localCache) GetObjectsCount() int {
 
 func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {
 	_, loggers := c.getLocalCacheLoggers()
-	fillLogFields(c, loggers, lc.config.GetCode(), sourceLocalCache, operation, query, nil, cacheMiss, nil)
+	fillLogFields(c, loggers, lc.code, sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }
