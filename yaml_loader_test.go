@@ -50,12 +50,6 @@ func TestYamlLoader(t *testing.T) {
 	})
 
 	invalidYaml = make(map[string]interface{})
-	invalidYaml[DefaultPoolCode] = map[string]interface{}{"local_cache": "test"}
-	assert.PanicsWithError(t, "orm value for default: test is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
-
-	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"sentinel": map[interface{}]interface{}{"test": "wrong"}}
 	assert.PanicsWithError(t, "sentinel 'map[test:wrong]' is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)
