@@ -26,6 +26,7 @@ type TableSQLSchemaDefinition struct {
 	DBIndexes      []*IndexSchemaDefinition
 	DBCreateSchema string
 	DBEncoding     string
+	Engine         string
 	PreAlters      []Alter
 	PostAlters     []Alter
 }
@@ -41,7 +42,12 @@ func GetAlters(c Context) (alters []Alter) {
 func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	pool := td.EntitySchema.GetDB()
 	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetPoolConfig().GetDatabase(), td.EntitySchema.GetTableName())
-	for _, value := range td.EntityColumns {
+	archived := td.EntitySchema.(*entitySchema).archived
+	for i, value := range td.EntityColumns {
+		if archived && i == 0 {
+			createTableSQL += fmt.Sprintf("  %s AUTO_INCREMENT,\n", value.Definition)
+			continue
+		}
 		createTableSQL += fmt.Sprintf("  %s,\n", value.Definition)
 	}
 	var indexDefinitions []string
@@ -56,7 +62,15 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	createTableSQL += " PRIMARY KEY (`ID`)\n"
 	collate := " COLLATE=" + td.context.Engine().Registry().DefaultDBEncoding() + "_" +
 		td.context.Engine().Registry().DefaultDBCollate()
-	createTableSQL += fmt.Sprintf(") ENGINE=InnoDB DEFAULT CHARSET=%s%s;", td.context.Engine().Registry().DefaultDBEncoding(), collate)
+	engine := "InnoDB"
+	if archived {
+		engine = "ARCHIVE"
+	}
+	createTableSQL += fmt.Sprintf(") ENGINE=%s DEFAULT CHARSET=%s%s", engine, td.context.Engine().Registry().DefaultDBEncoding(), collate)
+	if archived {
+		createTableSQL += " ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8"
+	}
+	createTableSQL += ";"
 	return createTableSQL
 }
 
@@ -185,6 +199,8 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 				for _, field := range strings.Split(lines[x], " ") {
 					if strings.HasPrefix(field, "CHARSET=") {
 						sqlSchema.DBEncoding = field[8:]
+					} else if strings.HasPrefix(field, "ENGINE=") {
+						sqlSchema.Engine = field[7:]
 					}
 				}
 				continue
@@ -231,7 +247,8 @@ func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters,
 		return
 	}
 	hasAlterEngineCharset := sqlSchema.DBEncoding != engine.Registry().DefaultDBEncoding()
-	hasAlters := hasAlterEngineCharset
+	hasAlterEngine := (!entitySchema.archived && sqlSchema.Engine != "InnoDB") || (entitySchema.archived && sqlSchema.Engine != "ARCHIVE")
+	hasAlters := hasAlterEngineCharset || hasAlterEngine
 	hasAlterNormal := false
 
 	var newColumns []string
@@ -397,9 +414,15 @@ OUTER:
 			safe = isEmpty
 		}
 		alters = append(alters, Alter{SQL: alterSQL, Safe: safe, Pool: entitySchema.GetDB().GetPoolConfig().GetCode()})
-	} else if hasAlterEngineCharset {
+	} else if hasAlterEngineCharset || hasAlterEngine {
 		collate := " COLLATE=" + engine.Registry().DefaultDBEncoding() + "_" + engine.Registry().DefaultDBCollate()
-		alterSQL += fmt.Sprintf(" ENGINE=InnoDB DEFAULT CHARSET=%s%s;", engine.Registry().DefaultDBEncoding(), collate)
+		alterSQL += " ENGINE="
+		if entitySchema.archived {
+			alterSQL += "ARCHIVE"
+		} else {
+			alterSQL += "InnoDB"
+		}
+		alterSQL += fmt.Sprintf(" DEFAULT CHARSET=%s%s;", engine.Registry().DefaultDBEncoding(), collate)
 		alters = append(alters, Alter{SQL: alterSQL, Safe: true, Pool: entitySchema.GetDB().GetPoolConfig().GetCode()})
 	}
 	if sqlSchema.PostAlters != nil {
@@ -567,6 +590,9 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 			definition += " DEFAULT " + defaultValue
 		} else if !isNotNull && addDefaultNullIfNullable {
 			definition += " DEFAULT NULL"
+		}
+		if schema.archived && prefix == "" && columnName == "ID" {
+			definition += " AUTO_INCREMENT"
 		}
 		columns = append(columns, &ColumnSchemaDefinition{columnName, fmt.Sprintf("`%s` %s", columnName, definition)})
 	}

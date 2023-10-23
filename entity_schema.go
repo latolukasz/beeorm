@@ -52,6 +52,7 @@ type columnAttrToStringSetter func(v any) (string, error)
 
 type entitySchema struct {
 	tableName                 string
+	archived                  bool
 	mysqlPoolCode             string
 	t                         reflect.Type
 	tSlice                    reflect.Type
@@ -177,8 +178,12 @@ func (e *entitySchema) DropTable(c Context) {
 
 func (e *entitySchema) TruncateTable(c Context) {
 	pool := e.GetDB()
-	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
-	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	if e.archived {
+		_ = pool.Exec(c, fmt.Sprintf("DROP TABLE `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+		e.UpdateSchema(c)
+	} else {
+		_ = pool.Exec(c, fmt.Sprintf("TRUNCATE TABLE `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	}
 }
 
 func (e *entitySchema) UpdateSchema(c Context) {
@@ -246,6 +251,7 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 		return fmt.Errorf("mysql pool '%s' not found", e.mysqlPoolCode)
 	}
 	e.tableName = e.getTag("table", entityType.Name(), entityType.Name())
+	e.archived = e.getTag("archived", "true", "") == "true"
 	redisCacheName := e.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
 		_, has = registry.redisPools[redisCacheName]
