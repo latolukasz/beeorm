@@ -12,6 +12,8 @@ import (
 
 const lazyConsumerPage = 1000
 const lazyConsumerBlockTime = time.Second * 3
+const flushLazyEventsList = "flush_lazy_events"
+const flushLazyEventsListErrorSuffix = ":err"
 
 var mySQLErrorCodesToSkip = []uint16{
 	1022, // Can't write; duplicate key in table '%s'

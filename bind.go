@@ -46,7 +46,7 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 	bind := Bind{}
 	bind["ID"] = strconv.FormatUint(m.id, 10)
 	schema := m.Schema()
-	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.getFields(), "")
+	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.fields, "")
 	if err != nil {
 		return nil, err
 	}
@@ -56,14 +56,14 @@ func (m *insertableEntity[E]) getBind() (Bind, error) {
 func (e *editableEntity[E]) getBind() (newBind, oldBind Bind, err error) {
 	newBind = Bind{}
 	oldBind = Bind{}
-	err = fillBindFromTwoSources(e.c, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), GetEntitySchema[E](e.c).getFields(), "")
+	err = fillBindFromTwoSources(e.c, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), getEntitySchema[E](e.c).fields, "")
 	return
 }
 
 func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
 	bind = Bind{}
 	schema := r.Schema()
-	err = fillBindFromOneSource(r.c, bind, reflect.ValueOf(r.source).Elem(), schema.getFields(), "")
+	err = fillBindFromOneSource(r.c, bind, reflect.ValueOf(r.source).Elem(), schema.fields, "")
 	if err != nil {
 		return nil, err
 	}
@@ -1418,9 +1418,9 @@ func compareSlices(left, right []string) bool {
 	return true
 }
 
-func convertBindToRedisValue(bind Bind, schema EntitySchema) []interface{} {
+func convertBindToRedisValue(bind Bind, schema *entitySchema) []interface{} {
 	values := make([]interface{}, len(bind)+1)
-	values[0] = schema.getStructureHash()
+	values[0] = schema.structureHash
 	for i, column := range schema.GetColumns() {
 		values[i+1] = convertBindValueToRedisValue(bind[column])
 	}

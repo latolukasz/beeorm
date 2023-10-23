@@ -107,7 +107,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 	}
 	alters = make([]Alter, 0)
 	for _, t := range c.Engine().Registry().Entities() {
-		schema := c.Engine().Registry().EntitySchema(t)
+		schema := c.Engine().Registry().EntitySchema(t).(*entitySchema)
 		db := schema.GetDB()
 		tablesInEntities[db.GetPoolConfig().GetCode()][schema.GetTableName()] = true
 		pre, middle, post := getSchemaChanges(c, schema)
@@ -158,7 +158,7 @@ func getAllTables(db DBClient) []string {
 	return tables
 }
 
-func getSchemaChanges(c Context, entitySchema EntitySchema) (preAlters, alters, postAlters []Alter) {
+func getSchemaChanges(c Context, entitySchema *entitySchema) (preAlters, alters, postAlters []Alter) {
 	indexes := make(map[string]*IndexSchemaDefinition)
 	columns, err := checkStruct(c.Engine(), entitySchema, entitySchema.GetType(), indexes, nil, "", -1)
 	checkError(err)
@@ -418,13 +418,13 @@ func isTableEmpty(db DBClient, tableName string) bool {
 	return !rows.Next()
 }
 
-func checkColumn(engine Engine, schema EntitySchema, field *reflect.StructField, indexes map[string]*IndexSchemaDefinition, prefix string) ([]*ColumnSchemaDefinition, error) {
+func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField, indexes map[string]*IndexSchemaDefinition, prefix string) ([]*ColumnSchemaDefinition, error) {
 	var definition string
 	var addNotNullIfNotSet bool
 	addDefaultNullIfNullable := true
 	defaultValue := "nil"
 	columnName := prefix + field.Name
-	attributes := schema.getTags()[columnName]
+	attributes := schema.tags[columnName]
 	_, has := attributes["ignore"]
 	if has {
 		return nil, nil
@@ -714,7 +714,7 @@ type ColumnSchemaDefinition struct {
 	Definition string
 }
 
-func checkStruct(engine Engine, entitySchema EntitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
+func checkStruct(engine Engine, entitySchema *entitySchema, t reflect.Type, indexes map[string]*IndexSchemaDefinition,
 	subField *reflect.StructField, subFieldPrefix string, arrayIndex int) ([]*ColumnSchemaDefinition, error) {
 	columns := make([]*ColumnSchemaDefinition, 0)
 	if subField == nil {

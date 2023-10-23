@@ -12,12 +12,12 @@ func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []inter
 	deserializeStructFromDB(elem, 0, fields, pointers)
 }
 
-func deserializeFromRedis(data []string, schema EntitySchema, elem reflect.Value) bool {
+func deserializeFromRedis(data []string, schema *entitySchema, elem reflect.Value) bool {
 	hash := data[0]
-	if hash != schema.getStructureHash() {
+	if hash != schema.structureHash {
 		return false
 	}
-	deserializeFieldsFromRedis(data, schema.getFields(), elem, 1)
+	deserializeFieldsFromRedis(data, schema.fields, elem, 1)
 	return true
 }
 

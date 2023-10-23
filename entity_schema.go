@@ -11,9 +11,6 @@ import (
 	"time"
 )
 
-const flushLazyEventsList = "flush_lazy_events"
-const flushLazyEventsListErrorSuffix = ":err"
-
 var codeStartTime = uint64(time.Now().Unix())
 
 func GetEntitySchema[E any](c Context) EntitySchema {
@@ -47,10 +44,6 @@ type EntitySchema interface {
 	GetTag(field, key, trueValue, defaultValue string) string
 	GetCacheKey() string
 	DisableCache(local, redis bool)
-	getFields() *tableFields
-	getFieldsQuery() string
-	getStructureHash() string
-	getTags() map[string]map[string]string
 	uuid() uint64
 	getForcedRedisCode() string
 }
@@ -77,11 +70,9 @@ type entitySchema struct {
 	redisCacheName            string
 	hasRedisCache             bool
 	redisCache                *redisCache
-	searchCacheName           string
 	cacheKey                  string
 	lazyCacheKey              string
 	structureHash             string
-	skipLogs                  []string
 	mapBindToScanPointer      mapBindToScanPointer
 	mapPointerToValue         mapPointerToValue
 	uuidServerID              uint64
@@ -400,18 +391,6 @@ func (e *entitySchema) GetTag(field, key, trueValue, defaultValue string) string
 		return userValue
 	}
 	return defaultValue
-}
-
-func (e *entitySchema) getFieldsQuery() string {
-	return e.fieldsQuery
-}
-
-func (e *entitySchema) getStructureHash() string {
-	return e.structureHash
-}
-
-func (e *entitySchema) getTags() map[string]map[string]string {
-	return e.tags
 }
 
 func (e *entitySchema) uuid() uint64 {
@@ -1094,10 +1073,6 @@ func extractTag(registry *Registry, field reflect.StructField) map[string]map[st
 		}
 	}
 	return make(map[string]map[string]string)
-}
-
-func (e *entitySchema) getFields() *tableFields {
-	return e.fields
 }
 
 func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, string) {

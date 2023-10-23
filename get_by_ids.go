@@ -92,7 +92,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 		}
 	}
 	sBuilder := c.getStringBuilder()
-	sBuilder.WriteString("SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (")
+	sBuilder.WriteString("SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (")
 	toSearch := 0
 	if len(missingKeys) > 0 {
 		for i, key := range missingKeys {

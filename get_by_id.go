@@ -51,13 +51,13 @@ func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (
 			}
 		}
 	}
-	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE ID = ? LIMIT 1"
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE ID = ? LIMIT 1"
 	pointers := prepareScan(schema)
 	found := schema.GetDB().QueryRow(c, query, pointers, id)
 	if found {
 		value := reflect.New(schema.t)
 		entity = value.Interface().(*E)
-		deserializeFromDB(schema.getFields(), value.Elem(), pointers)
+		deserializeFromDB(schema.fields, value.Elem(), pointers)
 	}
 	if entity == nil {
 		if schema.hasLocalCache {

@@ -28,10 +28,10 @@ func SearchOne[E any](c Context, where *Where) *E {
 	return searchOne[E](c, where)
 }
 
-func prepareScan(schema EntitySchema) (pointers []interface{}) {
+func prepareScan(schema *entitySchema) (pointers []interface{}) {
 	count := len(schema.GetColumns())
 	pointers = make([]interface{}, count)
-	prepareScanForFields(schema.getFields(), 0, pointers)
+	prepareScanForFields(schema.fields, 0, pointers)
 	return pointers
 }
 
@@ -266,7 +266,7 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	}
 
 	/* #nosec */
-	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 	pointers := prepareScan(schema)
 	found := pool.QueryRow(c, query, pointers, where.GetParameters()...)
 	if !found {
@@ -274,7 +274,7 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	}
 	value := reflect.New(schema.t)
 	entity = value.Interface().(*E)
-	deserializeFromDB(schema.getFields(), value.Elem(), pointers)
+	deserializeFromDB(schema.fields, value.Elem(), pointers)
 	return entity
 }
 
@@ -293,7 +293,7 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT " + schema.getFieldsQuery() + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
 	pool := schema.GetDB()
 	queryResults, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -303,7 +303,7 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 		pointers := prepareScan(schema)
 		queryResults.Scan(pointers...)
 		value := reflect.New(schema.t)
-		deserializeFromDB(schema.getFields(), value.Elem(), pointers)
+		deserializeFromDB(schema.fields, value.Elem(), pointers)
 		entities = append(entities, value.Interface().(*E))
 		i++
 	}

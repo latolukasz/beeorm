@@ -458,7 +458,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
 				sourceValue := update.getSourceValue()
-				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.getFields())
+				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.fields)
 				lc.setEntity(c, operation.ID(), update.getEntity())
 			})
 		}
