@@ -66,6 +66,7 @@ type entitySchema struct {
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
+	cacheAll                  bool
 	hasLocalCache             bool
 	localCache                *localCache
 	redisCacheName            string
@@ -252,6 +253,7 @@ func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
 	}
 	e.tableName = e.getTag("table", entityType.Name(), entityType.Name())
 	e.archived = e.getTag("archived", "true", "") == "true"
+	e.cacheAll = e.getTag("cacheAll", "true", "") == "true"
 	redisCacheName := e.getTag("redisCache", DefaultPoolCode, "")
 	if redisCacheName != "" {
 		_, has = registry.redisPools[redisCacheName]

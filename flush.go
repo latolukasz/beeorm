@@ -174,6 +174,15 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
 			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
+		if schema.cacheAll {
+			if schema.hasLocalCache {
+				c.flushPostActions = append(c.flushPostActions, func() {
+					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
+				})
+			}
+			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
+			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
+		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]string, 6)
@@ -320,6 +329,15 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
+		}
+		if schema.cacheAll {
+			if schema.hasLocalCache {
+				c.flushPostActions = append(c.flushPostActions, func() {
+					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
+				})
+			}
+			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
 			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {

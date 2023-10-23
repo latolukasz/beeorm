@@ -26,14 +26,19 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 	if !def.Cached {
 		return Search[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
 	}
+	defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
+	return getCachedList[E](c, referenceName, id, hasLocalCache, lc, schema, defSchema)
+}
+
+func getCachedList[E any](c Context, referenceName string, id uint64, hasLocalCache bool, lc LocalCache, schema, resultSchema *entitySchema) EntityIterator[E] {
 	if hasLocalCache {
 		fromCache, hasInCache := lc.getReference(c, referenceName, id)
 		if hasInCache {
 			if fromCache == cacheNilValue {
 				return &emptyResultsIterator[E]{}
 			}
-			defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
-			if defSchema.hasLocalCache {
+
+			if resultSchema.hasLocalCache {
 				results := &entityIterator[E]{index: -1}
 				results.rows = fromCache.([]*E)
 				return results
@@ -41,12 +46,12 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 			return GetByIDs[E](c, fromCache.([]uint64)...)
 		}
 	}
-	rc, hasRedisCache := schema.GetRedisCache()
-	if !hasRedisCache {
-		rc = c.Engine().Redis(DefaultPoolCode)
+	rc := c.Engine().Redis(schema.getForcedRedisCode())
+	redisSetKey := schema.cacheKey + ":" + referenceName
+	if id > 0 {
+		idAsString := strconv.FormatUint(id, 10)
+		redisSetKey += ":" + idAsString
 	}
-	idAsString := strconv.FormatUint(id, 10)
-	redisSetKey := schema.cacheKey + ":" + referenceName + ":" + idAsString
 	fromRedis := rc.SMembers(c, redisSetKey)
 	if len(fromRedis) > 0 {
 		ids := make([]uint64, len(fromRedis))
@@ -76,8 +81,7 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 				if values.Len() == 0 {
 					lc.setReference(c, referenceName, id, cacheNilValue)
 				} else {
-					defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
-					if defSchema.hasLocalCache {
+					if resultSchema.hasLocalCache {
 						lc.setReference(c, referenceName, id, values.all())
 					} else {
 						lc.setReference(c, referenceName, id, ids)
@@ -88,7 +92,13 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 		}
 	}
 	if hasLocalCache {
-		ids := SearchIDs[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
+		var where *Where
+		if id > 0 {
+			where = NewWhere("`"+referenceName+"` = ?", id)
+		} else {
+			where = allEntitiesWhere
+		}
+		ids := SearchIDs[E](c, where, nil)
 		if len(ids) == 0 {
 			lc.setReference(c, referenceName, id, cacheNilValue)
 			rc.SAdd(c, redisSetKey, cacheNilValue)
@@ -104,15 +114,20 @@ func GetByReference[E any](c Context, referenceName string, id uint64) EntityIte
 		p.SAdd(redisSetKey, idsForRedis...)
 		p.Exec(c)
 		values := GetByIDs[E](c, ids...)
-		defSchema := c.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
-		if defSchema.hasLocalCache {
+		if resultSchema.hasLocalCache {
 			lc.setReference(c, referenceName, id, values.all())
 		} else {
 			lc.setReference(c, referenceName, id, ids)
 		}
 		return values
 	}
-	values := Search[E](c, NewWhere("`"+referenceName+"` = ?", id), nil)
+	var where *Where
+	if id > 0 {
+		where = NewWhere("`"+referenceName+"` = ?", id)
+	} else {
+		where = allEntitiesWhere
+	}
+	values := Search[E](c, where, nil)
 	if values.Len() == 0 {
 		rc.SAdd(c, redisSetKey, redisValidSetValue, cacheNilValue)
 	} else {
