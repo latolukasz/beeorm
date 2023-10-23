@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func GetByUniqueKey[E any](c Context, indexName string, attributes ...any) *E {
+func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E {
 	var e E
 	schema := c.(*contextImplementation).engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
