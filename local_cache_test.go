@@ -8,7 +8,7 @@ import (
 )
 
 func TestLocalCache(t *testing.T) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	registry.RegisterLocalCache(DefaultPoolCode)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)

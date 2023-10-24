@@ -203,8 +203,8 @@ func TestFlushUpdateUpdateRedis(t *testing.T) {
 }
 
 func testFlushInsert(t *testing.T, lazy, local, redis bool) {
-	registry := &Registry{}
-	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
+	r := NewRegistry()
+	c := PrepareTables(t, r, flushEntity{}, flushEntityReference{})
 
 	schema := GetEntitySchema[flushEntity](c)
 	schema.DisableCache(!local, !redis)
@@ -668,7 +668,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 }
 
 func testFlushDelete(t *testing.T, lazy, local, redis bool) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[flushEntity](c)
@@ -720,7 +720,7 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 }
 
 func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[flushEntity](c)
@@ -1159,7 +1159,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 }
 
 func TestFlushTransaction(t *testing.T) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{})
 
 	schema := GetEntitySchema[flushEntity](c)

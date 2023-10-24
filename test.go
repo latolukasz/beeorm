@@ -20,7 +20,7 @@ func (h *MockLogHandler) Clear() {
 	h.Logs = nil
 }
 
-func PrepareTables(t *testing.T, registry *Registry, entities ...any) (c Context) {
+func PrepareTables(t *testing.T, registry Registry, entities ...any) (c Context) {
 	registry.RegisterMySQL("root:root@tcp(localhost:3377)/test", DefaultPoolCode, &MySQLOptions{})
 	registry.RegisterRedis("localhost:6385", 0, DefaultPoolCode, nil)
 	registry.RegisterRedis("localhost:6385", 1, "second", nil)

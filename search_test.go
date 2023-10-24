@@ -13,7 +13,7 @@ type searchEntity struct {
 
 func TestSearch(t *testing.T) {
 	var entity *searchEntity
-	c := PrepareTables(t, &Registry{}, entity)
+	c := PrepareTables(t, NewRegistry(), entity)
 
 	var ids []uint64
 	for i := 1; i <= 10; i++ {

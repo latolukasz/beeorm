@@ -36,7 +36,7 @@ func TestGetAllLocalRedisCache(t *testing.T) {
 func testGetAll(t *testing.T, local, redis bool) {
 	var entity *getByAllCachedEntity
 	var entityNotCached *getByAllNotCachedEntity
-	c := PrepareTables(t, &Registry{}, entity, entityNotCached)
+	c := PrepareTables(t, NewRegistry(), entity, entityNotCached)
 	schema := GetEntitySchema[getByAllCachedEntity](c)
 	schema.DisableCache(!local, !redis)
 

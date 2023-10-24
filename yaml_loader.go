@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (r *Registry) InitByYaml(yaml map[string]interface{}) {
+func (r *registry) InitByYaml(yaml map[string]interface{}) {
 	for key, data := range yaml {
 		dataAsMap := fixYamlMap(data, "orm")
 		for dataKey, value := range dataAsMap {
@@ -26,7 +26,7 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 	}
 }
 
-func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
+func validateOrmMysqlURI(registry *registry, value interface{}, key string) {
 	def := fixYamlMap(value, key)
 	uri := ""
 	options := &MySQLOptions{}
@@ -50,7 +50,7 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 	registry.RegisterMySQL(uri, key, options)
 }
 
-func validateRedisURI(registry *Registry, value interface{}, key string) {
+func validateRedisURI(registry *registry, value interface{}, key string) {
 	asString, ok := value.(string)
 	if !ok {
 		panic(fmt.Errorf("redis uri '%v' is not valid", value))
@@ -96,7 +96,7 @@ func validateRedisURI(registry *Registry, value interface{}, key string) {
 	registry.RegisterRedis(uri, int(db), key, options)
 }
 
-func validateSentinel(registry *Registry, value interface{}, key string) {
+func validateSentinel(registry *registry, value interface{}, key string) {
 	def := fixYamlMap(value, key)
 	for master, values := range def {
 		asSlice, ok := values.([]interface{})

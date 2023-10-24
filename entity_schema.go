@@ -238,7 +238,7 @@ func (e *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
 	return len(final) > 0, final
 }
 
-func (e *entitySchema) init(registry *Registry, entityType reflect.Type) error {
+func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.t = entityType
 	e.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
 	e.tags = extractTags(registry, entityType, "")
@@ -426,7 +426,7 @@ func (e *entitySchema) DisableCache(local, redis bool) {
 	}
 }
 
-func (e *entitySchema) buildTableFields(t reflect.Type, registry *Registry,
+func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	fields.forcedOldBid = make(map[int]bool)
@@ -988,7 +988,7 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 	}
 }
 
-func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *Registry,
+func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *registry,
 	schemaTags map[string]map[string]string) {
 	if attributes.IsArray {
 		attributes.Fields.structsArray = append(attributes.Fields.structsArray, attributes.Index)
@@ -1005,7 +1005,7 @@ func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, regist
 	}
 }
 
-func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {
+func extractTags(registry *registry, entityType reflect.Type, prefix string) (fields map[string]map[string]string) {
 	fields = make(map[string]map[string]string)
 	for i := 0; i < entityType.NumField(); i++ {
 		field := entityType.Field(i)
@@ -1055,7 +1055,7 @@ func extractTags(registry *Registry, entityType reflect.Type, prefix string) (fi
 	return
 }
 
-func extractTag(registry *Registry, field reflect.StructField) map[string]map[string]string {
+func extractTag(registry *registry, field reflect.StructField) map[string]map[string]string {
 	tag, ok := field.Tag.Lookup("orm")
 	if ok {
 		args := strings.Split(tag, ";")

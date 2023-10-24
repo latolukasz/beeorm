@@ -11,7 +11,7 @@ import (
 )
 
 func TestRedis(t *testing.T) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, nil)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
@@ -178,7 +178,7 @@ func TestRedis(t *testing.T) {
 	r.FlushAll(c)
 	assert.Equal(t, int64(0), r.Exists(c, "a"))
 
-	registry = &Registry{}
+	registry = NewRegistry()
 	registry.RegisterRedis("localhost:6399", 15, DefaultPoolCode, nil)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
@@ -189,7 +189,7 @@ func TestRedis(t *testing.T) {
 		c.Engine().Redis(DefaultPoolCode).Get(c, "invalid")
 	})
 
-	registry = &Registry{}
+	registry = NewRegistry()
 	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, &RedisOptions{User: "user", Password: "pass"})
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)

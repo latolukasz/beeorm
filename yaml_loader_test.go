@@ -62,8 +62,8 @@ func TestYamlLoader(t *testing.T) {
 	})
 
 	invalidYaml = make(map[string]interface{})
-	invalidYaml[DefaultPoolCode] = map[string]interface{}{"mysqlEncoding": 23}
-	assert.PanicsWithError(t, "orm value for default: 23 is not valid", func() {
+	invalidYaml[DefaultPoolCode] = map[string]interface{}{"mysql": map[string]interface{}{"DefaultEncoding": 23}}
+	assert.PanicsWithError(t, "orm value for DefaultEncoding: 23 is not valid", func() {
 		NewRegistry().InitByYaml(invalidYaml)
 	})
 }

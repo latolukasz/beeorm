@@ -17,18 +17,27 @@ import (
 	_ "github.com/go-sql-driver/mysql" // force this mysql driver
 )
 
-type Registry struct {
+type Registry interface {
+	Validate() (Engine, error)
+	RegisterEntity(entity ...any)
+	RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions)
+	RegisterLocalCache(code string)
+	RegisterRedis(address string, db int, poolCode string, options *RedisOptions)
+	InitByYaml(yaml map[string]interface{})
+}
+
+type registry struct {
 	mysqlPools  map[string]MySQLConfig
 	localCaches map[string]LocalCache
 	redisPools  map[string]RedisPoolConfig
 	entities    map[string]reflect.Type
 }
 
-func NewRegistry() *Registry {
-	return &Registry{}
+func NewRegistry() Registry {
+	return &registry{}
 }
 
-func (r *Registry) Validate() (Engine, error) {
+func (r *registry) Validate() (Engine, error) {
 	maxPoolLen := 0
 	e := &engineImplementation{}
 	e.registry = &engineRegistryImplementation{engine: e}
@@ -154,7 +163,7 @@ func (r *Registry) Validate() (Engine, error) {
 	return e, nil
 }
 
-func (r *Registry) RegisterEntity(entity ...any) {
+func (r *registry) RegisterEntity(entity ...any) {
 	if r.entities == nil {
 		r.entities = make(map[string]reflect.Type)
 	}
@@ -179,7 +188,7 @@ type MySQLOptions struct {
 	IgnoredTables      []string
 }
 
-func (r *Registry) RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions) {
+func (r *registry) RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions) {
 	db := &mySQLConfig{code: poolCode, dataSourceName: dataSourceName, options: poolOptions}
 	if r.mysqlPools == nil {
 		r.mysqlPools = make(map[string]MySQLConfig)
@@ -190,7 +199,7 @@ func (r *Registry) RegisterMySQL(dataSourceName string, poolCode string, poolOpt
 	r.mysqlPools[poolCode] = db
 }
 
-func (r *Registry) RegisterLocalCache(code string) {
+func (r *registry) RegisterLocalCache(code string) {
 	if r.localCaches == nil {
 		r.localCaches = make(map[string]LocalCache)
 	}
@@ -205,7 +214,7 @@ type RedisOptions struct {
 	SentinelOptions *redis.FailoverOptions
 }
 
-func (r *Registry) RegisterRedis(address string, db int, poolCode string, options *RedisOptions) {
+func (r *registry) RegisterRedis(address string, db int, poolCode string, options *RedisOptions) {
 	if options != nil && len(options.Sentinels) > 0 {
 		sentinelOptions := options.SentinelOptions
 		if sentinelOptions == nil {
@@ -238,7 +247,7 @@ func (r *Registry) RegisterRedis(address string, db int, poolCode string, option
 	r.registerRedis(client, poolCode, address, db)
 }
 
-func (r *Registry) registerRedis(client *redis.Client, code string, address string, db int) {
+func (r *registry) registerRedis(client *redis.Client, code string, address string, db int) {
 	redisPool := &redisCacheConfig{code: code, client: client, address: address, db: db}
 	if r.redisPools == nil {
 		r.redisPools = make(map[string]RedisPoolConfig)

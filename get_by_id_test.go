@@ -30,7 +30,7 @@ func TestGetByIdLocalRedisCache(t *testing.T) {
 
 func testGetByID(t *testing.T, local, redis bool) {
 	var entity *getByIDEntity
-	c := PrepareTables(t, &Registry{}, entity)
+	c := PrepareTables(t, NewRegistry(), entity)
 	schema := GetEntitySchema[getByIDEntity](c)
 	schema.DisableCache(!local, !redis)
 

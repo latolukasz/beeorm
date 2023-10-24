@@ -43,7 +43,7 @@ func TestGetByReferenceLocalRedisCache(t *testing.T) {
 
 func testGetByReference(t *testing.T, local, redis bool) {
 	var entity *getByReferenceEntity
-	c := PrepareTables(t, &Registry{}, entity, getByReferenceReference{}, getByReferenceReferenceNoCache{})
+	c := PrepareTables(t, NewRegistry(), entity, getByReferenceReference{}, getByReferenceReferenceNoCache{})
 	schema := GetEntitySchema[getByReferenceEntity](c)
 	schema.DisableCache(!local, !redis)
 

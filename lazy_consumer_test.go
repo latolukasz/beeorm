@@ -30,7 +30,7 @@ type flushEntityLazy3 struct {
 }
 
 func TestLazyConsumer(t *testing.T) {
-	registry := &Registry{}
+	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{}, &flushEntityLazy{},
 		&flushEntityLazy2{}, &flushEntityLazy3{}, &flushEntityLazySecondRedis{})
 	schema := getEntitySchema[flushEntity](c)

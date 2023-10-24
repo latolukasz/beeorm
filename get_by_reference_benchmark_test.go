@@ -14,7 +14,7 @@ func BenchmarkGetByReferenceLocalCache(b *testing.B) {
 
 func benchmarkGetByReference(b *testing.B, local, redis bool) {
 	var entity *getByReferenceEntity
-	c := PrepareTables(nil, &Registry{}, entity, getByReferenceReference{})
+	c := PrepareTables(nil, NewRegistry(), entity, getByReferenceReference{})
 	schema := GetEntitySchema[getByReferenceEntity](c)
 	schema.DisableCache(!local, !redis)
 

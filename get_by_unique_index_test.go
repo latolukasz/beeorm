@@ -43,7 +43,7 @@ func TestGetByUniqueIndexLocalRedisCache(t *testing.T) {
 
 func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	var entity *getByUniqueIndexEntity
-	c := PrepareTables(t, &Registry{}, entity, getByUniqueIndexReference{})
+	c := PrepareTables(t, NewRegistry(), entity, getByUniqueIndexReference{})
 	schema := GetEntitySchema[getByUniqueIndexEntity](c)
 	schema.DisableCache(!local, !redis)
 
