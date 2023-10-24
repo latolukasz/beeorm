@@ -1,11 +1,14 @@
 default:
   mysql:
     uri: root:root@tcp(localhost:3308)/test
-    ConnMaxLifetime: 30
-    MaxOpenConnections: 10
-    MaxIdleConnections: 10
-    DefaultEncoding: utf8
-    DefaultCollate: 0900_ai_ci
+    connMaxLifetime: 30
+    maxOpenConnections: 10
+    maxIdleConnections: 10
+    defaultEncoding: utf8
+    defaultCollate: 0900_ai_ci
+    ignoredTables:
+      - table1
+      - table2
   redis: localhost:6385:0
   local_cache: true
 another:

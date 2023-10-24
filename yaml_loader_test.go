@@ -16,54 +16,46 @@ func TestYamlLoader(t *testing.T) {
 	assert.Nil(t, err)
 
 	registry := NewRegistry()
-	registry.InitByYaml(parsedYaml)
-	assert.NotNil(t, registry)
+	err = registry.InitByYaml(parsedYaml)
+	assert.NoError(t, err)
 
 	invalidYaml := make(map[string]interface{})
 	invalidYaml["test"] = "invalid"
-	assert.PanicsWithError(t, "orm yaml key orm is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "orm yaml key orm is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"mysql": []string{}}
-	assert.PanicsWithError(t, "orm yaml key default is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "orm yaml key default is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"redis": "invalid"}
-	assert.PanicsWithError(t, "redis uri 'invalid' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "redis uri 'invalid' is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"redis": "invalid:invalid:invalid"}
-	assert.PanicsWithError(t, "redis uri 'invalid:invalid:invalid' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "redis uri 'invalid:invalid:invalid' is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"redis": []int{1}}
-	assert.PanicsWithError(t, "redis uri '[1]' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "redis uri '[1]' is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"sentinel": map[interface{}]interface{}{"test": "wrong"}}
-	assert.PanicsWithError(t, "sentinel 'map[test:wrong]' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "sentinel 'map[test:wrong]' is not valid")
 
 	invalidYaml = make(map[string]interface{})
 	invalidYaml[DefaultPoolCode] = map[string]interface{}{"sentinel": map[interface{}]interface{}{"master:wrong": []interface{}{}}}
-	assert.PanicsWithError(t, "sentinel db 'map[master:wrong:[]]' is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "sentinel db 'map[master:wrong:[]]' is not valid")
 
 	invalidYaml = make(map[string]interface{})
-	invalidYaml[DefaultPoolCode] = map[string]interface{}{"mysql": map[string]interface{}{"DefaultEncoding": 23}}
-	assert.PanicsWithError(t, "orm value for DefaultEncoding: 23 is not valid", func() {
-		NewRegistry().InitByYaml(invalidYaml)
-	})
+	invalidYaml[DefaultPoolCode] = map[string]interface{}{"mysql": map[string]interface{}{"defaultEncoding": 23}}
+	err = NewRegistry().InitByYaml(invalidYaml)
+	assert.EqualError(t, err, "orm value for defaultEncoding: 23 is not valid")
 }
