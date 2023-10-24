@@ -33,16 +33,16 @@ func (l *LogEntity[Entity]) getLogEntityTarget() reflect.Type {
 //	var tableDef string
 //	hasLogTable := db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SHOW TABLES LIKE '%s'", tableName)), &tableDef)
 //	var logEntitySchema string
-//	if db.GetPoolConfig().GetVersion() == 5 {
+//	if db.GetConfig().GetVersion() == 5 {
 //		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint(11) unsigned NOT NULL AUTO_INCREMENT,\n  "+
 //			"`entity_id` int(10) unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 //			"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-//			db.GetPoolConfig().GetDatabase(), tableName)
+//			db.GetConfig().GetDatabase(), tableName)
 //	} else {
 //		logEntitySchema = fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n  `id` bigint unsigned NOT NULL AUTO_INCREMENT,\n  "+
 //			"`entity_id` int unsigned NOT NULL,\n  `added_at` datetime NOT NULL,\n  `meta` json DEFAULT NULL,\n  `before` json DEFAULT NULL,\n  `changes` json DEFAULT NULL,\n  "+
 //			"PRIMARY KEY (`id`),\n  KEY `entity_id` (`entity_id`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_%s ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=8;",
-//			db.GetPoolConfig().GetDatabase(), tableName, c.Engine().Registry().DefaultDBCollate())
+//			db.GetConfig().GetDatabase(), tableName, c.Engine().Registry().DefaultDBCollate())
 //	}
 //
 //	if !hasLogTable {
@@ -50,13 +50,13 @@ func (l *LogEntity[Entity]) getLogEntityTarget() reflect.Type {
 //	} else {
 //		var skip, createTableDB string
 //		db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", tableName)), &skip, &createTableDB)
-//		createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", db.GetPoolConfig().GetDatabase()), 1) + ";"
+//		createTableDB = strings.Replace(createTableDB, "CREATE TABLE ", fmt.Sprintf("CREATE TABLE `%s`.", db.GetConfig().GetDatabase()), 1) + ";"
 //		re := regexp.MustCompile(" AUTO_INCREMENT=[0-9]+ ")
 //		createTableDB = re.ReplaceAllString(createTableDB, " ")
 //		if logEntitySchema != createTableDB {
 //			db.QueryRow(c, beeorm.NewWhere("1"))
 //			isEmpty := !db.QueryRow(c, beeorm.NewWhere(fmt.Sprintf("SELECT ID FROM `%s`", tableName)))
-//			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetPoolConfig().GetDatabase(), tableName)
+//			dropTableSQL := fmt.Sprintf("DROP TABLE `%s`.`%s`;", db.GetConfig().GetDatabase(), tableName)
 //			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: dropTableSQL, Safe: isEmpty, Pool: poolName.(string)})
 //			sqlSchema.PostAlters = append(sqlSchema.PostAlters, beeorm.Alter{SQL: logEntitySchema, Safe: true, Pool: poolName.(string)})
 //		}

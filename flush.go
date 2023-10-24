@@ -138,7 +138,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 				hSetKey := schema.GetCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(hSetKey, hField)
+					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
 				}
 			}
 		}
@@ -249,7 +249,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
-				c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
+				c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
 		var lazyData []string
@@ -393,11 +393,11 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 					}
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
+					c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
 				hFieldOld, hasKey := buildUniqueKeyHSetField(indexColumns, oldBind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetPoolConfig().GetCode()).HDel(hSetKey, hFieldOld)
+					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}
 			}
 		}
@@ -550,7 +550,7 @@ func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(
 	if c.flushDBActions == nil {
 		c.flushDBActions = make(map[string][]func(db DBBase))
 	}
-	poolCode := schema.GetDB().GetPoolConfig().GetCode()
+	poolCode := schema.GetDB().GetConfig().GetCode()
 	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)
 }
 

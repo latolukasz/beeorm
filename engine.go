@@ -15,8 +15,6 @@ type EngineRegistry interface {
 	LocalCachePools() map[string]LocalCache
 	RedisPools() map[string]RedisCache
 	Entities() map[string]reflect.Type
-	DefaultDBCollate() string
-	DefaultDBEncoding() string
 	getDefaultQueryLogger() LogHandler
 	getDBTables() map[string]map[string]bool
 }
@@ -36,8 +34,6 @@ type engineRegistryImplementation struct {
 	entitySchemas         map[reflect.Type]*entitySchema
 	entityLogSchemas      map[reflect.Type]*entitySchema
 	defaultQueryLogger    *defaultLogLogger
-	defaultDBEncoding     string
-	defaultDBCollate      string
 	dbTables              map[string]map[string]bool
 	lazyConsumerBlockTime time.Duration
 }
@@ -110,14 +106,6 @@ func (er *engineRegistryImplementation) getDBTables() map[string]map[string]bool
 
 func (er *engineRegistryImplementation) Entities() map[string]reflect.Type {
 	return er.entities
-}
-
-func (er *engineRegistryImplementation) DefaultDBCollate() string {
-	return er.defaultDBCollate
-}
-
-func (er *engineRegistryImplementation) DefaultDBEncoding() string {
-	return er.defaultDBEncoding
 }
 
 func (er *engineRegistryImplementation) getDefaultQueryLogger() LogHandler {

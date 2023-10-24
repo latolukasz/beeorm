@@ -19,12 +19,6 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 				validateRedisURI(r, value, key)
 			case "sentinel":
 				validateSentinel(r, value, key)
-			case "mysqlEncoding":
-				valAsString := validateOrmString(value, key)
-				r.SetDefaultEncoding(valAsString)
-			case "mysqlCollate":
-				valAsString := validateOrmString(value, key)
-				r.SetDefaultCollate(valAsString)
 			case "local_cache":
 				r.RegisterLocalCache(key)
 			}
@@ -35,7 +29,7 @@ func (r *Registry) InitByYaml(yaml map[string]interface{}) {
 func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 	def := fixYamlMap(value, key)
 	uri := ""
-	options := MySQLPoolOptions{}
+	options := &MySQLOptions{}
 	for k, v := range def {
 		switch k {
 		case "uri":
@@ -47,9 +41,13 @@ func validateOrmMysqlURI(registry *Registry, value interface{}, key string) {
 			options.MaxOpenConnections = validateOrmInt(v, "MaxOpenConnections")
 		case "MaxIdleConnections":
 			options.MaxIdleConnections = validateOrmInt(v, "MaxIdleConnections")
+		case "DefaultEncoding":
+			options.DefaultEncoding = validateOrmString(v, "DefaultEncoding")
+		case "DefaultCollate":
+			options.DefaultCollate = validateOrmString(v, "DefaultCollate")
 		}
 	}
-	registry.RegisterMySQLPool(uri, options, key)
+	registry.RegisterMySQL(uri, key, options)
 }
 
 func validateRedisURI(registry *Registry, value interface{}, key string) {

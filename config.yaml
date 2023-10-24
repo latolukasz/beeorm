@@ -1,18 +1,12 @@
 default:
-  mysqlEncoding: utf8
-  mysqlCollate: 0900_ai_ci
   mysql:
     uri: root:root@tcp(localhost:3308)/test
     ConnMaxLifetime: 30
     MaxOpenConnections: 10
     MaxIdleConnections: 10
+    DefaultEncoding: utf8
+    DefaultCollate: 0900_ai_ci
   redis: localhost:6385:0
-  streams:
-    stream-1:
-      - test-group-1
-      - test-group-2
-    stream-2:
-      - test-group-1
   local_cache: true
 another:
   sentinel:

@@ -8,45 +8,39 @@ import (
 	"time"
 )
 
-type MySQLPoolConfig interface {
+type MySQLConfig interface {
 	GetCode() string
 	GetDatabase() string
 	GetDataSourceURI() string
+	GetOptions() *MySQLOptions
 	getClient() *sql.DB
-	getAutoincrement() uint64
-	getPoolOptions() MySQLPoolOptions
 }
 
-type mySQLPoolConfig struct {
+type mySQLConfig struct {
 	dataSourceName string
 	code           string
 	databaseName   string
 	client         *sql.DB
-	autoincrement  uint64
-	options        MySQLPoolOptions
+	options        *MySQLOptions
 }
 
-func (p *mySQLPoolConfig) GetCode() string {
+func (p *mySQLConfig) GetCode() string {
 	return p.code
 }
 
-func (p *mySQLPoolConfig) GetDatabase() string {
+func (p *mySQLConfig) GetDatabase() string {
 	return p.databaseName
 }
 
-func (p *mySQLPoolConfig) GetDataSourceURI() string {
+func (p *mySQLConfig) GetDataSourceURI() string {
 	return p.dataSourceName
 }
 
-func (p *mySQLPoolConfig) getClient() *sql.DB {
+func (p *mySQLConfig) getClient() *sql.DB {
 	return p.client
 }
 
-func (p *mySQLPoolConfig) getAutoincrement() uint64 {
-	return p.autoincrement
-}
-
-func (p *mySQLPoolConfig) getPoolOptions() MySQLPoolOptions {
+func (p *mySQLConfig) GetOptions() *MySQLOptions {
 	return p.options
 }
 
@@ -305,7 +299,7 @@ type SQLRow interface {
 }
 
 type DBBase interface {
-	GetPoolConfig() MySQLPoolConfig
+	GetConfig() MySQLConfig
 	GetDBClient() DBClient
 	SetMockDBClient(mock DBClient)
 	Prepare(c Context, query string) (stmt PreparedStmt, close func())
@@ -327,11 +321,11 @@ type DBTransaction interface {
 
 type dbImplementation struct {
 	client      sqlClient
-	config      MySQLPoolConfig
+	config      MySQLConfig
 	transaction bool
 }
 
-func (db *dbImplementation) GetPoolConfig() MySQLPoolConfig {
+func (db *dbImplementation) GetConfig() MySQLConfig {
 	return db.config
 }
 
@@ -473,5 +467,5 @@ func (db *dbImplementation) Query(c Context, query string, args ...interface{}) 
 func (db *dbImplementation) fillLogFields(c Context, operation, query string, start *time.Time, err error) {
 	query = strings.ReplaceAll(query, "\n", " ")
 	_, loggers := c.getDBLoggers()
-	fillLogFields(c, loggers, db.GetPoolConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
+	fillLogFields(c, loggers, db.GetConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
 }

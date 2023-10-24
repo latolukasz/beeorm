@@ -174,16 +174,16 @@ func (e *entitySchema) GetType() reflect.Type {
 
 func (e *entitySchema) DropTable(c Context) {
 	pool := e.GetDB()
-	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	pool.Exec(c, fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetConfig().GetDatabase(), e.tableName))
 }
 
 func (e *entitySchema) TruncateTable(c Context) {
 	pool := e.GetDB()
 	if e.archived {
-		_ = pool.Exec(c, fmt.Sprintf("DROP TABLE `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+		_ = pool.Exec(c, fmt.Sprintf("DROP TABLE `%s`.`%s`", pool.GetConfig().GetDatabase(), e.tableName))
 		e.UpdateSchema(c)
 	} else {
-		_ = pool.Exec(c, fmt.Sprintf("TRUNCATE TABLE `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
+		_ = pool.Exec(c, fmt.Sprintf("TRUNCATE TABLE `%s`.`%s`", pool.GetConfig().GetDatabase(), e.tableName))
 	}
 }
 
@@ -200,8 +200,8 @@ func (e *entitySchema) UpdateSchema(c Context) {
 func (e *entitySchema) UpdateSchemaAndTruncateTable(c Context) {
 	e.UpdateSchema(c)
 	pool := e.GetDB()
-	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetPoolConfig().GetDatabase(), e.tableName))
-	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetPoolConfig().GetDatabase(), e.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("DELETE FROM `%s`.`%s`", pool.GetConfig().GetDatabase(), e.tableName))
+	_ = pool.Exec(c, fmt.Sprintf("ALTER TABLE `%s`.`%s` AUTO_INCREMENT = 1", pool.GetConfig().GetDatabase(), e.tableName))
 }
 
 func (e *entitySchema) GetDB() DB {

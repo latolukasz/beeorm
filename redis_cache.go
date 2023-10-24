@@ -25,7 +25,7 @@ type RedisCache interface {
 	RedisCacheSetter
 	GetSet(c Context, key string, expiration time.Duration, provider func() interface{}) interface{}
 	Info(c Context, section ...string) string
-	GetPoolConfig() RedisPoolConfig
+	GetConfig() RedisPoolConfig
 	Get(c Context, key string) (value string, has bool)
 	Eval(c Context, script string, keys []string, args ...interface{}) interface{}
 	EvalSha(c Context, sha1 string, keys []string, args ...interface{}) (res interface{}, exists bool)
@@ -128,7 +128,7 @@ func (r *redisCache) Info(c Context, section ...string) string {
 	return val
 }
 
-func (r *redisCache) GetPoolConfig() RedisPoolConfig {
+func (r *redisCache) GetConfig() RedisPoolConfig {
 	return r.config
 }
 

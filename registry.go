@@ -18,14 +18,10 @@ import (
 )
 
 type Registry struct {
-	oneAppMode      bool
-	mysqlPools      map[string]MySQLPoolConfig
-	mysqlTables     map[string]map[string]bool
-	localCaches     map[string]LocalCache
-	redisPools      map[string]RedisPoolConfig
-	entities        map[string]reflect.Type
-	defaultEncoding string
-	defaultCollate  string
+	mysqlPools  map[string]MySQLConfig
+	localCaches map[string]LocalCache
+	redisPools  map[string]RedisPoolConfig
+	entities    map[string]reflect.Type
 }
 
 func NewRegistry() *Registry {
@@ -33,27 +29,18 @@ func NewRegistry() *Registry {
 }
 
 func (r *Registry) Validate() (Engine, error) {
-	if r.defaultEncoding == "" {
-		r.defaultEncoding = "utf8mb4"
-	}
-	if r.defaultCollate == "" {
-		r.defaultCollate = "0900_ai_ci"
-	}
 	maxPoolLen := 0
 	e := &engineImplementation{}
 	e.registry = &engineRegistryImplementation{engine: e}
 	e.registry.lazyConsumerBlockTime = lazyConsumerBlockTime
-	e.registry.oneAppMode = r.oneAppMode
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
-	e.registry.defaultDBCollate = r.defaultCollate
-	e.registry.defaultDBEncoding = r.defaultEncoding
-	e.registry.dbTables = r.mysqlTables
 	if e.dbServers == nil {
 		e.dbServers = make(map[string]DB)
 	}
+	e.registry.dbTables = make(map[string]map[string]bool)
 	for k, v := range r.mysqlPools {
 		if len(k) > maxPoolLen {
 			maxPoolLen = len(k)
@@ -62,13 +49,8 @@ func (r *Registry) Validate() (Engine, error) {
 		checkError(err)
 		checkError(err)
 
-		var autoincrement uint64
 		var maxConnections int
 		var skip string
-		err = db.QueryRow("SHOW VARIABLES LIKE 'auto_increment_increment'").Scan(&skip, &autoincrement)
-		checkError(err)
-		v.(*mySQLPoolConfig).autoincrement = autoincrement
-
 		err = db.QueryRow("SHOW VARIABLES LIKE 'max_connections'").Scan(&skip, &maxConnections)
 		checkError(err)
 		var waitTimeout int
@@ -76,25 +58,40 @@ func (r *Registry) Validate() (Engine, error) {
 		checkError(err)
 
 		maxLimit := 100
-		if v.getPoolOptions().MaxOpenConnections > 0 {
-			maxLimit = int(math.Min(float64(v.getPoolOptions().MaxOpenConnections), float64(maxConnections)))
+		if v.GetOptions().MaxOpenConnections > 0 {
+			maxLimit = int(math.Min(float64(v.GetOptions().MaxOpenConnections), float64(maxConnections)))
 		} else {
 			maxLimit = int(math.Min(float64(maxLimit), float64(maxConnections)))
 		}
 		maxIdle := maxLimit
-		if v.getPoolOptions().MaxIdleConnections > 0 {
-			maxIdle = int(math.Min(float64(v.getPoolOptions().MaxIdleConnections), float64(maxLimit)))
+		if v.GetOptions().MaxIdleConnections > 0 {
+			maxIdle = int(math.Min(float64(v.GetOptions().MaxIdleConnections), float64(maxLimit)))
 		}
 		maxDuration := 5 * time.Minute
-		if v.getPoolOptions().ConnMaxLifetime > 0 {
-			maxDuration = time.Duration(int(math.Min(v.getPoolOptions().ConnMaxLifetime.Seconds(), float64(waitTimeout)))) * time.Second
+		if v.GetOptions().ConnMaxLifetime > 0 {
+			maxDuration = time.Duration(int(math.Min(v.GetOptions().ConnMaxLifetime.Seconds(), float64(waitTimeout)))) * time.Second
 		} else {
 			maxDuration = time.Duration(int(math.Min(maxDuration.Seconds(), float64(waitTimeout)))) * time.Second
 		}
 		db.SetMaxOpenConns(maxLimit)
 		db.SetMaxIdleConns(maxIdle)
 		db.SetConnMaxLifetime(maxDuration)
-		v.(*mySQLPoolConfig).client = db
+		options := v.GetOptions()
+		if options.DefaultEncoding == "" {
+			options.DefaultEncoding = "utf8mb4"
+		}
+		if options.DefaultCollate == "" {
+			options.DefaultCollate = "0900_ai_ci"
+		}
+		if len(options.IgnoredTables) > 0 {
+			if e.registry.dbTables[v.GetCode()] == nil {
+				e.registry.dbTables[v.GetCode()] = make(map[string]bool)
+			}
+			for _, ignoredTable := range options.IgnoredTables {
+				e.registry.dbTables[v.GetCode()][ignoredTable] = true
+			}
+		}
+		v.(*mySQLConfig).client = db
 		e.dbServers[k] = &dbImplementation{config: v, client: &standardSQLClient{db: v.getClient()}}
 	}
 	if e.localCacheServers == nil {
@@ -157,18 +154,6 @@ func (r *Registry) Validate() (Engine, error) {
 	return e, nil
 }
 
-func (r *Registry) SetDefaultEncoding(encoding string) {
-	r.defaultEncoding = encoding
-}
-
-func (r *Registry) SetDefaultCollate(collate string) {
-	r.defaultCollate = collate
-}
-
-func (r *Registry) GetDefaultCollate() string {
-	return r.defaultCollate
-}
-
 func (r *Registry) RegisterEntity(entity ...any) {
 	if r.entities == nil {
 		r.entities = make(map[string]reflect.Type)
@@ -185,33 +170,24 @@ func (r *Registry) RegisterEntity(entity ...any) {
 	}
 }
 
-type MySQLPoolOptions struct {
+type MySQLOptions struct {
 	ConnMaxLifetime    time.Duration
 	MaxOpenConnections int
 	MaxIdleConnections int
+	DefaultEncoding    string
+	DefaultCollate     string
+	IgnoredTables      []string
 }
 
-func (r *Registry) RegisterMySQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
-	r.registerSQLPool(dataSourceName, poolOptions, code...)
-}
-
-func (r *Registry) RegisterMySQLTable(pool string, tableName ...string) {
-	if len(tableName) == 0 {
-		return
+func (r *Registry) RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions) {
+	db := &mySQLConfig{code: poolCode, dataSourceName: dataSourceName, options: poolOptions}
+	if r.mysqlPools == nil {
+		r.mysqlPools = make(map[string]MySQLConfig)
 	}
-	if r.mysqlTables == nil {
-		r.mysqlTables = map[string]map[string]bool{pool: {}}
-	}
-	if r.mysqlTables[pool] == nil {
-		r.mysqlTables[pool] = map[string]bool{}
-	}
-	for _, table := range tableName {
-		r.mysqlTables[pool][table] = true
-	}
-}
-
-func (r *Registry) EnableOneAppMode() {
-	r.oneAppMode = true
+	parts := strings.Split(dataSourceName, "/")
+	dbName := strings.Split(parts[len(parts)-1], "?")[0]
+	db.databaseName = dbName
+	r.mysqlPools[poolCode] = db
 }
 
 func (r *Registry) RegisterLocalCache(code string) {
@@ -260,21 +236,6 @@ func (r *Registry) RegisterRedis(address string, db int, poolCode string, option
 	}
 	client := redis.NewClient(redisOptions)
 	r.registerRedis(client, poolCode, address, db)
-}
-
-func (r *Registry) registerSQLPool(dataSourceName string, poolOptions MySQLPoolOptions, code ...string) {
-	dbCode := DefaultPoolCode
-	if len(code) > 0 {
-		dbCode = code[0]
-	}
-	db := &mySQLPoolConfig{code: dbCode, dataSourceName: dataSourceName, options: poolOptions}
-	if r.mysqlPools == nil {
-		r.mysqlPools = make(map[string]MySQLPoolConfig)
-	}
-	parts := strings.Split(dataSourceName, "/")
-	dbName := strings.Split(parts[len(parts)-1], "?")[0]
-	db.databaseName = dbName
-	r.mysqlPools[dbCode] = db
 }
 
 func (r *Registry) registerRedis(client *redis.Client, code string, address string, db int) {
