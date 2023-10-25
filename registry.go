@@ -21,7 +21,7 @@ type Registry interface {
 	Validate() (Engine, error)
 	RegisterEntity(entity ...any)
 	RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions)
-	RegisterLocalCache(code string)
+	RegisterLocalCache(code string, limit int)
 	RegisterRedis(address string, db int, poolCode string, options *RedisOptions)
 	InitByYaml(yaml map[string]interface{}) error
 }
@@ -130,7 +130,7 @@ func (r *registry) Validate() (Engine, error) {
 		e.registry.entitySchemas[entityType] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
-			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema)
+			r.localCaches[schema.GetCacheKey()] = newLocalCache(schema.GetCacheKey(), schema.localCacheLimit, schema)
 		}
 	}
 	for _, entityType := range r.entities {
@@ -204,11 +204,11 @@ func (r *registry) RegisterMySQL(dataSourceName string, poolCode string, poolOpt
 	r.mysqlPools[poolCode] = db
 }
 
-func (r *registry) RegisterLocalCache(code string) {
+func (r *registry) RegisterLocalCache(code string, limit int) {
 	if r.localCaches == nil {
 		r.localCaches = make(map[string]LocalCache)
 	}
-	r.localCaches[code] = newLocalCache(code, nil)
+	r.localCaches[code] = newLocalCache(code, limit, nil)
 }
 
 type RedisOptions struct {

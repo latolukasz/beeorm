@@ -69,6 +69,7 @@ type entitySchema struct {
 	cacheAll                  bool
 	hasLocalCache             bool
 	localCache                *localCache
+	localCacheLimit           int
 	redisCacheName            string
 	hasRedisCache             bool
 	redisCache                *redisCache
@@ -328,7 +329,15 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 
 	e.structureHash = strconv.FormatUint(uint64(h.Sum32()), 10)
 	e.columnMapping = columnMapping
-	e.hasLocalCache = e.getTag("localCache", "true", "") == "true"
+	localCacheLimit := e.getTag("localCache", "0", "")
+	if localCacheLimit != "" {
+		localCacheLimitAsInt, err := strconv.Atoi(localCacheLimit)
+		if err != nil {
+			return fmt.Errorf("invalid local cache pool limit '%s'", localCacheLimit)
+		}
+		e.hasLocalCache = true
+		e.localCacheLimit = localCacheLimitAsInt
+	}
 	e.redisCacheName = redisCacheName
 	e.hasRedisCache = redisCacheName != ""
 	e.cacheKey = cacheKey

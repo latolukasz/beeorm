@@ -10,7 +10,7 @@ default:
       - table1
       - table2
   redis: localhost:6385:0
-  local_cache: true
+  local_cache: 100
 another:
   sentinel:
     master:1:

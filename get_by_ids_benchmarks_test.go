@@ -20,7 +20,7 @@ func BenchmarkGetByIDsRedisCache(b *testing.B) {
 func benchmarkGetByIDsCache(b *testing.B, local, redis bool) {
 	entity := &getByIdsEntity{}
 	registry := NewRegistry()
-	registry.RegisterLocalCache(DefaultPoolCode)
+	registry.RegisterLocalCache(DefaultPoolCode, 0)
 	c := PrepareTables(nil, registry, entity)
 	schema := GetEntitySchema[getByIdsEntity](c)
 	schema.DisableCache(!local, !redis)

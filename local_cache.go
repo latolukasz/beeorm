@@ -25,12 +25,14 @@ type LocalCache interface {
 type localCache struct {
 	code            string
 	cache           *xsync.Map
+	limit           int
+	limitCounter    int
 	cacheEntities   *xsync.MapOf[uint64, any]
 	cacheReferences map[string]*xsync.MapOf[uint64, any]
 }
 
-func newLocalCache(code string, schema *entitySchema) *localCache {
-	c := &localCache{code: code}
+func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
+	c := &localCache{code: code, limit: limit}
 	c.cache = xsync.NewMap()
 	if schema != nil && schema.hasLocalCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {

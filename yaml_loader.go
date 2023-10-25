@@ -17,22 +17,26 @@ func (r *registry) InitByYaml(yaml map[string]interface{}) error {
 		for dataKey, value := range dataAsMap {
 			switch dataKey {
 			case "mysql":
-				err := validateOrmMysqlURI(r, value, key)
+				err = validateOrmMysqlURI(r, value, key)
 				if err != nil {
 					return err
 				}
 			case "redis":
-				err := validateRedisURI(r, value, key)
+				err = validateRedisURI(r, value, key)
 				if err != nil {
 					return err
 				}
 			case "sentinel":
-				err := validateSentinel(r, value, key)
+				err = validateSentinel(r, value, key)
 				if err != nil {
 					return err
 				}
 			case "local_cache":
-				r.RegisterLocalCache(key)
+				limit, err := validateOrmInt(value, key)
+				if err != nil {
+					return err
+				}
+				r.RegisterLocalCache(key, limit)
 			}
 		}
 	}
