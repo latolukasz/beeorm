@@ -27,12 +27,8 @@ type flushStructAnonymous struct {
 }
 
 type testEnum Enum
-type testSet []testEnum
 
 func (s testEnum) EnumValues() interface{} {
-	return testEnumDefinition
-}
-func (s testSet) EnumValues() interface{} {
 	return testEnumDefinition
 }
 
@@ -65,9 +61,9 @@ type flushEntity struct {
 	FloatNullableArray        [2]*float64 `orm:"precision=3;unsigned"`
 	Float32Nullable           *float32    `orm:"precision=4"`
 	Float32NullableArray      [2]*float32 `orm:"precision=4"`
-	SetNullable               testSet
-	SetNullableArray          [2]testSet
-	SetNotNull                testSet `orm:"required"`
+	SetNullable               []testEnum
+	SetNullableArray          [2][]testEnum
+	SetNotNull                []testEnum `orm:"required"`
 	EnumNullable              testEnum
 	EnumNullableArray         [2]testEnum
 	EnumNotNull               testEnum `orm:"required"`
@@ -253,7 +249,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.Nil(t, entity.FloatNullable)
 	assert.Nil(t, entity.Float32Nullable)
 	assert.Nil(t, entity.SetNullable)
-	assert.Equal(t, testSet{testEnumDefinition.A}, entity.SetNotNull)
+	assert.Equal(t, []testEnum{testEnumDefinition.A}, entity.SetNotNull)
 	assert.Equal(t, testEnum(""), entity.EnumNullable)
 	assert.Equal(t, testEnumDefinition.A, entity.EnumNotNull)
 	assert.Nil(t, entity.Blob)
@@ -333,8 +329,8 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	newEntity.FloatNullable = &floatNullable
 	float32Nullable := float32(12.24)
 	newEntity.Float32Nullable = &float32Nullable
-	newEntity.SetNullable = testSet{testEnumDefinition.B, testEnumDefinition.C}
-	newEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
+	newEntity.SetNullable = []testEnum{testEnumDefinition.B, testEnumDefinition.C}
+	newEntity.SetNotNull = []testEnum{testEnumDefinition.A, testEnumDefinition.C}
 	newEntity.EnumNullable = testEnumDefinition.C
 	newEntity.EnumNotNull = testEnumDefinition.A
 	newEntity.Blob = []byte("test binary")
@@ -392,7 +388,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 		newEntity.Float64UnsignedArray[i] = float64(i + 1)
 		newEntity.Float64SignedArray[i] = float64(i + 1)
 		newEntity.Float32NullableArray[i] = &newEntity.Float32Array[i]
-		newEntity.SetNullableArray[i] = testSet{testEnumDefinition.B, testEnumDefinition.C}
+		newEntity.SetNullableArray[i] = []testEnum{testEnumDefinition.B, testEnumDefinition.C}
 		newEntity.EnumNullableArray[i] = testEnumDefinition.C
 		newEntity.BlobArray[i] = []byte(fmt.Sprintf("Test %d", i))
 		newEntity.DecimalNullableArray[i] = &newEntity.DecimalArray[i]
@@ -424,8 +420,8 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	assert.True(t, *entity.BoolNullable)
 	assert.Equal(t, 12.23, *entity.FloatNullable)
 	assert.Equal(t, float32(12.24), *entity.Float32Nullable)
-	assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullable)
-	assert.Equal(t, testSet{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
+	assert.Equal(t, []testEnum{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullable)
+	assert.Equal(t, []testEnum{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
 	assert.Equal(t, testEnumDefinition.C, entity.EnumNullable)
 	assert.Equal(t, testEnumDefinition.A, entity.EnumNotNull)
 	assert.Equal(t, []byte("test binary"), entity.Blob)
@@ -465,7 +461,7 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 		assert.Equal(t, i+1, *entity.IntNullableArray[i])
 		assert.True(t, *entity.BoolNullableArray[i])
 		assert.Equal(t, float32(i+1), *entity.Float32NullableArray[i])
-		assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
+		assert.Equal(t, []testEnum{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
 		assert.Equal(t, testEnumDefinition.C, entity.EnumNullableArray[i])
 		assert.Equal(t, []byte(fmt.Sprintf("Test %d", i)), entity.BlobArray[i])
 		assert.True(t, entity.BoolArray[i])
@@ -602,11 +598,11 @@ func testFlushInsert(t *testing.T, lazy, local, redis bool) {
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	newEntity.SetNotNull = testSet{}
+	newEntity.SetNotNull = []testEnum{}
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	newEntity.SetNotNull = testSet{"invalid"}
+	newEntity.SetNotNull = []testEnum{"invalid"}
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
@@ -765,8 +761,8 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	editedEntity.FloatNullable = &floatNullable
 	float32Nullable := float32(12.24)
 	editedEntity.Float32Nullable = &float32Nullable
-	editedEntity.SetNullable = testSet{testEnumDefinition.B, testEnumDefinition.C}
-	editedEntity.SetNotNull = testSet{testEnumDefinition.A, testEnumDefinition.C}
+	editedEntity.SetNullable = []testEnum{testEnumDefinition.B, testEnumDefinition.C}
+	editedEntity.SetNotNull = []testEnum{testEnumDefinition.A, testEnumDefinition.C}
 	editedEntity.EnumNullable = testEnumDefinition.C
 	editedEntity.EnumNotNull = testEnumDefinition.A
 	editedEntity.Blob = []byte("test binary")
@@ -823,7 +819,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 		editedEntity.Float64UnsignedArray[i] = float64(i + 1)
 		editedEntity.Float64SignedArray[i] = float64(i + 1)
 		editedEntity.Float32NullableArray[i] = &editedEntity.Float32Array[i]
-		editedEntity.SetNullableArray[i] = testSet{testEnumDefinition.B, testEnumDefinition.C}
+		editedEntity.SetNullableArray[i] = []testEnum{testEnumDefinition.B, testEnumDefinition.C}
 		editedEntity.EnumNullableArray[i] = testEnumDefinition.C
 		editedEntity.BlobArray[i] = []byte(fmt.Sprintf("Test %d", i))
 		editedEntity.DecimalNullableArray[i] = &editedEntity.DecimalArray[i]
@@ -865,8 +861,8 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	assert.True(t, *entity.BoolNullable)
 	assert.Equal(t, 12.23, *entity.FloatNullable)
 	assert.Equal(t, float32(12.24), *entity.Float32Nullable)
-	assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullable)
-	assert.Equal(t, testSet{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
+	assert.Equal(t, []testEnum{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullable)
+	assert.Equal(t, []testEnum{testEnumDefinition.A, testEnumDefinition.C}, entity.SetNotNull)
 	assert.Equal(t, testEnumDefinition.C, entity.EnumNullable)
 	assert.Equal(t, testEnumDefinition.A, entity.EnumNotNull)
 	assert.Equal(t, []byte("test binary"), entity.Blob)
@@ -905,7 +901,7 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 		assert.Equal(t, i+1, *entity.IntNullableArray[i])
 		assert.True(t, *entity.BoolNullableArray[i])
 		assert.Equal(t, float32(i+1), *entity.Float32NullableArray[i])
-		assert.Equal(t, testSet{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
+		assert.Equal(t, []testEnum{testEnumDefinition.B, testEnumDefinition.C}, entity.SetNullableArray[i])
 		assert.Equal(t, testEnumDefinition.C, entity.EnumNullableArray[i])
 		assert.Equal(t, []byte(fmt.Sprintf("Test %d", i)), entity.BlobArray[i])
 		assert.True(t, entity.BoolArray[i])
@@ -1008,13 +1004,13 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 
 	// same set
 	editedEntity = EditEntity(c, editedEntity).TrackedEntity()
-	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B}
-	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A}
+	editedEntity.SetNullable = []testEnum{testEnumDefinition.C, testEnumDefinition.B}
+	editedEntity.SetNotNull = []testEnum{testEnumDefinition.C, testEnumDefinition.A}
 	assert.NoError(t, c.Flush(lazy))
 	assert.Len(t, loggerDB.Logs, 0)
 	editedEntity = EditEntity(c, editedEntity).TrackedEntity()
-	editedEntity.SetNullable = testSet{testEnumDefinition.C, testEnumDefinition.B, testEnumDefinition.B}
-	editedEntity.SetNotNull = testSet{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
+	editedEntity.SetNullable = []testEnum{testEnumDefinition.C, testEnumDefinition.B, testEnumDefinition.B}
+	editedEntity.SetNotNull = []testEnum{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
 	assert.NoError(t, c.Flush(lazy))
 	assert.Len(t, loggerDB.Logs, 0)
 
@@ -1092,15 +1088,15 @@ func testFlushUpdate(t *testing.T, lazy, local, redis bool) {
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	editedEntity.SetNotNull = testSet{}
+	editedEntity.SetNotNull = []testEnum{}
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	editedEntity.SetNotNull = testSet{"invalid"}
+	editedEntity.SetNotNull = []testEnum{"invalid"}
 	err = c.Flush(lazy)
 	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	editedEntity.SetNotNull = testSet{testEnumDefinition.B}
+	editedEntity.SetNotNull = []testEnum{testEnumDefinition.B}
 	c.ClearFlush()
 
 	// Time

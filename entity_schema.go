@@ -519,11 +519,10 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 				e.buildStructField(attributes, registry, schemaTags)
 			} else if fType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				definition := reflect.New(fType).Interface().(EnumValues).EnumValues()
-				if fType.Kind().String() == "string" {
-					e.buildEnumField(attributes, definition)
-				} else {
-					e.buildStringSliceField(attributes, definition)
-				}
+				e.buildEnumField(attributes, definition)
+			} else if k == "slice" && fType.Elem().Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+				definition := reflect.New(fType.Elem()).Interface().(EnumValues).EnumValues()
+				e.buildStringSliceField(attributes, definition)
 			} else if fType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
 				e.buildReferenceField(attributes)
 				if attributes.Tags["cached"] == "true" {

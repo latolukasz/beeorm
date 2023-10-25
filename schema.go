@@ -567,15 +567,14 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 			} else if fieldType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
 				definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
 			} else if fieldType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
-				fieldDef := "ENUM"
-				if fieldType.Kind().String() == "slice" {
-					fieldDef = "SET"
-				}
 				def := reflect.New(fieldType).Interface().(EnumValues)
-				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum(fieldDef, schema, def, !isRequired)
+				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("ENUM", schema, def, !isRequired)
 				if err != nil {
 					return nil, err
 				}
+			} else if kind == "slice" && fieldType.Elem().Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
+				def := reflect.New(fieldType.Elem()).Interface().(EnumValues)
+				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("SET", schema, def, !isRequired)
 			} else {
 				return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
 			}

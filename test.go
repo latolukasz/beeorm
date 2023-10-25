@@ -28,7 +28,6 @@ func PrepareTables(t *testing.T, registry Registry, entities ...any) (c Context)
 
 	registry.RegisterEntity(entities...)
 	engine, err := registry.Validate()
-	registry.RegisterEntity(entities...)
 	if err != nil {
 		if t != nil {
 			assert.NoError(t, err)
