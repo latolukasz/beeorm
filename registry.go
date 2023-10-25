@@ -55,16 +55,21 @@ func (r *registry) Validate() (Engine, error) {
 			maxPoolLen = len(k)
 		}
 		db, err := sql.Open("mysql", v.GetDataSourceURI())
-		checkError(err)
-		checkError(err)
+		if err != nil {
+			return nil, err
+		}
 
 		var maxConnections int
 		var skip string
 		err = db.QueryRow("SHOW VARIABLES LIKE 'max_connections'").Scan(&skip, &maxConnections)
-		checkError(err)
+		if err != nil {
+			return nil, err
+		}
 		var waitTimeout int
 		err = db.QueryRow("SHOW VARIABLES LIKE 'wait_timeout'").Scan(&skip, &waitTimeout)
-		checkError(err)
+		if err != nil {
+			return nil, err
+		}
 
 		maxLimit := 100
 		if v.GetOptions().MaxOpenConnections > 0 {
