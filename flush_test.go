@@ -26,7 +26,7 @@ type flushStructAnonymous struct {
 	SubAge  float32 `orm:"decimal=9,5;unsigned=false"`
 }
 
-type testEnum Enum
+type testEnum string
 
 func (s testEnum) EnumValues() interface{} {
 	return testEnumDefinition

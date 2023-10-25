@@ -4,8 +4,6 @@ import (
 	"reflect"
 )
 
-type Enum string
-
 type EnumValues interface {
 	EnumValues() interface{}
 }
