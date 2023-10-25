@@ -19,7 +19,7 @@ another:
       - 192.156.23.12:26379
 third:
   sentinel:
-    master2:2:second_namespace:
+    master2:2:
       - :26380
       - 192.156.23.15:26379
       - 192.156.23.16:26379
