@@ -26,7 +26,6 @@ type localCache struct {
 	code            string
 	cache           *xsync.Map
 	limit           int
-	limitCounter    int
 	cacheEntities   *xsync.MapOf[uint64, any]
 	cacheReferences map[string]*xsync.MapOf[uint64, any]
 }
@@ -88,6 +87,9 @@ func (lc *localCache) getReference(c Context, reference string, id uint64) (valu
 
 func (lc *localCache) Set(c Context, key string, value interface{}) {
 	lc.cache.Store(key, value)
+	if lc.limit > 0 && lc.cache.Size() > lc.limit {
+		lc.makeSpace(lc.cache, key)
+	}
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "SET ENTITY", fmt.Sprintf("SET %s %v", key, value), false)
@@ -96,10 +98,33 @@ func (lc *localCache) Set(c Context, key string, value interface{}) {
 
 func (lc *localCache) setEntity(c Context, id uint64, value any) {
 	lc.cacheEntities.Store(id, value)
+	if lc.limit > 0 && lc.cacheEntities.Size() > lc.limit {
+		lc.makeSpaceUint(lc.cacheEntities, id)
+	}
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(c, "SET", fmt.Sprintf("SET ENTITY %d [entity value]", id), false)
 	}
+}
+
+func (lc *localCache) makeSpace(cache *xsync.Map, addedKey string) {
+	cache.Range(func(key string, value interface{}) bool {
+		if key != addedKey {
+			cache.Delete(key)
+			return false
+		}
+		return true
+	})
+}
+
+func (lc *localCache) makeSpaceUint(cache *xsync.MapOf[uint64, any], addedKey uint64) {
+	cache.Range(func(key uint64, value interface{}) bool {
+		if key != addedKey {
+			cache.Delete(key)
+			return false
+		}
+		return true
+	})
 }
 
 func (lc *localCache) setReference(c Context, reference string, id uint64, value any) {
