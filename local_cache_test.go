@@ -20,7 +20,8 @@ func TestLocalCache(t *testing.T) {
 	c.RegisterQueryLogger(testQueryLog, false, false, true)
 
 	lc := c.Engine().LocalCache(DefaultPoolCode)
-	assert.Equal(t, DefaultPoolCode, lc.GetCode())
+	assert.Equal(t, DefaultPoolCode, lc.GetConfig().GetCode())
+	assert.Equal(t, 0, lc.GetConfig().GetLimit())
 
 	val, has := lc.Get(c, "test_get")
 	assert.False(t, has)
@@ -32,6 +33,8 @@ func TestLocalCache(t *testing.T) {
 	assert.Equal(t, "hello", val)
 
 	lcLimit := c.Engine().LocalCache("with_limit")
+	assert.Equal(t, "with_limit", lcLimit.GetConfig().GetCode())
+	assert.Equal(t, 3, lcLimit.GetConfig().GetLimit())
 	lcLimit.Set(c, "1", "1")
 	lcLimit.Set(c, "2", "2")
 	lcLimit.Set(c, "3", "3")

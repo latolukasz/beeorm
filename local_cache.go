@@ -7,31 +7,48 @@ import (
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
+type LocalCacheConfig interface {
+	GetCode() string
+	GetLimit() int
+}
+
+type localCacheConfig struct {
+	code  string
+	limit int
+}
+
+func (c *localCacheConfig) GetCode() string {
+	return c.code
+}
+
+func (c *localCacheConfig) GetLimit() int {
+	return c.limit
+}
+
 type LocalCache interface {
 	Set(c Context, key string, value interface{})
 	Remove(c Context, key string)
-	GetCode() string
+	GetConfig() LocalCacheConfig
 	Get(c Context, key string) (value interface{}, ok bool)
+	Clear(c Context)
+	GetObjectsCount() int
 	getEntity(c Context, id uint64) (value any, ok bool)
 	setEntity(c Context, id uint64, value any)
 	removeEntity(c Context, id uint64)
 	getReference(c Context, reference string, id uint64) (value any, ok bool)
 	setReference(c Context, reference string, id uint64, value any)
 	removeReference(c Context, reference string, id uint64)
-	Clear(c Context)
-	GetObjectsCount() int
 }
 
 type localCache struct {
-	code            string
+	config          *localCacheConfig
 	cache           *xsync.Map
-	limit           int
 	cacheEntities   *xsync.MapOf[uint64, any]
 	cacheReferences map[string]*xsync.MapOf[uint64, any]
 }
 
 func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
-	c := &localCache{code: code, limit: limit}
+	c := &localCache{config: &localCacheConfig{code: code, limit: limit}}
 	c.cache = xsync.NewMap()
 	if schema != nil && schema.hasLocalCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
@@ -54,8 +71,8 @@ func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
 	return c
 }
 
-func (lc *localCache) GetCode() string {
-	return lc.code
+func (lc *localCache) GetConfig() LocalCacheConfig {
+	return lc.config
 }
 
 func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
@@ -87,7 +104,7 @@ func (lc *localCache) getReference(c Context, reference string, id uint64) (valu
 
 func (lc *localCache) Set(c Context, key string, value interface{}) {
 	lc.cache.Store(key, value)
-	if lc.limit > 0 && lc.cache.Size() > lc.limit {
+	if lc.config.limit > 0 && lc.cache.Size() > lc.config.limit {
 		lc.makeSpace(lc.cache, key)
 	}
 	hasLog, _ := c.getLocalCacheLoggers()
@@ -98,7 +115,7 @@ func (lc *localCache) Set(c Context, key string, value interface{}) {
 
 func (lc *localCache) setEntity(c Context, id uint64, value any) {
 	lc.cacheEntities.Store(id, value)
-	if lc.limit > 0 && lc.cacheEntities.Size() > lc.limit {
+	if lc.config.limit > 0 && lc.cacheEntities.Size() > lc.config.limit {
 		lc.makeSpaceUint(lc.cacheEntities, id)
 	}
 	hasLog, _ := c.getLocalCacheLoggers()
@@ -190,5 +207,5 @@ func (lc *localCache) GetObjectsCount() int {
 
 func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {
 	_, loggers := c.getLocalCacheLoggers()
-	fillLogFields(c, loggers, lc.code, sourceLocalCache, operation, query, nil, cacheMiss, nil)
+	fillLogFields(c, loggers, lc.config.code, sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

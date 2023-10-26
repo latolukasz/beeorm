@@ -10,7 +10,7 @@ import (
 
 type MySQLConfig interface {
 	GetCode() string
-	GetDatabase() string
+	GetDatabaseName() string
 	GetDataSourceURI() string
 	GetOptions() *MySQLOptions
 	getClient() *sql.DB
@@ -28,7 +28,7 @@ func (p *mySQLConfig) GetCode() string {
 	return p.code
 }
 
-func (p *mySQLConfig) GetDatabase() string {
+func (p *mySQLConfig) GetDatabaseName() string {
 	return p.databaseName
 }
 

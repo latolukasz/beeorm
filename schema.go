@@ -41,7 +41,7 @@ func GetAlters(c Context) (alters []Alter) {
 
 func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	pool := td.EntitySchema.GetDB()
-	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetConfig().GetDatabase(), td.EntitySchema.GetTableName())
+	createTableSQL := fmt.Sprintf("CREATE TABLE `%s`.`%s` (\n", pool.GetConfig().GetDatabaseName(), td.EntitySchema.GetTableName())
 	archived := td.EntitySchema.(*entitySchema).archived
 	for i, value := range td.EntityColumns {
 		if archived && i == 0 {
@@ -136,7 +136,7 @@ func getAlters(c Context) (preAlters, alters, postAlters []Alter) {
 				_, has = c.Engine().Registry().getDBTables()[poolName][tableName]
 				if !has {
 					pool := c.Engine().DB(poolName)
-					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetConfig().GetDatabase(), tableName)
+					dropSQL := fmt.Sprintf("DROP TABLE IF EXISTS `%s`.`%s`;", pool.GetConfig().GetDatabaseName(), tableName)
 					isEmpty := isTableEmptyInPool(c, poolName, tableName)
 					alters = append(alters, Alter{SQL: dropSQL, Safe: isEmpty, Pool: poolName})
 				}
@@ -356,7 +356,7 @@ OUTER:
 		return
 	}
 
-	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetConfig().GetDatabase(), entitySchema.GetTableName())
+	alterSQL := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetConfig().GetDatabaseName(), entitySchema.GetTableName())
 	newAlters := make([]string, 0)
 	comments := make([]string, 0)
 

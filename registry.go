@@ -262,7 +262,7 @@ func (r *registry) registerRedis(client *redis.Client, code string, address stri
 
 type RedisPoolConfig interface {
 	GetCode() string
-	GetDatabase() int
+	GetDatabaseNumber() int
 	GetAddress() string
 	getClient() *redis.Client
 }
@@ -278,7 +278,7 @@ func (p *redisCacheConfig) GetCode() string {
 	return p.code
 }
 
-func (p *redisCacheConfig) GetDatabase() int {
+func (p *redisCacheConfig) GetDatabaseNumber() int {
 	return p.db
 }
 
