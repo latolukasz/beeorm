@@ -28,7 +28,7 @@ type flushStructAnonymous struct {
 
 type testEnum string
 
-func (s testEnum) EnumValues() interface{} {
+func (s testEnum) EnumValues() any {
 	return testEnumDefinition
 }
 

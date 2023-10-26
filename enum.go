@@ -5,7 +5,7 @@ import (
 )
 
 type EnumValues interface {
-	EnumValues() interface{}
+	EnumValues() any
 }
 
 type enumDefinition struct {
