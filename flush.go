@@ -89,9 +89,9 @@ func (c *contextImplementation) ClearFlush() {
 }
 
 func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, operations []EntityFlush) error {
-	var args []interface{}
+	var args []any
 	if !lazy {
-		args = make([]interface{}, len(operations))
+		args = make([]any, len(operations))
 	}
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
@@ -223,9 +223,9 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		s.WriteString("`")
 	}
 	s.WriteString(") VALUES")
-	var args []interface{}
+	var args []any
 	if !lazy {
-		args = make([]interface{}, 0, len(operations)*len(columns))
+		args = make([]any, 0, len(operations)*len(columns))
 	}
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
@@ -412,12 +412,12 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		s := c.getStringBuilder2()
 		s.WriteString(queryPrefix)
 		k := 0
-		var args []interface{}
+		var args []any
 		var lazyArgs []string
 		if lazy {
 			lazyArgs = make([]string, len(newBind)+2)
 		} else {
-			args = make([]interface{}, len(newBind)+1)
+			args = make([]any, len(newBind)+1)
 		}
 		for column, value := range newBind {
 			if k > 0 {

@@ -25,14 +25,14 @@ func TestRedis(t *testing.T) {
 	testLogger.Clear()
 
 	valid := false
-	val := r.GetSet(c, "test_get_set", time.Second*10, func() interface{} {
+	val := r.GetSet(c, "test_get_set", time.Second*10, func() any {
 		valid = true
 		return "ok"
 	})
 	assert.True(t, valid)
 	assert.Equal(t, "ok", val)
 	valid = false
-	val = r.GetSet(c, "test_get_set", time.Second*10, func() interface{} {
+	val = r.GetSet(c, "test_get_set", time.Second*10, func() any {
 		valid = true
 		return "ok"
 	})
@@ -83,7 +83,7 @@ func TestRedis(t *testing.T) {
 
 	r.HSet(c, "test_map", "last", "Summer", "age", "16")
 	assert.Equal(t, map[string]string{"age": "16", "last": "Summer", "name": "Tom"}, r.HGetAll(c, "test_map"))
-	assert.Equal(t, map[string]interface{}{"age": "16", "missing": nil, "name": "Tom"}, r.HMGet(c, "test_map",
+	assert.Equal(t, map[string]any{"age": "16", "missing": nil, "name": "Tom"}, r.HMGet(c, "test_map",
 		"name", "age", "missing"))
 
 	r.HDel(c, "test_map", "age")
@@ -140,7 +140,7 @@ func TestRedis(t *testing.T) {
 	assert.Equal(t, int64(0), r.ZCount(c, "test_z", "10", "20"))
 
 	r.MSet(c, "key_1", "a", "key_2", "b")
-	assert.Equal(t, []interface{}{"a", "b", nil}, r.MGet(c, "key_1", "key_2", "missing"))
+	assert.Equal(t, []any{"a", "b", nil}, r.MGet(c, "key_1", "key_2", "missing"))
 
 	added = r.SAdd(c, "test_s", "a", "b", "c", "d", "a")
 	assert.Equal(t, int64(4), added)

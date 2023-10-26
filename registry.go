@@ -23,7 +23,7 @@ type Registry interface {
 	RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions)
 	RegisterLocalCache(code string, limit int)
 	RegisterRedis(address string, db int, poolCode string, options *RedisOptions)
-	InitByYaml(yaml map[string]interface{}) error
+	InitByYaml(yaml map[string]any) error
 }
 
 type registry struct {

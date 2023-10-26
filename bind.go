@@ -38,7 +38,7 @@ func (d *DuplicatedKeyBindError) Error() string {
 	return "duplicated value for unique index '" + d.Index + "'"
 }
 
-func (b Bind) Get(key string) interface{} {
+func (b Bind) Get(key string) any {
 	return b[key]
 }
 
@@ -1418,8 +1418,8 @@ func compareSlices(left, right []string) bool {
 	return true
 }
 
-func convertBindToRedisValue(bind Bind, schema *entitySchema) []interface{} {
-	values := make([]interface{}, len(bind)+1)
+func convertBindToRedisValue(bind Bind, schema *entitySchema) []any {
+	values := make([]any, len(bind)+1)
 	values[0] = schema.structureHash
 	for i, column := range schema.GetColumns() {
 		values[i+1] = convertBindValueToRedisValue(bind[column])

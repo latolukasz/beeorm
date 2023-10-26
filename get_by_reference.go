@@ -104,7 +104,7 @@ func getCachedList[E any](c Context, referenceName string, id uint64, hasLocalCa
 			rc.SAdd(c, redisSetKey, cacheNilValue)
 			return &emptyResultsIterator[E]{}
 		}
-		idsForRedis := make([]interface{}, len(ids))
+		idsForRedis := make([]any, len(ids))
 		for i, value := range ids {
 			idsForRedis[i] = strconv.FormatUint(value, 10)
 		}
@@ -131,7 +131,7 @@ func getCachedList[E any](c Context, referenceName string, id uint64, hasLocalCa
 	if values.Len() == 0 {
 		rc.SAdd(c, redisSetKey, redisValidSetValue, cacheNilValue)
 	} else {
-		idsForRedis := make([]interface{}, values.Len()+1)
+		idsForRedis := make([]any, values.Len()+1)
 		idsForRedis[0] = redisValidSetValue
 		i := 0
 		for values.Next() {

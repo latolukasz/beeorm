@@ -94,13 +94,13 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 
-	numbers := []interface{}{uint8(4), uint16(4), uint32(4), uint(4), "4", int8(4), int16(4), int32(4), int64(4)}
+	numbers := []any{uint8(4), uint16(4), uint32(4), uint(4), "4", int8(4), int16(4), int32(4), int64(4)}
 	for _, number := range numbers {
 		entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Multi", number, 0)
 		assert.Equal(t, "Name 4", entity.Name)
 	}
 
-	negativeNumbers := []interface{}{int8(-4), int16(-4), int32(-4), int(-4), int8(-4), int16(-4), int32(-4), int64(-4)}
+	negativeNumbers := []any{int8(-4), int16(-4), int32(-4), int(-4), int8(-4), int16(-4), int32(-4), int64(-4)}
 	for _, number := range negativeNumbers {
 		assert.PanicsWithError(t, "unsigned number for column `Age` not allowed", func() {
 			entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Multi", number, 0)

@@ -28,7 +28,7 @@ type defaultLogLogger struct {
 	logger     *log.Logger
 }
 
-func (d *defaultLogLogger) Handle(_ Context, fields map[string]interface{}) {
+func (d *defaultLogLogger) Handle(_ Context, fields map[string]any) {
 	row := beeORMLogo
 	switch fields["source"] {
 	case "mysql":
@@ -62,7 +62,7 @@ func (d *defaultLogLogger) Handle(_ Context, fields map[string]interface{}) {
 }
 
 type LogHandler interface {
-	Handle(c Context, log map[string]interface{})
+	Handle(c Context, log map[string]any)
 }
 
 func (c *contextImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
@@ -106,7 +106,7 @@ func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) [
 }
 
 func fillLogFields(context Context, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
-	fields := map[string]interface{}{
+	fields := map[string]any{
 		"operation": operation,
 		"query":     query,
 		"pool":      pool,

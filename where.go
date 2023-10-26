@@ -7,35 +7,35 @@ import (
 
 type Where struct {
 	query      string
-	parameters []interface{}
+	parameters []any
 }
 
 func (where *Where) String() string {
 	return where.query
 }
 
-func (where *Where) SetParameter(index int, param interface{}) *Where {
+func (where *Where) SetParameter(index int, param any) *Where {
 	where.parameters[index-1] = param
 	return where
 }
 
-func (where *Where) SetParameters(params ...interface{}) *Where {
+func (where *Where) SetParameters(params ...any) *Where {
 	where.parameters = params
 	return where
 }
 
-func (where *Where) GetParameters() []interface{} {
+func (where *Where) GetParameters() []any {
 	return where.parameters
 }
 
-func (where *Where) Append(query string, parameters ...interface{}) {
+func (where *Where) Append(query string, parameters ...any) {
 	newWhere := NewWhere(query, parameters...)
 	where.query += newWhere.query
 	where.parameters = append(where.parameters, newWhere.parameters...)
 }
 
-func NewWhere(query string, parameters ...interface{}) *Where {
-	finalParameters := make([]interface{}, 0, len(parameters))
+func NewWhere(query string, parameters ...any) *Where {
+	finalParameters := make([]any, 0, len(parameters))
 	for _, value := range parameters {
 		switch reflect.TypeOf(value).Kind().String() {
 		case "slice", "array":

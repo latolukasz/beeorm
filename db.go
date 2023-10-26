@@ -52,7 +52,7 @@ type ExecResult interface {
 type PreparedStmt interface {
 	Exec(c Context, args ...any) ExecResult
 	Query(c Context, args ...any) (rows Rows, close func())
-	QueryRow(c Context, args []interface{}, toFill ...interface{}) (found bool)
+	QueryRow(c Context, args []any, toFill ...any) (found bool)
 	Close() error
 }
 
@@ -74,12 +74,12 @@ func (e *execResult) RowsAffected() uint64 {
 
 type sqlClientBase interface {
 	Prepare(query string) (*sql.Stmt, error)
-	Exec(query string, args ...interface{}) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryRow(query string, args ...interface{}) SQLRow
-	QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow
-	Query(query string, args ...interface{}) (SQLRows, error)
-	QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error)
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) SQLRow
+	QueryRowContext(ctx context.Context, query string, args ...any) SQLRow
+	Query(query string, args ...any) (SQLRows, error)
+	QueryContext(ctx context.Context, query string, args ...any) (SQLRows, error)
 }
 
 type sqlClient interface {
@@ -95,12 +95,12 @@ type txClient interface {
 
 type DBClientQuery interface {
 	Prepare(query string) (*sql.Stmt, error)
-	Exec(query string, args ...interface{}) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryRow(query string, args ...interface{}) *sql.Row
-	QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row
-	Query(query string, args ...interface{}) (*sql.Rows, error)
-	QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	Exec(query string, args ...any) (sql.Result, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	QueryRow(query string, args ...any) *sql.Row
+	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	Query(query string, args ...any) (*sql.Rows, error)
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type DBClient interface {
@@ -141,7 +141,7 @@ func (db *standardSQLClient) Prepare(query string) (*sql.Stmt, error) {
 	return res, nil
 }
 
-func (db *standardSQLClient) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (db *standardSQLClient) Exec(query string, args ...any) (sql.Result, error) {
 	res, err := db.db.Exec(query, args...)
 	if err != nil {
 		return nil, err
@@ -153,7 +153,7 @@ func (db *standardSQLClient) Begin() (*sql.Tx, error) {
 	return db.db.(DBClientNoTX).Begin()
 }
 
-func (db *standardSQLClient) ExecContext(context context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (db *standardSQLClient) ExecContext(context context.Context, query string, args ...any) (sql.Result, error) {
 	res, err := db.db.ExecContext(context, query, args...)
 	if err != nil {
 		return nil, err
@@ -161,15 +161,15 @@ func (db *standardSQLClient) ExecContext(context context.Context, query string, 
 	return res, nil
 }
 
-func (db *standardSQLClient) QueryRow(query string, args ...interface{}) SQLRow {
+func (db *standardSQLClient) QueryRow(query string, args ...any) SQLRow {
 	return db.db.QueryRow(query, args...)
 }
 
-func (db *standardSQLClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) SQLRow {
+func (db *standardSQLClient) QueryRowContext(ctx context.Context, query string, args ...any) SQLRow {
 	return db.db.QueryRowContext(ctx, query, args...)
 }
 
-func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, error) {
+func (db *standardSQLClient) Query(query string, args ...any) (SQLRows, error) {
 	rows, err := db.db.Query(query, args...)
 	if err != nil {
 		return nil, err
@@ -177,7 +177,7 @@ func (db *standardSQLClient) Query(query string, args ...interface{}) (SQLRows, 
 	return rows, nil
 }
 
-func (db *standardSQLClient) QueryContext(ctx context.Context, query string, args ...interface{}) (SQLRows, error) {
+func (db *standardSQLClient) QueryContext(ctx context.Context, query string, args ...any) (SQLRows, error) {
 	rows, err := db.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -189,13 +189,13 @@ type SQLRows interface {
 	Next() bool
 	Err() error
 	Close() error
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 	Columns() ([]string, error)
 }
 
 type Rows interface {
 	Next() bool
-	Scan(dest ...interface{})
+	Scan(dest ...any)
 	Columns() []string
 }
 
@@ -213,7 +213,7 @@ func (r *rowsStruct) Columns() []string {
 	return columns
 }
 
-func (r *rowsStruct) Scan(dest ...interface{}) {
+func (r *rowsStruct) Scan(dest ...any) {
 	err := r.sqlRows.Scan(dest...)
 	checkError(err)
 }
@@ -260,7 +260,7 @@ func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func
 	}
 }
 
-func (p preparedStmtStruct) QueryRow(c Context, args []interface{}, toFill ...interface{}) (found bool) {
+func (p preparedStmtStruct) QueryRow(c Context, args []any, toFill ...any) (found bool) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	row := p.stmt.QueryRow(args...)
@@ -295,7 +295,7 @@ func (p preparedStmtStruct) Close() error {
 }
 
 type SQLRow interface {
-	Scan(dest ...interface{}) error
+	Scan(dest ...any) error
 }
 
 type DBBase interface {
@@ -303,9 +303,9 @@ type DBBase interface {
 	GetDBClient() DBClient
 	SetMockDBClient(mock DBClient)
 	Prepare(c Context, query string) (stmt PreparedStmt, close func())
-	Exec(c Context, query string, args ...interface{}) ExecResult
-	QueryRow(c Context, query string, toFill []interface{}, args ...interface{}) (found bool)
-	Query(c Context, query string, args ...interface{}) (rows Rows, close func())
+	Exec(c Context, query string, args ...any) ExecResult
+	QueryRow(c Context, query string, toFill []any, args ...any) (found bool)
+	Query(c Context, query string, args ...any) (rows Rows, close func())
 }
 
 type DB interface {
@@ -393,13 +393,13 @@ func (db *dbImplementation) Prepare(c Context, query string) (stmt PreparedStmt,
 	}
 }
 
-func (db *dbImplementation) Exec(c Context, query string, args ...interface{}) ExecResult {
+func (db *dbImplementation) Exec(c Context, query string, args ...any) ExecResult {
 	results, err := db.exec(c, query, args...)
 	checkError(err)
 	return results
 }
 
-func (db *dbImplementation) exec(c Context, query string, args ...interface{}) (ExecResult, error) {
+func (db *dbImplementation) exec(c Context, query string, args ...any) (ExecResult, error) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := db.client.Exec(query, args...)
@@ -413,7 +413,7 @@ func (db *dbImplementation) exec(c Context, query string, args ...interface{}) (
 	return &execResult{r: rows}, err
 }
 
-func (db *dbImplementation) QueryRow(c Context, query string, toFill []interface{}, args ...interface{}) (found bool) {
+func (db *dbImplementation) QueryRow(c Context, query string, toFill []any, args ...any) (found bool) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	row := db.client.QueryRow(query, args...)
@@ -443,7 +443,7 @@ func (db *dbImplementation) QueryRow(c Context, query string, toFill []interface
 	return true
 }
 
-func (db *dbImplementation) Query(c Context, query string, args ...interface{}) (rows Rows, close func()) {
+func (db *dbImplementation) Query(c Context, query string, args ...any) (rows Rows, close func()) {
 	hasLogger, _ := c.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Query(query, args...)

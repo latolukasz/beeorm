@@ -28,7 +28,7 @@ func (d *enumDefinition) Index(value string) int {
 	return d.mapping[value]
 }
 
-func initEnumDefinition(def interface{}, required bool) *enumDefinition {
+func initEnumDefinition(def any, required bool) *enumDefinition {
 	enum := &enumDefinition{required: required}
 	e := reflect.ValueOf(def)
 	enum.mapping = make(map[string]int)

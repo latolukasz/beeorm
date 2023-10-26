@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []interface{}) {
+func deserializeFromDB(fields *tableFields, elem reflect.Value, pointers []any) {
 	deserializeStructFromDB(elem, 0, fields, pointers)
 }
 
@@ -398,7 +398,7 @@ func deserializeDatePointersFromRedis(v string, f reflect.Value) {
 	f.SetZero()
 }
 
-func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []interface{}) int {
+func deserializeStructFromDB(elem reflect.Value, index int, fields *tableFields, pointers []any) int {
 	for _, i := range fields.uIntegers {
 		deserializeUintFromDB(elem.Field(i), *pointers[index].(*uint64))
 		index++

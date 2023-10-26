@@ -28,14 +28,14 @@ func SearchOne[E any](c Context, where *Where) *E {
 	return searchOne[E](c, where)
 }
 
-func prepareScan(schema *entitySchema) (pointers []interface{}) {
+func prepareScan(schema *entitySchema) (pointers []any) {
 	count := len(schema.GetColumns())
-	pointers = make([]interface{}, count)
+	pointers = make([]any, count)
 	prepareScanForFields(schema.fields, 0, pointers)
 	return pointers
 }
 
-func prepareScanForFields(fields *tableFields, start int, pointers []interface{}) int {
+func prepareScanForFields(fields *tableFields, start int, pointers []any) int {
 	for range fields.uIntegers {
 		v := uint64(0)
 		pointers[start] = &v
@@ -259,7 +259,7 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	if schema.hasLocalCache {
 		query := "SELECT ID FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 		var id uint64
-		if pool.QueryRow(c, query, []interface{}{&id}, where.parameters...) {
+		if pool.QueryRow(c, query, []any{&id}, where.parameters...) {
 			return GetByID[E](c, id)
 		}
 		return nil

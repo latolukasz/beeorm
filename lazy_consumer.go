@@ -145,7 +145,7 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 			panic(rec)
 		}
 	}()
-	var data []interface{}
+	var data []any
 	_ = jsoniter.ConfigFastest.UnmarshalFromString(value, &data)
 	if len(data) == 0 {
 		return nil

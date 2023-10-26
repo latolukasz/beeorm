@@ -17,7 +17,7 @@ type RedisPipeLine struct {
 	log      []string
 }
 
-func (rp *RedisPipeLine) LPush(key string, values ...interface{}) {
+func (rp *RedisPipeLine) LPush(key string, values ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -26,7 +26,7 @@ func (rp *RedisPipeLine) LPush(key string, values ...interface{}) {
 	rp.pipeLine.LPush(rp.c.Ctx(), key, values...)
 }
 
-func (rp *RedisPipeLine) RPush(key string, values ...interface{}) {
+func (rp *RedisPipeLine) RPush(key string, values ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -35,7 +35,7 @@ func (rp *RedisPipeLine) RPush(key string, values ...interface{}) {
 	rp.pipeLine.RPush(rp.c.Ctx(), key, values...)
 }
 
-func (rp *RedisPipeLine) LSet(key string, index int64, value interface{}) {
+func (rp *RedisPipeLine) LSet(key string, index int64, value any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -71,7 +71,7 @@ func (rp *RedisPipeLine) LRange(key string, start, stop int64) *PipeLineSlice {
 	return &PipeLineSlice{p: rp, cmd: rp.pipeLine.LRange(rp.c.Ctx(), key, start, stop)}
 }
 
-func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Duration) {
+func (rp *RedisPipeLine) Set(key string, value any, expiration time.Duration) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -80,7 +80,7 @@ func (rp *RedisPipeLine) Set(key string, value interface{}, expiration time.Dura
 	rp.pipeLine.Set(rp.c.Ctx(), key, value, expiration)
 }
 
-func (rp *RedisPipeLine) SAdd(key string, members ...interface{}) {
+func (rp *RedisPipeLine) SAdd(key string, members ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -89,7 +89,7 @@ func (rp *RedisPipeLine) SAdd(key string, members ...interface{}) {
 	rp.pipeLine.SAdd(rp.c.Ctx(), key, members...)
 }
 
-func (rp *RedisPipeLine) SRem(key string, members ...interface{}) {
+func (rp *RedisPipeLine) SRem(key string, members ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -98,7 +98,7 @@ func (rp *RedisPipeLine) SRem(key string, members ...interface{}) {
 	rp.pipeLine.SRem(rp.c.Ctx(), key, members...)
 }
 
-func (rp *RedisPipeLine) MSet(pairs ...interface{}) {
+func (rp *RedisPipeLine) MSet(pairs ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {
@@ -129,7 +129,7 @@ func (rp *RedisPipeLine) HIncrBy(key, field string, incr int64) *PipeLineInt {
 	return &PipeLineInt{p: rp, cmd: rp.pipeLine.HIncrBy(rp.c.Ctx(), key, field, incr)}
 }
 
-func (rp *RedisPipeLine) HSet(key string, values ...interface{}) {
+func (rp *RedisPipeLine) HSet(key string, values ...any) {
 	rp.commands++
 	hasLog, _ := rp.c.getRedisLoggers()
 	if hasLog {

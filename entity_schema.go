@@ -82,8 +82,8 @@ type entitySchema struct {
 	uuidCounter               uint64
 }
 
-type mapBindToScanPointer map[string]func() interface{}
-type mapPointerToValue map[string]func(val interface{}) interface{}
+type mapBindToScanPointer map[string]func() any
+type mapPointerToValue map[string]func(val any) any
 
 type tableFields struct {
 	t                              reflect.Type
@@ -569,11 +569,11 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 	}
 
 	for _, columnName := range attributes.GetColumnNames() {
-		e.mapBindToScanPointer[columnName] = func() interface{} {
+		e.mapBindToScanPointer[columnName] = func() any {
 			v := uint64(0)
 			return &v
 		}
-		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		e.mapPointerToValue[columnName] = func(val any) any {
 			return *val.(*uint64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
@@ -663,11 +663,11 @@ func (e *entitySchema) buildIntField(attributes schemaFieldAttributes) {
 		attributes.Fields.integers = append(attributes.Fields.integers, attributes.Index)
 	}
 	for _, columnName := range attributes.GetColumnNames() {
-		e.mapBindToScanPointer[columnName] = func() interface{} {
+		e.mapBindToScanPointer[columnName] = func() any {
 			v := int64(0)
 			return &v
 		}
-		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		e.mapPointerToValue[columnName] = func(val any) any {
 			return *val.(*int64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
@@ -716,7 +716,7 @@ func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
 	}
 }
 
-func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition interface{}) {
+func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition any) {
 	if attributes.IsArray {
 		attributes.Fields.stringsEnumsArray = append(attributes.Fields.stringsEnumsArray, attributes.Index)
 	} else {
@@ -732,10 +732,10 @@ func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definiti
 			}
 		}
 
-		e.mapBindToScanPointer[columnName] = func() interface{} {
+		e.mapBindToScanPointer[columnName] = func() any {
 			return &sql.NullString{}
 		}
-		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		e.mapPointerToValue[columnName] = func(val any) any {
 			v := val.(*sql.NullString)
 			if v.Valid {
 				return v.String
@@ -769,10 +769,10 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 				attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
 			}
 		}
-		e.mapBindToScanPointer[columnName] = func() interface{} {
+		e.mapBindToScanPointer[columnName] = func() any {
 			return &sql.NullString{}
 		}
-		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		e.mapPointerToValue[columnName] = func(val any) any {
 			v := val.(*sql.NullString)
 			if v.Valid {
 				return v.String
@@ -795,7 +795,7 @@ func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
 	}
 }
 
-func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition interface{}) {
+func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition any) {
 	if attributes.IsArray {
 		attributes.Fields.sliceStringsSetsArray = append(attributes.Fields.sliceStringsSetsArray, attributes.Index)
 	} else {
@@ -888,11 +888,11 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 				attributes.Fields.floatsUnsigned = append(attributes.Fields.floatsUnsigned, attributes.Tags["unsigned"] == "true")
 			}
 		}
-		e.mapBindToScanPointer[columnName] = func() interface{} {
+		e.mapBindToScanPointer[columnName] = func() any {
 			v := float64(0)
 			return &v
 		}
-		e.mapPointerToValue[columnName] = func(val interface{}) interface{} {
+		e.mapPointerToValue[columnName] = func(val any) any {
 			return *val.(*float64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
@@ -1164,11 +1164,11 @@ func (fields *tableFields) buildColumnNames(subFieldPrefix string) ([]string, st
 	return columns, fieldsQuery
 }
 
-var scanIntNullablePointer = func() interface{} {
+var scanIntNullablePointer = func() any {
 	return &sql.NullInt64{}
 }
 
-var pointerUintNullableScan = func(val interface{}) interface{} {
+var pointerUintNullableScan = func(val any) any {
 	v := val.(*sql.NullInt64)
 	if v.Valid {
 		return uint64(v.Int64)
@@ -1176,7 +1176,7 @@ var pointerUintNullableScan = func(val interface{}) interface{} {
 	return nil
 }
 
-var pointerIntNullableScan = func(val interface{}) interface{} {
+var pointerIntNullableScan = func(val any) any {
 	v := val.(*sql.NullInt64)
 	if v.Valid {
 		return v.Int64
@@ -1184,11 +1184,11 @@ var pointerIntNullableScan = func(val interface{}) interface{} {
 	return nil
 }
 
-var scanStringNullablePointer = func() interface{} {
+var scanStringNullablePointer = func() any {
 	return &sql.NullString{}
 }
 
-var pointerStringNullableScan = func(val interface{}) interface{} {
+var pointerStringNullableScan = func(val any) any {
 	v := val.(*sql.NullString)
 	if v.Valid {
 		return v.String
@@ -1196,20 +1196,20 @@ var pointerStringNullableScan = func(val interface{}) interface{} {
 	return nil
 }
 
-var scanBoolPointer = func() interface{} {
+var scanBoolPointer = func() any {
 	v := false
 	return &v
 }
 
-var pointerBoolScan = func(val interface{}) interface{} {
+var pointerBoolScan = func(val any) any {
 	return *val.(*bool)
 }
 
-var scanBoolNullablePointer = func() interface{} {
+var scanBoolNullablePointer = func() any {
 	return &sql.NullBool{}
 }
 
-var pointerBoolNullableScan = func(val interface{}) interface{} {
+var pointerBoolNullableScan = func(val any) any {
 	v := val.(*sql.NullBool)
 	if v.Valid {
 		return v.Bool
@@ -1217,11 +1217,11 @@ var pointerBoolNullableScan = func(val interface{}) interface{} {
 	return nil
 }
 
-var scanFloatNullablePointer = func() interface{} {
+var scanFloatNullablePointer = func() any {
 	return &sql.NullFloat64{}
 }
 
-var pointerFloatNullableScan = func(val interface{}) interface{} {
+var pointerFloatNullableScan = func(val any) any {
 	v := val.(*sql.NullFloat64)
 	if v.Valid {
 		return v.Float64
@@ -1229,11 +1229,11 @@ var pointerFloatNullableScan = func(val interface{}) interface{} {
 	return nil
 }
 
-var scanStringPointer = func() interface{} {
+var scanStringPointer = func() any {
 	v := ""
 	return &v
 }
 
-var pointerStringScan = func(val interface{}) interface{} {
+var pointerStringScan = func(val any) any {
 	return *val.(*string)
 }

@@ -27,7 +27,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				continue
 			}
 			where := NewWhere("")
-			pointers := make([]interface{}, len(columns)+1)
+			pointers := make([]any, len(columns)+1)
 			var v string
 			pointers[0] = &v
 			selectWhere := NewWhere("SELECT `ID`")
@@ -54,7 +54,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				print(".")
 			}
 			total := uint64(0)
-			db.QueryRow(c, whereCount, []interface{}{&total})
+			db.QueryRow(c, whereCount, []any{&total})
 			if total == 0 {
 				if debug {
 					print(strings.Repeat(".", 100))

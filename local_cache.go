@@ -26,10 +26,10 @@ func (c *localCacheConfig) GetLimit() int {
 }
 
 type LocalCache interface {
-	Set(c Context, key string, value interface{})
+	Set(c Context, key string, value any)
 	Remove(c Context, key string)
 	GetConfig() LocalCacheConfig
-	Get(c Context, key string) (value interface{}, ok bool)
+	Get(c Context, key string) (value any, ok bool)
 	Clear(c Context)
 	GetObjectsCount() int
 	getEntity(c Context, id uint64) (value any, ok bool)
@@ -75,7 +75,7 @@ func (lc *localCache) GetConfig() LocalCacheConfig {
 	return lc.config
 }
 
-func (lc *localCache) Get(c Context, key string) (value interface{}, ok bool) {
+func (lc *localCache) Get(c Context, key string) (value any, ok bool) {
 	value, ok = lc.cache.Load(key)
 	hasLog, _ := c.getLocalCacheLoggers()
 	if hasLog {
@@ -102,7 +102,7 @@ func (lc *localCache) getReference(c Context, reference string, id uint64) (valu
 	return
 }
 
-func (lc *localCache) Set(c Context, key string, value interface{}) {
+func (lc *localCache) Set(c Context, key string, value any) {
 	lc.cache.Store(key, value)
 	if lc.config.limit > 0 && lc.cache.Size() > lc.config.limit {
 		lc.makeSpace(lc.cache, key)
@@ -125,7 +125,7 @@ func (lc *localCache) setEntity(c Context, id uint64, value any) {
 }
 
 func (lc *localCache) makeSpace(cache *xsync.Map, addedKey string) {
-	cache.Range(func(key string, value interface{}) bool {
+	cache.Range(func(key string, value any) bool {
 		if key != addedKey {
 			cache.Delete(key)
 			return false
@@ -135,7 +135,7 @@ func (lc *localCache) makeSpace(cache *xsync.Map, addedKey string) {
 }
 
 func (lc *localCache) makeSpaceUint(cache *xsync.MapOf[uint64, any], addedKey uint64) {
-	cache.Range(func(key uint64, value interface{}) bool {
+	cache.Range(func(key uint64, value any) bool {
 		if key != addedKey {
 			cache.Delete(key)
 			return false

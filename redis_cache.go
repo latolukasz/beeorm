@@ -13,40 +13,40 @@ import (
 )
 
 type RedisCacheSetter interface {
-	Set(c Context, key string, value interface{}, expiration time.Duration)
-	MSet(c Context, pairs ...interface{})
+	Set(c Context, key string, value any, expiration time.Duration)
+	MSet(c Context, pairs ...any)
 	Del(c Context, keys ...string)
 	xAdd(c Context, stream string, values []string) (id string)
-	HSet(c Context, key string, values ...interface{})
+	HSet(c Context, key string, values ...any)
 	HDel(c Context, key string, keys ...string)
 }
 
 type RedisCache interface {
 	RedisCacheSetter
-	GetSet(c Context, key string, expiration time.Duration, provider func() interface{}) interface{}
+	GetSet(c Context, key string, expiration time.Duration, provider func() any) any
 	Info(c Context, section ...string) string
 	GetConfig() RedisPoolConfig
 	Get(c Context, key string) (value string, has bool)
-	Eval(c Context, script string, keys []string, args ...interface{}) interface{}
-	EvalSha(c Context, sha1 string, keys []string, args ...interface{}) (res interface{}, exists bool)
-	SetNX(c Context, key string, value interface{}, expiration time.Duration) bool
+	Eval(c Context, script string, keys []string, args ...any) any
+	EvalSha(c Context, sha1 string, keys []string, args ...any) (res any, exists bool)
+	SetNX(c Context, key string, value any, expiration time.Duration) bool
 	ScriptExists(c Context, sha1 string) bool
 	ScriptLoad(c Context, script string) string
-	LPush(c Context, key string, values ...interface{}) int64
+	LPush(c Context, key string, values ...any) int64
 	LPop(c Context, key string) string
-	RPush(c Context, key string, values ...interface{}) int64
+	RPush(c Context, key string, values ...any) int64
 	LLen(c Context, key string) int64
 	Exists(c Context, keys ...string) int64
 	Type(c Context, key string) string
 	LRange(c Context, key string, start, stop int64) []string
-	LSet(c Context, key string, index int64, value interface{})
+	LSet(c Context, key string, index int64, value any)
 	RPop(c Context, key string) (value string, found bool)
 	BLMove(c Context, source, destination, srcPos, destPos string, timeout time.Duration) string
 	LMove(c Context, source, destination, srcPos, destPos string) string
-	LRem(c Context, key string, count int64, value interface{})
+	LRem(c Context, key string, count int64, value any)
 	Ltrim(c Context, key string, start, stop int64)
-	HSetNx(c Context, key, field string, value interface{}) bool
-	HMGet(c Context, key string, fields ...string) map[string]interface{}
+	HSetNx(c Context, key, field string, value any) bool
+	HMGet(c Context, key string, fields ...string) map[string]any
 	HGetAll(c Context, key string) map[string]string
 	HGet(c Context, key, field string) (value string, has bool)
 	HLen(c Context, key string) int64
@@ -62,10 +62,10 @@ type RedisCache interface {
 	ZCard(c Context, key string) int64
 	ZCount(c Context, key string, min, max string) int64
 	ZScore(c Context, key, member string) float64
-	MGet(c Context, keys ...string) []interface{}
-	SAdd(c Context, key string, members ...interface{}) int64
+	MGet(c Context, keys ...string) []any
+	SAdd(c Context, key string, members ...any) int64
 	SMembers(c Context, key string) []string
-	SIsMember(c Context, key string, member interface{}) bool
+	SIsMember(c Context, key string, member any) bool
 	SCard(c Context, key string) int64
 	SPop(c Context, key string) (string, bool)
 	SPopN(c Context, key string, max int64) []string
@@ -100,7 +100,7 @@ type redisCache struct {
 	config RedisPoolConfig
 }
 
-func (r *redisCache) GetSet(c Context, key string, expiration time.Duration, provider func() interface{}) interface{} {
+func (r *redisCache) GetSet(c Context, key string, expiration time.Duration, provider func() any) any {
 	val, has := r.Get(c, key)
 	if !has {
 		userVal := provider()
@@ -108,7 +108,7 @@ func (r *redisCache) GetSet(c Context, key string, expiration time.Duration, pro
 		r.Set(c, key, string(encoded), expiration)
 		return userVal
 	}
-	var data interface{}
+	var data any
 	_ = msgpack.Unmarshal([]byte(val), &data)
 	return data
 }
@@ -152,7 +152,7 @@ func (r *redisCache) Get(c Context, key string) (value string, has bool) {
 	return val, true
 }
 
-func (r *redisCache) Eval(c Context, script string, keys []string, args ...interface{}) interface{} {
+func (r *redisCache) Eval(c Context, script string, keys []string, args ...any) any {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	res, err := r.client.Eval(c.Ctx(), script, keys, args...).Result()
@@ -164,7 +164,7 @@ func (r *redisCache) Eval(c Context, script string, keys []string, args ...inter
 	return res
 }
 
-func (r *redisCache) EvalSha(c Context, sha1 string, keys []string, args ...interface{}) (res interface{}, exists bool) {
+func (r *redisCache) EvalSha(c Context, sha1 string, keys []string, args ...any) (res any, exists bool) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	res, err := r.client.EvalSha(c.Ctx(), sha1, keys, args...).Result()
@@ -201,7 +201,7 @@ func (r *redisCache) ScriptLoad(c Context, script string) string {
 	return res
 }
 
-func (r *redisCache) Set(c Context, key string, value interface{}, expiration time.Duration) {
+func (r *redisCache) Set(c Context, key string, value any, expiration time.Duration) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.Set(c.Ctx(), key, value, expiration).Result()
@@ -212,7 +212,7 @@ func (r *redisCache) Set(c Context, key string, value interface{}, expiration ti
 	checkError(err)
 }
 
-func (r *redisCache) SetNX(c Context, key string, value interface{}, expiration time.Duration) bool {
+func (r *redisCache) SetNX(c Context, key string, value any, expiration time.Duration) bool {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	isSet, err := r.client.SetNX(c.Ctx(), key, value, expiration).Result()
@@ -224,7 +224,7 @@ func (r *redisCache) SetNX(c Context, key string, value interface{}, expiration 
 	return isSet
 }
 
-func (r *redisCache) LPush(c Context, key string, values ...interface{}) int64 {
+func (r *redisCache) LPush(c Context, key string, values ...any) int64 {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.LPush(c.Ctx(), key, values...).Result()
@@ -250,7 +250,7 @@ func (r *redisCache) LPop(c Context, key string) string {
 	return val
 }
 
-func (r *redisCache) RPush(c Context, key string, values ...interface{}) int64 {
+func (r *redisCache) RPush(c Context, key string, values ...any) int64 {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.RPush(c.Ctx(), key, values...).Result()
@@ -310,7 +310,7 @@ func (r *redisCache) LRange(c Context, key string, start, stop int64) []string {
 	return val
 }
 
-func (r *redisCache) LSet(c Context, key string, index int64, value interface{}) {
+func (r *redisCache) LSet(c Context, key string, index int64, value any) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.LSet(c.Ctx(), key, index, value).Result()
@@ -365,7 +365,7 @@ func (r *redisCache) RPop(c Context, key string) (value string, found bool) {
 	return val, true
 }
 
-func (r *redisCache) LRem(c Context, key string, count int64, value interface{}) {
+func (r *redisCache) LRem(c Context, key string, count int64, value any) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.LRem(c.Ctx(), key, count, value).Result()
@@ -387,7 +387,7 @@ func (r *redisCache) Ltrim(c Context, key string, start, stop int64) {
 	checkError(err)
 }
 
-func (r *redisCache) HSet(c Context, key string, values ...interface{}) {
+func (r *redisCache) HSet(c Context, key string, values ...any) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.HSet(c.Ctx(), key, values...).Result()
@@ -401,7 +401,7 @@ func (r *redisCache) HSet(c Context, key string, values ...interface{}) {
 	checkError(err)
 }
 
-func (r *redisCache) HSetNx(c Context, key, field string, value interface{}) bool {
+func (r *redisCache) HSetNx(c Context, key, field string, value any) bool {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	res, err := r.client.HSetNX(c.Ctx(), key, field, value).Result()
@@ -424,11 +424,11 @@ func (r *redisCache) HDel(c Context, key string, fields ...string) {
 	checkError(err)
 }
 
-func (r *redisCache) HMGet(c Context, key string, fields ...string) map[string]interface{} {
+func (r *redisCache) HMGet(c Context, key string, fields ...string) map[string]any {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.HMGet(c.Ctx(), key, fields...).Result()
-	results := make(map[string]interface{}, len(fields))
+	results := make(map[string]any, len(fields))
 	misses := 0
 	for index, v := range val {
 		if v == nil {
@@ -631,7 +631,7 @@ func (r *redisCache) ZScore(c Context, key, member string) float64 {
 	return val
 }
 
-func (r *redisCache) MSet(c Context, pairs ...interface{}) {
+func (r *redisCache) MSet(c Context, pairs ...any) {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	_, err := r.client.MSet(c.Ctx(), pairs...).Result()
@@ -645,11 +645,11 @@ func (r *redisCache) MSet(c Context, pairs ...interface{}) {
 	checkError(err)
 }
 
-func (r *redisCache) MGet(c Context, keys ...string) []interface{} {
+func (r *redisCache) MGet(c Context, keys ...string) []any {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.MGet(c.Ctx(), keys...).Result()
-	results := make([]interface{}, len(keys))
+	results := make([]any, len(keys))
 	misses := 0
 	for i, v := range val {
 		results[i] = v
@@ -664,7 +664,7 @@ func (r *redisCache) MGet(c Context, keys ...string) []interface{} {
 	return results
 }
 
-func (r *redisCache) SAdd(c Context, key string, members ...interface{}) int64 {
+func (r *redisCache) SAdd(c Context, key string, members ...any) int64 {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.SAdd(c.Ctx(), key, members...).Result()
@@ -691,7 +691,7 @@ func (r *redisCache) SMembers(c Context, key string) []string {
 	return val
 }
 
-func (r *redisCache) SIsMember(c Context, key string, member interface{}) bool {
+func (r *redisCache) SIsMember(c Context, key string, member any) bool {
 	hasLogger, _ := c.getRedisLoggers()
 	start := getNow(hasLogger)
 	val, err := r.client.SIsMember(c.Ctx(), key, member).Result()

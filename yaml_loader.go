@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (r *registry) InitByYaml(yaml map[string]interface{}) error {
+func (r *registry) InitByYaml(yaml map[string]any) error {
 	for key, data := range yaml {
 		dataAsMap, err := fixYamlMap(data, "orm")
 		if err != nil {
@@ -43,7 +43,7 @@ func (r *registry) InitByYaml(yaml map[string]interface{}) error {
 	return nil
 }
 
-func validateOrmMysqlURI(registry *registry, value interface{}, key string) error {
+func validateOrmMysqlURI(registry *registry, value any, key string) error {
 	def, err := fixYamlMap(value, key)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func validateOrmMysqlURI(registry *registry, value interface{}, key string) erro
 	return nil
 }
 
-func validateRedisURI(registry *registry, value interface{}, key string) error {
+func validateRedisURI(registry *registry, value any, key string) error {
 	asString, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("redis uri '%v' is not valid", value)
@@ -138,13 +138,13 @@ func validateRedisURI(registry *registry, value interface{}, key string) error {
 	return nil
 }
 
-func validateSentinel(registry *registry, value interface{}, key string) error {
+func validateSentinel(registry *registry, value any, key string) error {
 	def, err := fixYamlMap(value, key)
 	if err != nil {
 		return err
 	}
 	for master, values := range def {
-		asSlice, ok := values.([]interface{})
+		asSlice, ok := values.([]any)
 		if !ok {
 			return fmt.Errorf("sentinel '%v' is not valid", value)
 		}
@@ -180,14 +180,14 @@ func validateSentinel(registry *registry, value interface{}, key string) error {
 	return nil
 }
 
-func fixYamlMap(value interface{}, key string) (map[string]interface{}, error) {
-	def, ok := value.(map[string]interface{})
+func fixYamlMap(value any, key string) (map[string]any, error) {
+	def, ok := value.(map[string]any)
 	if !ok {
-		def2, ok := value.(map[interface{}]interface{})
+		def2, ok := value.(map[any]any)
 		if !ok {
 			return nil, fmt.Errorf("orm yaml key %s is not valid", key)
 		}
-		def = make(map[string]interface{})
+		def = make(map[string]any)
 		for k, v := range def2 {
 			def[fmt.Sprintf("%v", k)] = v
 		}
@@ -195,7 +195,7 @@ func fixYamlMap(value interface{}, key string) (map[string]interface{}, error) {
 	return def, nil
 }
 
-func validateOrmInt(value interface{}, key string) (int, error) {
+func validateOrmInt(value any, key string) (int, error) {
 	asInt, ok := value.(int)
 	if !ok {
 		return 0, fmt.Errorf("orm value for %s: %v is not valid", key, value)
@@ -203,7 +203,7 @@ func validateOrmInt(value interface{}, key string) (int, error) {
 	return asInt, nil
 }
 
-func validateOrmString(value interface{}, key string) (string, error) {
+func validateOrmString(value any, key string) (string, error) {
 	asString, ok := value.(string)
 	if !ok {
 		return "", fmt.Errorf("orm value for %s: %v is not valid", key, value)
@@ -211,8 +211,8 @@ func validateOrmString(value interface{}, key string) (string, error) {
 	return asString, nil
 }
 
-func validateOrmStrings(value interface{}, key string) ([]string, error) {
-	asSlice, ok := value.([]interface{})
+func validateOrmStrings(value any, key string) ([]string, error) {
+	asSlice, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("orm value for %s: %v is not valid", key, value)
 	}

@@ -9,10 +9,10 @@ import (
 )
 
 type MockLogHandler struct {
-	Logs []map[string]interface{}
+	Logs []map[string]any
 }
 
-func (h *MockLogHandler) Handle(_ Context, log map[string]interface{}) {
+func (h *MockLogHandler) Handle(_ Context, log map[string]any) {
 	h.Logs = append(h.Logs, log)
 }
 
@@ -62,12 +62,12 @@ func PrepareTables(t *testing.T, registry Registry, entities ...any) (c Context)
 type MockDBClient struct {
 	OriginDB            DBClient
 	PrepareMock         func(query string) (*sql.Stmt, error)
-	ExecMock            func(query string, args ...interface{}) (sql.Result, error)
-	ExecContextMock     func(context context.Context, query string, args ...interface{}) (sql.Result, error)
-	QueryRowMock        func(query string, args ...interface{}) *sql.Row
-	QueryRowContextMock func(ctx context.Context, query string, args ...interface{}) *sql.Row
-	QueryMock           func(query string, args ...interface{}) (*sql.Rows, error)
-	QueryContextMock    func(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error)
+	ExecMock            func(query string, args ...any) (sql.Result, error)
+	ExecContextMock     func(context context.Context, query string, args ...any) (sql.Result, error)
+	QueryRowMock        func(query string, args ...any) *sql.Row
+	QueryRowContextMock func(ctx context.Context, query string, args ...any) *sql.Row
+	QueryMock           func(query string, args ...any) (*sql.Rows, error)
+	QueryContextMock    func(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 	BeginMock           func() (*sql.Tx, error)
 	CommitMock          func() error
 	RollbackMock        func() error
@@ -80,42 +80,42 @@ func (m *MockDBClient) Prepare(query string) (*sql.Stmt, error) {
 	return m.OriginDB.Prepare(query)
 }
 
-func (m *MockDBClient) Exec(query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDBClient) Exec(query string, args ...any) (sql.Result, error) {
 	if m.ExecMock != nil {
 		return m.ExecMock(query, args...)
 	}
 	return m.OriginDB.Exec(query, args...)
 }
 
-func (m *MockDBClient) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (m *MockDBClient) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	if m.ExecMock != nil {
 		return m.ExecContextMock(ctx, query, args...)
 	}
 	return m.OriginDB.ExecContext(ctx, query, args...)
 }
 
-func (m *MockDBClient) QueryRow(query string, args ...interface{}) *sql.Row {
+func (m *MockDBClient) QueryRow(query string, args ...any) *sql.Row {
 	if m.QueryRowMock != nil {
 		return m.QueryRowMock(query, args...)
 	}
 	return m.OriginDB.QueryRow(query, args...)
 }
 
-func (m *MockDBClient) QueryRowContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+func (m *MockDBClient) QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row {
 	if m.QueryRowMock != nil {
 		return m.QueryRowContextMock(ctx, query, args...)
 	}
 	return m.OriginDB.QueryRowContext(ctx, query, args...)
 }
 
-func (m *MockDBClient) Query(query string, args ...interface{}) (*sql.Rows, error) {
+func (m *MockDBClient) Query(query string, args ...any) (*sql.Rows, error) {
 	if m.QueryMock != nil {
 		return m.QueryMock(query, args...)
 	}
 	return m.OriginDB.Query(query, args...)
 }
 
-func (m *MockDBClient) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (m *MockDBClient) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	if m.QueryMock != nil {
 		return m.QueryContextMock(ctx, query, args...)
 	}
