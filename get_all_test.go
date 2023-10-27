@@ -58,11 +58,11 @@ func testGetAll(t *testing.T, local, redis bool) {
 	var entities []*getByAllCachedEntity
 	var entitiesNoCache []*getByAllNotCachedEntity
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByAllCachedEntity](c).TrackedEntity()
+		entity = NewEntity[getByAllCachedEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entities = append(entities, entity)
 
-		entityNotCached = NewEntity[getByAllNotCachedEntity](c).TrackedEntity()
+		entityNotCached = NewEntity[getByAllNotCachedEntity](c)
 		entityNotCached.Name = fmt.Sprintf("Name %d", i)
 		entitiesNoCache = append(entitiesNoCache, entityNotCached)
 	}

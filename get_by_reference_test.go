@@ -60,16 +60,16 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	var entities []*getByReferenceEntity
-	ref := NewEntity[getByReferenceReference](c).TrackedEntity()
+	ref := NewEntity[getByReferenceReference](c)
 	ref.Name = "Ref 1"
-	ref2 := NewEntity[getByReferenceReference](c).TrackedEntity()
+	ref2 := NewEntity[getByReferenceReference](c)
 	ref2.Name = "Ref 2"
-	refNoCache := NewEntity[getByReferenceReferenceNoCache](c).TrackedEntity()
+	refNoCache := NewEntity[getByReferenceReferenceNoCache](c)
 	refNoCache.Name = "Ref 1"
-	refNoCache2 := NewEntity[getByReferenceReferenceNoCache](c).TrackedEntity()
+	refNoCache2 := NewEntity[getByReferenceReferenceNoCache](c)
 	refNoCache2.Name = "Ref 2"
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByReferenceEntity](c).TrackedEntity()
+		entity = NewEntity[getByReferenceEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Ref = NewReference[getByReferenceReference](ref.ID)
 		entity.RefCached = NewReference[getByReferenceReference](ref.ID)

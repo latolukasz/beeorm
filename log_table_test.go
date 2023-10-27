@@ -19,7 +19,7 @@ func TestLogTable(t *testing.T) {
 	c := PrepareTables(t, NewRegistry(), entity, &LogEntity[logTableEntity]{})
 	assert.NotNil(t, c)
 
-	entity = NewEntity[logTableEntity](c).TrackedEntity()
+	entity = NewEntity[logTableEntity](c)
 	entity.Name = "Test"
 	entity.Age = 18
 	err := c.Flush(false)
@@ -44,7 +44,7 @@ func TestLogTable(t *testing.T) {
 	assert.Equal(t, "18", bind["Age"])
 
 	c.SetMetaData("source", "test case")
-	entity = NewEntity[logTableEntity](c).TrackedEntity()
+	entity = NewEntity[logTableEntity](c)
 	entity.Name = "Test 2"
 	entity.Age = 30
 	err = c.Flush(false)

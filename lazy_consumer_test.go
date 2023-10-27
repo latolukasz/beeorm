@@ -44,7 +44,7 @@ func TestLazyConsumer(t *testing.T) {
 
 	// more than one-page non-blocking mode
 	for i := 0; i < lazyConsumerPage+10; i++ {
-		reference := NewEntity[flushEntityReference](c).TrackedEntity()
+		reference := NewEntity[flushEntityReference](c)
 		reference.Name = "test reference " + strconv.Itoa(i)
 	}
 	err := c.Flush(true)
@@ -76,7 +76,7 @@ func TestLazyConsumer(t *testing.T) {
 	}()
 	time.Sleep(time.Millisecond * 30)
 
-	reference := NewEntity[flushEntityReference](c).TrackedEntity()
+	reference := NewEntity[flushEntityReference](c)
 	reference.Name = "test reference block"
 	err = c.Flush(true)
 	assert.NoError(t, err)
@@ -92,15 +92,15 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, "test reference block", GetByID[flushEntityReference](c, reference.ID).Name)
 
 	// custom lazy group
-	reference = NewEntity[flushEntityReference](c).TrackedEntity()
+	reference = NewEntity[flushEntityReference](c)
 	reference.Name = "test reference custom lazy group"
-	lazyEntity := NewEntity[flushEntityLazy](c).TrackedEntity()
+	lazyEntity := NewEntity[flushEntityLazy](c)
 	lazyEntity.Name = "test reference custom lazy group"
-	lazyEntity2 := NewEntity[flushEntityLazy2](c).TrackedEntity()
+	lazyEntity2 := NewEntity[flushEntityLazy2](c)
 	lazyEntity2.Name = "test reference custom lazy group"
-	lazyEntity3 := NewEntity[flushEntityLazy3](c).TrackedEntity()
+	lazyEntity3 := NewEntity[flushEntityLazy3](c)
 	lazyEntity3.Name = "test reference custom lazy group"
-	lazyEntitySecondRedis := NewEntity[flushEntityLazySecondRedis](c).TrackedEntity()
+	lazyEntitySecondRedis := NewEntity[flushEntityLazySecondRedis](c)
 	lazyEntitySecondRedis.Name = "test reference custom lazy group"
 	err = c.Flush(true)
 	assert.NoError(t, err)
@@ -129,25 +129,25 @@ func TestLazyConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 
 	// invalid one event, duplicated key
-	e1 := NewEntity[flushEntity](c).TrackedEntity()
+	e1 := NewEntity[flushEntity](c)
 	e1.Name = "Valid name 1"
 	e1.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	e2 := NewEntity[flushEntity](c).TrackedEntity()
+	e2 := NewEntity[flushEntity](c)
 	e2.Name = "Valid name 2"
 	e2.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	e3 := NewEntity[flushEntity](c).TrackedEntity()
+	e3 := NewEntity[flushEntity](c)
 	e3.Name = "Valid name 3"
 	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	err = c.Flush(false)
 	assert.NoError(t, err)
 	c.Engine().Redis(DefaultPoolCode).FlushDB(c) // clearing duplicated key data
-	e1 = NewEntity[flushEntity](c).TrackedEntity()
+	e1 = NewEntity[flushEntity](c)
 	e1.Name = "Valid name 4"
 	e1.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	e2 = NewEntity[flushEntity](c).TrackedEntity()
+	e2 = NewEntity[flushEntity](c)
 	e2.Name = "Valid name 2"
 	e2.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	e3 = NewEntity[flushEntity](c).TrackedEntity()
+	e3 = NewEntity[flushEntity](c)
 	e3.Name = "Valid name 5"
 	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
 	err = c.Flush(true)

@@ -44,12 +44,6 @@ type EntityFlushedEvent interface {
 type writableEntityInterface[E any] interface {
 }
 
-type InsertableEntity[E any] interface {
-	writableEntityInterface[E]
-	TrackedEntity() *E
-	getBind() (Bind, error)
-}
-
 type RemovableEntity[E any] interface {
 	writableEntityInterface[E]
 	SourceEntity() *E
@@ -153,7 +147,7 @@ func (e *editableEntity[E]) SourceEntity() *E {
 	return e.source
 }
 
-func NewEntity[E any](c Context) InsertableEntity[E] {
+func NewEntity[E any](c Context) *E {
 	newEntity := &insertableEntity[E]{}
 	newEntity.c = c
 	schema := getEntitySchema[E](c)
@@ -168,7 +162,7 @@ func NewEntity[E any](c Context) InsertableEntity[E] {
 	newEntity.value = value
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, newEntity)
-	return newEntity
+	return newEntity.getEntity().(*E)
 }
 
 func DeleteEntity[E any](c Context, source *E) RemovableEntity[E] {

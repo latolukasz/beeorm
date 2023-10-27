@@ -52,9 +52,9 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	date := time.Now().UTC()
 	died := time.Now().UTC()
 	for i := 0; i < 10; i++ {
-		ref := NewEntity[getByUniqueIndexReference](c).TrackedEntity()
+		ref := NewEntity[getByUniqueIndexReference](c)
 		ref.Name = fmt.Sprintf("Ref %d", i)
-		entity = NewEntity[getByUniqueIndexEntity](c).TrackedEntity()
+		entity = NewEntity[getByUniqueIndexEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
 		entity.Ref = NewReference[getByUniqueIndexReference](ref.ID)

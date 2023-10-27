@@ -36,7 +36,7 @@ func testGetByID(t *testing.T, local, redis bool) {
 
 	var ids []uint64
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByIDEntity](c).TrackedEntity()
+		entity = NewEntity[getByIDEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		ids = append(ids, entity.ID)
 	}

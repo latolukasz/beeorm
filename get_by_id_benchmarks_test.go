@@ -29,7 +29,7 @@ func benchmarkGetByIDCache(b *testing.B, local, redis bool) {
 	schema := GetEntitySchema[getByIDBenchmarkEntity](c)
 	schema.DisableCache(!local, !redis)
 
-	entity = NewEntity[getByIDBenchmarkEntity](c).TrackedEntity()
+	entity = NewEntity[getByIDBenchmarkEntity](c)
 	entity.Name = "Name"
 	err := c.Flush(false)
 	assert.NoError(b, err)

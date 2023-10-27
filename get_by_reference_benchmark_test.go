@@ -19,10 +19,10 @@ func benchmarkGetByReference(b *testing.B, local, redis bool) {
 	schema.DisableCache(!local, !redis)
 
 	var entities []*getByReferenceEntity
-	ref := NewEntity[getByReferenceReference](c).TrackedEntity()
+	ref := NewEntity[getByReferenceReference](c)
 	ref.Name = "Ref 1"
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByReferenceEntity](c).TrackedEntity()
+		entity = NewEntity[getByReferenceEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.RefCached = NewReference[getByReferenceReference](ref.ID)
 		entities = append(entities, entity)

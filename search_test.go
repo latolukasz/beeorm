@@ -17,7 +17,7 @@ func TestSearch(t *testing.T) {
 
 	var ids []uint64
 	for i := 1; i <= 10; i++ {
-		entity = NewEntity[searchEntity](c).TrackedEntity()
+		entity = NewEntity[searchEntity](c)
 		entity.Name = "name %d"
 		ids = append(ids, entity.ID)
 	}

@@ -28,7 +28,7 @@ func benchmarkGetByIDsCache(b *testing.B, local, redis bool) {
 	const size = 100
 	ids := make([]uint64, size)
 	for i := 0; i < size; i++ {
-		entity = NewEntity[getByIdsEntity](c).TrackedEntity()
+		entity = NewEntity[getByIdsEntity](c)
 		entity.Name = "Name"
 		ids[i] = entity.ID
 	}
