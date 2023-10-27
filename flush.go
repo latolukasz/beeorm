@@ -135,7 +135,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			}
 			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
-				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
 				if hasKey {
 					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
@@ -149,7 +149,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		}
 		rc, hasRedisCache := schema.GetRedisCache()
 		if hasRedisCache {
-			cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
+			cacheKey := schema.getCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
 			c.RedisPipeLine(rc.GetCode()).Del(cacheKey)
 			c.RedisPipeLine(rc.GetCode()).LPush(cacheKey, "")
 		}
@@ -239,7 +239,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 		if len(uniqueIndexes) > 0 {
 			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
-				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
 				if !hasKey {
 					continue
@@ -341,7 +341,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {
-			c.RedisPipeLine(rc.GetCode()).RPush(schema.GetCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
+			c.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	if !lazy {
@@ -385,7 +385,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 				if !indexChanged {
 					continue
 				}
-				hSetKey := schema.GetCacheKey() + ":" + indexName
+				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(indexColumns, newBind)
 				if hasKey {
 					previousID, inUse := cache.HGet(c, hSetKey, hField)
@@ -484,7 +484,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			p := c.RedisPipeLine(rc.GetCode())
 			for column, val := range newBind {
 				index := int64(schema.columnMapping[column] + 1)
-				p.LSet(schema.GetCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
+				p.LSet(schema.getCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
 			}
 		}
 		for columnName := range schema.cachedReferences {

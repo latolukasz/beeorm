@@ -137,7 +137,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 			err := fillBindFromOneSource(c, bind, value.Elem(), schema.fields, "")
 			checkError(err)
 			values := convertBindToRedisValue(bind, schema)
-			redisPipeline.RPush(schema.GetCacheKey()+":"+strconv.FormatUint(id, 10), values...)
+			redisPipeline.RPush(schema.getCacheKey()+":"+strconv.FormatUint(id, 10), values...)
 			execRedisPipeline = true
 		}
 	}
@@ -152,7 +152,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 					schema.localCache.setEntity(c, id, nil)
 				}
 				if hasRedisCache {
-					cacheKey := schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)
+					cacheKey := schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
 					redisPipeline.Del(cacheKey)
 					redisPipeline.RPush(cacheKey, cacheNilValue)
 					execRedisPipeline = true

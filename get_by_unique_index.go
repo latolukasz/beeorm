@@ -20,7 +20,7 @@ func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E 
 		panic(fmt.Errorf("invalid number of index `%s` attributes, got %d, %d expected",
 			indexName, len(attributes), len(columns)))
 	}
-	hSetKey := schema.GetCacheKey() + ":" + indexName
+	hSetKey := schema.getCacheKey() + ":" + indexName
 	sBuilder := c.getStringBuilder2()
 	for i, attr := range attributes {
 		if attr == nil {

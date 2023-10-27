@@ -31,7 +31,7 @@ func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	var cacheKey string
 	if hasRedis {
-		cacheKey = schema.GetCacheKey() + ":" + strconv.FormatUint(id, 10)
+		cacheKey = schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
 		row := cacheRedis.LRange(c, cacheKey, 0, int64(len(schema.columnNames)+1))
 		l := len(row)
 		if len(row) > 0 {

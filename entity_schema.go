@@ -29,7 +29,6 @@ func getEntitySchema[E any](c Context) *entitySchema {
 
 type EntitySchema interface {
 	GetTableName() string
-	GetEntityName() string
 	GetType() reflect.Type
 	DropTable(c Context)
 	TruncateTable(c Context)
@@ -40,10 +39,10 @@ type EntitySchema interface {
 	GetRedisCache() (cache RedisCache, has bool)
 	GetColumns() []string
 	GetUniqueIndexes() map[string][]string
-	GetSchemaChanges(c Context) (has bool, alters []Alter)
+	GetSchemaChanges(c Context) (alters []Alter, has bool)
 	GetTag(field, key, trueValue, defaultValue string) string
-	GetCacheKey() string
 	DisableCache(local, redis bool)
+	getCacheKey() string
 	uuid() uint64
 	getForcedRedisCode() string
 }
@@ -165,10 +164,6 @@ func (e *entitySchema) GetTableName() string {
 	return e.tableName
 }
 
-func (e *entitySchema) GetEntityName() string {
-	return e.t.String()
-}
-
 func (e *entitySchema) GetType() reflect.Type {
 	return e.t
 }
@@ -190,7 +185,7 @@ func (e *entitySchema) TruncateTable(c Context) {
 
 func (e *entitySchema) UpdateSchema(c Context) {
 	pool := e.GetDB()
-	has, alters := e.GetSchemaChanges(c)
+	alters, has := e.GetSchemaChanges(c)
 	if has {
 		for _, alter := range alters {
 			_ = pool.Exec(c, alter.SQL)
@@ -231,12 +226,12 @@ func (e *entitySchema) GetUniqueIndexes() map[string][]string {
 	return e.uniqueIndices
 }
 
-func (e *entitySchema) GetSchemaChanges(c Context) (has bool, alters []Alter) {
+func (e *entitySchema) GetSchemaChanges(c Context) (alters []Alter, has bool) {
 	pre, alters, post := getSchemaChanges(c, e)
 	final := pre
 	final = append(final, alters...)
 	final = append(final, post...)
-	return len(final) > 0, final
+	return final, len(final) > 0
 }
 
 func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
@@ -421,7 +416,7 @@ func (e *entitySchema) getForcedRedisCode() string {
 	return DefaultPoolCode
 }
 
-func (e *entitySchema) GetCacheKey() string {
+func (e *entitySchema) getCacheKey() string {
 	return e.cacheKey
 }
 

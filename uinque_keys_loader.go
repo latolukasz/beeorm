@@ -22,7 +22,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 		}
 		db := schema.GetDB()
 		for indexName, columns := range schema.GetUniqueIndexes() {
-			hSetKey := schema.GetCacheKey() + ":" + indexName
+			hSetKey := schema.getCacheKey() + ":" + indexName
 			if len(columns) == 0 || cache.Exists(c, hSetKey) > 0 {
 				continue
 			}
