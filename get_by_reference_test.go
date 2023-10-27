@@ -127,7 +127,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	}
 
 	// Update set to nil
-	entity = EditEntity(c, e).TrackedEntity()
+	entity = EditEntity(c, e)
 	entity.Ref = nil
 	entity.RefCached = nil
 	entity.RefCachedNoCache = nil
@@ -158,7 +158,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	// update change id
-	entity = EditEntity[getByReferenceEntity](c, entities[3]).TrackedEntity()
+	entity = EditEntity[getByReferenceEntity](c, entities[3])
 	entity.Ref = NewReference[getByReferenceReference](ref2.ID)
 	entity.RefCached = NewReference[getByReferenceReference](ref2.ID)
 	entity.RefCachedNoCache = NewReference[getByReferenceReferenceNoCache](refNoCache2.ID)

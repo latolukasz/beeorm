@@ -67,7 +67,7 @@ func TestLogTable(t *testing.T) {
 	assert.Len(t, bind, 1)
 	assert.Equal(t, "test case", bind["source"])
 
-	entity = EditEntity(c, entity).TrackedEntity()
+	entity = EditEntity(c, entity)
 	entity.Name = "Test 3"
 	entity.Age = 40
 	err = c.Flush(false)

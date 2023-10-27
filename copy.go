@@ -4,7 +4,11 @@ import (
 	"reflect"
 )
 
-func Copy[E any](c Context, source *E) EditableEntity[E] {
+func Copy[E any](c Context, source *E) *E {
+	return copyToEdit[E](c, source).entity
+}
+
+func copyToEdit[E any](c Context, source *E) *editableEntity[E] {
 	schema := getEntitySchema[E](c)
 	value := reflect.New(schema.t)
 	writable := &editableEntity[E]{}

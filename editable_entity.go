@@ -41,15 +41,6 @@ type entityFlushUpdate interface {
 type EntityFlushedEvent interface {
 	FlushType() FlushType
 }
-type writableEntityInterface[E any] interface {
-}
-
-type EditableEntity[E any] interface {
-	writableEntityInterface[E]
-	TrackedEntity() *E
-	SourceEntity() *E
-	getBind() (new, old Bind, err error)
-}
 
 type writableEntity[E any] struct {
 	c      Context
@@ -171,13 +162,13 @@ func DeleteEntity[E any](c Context, source *E) {
 	ci.trackedEntities = append(ci.trackedEntities, toRemove)
 }
 
-func EditEntity[E any](c Context, source *E) EditableEntity[E] {
-	writable := Copy[E](c, source).(*editableEntity[E])
+func EditEntity[E any](c Context, source *E) *E {
+	writable := copyToEdit[E](c, source)
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source
 	ci := c.(*contextImplementation)
 	ci.trackedEntities = append(ci.trackedEntities, writable)
-	return writable
+	return writable.entity
 }
 
 func initNewEntity(elem reflect.Value, fields *tableFields) {
