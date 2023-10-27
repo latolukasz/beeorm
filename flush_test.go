@@ -683,9 +683,7 @@ func testFlushDelete(t *testing.T, lazy, local, redis bool) {
 
 	id := entity.ID
 
-	toDelete := DeleteEntity(c, entity)
-	assert.NotNil(t, toDelete.SourceEntity())
-	assert.Equal(t, toDelete.SourceEntity().ID, entity.ID)
+	DeleteEntity(c, entity)
 	err = c.Flush(lazy)
 	assert.NoError(t, err)
 
