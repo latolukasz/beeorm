@@ -31,7 +31,7 @@ func benchmarkGetByIDCache(b *testing.B, local, redis bool) {
 
 	entity = NewEntity[getByIDBenchmarkEntity](c)
 	entity.Name = "Name"
-	err := c.Flush(false)
+	err := c.Flush()
 	assert.NoError(b, err)
 
 	GetByID[getByIDBenchmarkEntity](c, entity.ID)

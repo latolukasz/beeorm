@@ -69,7 +69,7 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 		entities = append(entities, entity)
 		refs = append(refs, ref)
 	}
-	err := c.Flush(false)
+	err := c.Flush()
 	assert.NoError(t, err)
 
 	entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Name", "Name 3")

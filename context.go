@@ -16,7 +16,8 @@ type Context interface {
 	Clone() Context
 	CloneWithContext(ctx context.Context) Context
 	Engine() Engine
-	Flush(lazy bool) error
+	Flush() error
+	FlushLazy() error
 	ClearFlush()
 	RedisPipeLine(pool string) *RedisPipeLine
 	RegisterQueryLogger(handler LogHandler, mysql, redis, local bool)

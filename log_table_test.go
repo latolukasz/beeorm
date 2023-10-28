@@ -22,7 +22,7 @@ func TestLogTable(t *testing.T) {
 	entity = NewEntity[logTableEntity](c)
 	entity.Name = "Test"
 	entity.Age = 18
-	err := c.Flush(false)
+	err := c.Flush()
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
 	assert.Nil(t, err)
@@ -47,7 +47,7 @@ func TestLogTable(t *testing.T) {
 	entity = NewEntity[logTableEntity](c)
 	entity.Name = "Test 2"
 	entity.Age = 30
-	err = c.Flush(false)
+	err = c.Flush()
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
 	assert.Nil(t, err)
@@ -70,7 +70,7 @@ func TestLogTable(t *testing.T) {
 	entity = EditEntity(c, entity)
 	entity.Name = "Test 3"
 	entity.Age = 40
-	err = c.Flush(false)
+	err = c.Flush()
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
 	assert.NoError(t, err)
@@ -101,7 +101,7 @@ func TestLogTable(t *testing.T) {
 	assert.Equal(t, "40", bind["Age"])
 
 	DeleteEntity(c, entity)
-	err = c.Flush(false)
+	err = c.Flush()
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
 	assert.NoError(t, err)

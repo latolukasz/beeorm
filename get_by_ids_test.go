@@ -40,7 +40,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		entity.Name = fmt.Sprintf("Name %d", i)
 		ids = append(ids, entity.ID)
 	}
-	err := c.Flush(false)
+	err := c.Flush()
 	assert.NoError(t, err)
 
 	loggerDB := &MockLogHandler{}

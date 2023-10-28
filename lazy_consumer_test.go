@@ -47,7 +47,7 @@ func TestLazyConsumer(t *testing.T) {
 		reference := NewEntity[flushEntityReference](c)
 		reference.Name = "test reference " + strconv.Itoa(i)
 	}
-	err := c.Flush(true)
+	err := c.FlushLazy()
 	assert.NoError(t, err)
 
 	err = ConsumeLazyFlushEvents(c, false)
@@ -78,7 +78,7 @@ func TestLazyConsumer(t *testing.T) {
 
 	reference := NewEntity[flushEntityReference](c)
 	reference.Name = "test reference block"
-	err = c.Flush(true)
+	err = c.FlushLazy()
 	assert.NoError(t, err)
 	time.Sleep(time.Millisecond * 300)
 	cancel()
@@ -102,7 +102,7 @@ func TestLazyConsumer(t *testing.T) {
 	lazyEntity3.Name = "test reference custom lazy group"
 	lazyEntitySecondRedis := NewEntity[flushEntityLazySecondRedis](c)
 	lazyEntitySecondRedis.Name = "test reference custom lazy group"
-	err = c.Flush(true)
+	err = c.FlushLazy()
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.lazyCacheKey))
 	assert.Equal(t, int64(2), c.Engine().Redis(DefaultPoolCode).LLen(c, schema3.lazyCacheKey))
@@ -138,7 +138,7 @@ func TestLazyConsumer(t *testing.T) {
 	e3 := NewEntity[flushEntity](c)
 	e3.Name = "Valid name 3"
 	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	err = c.Flush(false)
+	err = c.Flush()
 	assert.NoError(t, err)
 	c.Engine().Redis(DefaultPoolCode).FlushDB(c) // clearing duplicated key data
 	e1 = NewEntity[flushEntity](c)
@@ -150,7 +150,7 @@ func TestLazyConsumer(t *testing.T) {
 	e3 = NewEntity[flushEntity](c)
 	e3.Name = "Valid name 5"
 	e3.ReferenceRequired = NewReference[flushEntityReference](reference.ID)
-	err = c.Flush(true)
+	err = c.FlushLazy()
 	assert.NoError(t, err)
 	err = ConsumeLazyFlushEvents(c, false)
 	assert.Nil(t, err)

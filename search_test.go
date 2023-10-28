@@ -21,7 +21,7 @@ func TestSearch(t *testing.T) {
 		entity.Name = "name %d"
 		ids = append(ids, entity.ID)
 	}
-	err := c.Flush(false)
+	err := c.Flush()
 	assert.NoError(t, err)
 
 	rows, total := SearchWithCount[searchEntity](c, NewWhere("ID > ?", ids[1]), nil)
