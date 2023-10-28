@@ -10,10 +10,10 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
-const lazyConsumerPage = 1000
-const lazyConsumerBlockTime = time.Second * 3
-const flushLazyEventsList = "flush_lazy_events"
-const flushLazyEventsListErrorSuffix = ":err"
+const asyncConsumerPage = 1000
+const asyncConsumerBlockTime = time.Second * 3
+const flushAsyncEventsList = "flush_async_events"
+const flushAsyncEventsListErrorSuffix = ":err"
 
 var mySQLErrorCodesToSkip = []uint16{
 	1022, // Can't write; duplicate key in table '%s'
@@ -30,10 +30,10 @@ var mySQLErrorCodesToSkip = []uint16{
 	2032, // Data truncated
 }
 
-const lazyConsumerLockName = "lazy_consumer"
+const asyncConsumerLockName = "async_consumer"
 
-func ConsumeLazyFlushEvents(c Context, block bool) error {
-	lock, lockObtained := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, lazyConsumerLockName, time.Minute, 0)
+func ConsumeAsyncFlushEvents(c Context, block bool) error {
+	lock, lockObtained := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, asyncConsumerLockName, time.Minute, 0)
 	if !lockObtained {
 		return nil
 	}
@@ -63,19 +63,19 @@ func ConsumeLazyFlushEvents(c Context, block bool) error {
 			redisGroup = make(map[string]bool)
 			dbGroup[r] = redisGroup
 		}
-		_, has = redisGroup[schema.lazyCacheKey]
+		_, has = redisGroup[schema.asyncCacheKey]
 		if has {
 			continue
 		}
-		redisGroup[schema.lazyCacheKey] = true
+		redisGroup[schema.asyncCacheKey] = true
 		waitGroup.Add(1)
-		go consumeLazyEvents(c.Ctx(), ctxNoCancel.Clone(), schema.lazyCacheKey, db, r, block, waitGroup, &lockObtained)
+		go consumeAsyncEvents(c.Ctx(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained)
 	}
 	waitGroup.Wait()
 	return nil
 }
 
-func consumeLazyEvents(ctx context.Context, c Context, list string, db DB, r RedisCache,
+func consumeAsyncEvents(ctx context.Context, c Context, list string, db DB, r RedisCache,
 	block bool, waitGroup *sync.WaitGroup, lockObtained *bool) {
 	defer waitGroup.Done()
 	var values []string
@@ -83,20 +83,20 @@ func consumeLazyEvents(ctx context.Context, c Context, list string, db DB, r Red
 		if ctx.Err() != nil || !*lockObtained {
 			return
 		}
-		values = r.LRange(c, list, 0, lazyConsumerPage-1)
+		values = r.LRange(c, list, 0, asyncConsumerPage-1)
 		if len(values) > 0 {
-			handleLazyEvents(ctx, c, list, db, r, values)
+			handleAsyncEvents(ctx, c, list, db, r, values)
 		}
-		if len(values) < lazyConsumerPage {
+		if len(values) < asyncConsumerPage {
 			if !block || ctx.Err() != nil {
 				return
 			}
-			time.Sleep(c.Engine().Registry().(*engineRegistryImplementation).lazyConsumerBlockTime)
+			time.Sleep(c.Engine().Registry().(*engineRegistryImplementation).asyncConsumerBlockTime)
 		}
 	}
 }
 
-func handleLazyEvents(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
+func handleAsyncEvents(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
 	operations := len(values)
 	inTX := operations > 1
 	func() {
@@ -116,12 +116,12 @@ func handleLazyEvents(ctx context.Context, c Context, list string, db DB, r Redi
 			if ctx.Err() != nil {
 				return
 			}
-			err := handleLazyEvent(c, d, event)
+			err := handleAsyncEvent(c, d, event)
 			if err != nil {
 				if inTX {
 					d.(DBTransaction).Rollback(c)
 				}
-				handleLazyEventsOneByOne(ctx, c, list, db, r, values)
+				handleAsyncEventsOneByOne(ctx, c, list, db, r, values)
 				return
 			}
 		}
@@ -132,7 +132,7 @@ func handleLazyEvents(ctx context.Context, c Context, list string, db DB, r Redi
 	}()
 }
 
-func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError) {
+func handleAsyncEvent(c Context, db DBBase, value string) (err *mysql.MySQLError) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
@@ -167,14 +167,14 @@ func handleLazyEvent(c Context, db DBBase, value string) (err *mysql.MySQLError)
 	return nil
 }
 
-func handleLazyEventsOneByOne(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
+func handleAsyncEventsOneByOne(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
 	for _, event := range values {
 		if ctx.Err() != nil {
 			return
 		}
-		err := handleLazyEvent(c, db, event)
+		err := handleAsyncEvent(c, db, event)
 		if err != nil {
-			r.RPush(c, list+flushLazyEventsListErrorSuffix, event, err.Error())
+			r.RPush(c, list+flushAsyncEventsListErrorSuffix, event, err.Error())
 		}
 		r.Ltrim(c, list, 1, -1)
 	}

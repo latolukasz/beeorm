@@ -16,11 +16,11 @@ func (c *contextImplementation) Flush() error {
 	return c.flush(false)
 }
 
-func (c *contextImplementation) FlushLazy() error {
+func (c *contextImplementation) FlushAsync() error {
 	return c.flush(true)
 }
 
-func (c *contextImplementation) flush(lazy bool) error {
+func (c *contextImplementation) flush(async bool) error {
 	if len(c.trackedEntities) == 0 {
 		return nil
 	}
@@ -29,28 +29,28 @@ func (c *contextImplementation) flush(lazy bool) error {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.handleDeletes(lazy, schema, deletes)
+				err := c.handleDeletes(async, schema, deletes)
 				if err != nil {
 					return err
 				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				err := c.handleInserts(lazy, schema, inserts)
+				err := c.handleInserts(async, schema, inserts)
 				if err != nil {
 					return err
 				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				err := c.handleUpdates(lazy, schema, updates)
+				err := c.handleUpdates(async, schema, updates)
 				if err != nil {
 					return err
 				}
 			}
 		}
 	}
-	if !lazy {
+	if !async {
 		func() {
 			var transactions []DBTransaction
 			defer func() {
@@ -92,16 +92,16 @@ func (c *contextImplementation) ClearFlush() {
 	c.redisPipeLines = nil
 }
 
-func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, operations []EntityFlush) error {
 	var args []any
-	if !lazy {
+	if !async {
 		args = make([]any, len(operations))
 	}
 	s := c.getStringBuilder2()
 	s.WriteString("DELETE FROM `")
 	s.WriteString(schema.GetTableName())
 	s.WriteString("` WHERE ID IN (")
-	if lazy {
+	if async {
 		for i, operation := range operations {
 			if i > 0 {
 				s.WriteString(",")
@@ -114,7 +114,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 	}
 	s.WriteString(")")
 	sql := s.String()
-	if !lazy {
+	if !async {
 		for i, operation := range operations {
 			args[i] = operation.ID()
 		}
@@ -123,7 +123,7 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 		})
 	} else {
 		data := `["` + sql + `"]"`
-		c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, data)
+		c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, data)
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()
@@ -209,13 +209,13 @@ func (c *contextImplementation) handleDeletes(lazy bool, schema *entitySchema, o
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
 		}
 	}
 	return nil
 }
 
-func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	s := c.getStringBuilder2()
 	s.WriteString("INSERT INTO `")
@@ -228,7 +228,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 	}
 	s.WriteString(") VALUES")
 	var args []any
-	if !lazy {
+	if !async {
 		args = make([]any, 0, len(operations)*len(columns))
 	}
 	lc, hasLocalCache := schema.GetLocalCache()
@@ -256,46 +256,46 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 				c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
-		var lazyData []string
-		if lazy {
-			lazyData = make([]string, len(columns))
+		var asyncData []string
+		if async {
+			asyncData = make([]string, len(columns))
 		}
 
-		if i > 0 && !lazy {
+		if i > 0 && !async {
 			s.WriteString(",")
 		}
-		if !lazy || i == 0 {
+		if !async || i == 0 {
 			s.WriteString("(?")
 		}
-		if !lazy {
+		if !async {
 			args = append(args, bind["ID"])
 		} else {
-			lazyData[0] = bind["ID"]
+			asyncData[0] = bind["ID"]
 		}
 		for j, column := range columns[1:] {
 			v := bind[column]
-			if !lazy {
+			if !async {
 				if v == nullAsString {
 					args = append(args, nil)
 				} else {
 					args = append(args, v)
 				}
 			} else {
-				lazyData[j+1] = v
+				asyncData[j+1] = v
 			}
-			if !lazy || i == 0 {
+			if !async || i == 0 {
 				s.WriteString(",?")
 			}
 		}
-		if !lazy || i == 0 {
+		if !async || i == 0 {
 			s.WriteString(")")
 		}
-		if lazy {
-			data := make([]string, 0, len(lazyData)+1)
+		if async {
+			data := make([]string, 0, len(asyncData)+1)
 			data = append(data, s.String())
-			data = append(data, lazyData...)
+			data = append(data, asyncData...)
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJSON)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
 		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
@@ -313,7 +313,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func() {
@@ -348,7 +348,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 			c.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
 		}
 	}
-	if !lazy {
+	if !async {
 		sql := s.String()
 		c.appendDBAction(schema, func(db DBBase) {
 			db.Exec(c, sql, args...)
@@ -358,7 +358,7 @@ func (c *contextImplementation) handleInserts(lazy bool, schema *entitySchema, o
 	return nil
 }
 
-func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, operations []EntityFlush) error {
+func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	lc, hasLocalCache := schema.GetLocalCache()
 	rc, hasRedisCache := schema.GetRedisCache()
@@ -417,9 +417,9 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 		s.WriteString(queryPrefix)
 		k := 0
 		var args []any
-		var lazyArgs []string
-		if lazy {
-			lazyArgs = make([]string, len(newBind)+2)
+		var asyncArgs []string
+		if async {
+			asyncArgs = make([]string, len(newBind)+2)
 		} else {
 			args = make([]any, len(newBind)+1)
 		}
@@ -428,8 +428,8 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 				s.WriteString(",")
 			}
 			s.WriteString("`" + column + "`=?")
-			if lazy {
-				lazyArgs[k+1] = value
+			if async {
+				asyncArgs[k+1] = value
 			} else {
 				if value == nullAsString {
 					args[k] = nil
@@ -440,16 +440,16 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			k++
 		}
 		s.WriteString(" WHERE ID = ?")
-		if lazy {
-			lazyArgs[k+1] = strconv.FormatUint(update.ID(), 10)
+		if async {
+			asyncArgs[k+1] = strconv.FormatUint(update.ID(), 10)
 		} else {
 			args[k] = update.ID()
 		}
 		sql := s.String()
-		if lazy {
-			lazyArgs[0] = sql
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(lazyArgs)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.lazyCacheKey, asJSON)
+		if async {
+			asyncArgs[0] = sql
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncArgs)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
 		} else {
 			c.appendDBAction(schema, func(db DBBase) {
 				db.Exec(c, sql, args...)
@@ -474,7 +474,7 @@ func (c *contextImplementation) handleUpdates(lazy bool, schema *entitySchema, o
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
 			data[6] = asJSON
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.lazyCacheKey, asJSON)
+			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
 		}
 
 		if hasLocalCache {

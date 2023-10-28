@@ -28,14 +28,14 @@ type Engine interface {
 }
 
 type engineRegistryImplementation struct {
-	engine                *engineImplementation
-	oneAppMode            bool
-	entities              map[string]reflect.Type
-	entitySchemas         map[reflect.Type]*entitySchema
-	entityLogSchemas      map[reflect.Type]*entitySchema
-	defaultQueryLogger    *defaultLogLogger
-	dbTables              map[string]map[string]bool
-	lazyConsumerBlockTime time.Duration
+	engine                 *engineImplementation
+	oneAppMode             bool
+	entities               map[string]reflect.Type
+	entitySchemas          map[reflect.Type]*entitySchema
+	entityLogSchemas       map[reflect.Type]*entitySchema
+	defaultQueryLogger     *defaultLogLogger
+	dbTables               map[string]map[string]bool
+	asyncConsumerBlockTime time.Duration
 }
 
 type engineImplementation struct {

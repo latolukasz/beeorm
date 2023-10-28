@@ -41,7 +41,7 @@ func (r *registry) Validate() (Engine, error) {
 	maxPoolLen := 0
 	e := &engineImplementation{}
 	e.registry = &engineRegistryImplementation{engine: e}
-	e.registry.lazyConsumerBlockTime = lazyConsumerBlockTime
+	e.registry.asyncConsumerBlockTime = asyncConsumerBlockTime
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)

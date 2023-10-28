@@ -73,7 +73,7 @@ type entitySchema struct {
 	hasRedisCache             bool
 	redisCache                *redisCache
 	cacheKey                  string
-	lazyCacheKey              string
+	asyncCacheKey             string
 	structureHash             string
 	mapBindToScanPointer      mapBindToScanPointer
 	mapPointerToValue         mapPointerToValue
@@ -337,11 +337,11 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.hasRedisCache = redisCacheName != ""
 	e.cacheKey = cacheKey
 
-	lazyList := e.getTag("custom_lazy_group", e.t.String(), "")
-	if lazyList == "" {
-		lazyList = flushLazyEventsList
+	asyncList := e.getTag("custom_async_group", e.t.String(), "")
+	if asyncList == "" {
+		asyncList = flushAsyncEventsList
 	}
-	e.lazyCacheKey = e.mysqlPoolCode + ":" + lazyList
+	e.asyncCacheKey = e.mysqlPoolCode + ":" + asyncList
 
 	e.uniqueIndices = make(map[string][]string)
 	for name, index := range uniqueIndices {
