@@ -71,9 +71,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	for i := 0; i < 10; i++ {
 		entity = NewEntity[getByReferenceEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
-		entity.Ref = NewReference[getByReferenceReference](ref.ID)
-		entity.RefCached = NewReference[getByReferenceReference](ref.ID)
-		entity.RefCachedNoCache = NewReference[getByReferenceReferenceNoCache](refNoCache.ID)
+		entity.Ref = &Reference[getByReferenceReference]{ID: ref.ID}
+		entity.RefCached = &Reference[getByReferenceReference]{ID: ref.ID}
+		entity.RefCachedNoCache = &Reference[getByReferenceReferenceNoCache]{ID: refNoCache.ID}
 		entities = append(entities, entity)
 	}
 	err := c.Flush()
@@ -159,9 +159,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	// update change id
 	entity = EditEntity[getByReferenceEntity](c, entities[3])
-	entity.Ref = NewReference[getByReferenceReference](ref2.ID)
-	entity.RefCached = NewReference[getByReferenceReference](ref2.ID)
-	entity.RefCachedNoCache = NewReference[getByReferenceReferenceNoCache](refNoCache2.ID)
+	entity.Ref = &Reference[getByReferenceReference]{ID: ref2.ID}
+	entity.RefCached = &Reference[getByReferenceReference]{ID: ref2.ID}
+	entity.RefCachedNoCache = &Reference[getByReferenceReferenceNoCache]{ID: refNoCache2.ID}
 	err = c.Flush()
 	assert.NoError(t, err)
 	loggerDB.Clear()

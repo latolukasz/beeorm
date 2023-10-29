@@ -57,7 +57,7 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 		entity = NewEntity[getByUniqueIndexEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
-		entity.Ref = NewReference[getByUniqueIndexReference](ref.ID)
+		entity.Ref = &Reference[getByUniqueIndexReference]{ID: ref.ID}
 		date = date.Add(time.Hour)
 		died = died.Add(time.Hour * 24)
 		entity.BirthDate = date

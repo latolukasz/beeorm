@@ -238,7 +238,7 @@ func deserializeReferencesFromRedis(v string, f reflect.Value) {
 		val := reflect.New(f.Type().Elem())
 		reference := val.Interface().(referenceInterface)
 		valInt, _ := strconv.ParseUint(v, 10, 64)
-		reference.SetID(valInt)
+		reference.setID(valInt)
 		f.Set(val)
 	}
 }
@@ -606,7 +606,7 @@ func deserializeReferenceFromDB(f reflect.Value, v sql.NullInt64) {
 	if v.Valid {
 		val := reflect.New(f.Type().Elem())
 		reference := val.Interface().(referenceInterface)
-		reference.SetID(uint64(v.Int64))
+		reference.setID(uint64(v.Int64))
 		f.Set(val)
 		return
 	}

@@ -87,10 +87,10 @@ func fillBindForReference(bind Bind, f reflect.Value, required bool, column stri
 		bind[column] = nullAsString
 	} else {
 		reference := f.Interface().(referenceInterface)
-		if required && reference.GetID() == 0 {
+		if required && reference.getID() == 0 {
 			return &BindError{Field: column, Message: "ID zero not allowed"}
 		}
-		bind[column] = strconv.FormatUint(reference.GetID(), 10)
+		bind[column] = strconv.FormatUint(reference.getID(), 10)
 	}
 	return nil
 }
@@ -837,7 +837,7 @@ func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tab
 	v1IsNil := f1.IsNil()
 	v2IsNil := f2.IsNil()
 	if !v1IsNil {
-		v1 = f1.Interface().(referenceInterface).GetID()
+		v1 = f1.Interface().(referenceInterface).getID()
 		if isRequired && v1 == 0 {
 			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
 		}
@@ -845,7 +845,7 @@ func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tab
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
 	}
 	if !v2IsNil {
-		v2 = f2.Interface().(referenceInterface).GetID()
+		v2 = f2.Interface().(referenceInterface).getID()
 	}
 	if v1IsNil != v2IsNil || v1 != v2 {
 		name := prefix + fields.fields[i].Name + suffix

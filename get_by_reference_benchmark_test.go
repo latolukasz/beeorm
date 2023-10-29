@@ -24,7 +24,7 @@ func benchmarkGetByReference(b *testing.B, local, redis bool) {
 	for i := 0; i < 10; i++ {
 		entity = NewEntity[getByReferenceEntity](c)
 		entity.Name = fmt.Sprintf("Name %d", i)
-		entity.RefCached = NewReference[getByReferenceReference](ref.ID)
+		entity.RefCached = &Reference[getByReferenceReference]{ID: ref.ID}
 		entities = append(entities, entity)
 	}
 	err := c.Flush()
