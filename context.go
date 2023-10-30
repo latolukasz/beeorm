@@ -3,6 +3,7 @@ package beeorm
 import (
 	"context"
 	"strings"
+	"sync"
 )
 
 type Meta map[string]string
@@ -28,8 +29,7 @@ type Context interface {
 	getDBLoggers() (bool, []LogHandler)
 	getLocalCacheLoggers() (bool, []LogHandler)
 	getRedisLoggers() (bool, []LogHandler)
-	getStringBuilder() *strings.Builder
-	getStringBuilder2() *strings.Builder
+	trackEntity(e EntityFlush)
 }
 
 type contextImplementation struct {
@@ -48,24 +48,8 @@ type contextImplementation struct {
 	redisPipeLines         map[string]*RedisPipeLine
 	flushDBActions         map[string][]func(db DBBase)
 	flushPostActions       []func()
-}
-
-func (c *contextImplementation) getStringBuilder() *strings.Builder {
-	if c.stringBuilder == nil {
-		c.stringBuilder = &strings.Builder{}
-	} else {
-		c.stringBuilder.Reset()
-	}
-	return c.stringBuilder
-}
-
-func (c *contextImplementation) getStringBuilder2() *strings.Builder {
-	if c.stringBuilder2 == nil {
-		c.stringBuilder2 = &strings.Builder{}
-	} else {
-		c.stringBuilder2.Reset()
-	}
-	return c.stringBuilder2
+	mutexFlush             sync.Mutex
+	mutexData              sync.Mutex
 }
 
 func (c *contextImplementation) Ctx() context.Context {
@@ -91,19 +75,26 @@ func (c *contextImplementation) Clone() Context {
 }
 
 func (c *contextImplementation) RedisPipeLine(pool string) *RedisPipeLine {
+	if c.redisPipeLines != nil {
+		pipeline, has := c.redisPipeLines[pool]
+		if has {
+			return pipeline
+		}
+	}
+	c.mutexData.Lock()
+	defer c.mutexData.Unlock()
 	if c.redisPipeLines == nil {
 		c.redisPipeLines = make(map[string]*RedisPipeLine)
 	}
-	pipeline, has := c.redisPipeLines[pool]
-	if !has {
-		r := c.engine.Redis(pool).(*redisCache)
-		pipeline = &RedisPipeLine{c: c, pool: pool, r: r, pipeLine: r.client.Pipeline()}
-		c.redisPipeLines[pool] = pipeline
-	}
+	r := c.engine.Redis(pool).(*redisCache)
+	pipeline := &RedisPipeLine{c: c, pool: pool, r: r, pipeLine: r.client.Pipeline()}
+	c.redisPipeLines[pool] = pipeline
 	return pipeline
 }
 
 func (c *contextImplementation) SetMetaData(key, value string) {
+	c.mutexData.Lock()
+	defer c.mutexData.Unlock()
 	if c.meta == nil {
 		c.meta = Meta{key: value}
 		return
@@ -138,4 +129,10 @@ func (c *contextImplementation) getLocalCacheLoggers() (bool, []LogHandler) {
 		return true, c.queryLoggersLocalCache
 	}
 	return false, nil
+}
+
+func (c *contextImplementation) trackEntity(e EntityFlush) {
+	c.mutexFlush.Lock()
+	defer c.mutexFlush.Unlock()
+	c.trackedEntities = append(c.trackedEntities, e)
 }

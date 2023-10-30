@@ -91,30 +91,28 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 			return results
 		}
 	}
-	sBuilder := c.getStringBuilder()
-	sBuilder.WriteString("SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN (")
+	sql := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE `ID` IN ("
 	toSearch := 0
 	if len(missingKeys) > 0 {
 		for i, key := range missingKeys {
 			if i > 0 {
-				sBuilder.WriteString(",")
+				sql += ","
 			}
-			sBuilder.WriteString(strconv.FormatUint(ids[key], 10))
+			sql += strconv.FormatUint(ids[key], 10)
 		}
 		toSearch = len(missingKeys)
 	} else {
 		for i, id := range ids {
 			if i > 0 {
-				sBuilder.WriteString(",")
+				sql += ","
 			}
-			sBuilder.WriteString(strconv.FormatUint(id, 10))
+			sql += strconv.FormatUint(id, 10)
 		}
 		toSearch = len(ids)
 	}
-
-	sBuilder.WriteString(")")
+	sql += ")"
 	execRedisPipeline := false
-	res, def := schema.GetDB().Query(c, sBuilder.String())
+	res, def := schema.GetDB().Query(c, sql)
 	defer def()
 	foundInDB := 0
 	for res.Next() {

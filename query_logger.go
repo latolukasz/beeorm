@@ -66,6 +66,8 @@ type LogHandler interface {
 }
 
 func (c *contextImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
+	c.mutexData.Lock()
+	defer c.mutexData.Unlock()
 	if mysql {
 		c.hasDBLogger = true
 		c.queryLoggersDB = c.appendLog(c.queryLoggersDB, handler)

@@ -218,7 +218,7 @@ func fillBindForEnums(bind Bind, f reflect.Value, def *enumDefinition, column st
 	return nil
 }
 
-func fillBindForSets(bind Bind, c Context, f reflect.Value, def *enumDefinition, column string) error {
+func fillBindForSets(bind Bind, f reflect.Value, def *enumDefinition, column string) error {
 	if f.IsNil() || f.Len() == 0 {
 		if def.required {
 			return &BindError{Field: column, Message: "empty value not allowed"}
@@ -226,18 +226,18 @@ func fillBindForSets(bind Bind, c Context, f reflect.Value, def *enumDefinition,
 		bind[column] = nullAsString
 		return nil
 	}
-	s := c.getStringBuilder()
+	s := ""
 	for j := 0; j < f.Len(); j++ {
 		v := f.Index(j).String()
 		if !slices.Contains(def.GetFields(), v) {
 			return &BindError{Field: column, Message: fmt.Sprintf("invalid value: %s", v)}
 		}
 		if j > 0 {
-			s.WriteString(",")
+			s += ","
 		}
-		s.WriteString(v)
+		s += v
 	}
-	bind[column] = s.String()
+	bind[column] = s
 	return nil
 }
 
@@ -464,7 +464,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		}
 	}
 	for k, i := range fields.sliceStringsSets {
-		err := fillBindForSets(bind, c, source.Field(i), fields.sets[k], prefix+fields.fields[i].Name)
+		err := fillBindForSets(bind, source.Field(i), fields.sets[k], prefix+fields.fields[i].Name)
 		if err != nil {
 			return err
 		}
@@ -472,7 +472,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	for k, i := range fields.sliceStringsSetsArray {
 		f := source.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindForSets(bind, c, f.Index(j), fields.setsArray[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
+			err := fillBindForSets(bind, f.Index(j), fields.setsArray[k], prefix+fields.fields[i].Name+"_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}

@@ -21,6 +21,8 @@ func (c *contextImplementation) FlushAsync() error {
 }
 
 func (c *contextImplementation) flush(async bool) error {
+	c.mutexFlush.Lock()
+	defer c.mutexFlush.Unlock()
 	if len(c.trackedEntities) == 0 {
 		return nil
 	}
@@ -81,11 +83,16 @@ func (c *contextImplementation) flush(async bool) error {
 	for _, action := range c.flushPostActions {
 		action()
 	}
-	c.ClearFlush()
+	c.trackedEntities = c.trackedEntities[0:0]
+	c.flushDBActions = nil
+	c.flushPostActions = c.flushPostActions[0:0]
+	c.redisPipeLines = nil
 	return nil
 }
 
 func (c *contextImplementation) ClearFlush() {
+	c.mutexFlush.Lock()
+	defer c.mutexFlush.Unlock()
 	c.trackedEntities = c.trackedEntities[0:0]
 	c.flushDBActions = nil
 	c.flushPostActions = c.flushPostActions[0:0]
@@ -97,23 +104,18 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 	if !async {
 		args = make([]any, len(operations))
 	}
-	s := c.getStringBuilder2()
-	s.WriteString("DELETE FROM `")
-	s.WriteString(schema.GetTableName())
-	s.WriteString("` WHERE ID IN (")
+	sql := "DELETE FROM `" + schema.GetTableName() + "` WHERE ID IN ("
 	if async {
 		for i, operation := range operations {
 			if i > 0 {
-				s.WriteString(",")
+				sql += ","
 			}
-			s.WriteString(strconv.FormatUint(operation.ID(), 10))
+			sql += strconv.FormatUint(operation.ID(), 10)
 		}
 	} else {
-		s.WriteString("?")
-		s.WriteString(strings.Repeat(",?", len(operations)-1))
+		sql += "?" + strings.Repeat(",?", len(operations)-1)
 	}
-	s.WriteString(")")
-	sql := s.String()
+	sql += ")"
 	if !async {
 		for i, operation := range operations {
 			args[i] = operation.ID()
@@ -217,16 +219,11 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 
 func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
-	s := c.getStringBuilder2()
-	s.WriteString("INSERT INTO `")
-	s.WriteString(schema.GetTableName())
-	s.WriteString("`(`ID`")
+	sql := "INSERT INTO `" + schema.GetTableName() + "`(`ID`"
 	for _, column := range columns[1:] {
-		s.WriteString(",`")
-		s.WriteString(column)
-		s.WriteString("`")
+		sql += ",`" + column + "`"
 	}
-	s.WriteString(") VALUES")
+	sql += ") VALUES"
 	var args []any
 	if !async {
 		args = make([]any, 0, len(operations)*len(columns))
@@ -262,10 +259,10 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		}
 
 		if i > 0 && !async {
-			s.WriteString(",")
+			sql += ","
 		}
 		if !async || i == 0 {
-			s.WriteString("(?")
+			sql += "(?"
 		}
 		if !async {
 			args = append(args, bind["ID"])
@@ -284,15 +281,15 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 				asyncData[j+1] = v
 			}
 			if !async || i == 0 {
-				s.WriteString(",?")
+				sql += ",?"
 			}
 		}
 		if !async || i == 0 {
-			s.WriteString(")")
+			sql += ")"
 		}
 		if async {
 			data := make([]string, 0, len(asyncData)+1)
-			data = append(data, s.String())
+			data = append(data, sql)
 			data = append(data, asyncData...)
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(data)
 			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
@@ -349,7 +346,6 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		}
 	}
 	if !async {
-		sql := s.String()
 		c.appendDBAction(schema, func(db DBBase) {
 			db.Exec(c, sql, args...)
 		})
@@ -407,14 +403,9 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 
 		if queryPrefix == "" {
-			s := c.getStringBuilder2()
-			s.WriteString("UPDATE `")
-			s.WriteString(schema.GetTableName())
-			s.WriteString("` SET ")
-			queryPrefix = s.String()
+			queryPrefix = "UPDATE `" + schema.GetTableName() + "` SET "
 		}
-		s := c.getStringBuilder2()
-		s.WriteString(queryPrefix)
+		sql := queryPrefix
 		k := 0
 		var args []any
 		var asyncArgs []string
@@ -425,9 +416,9 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 		for column, value := range newBind {
 			if k > 0 {
-				s.WriteString(",")
+				sql += ","
 			}
-			s.WriteString("`" + column + "`=?")
+			sql += "`" + column + "`=?"
 			if async {
 				asyncArgs[k+1] = value
 			} else {
@@ -439,13 +430,12 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			}
 			k++
 		}
-		s.WriteString(" WHERE ID = ?")
+		sql += " WHERE ID = ?"
 		if async {
 			asyncArgs[k+1] = strconv.FormatUint(update.ID(), 10)
 		} else {
 			args[k] = update.ID()
 		}
-		sql := s.String()
 		if async {
 			asyncArgs[0] = sql
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncArgs)

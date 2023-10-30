@@ -21,16 +21,16 @@ func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E 
 			indexName, len(attributes), len(columns)))
 	}
 	hSetKey := schema.getCacheKey() + ":" + indexName
-	sBuilder := c.getStringBuilder2()
+	s := ""
 	for i, attr := range attributes {
 		if attr == nil {
 			panic(fmt.Errorf("nil attribute for index name `%s` is not allowed", indexName))
 		}
 		val, err := schema.columnAttrToStringSetters[columns[i]](attr)
 		checkError(err)
-		sBuilder.WriteString(val)
+		s += val
 	}
-	hField := hashString(sBuilder.String())
+	hField := hashString(s)
 	cache, hasRedis := schema.GetRedisCache()
 	if !hasRedis {
 		cache = c.Engine().Redis(DefaultPoolCode)

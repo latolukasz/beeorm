@@ -146,8 +146,7 @@ func NewEntity[E any](c Context) *E {
 	newEntity.id = id
 	elem.Field(0).SetUint(id)
 	newEntity.value = value
-	ci := c.(*contextImplementation)
-	ci.trackedEntities = append(ci.trackedEntities, newEntity)
+	c.trackEntity(newEntity)
 	return newEntity.getEntity().(*E)
 }
 
@@ -156,18 +155,16 @@ func DeleteEntity[E any](c Context, source *E) {
 	toRemove.c = c
 	toRemove.source = source
 	toRemove.id = reflect.ValueOf(source).Elem().Field(0).Uint()
-	ci := c.(*contextImplementation)
 	schema := getEntitySchema[E](c)
 	toRemove.schema = schema
-	ci.trackedEntities = append(ci.trackedEntities, toRemove)
+	c.trackEntity(toRemove)
 }
 
 func EditEntity[E any](c Context, source *E) *E {
 	writable := copyToEdit[E](c, source)
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source
-	ci := c.(*contextImplementation)
-	ci.trackedEntities = append(ci.trackedEntities, writable)
+	c.trackEntity(writable)
 	return writable.entity
 }
 
