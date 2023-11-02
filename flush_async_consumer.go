@@ -105,6 +105,7 @@ func consumeAsyncEvents(ctx context.Context, c Context, list string, db DB, r Re
 		if ctx.Err() != nil || !*lockObtained || *stop > 0 {
 			return
 		}
+
 		values = r.LRange(c, list, 0, asyncConsumerPage-1)
 		if len(values) > 0 {
 			handleAsyncEvents(ctx, c, list, db, r, values)
