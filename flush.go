@@ -369,10 +369,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
-			cache, hasRedis := schema.GetRedisCache()
-			if !hasRedis {
-				cache = c.Engine().Redis(DefaultPoolCode)
-			}
+			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				indexChanged := false
 				for _, column := range indexColumns {

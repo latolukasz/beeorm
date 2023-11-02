@@ -5,11 +5,17 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const loadingUniqueKeysPage = 5000
 
 func LoadUniqueKeys(c Context, debug bool) {
+	lock, got := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, "load_unique_key", time.Second*5, 0)
+	if !got {
+		return
+	}
+	defer lock.Release(c)
 	for _, entity := range c.Engine().Registry().Entities() {
 		schema := c.Engine().Registry().EntitySchema(entity)
 		indexes := schema.GetUniqueIndexes()

@@ -2,8 +2,10 @@ package beeorm
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/go-sql-driver/mysql"
@@ -23,6 +25,7 @@ var mySQLErrorCodesToSkip = []uint16{
 	1054, // Unknown column '%s' in '%s'
 	1062, // Duplicate entry '%s' for key %d
 	1063, // Incorrect column specifier for column '%s'
+	1064, // Syntax error
 	1067, // Invalid default value for '%s'
 	1109, // Message: Unknown table '%s' in %s
 	1146, // Table '%s.%s' doesn't exist
@@ -46,9 +49,12 @@ func ConsumeAsyncFlushEvents(c Context, block bool) error {
 			lockObtained = false
 		}
 	}()
+	errorMutex := sync.Mutex{}
 	waitGroup := &sync.WaitGroup{}
 	ctxNoCancel := c.CloneWithContext(context.Background())
 	groups := make(map[DB]map[RedisCache]map[string]bool)
+	var stop uint32
+	var globalError error
 	for _, entityType := range c.Engine().Registry().Entities() {
 		schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
 		db := schema.GetDB()
@@ -69,18 +75,34 @@ func ConsumeAsyncFlushEvents(c Context, block bool) error {
 		}
 		redisGroup[schema.asyncCacheKey] = true
 		waitGroup.Add(1)
-		go consumeAsyncEvents(c.Ctx(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained)
+		go func() {
+			defer func() {
+				if rec := recover(); rec != nil {
+					atomic.AddUint32(&stop, 1)
+					asError, isError := rec.(error)
+					if !isError {
+						asError = fmt.Errorf("%v", rec)
+					}
+					if globalError == nil {
+						errorMutex.Lock()
+						globalError = asError
+						errorMutex.Unlock()
+					}
+				}
+			}()
+			consumeAsyncEvents(c.Ctx(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained, &stop)
+		}()
 	}
 	waitGroup.Wait()
-	return nil
+	return globalError
 }
 
 func consumeAsyncEvents(ctx context.Context, c Context, list string, db DB, r RedisCache,
-	block bool, waitGroup *sync.WaitGroup, lockObtained *bool) {
+	block bool, waitGroup *sync.WaitGroup, lockObtained *bool, stop *uint32) {
 	defer waitGroup.Done()
 	var values []string
 	for {
-		if ctx.Err() != nil || !*lockObtained {
+		if ctx.Err() != nil || !*lockObtained || *stop > 0 {
 			return
 		}
 		values = r.LRange(c, list, 0, asyncConsumerPage-1)
@@ -102,7 +124,7 @@ func handleAsyncEvents(ctx context.Context, c Context, list string, db DB, r Red
 	func() {
 		var d DBBase
 		defer func() {
-			if inTX {
+			if inTX && d != nil {
 				d.(DBTransaction).Rollback(c)
 			}
 		}()
@@ -137,9 +159,7 @@ func handleAsyncEvent(c Context, db DBBase, value string) (err *mysql.MySQLError
 		if rec := recover(); rec != nil {
 			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
 			if isMySQLError && slices.Contains(mySQLErrorCodesToSkip, asMySQLError.Number) {
-				// 1062 - Duplicate entry
 				err = asMySQLError
-				// return only if strange sql errors
 				return
 			}
 			panic(rec)

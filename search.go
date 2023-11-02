@@ -279,9 +279,6 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 }
 
 func search[E any](c Context, where *Where, pager *Pager, withCount bool) (results EntityIterator[E], totalRows int) {
-	if pager == nil {
-		pager = NewPager(1, 50000)
-	}
 	schema := getEntitySchema[E](c)
 	entities := make([]*E, 0)
 	if schema.hasLocalCache {
@@ -293,7 +290,10 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
+	if pager != nil {
+		query += " " + pager.String()
+	}
 	pool := schema.GetDB()
 	queryResults, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -308,7 +308,10 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 		i++
 	}
 	def()
-	totalRows = getTotalRows(c, withCount, pager, where, schema, i)
+	totalRows = i
+	if pager != nil {
+		totalRows = getTotalRows(c, withCount, pager, where, schema, i)
+	}
 	resultsIterator := &entityIterator[E]{index: -1}
 	resultsIterator.rows = entities
 	return resultsIterator, totalRows
@@ -319,12 +322,12 @@ func searchOne[E any](c Context, where *Where) *E {
 }
 
 func searchIDs(c Context, schema EntitySchema, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
-	if pager == nil {
-		pager = NewPager(1, 50000)
-	}
 	whereQuery := where.String()
 	/* #nosec */
-	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " " + pager.String()
+	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
+	if pager != nil {
+		query += " " + pager.String()
+	}
 	pool := schema.GetDB()
 	results, def := pool.Query(c, query, where.GetParameters()...)
 	defer def()
@@ -335,7 +338,10 @@ func searchIDs(c Context, schema EntitySchema, where *Where, pager *Pager, withC
 		result = append(result, row)
 	}
 	def()
-	totalRows := getTotalRows(c, withCount, pager, where, schema, len(result))
+	totalRows := len(result)
+	if pager != nil {
+		totalRows = getTotalRows(c, withCount, pager, where, schema, len(result))
+	}
 	return result, totalRows
 }
 
