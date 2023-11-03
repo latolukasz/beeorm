@@ -337,12 +337,14 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.hasRedisCache = redisCacheName != ""
 	e.cacheKey = cacheKey
 
-	asyncList := e.getTag("custom_async_group", e.t.String(), "")
+	asyncList := e.getTag("split_async_flush", e.t.String(), "")
 	if asyncList == "" {
 		asyncList = flushAsyncEventsList
 	}
-	e.asyncCacheKey = e.mysqlPoolCode + ":" + asyncList
-
+	e.asyncCacheKey = flushAsyncEventsList
+	if e.getTag("split_async_flush", "true", "") == "true" {
+		e.asyncCacheKey += ":" + e.cacheKey
+	}
 	e.uniqueIndices = make(map[string][]string)
 	for name, index := range uniqueIndices {
 		e.uniqueIndices[name] = make([]string, len(index))

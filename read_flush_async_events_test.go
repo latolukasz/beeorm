@@ -8,21 +8,21 @@ import (
 )
 
 type flushEntityAsyncStats struct {
-	ID   uint64
+	ID   uint64 `orm:"split_async_flush"`
 	Name string `orm:"required"`
 }
 
 type flushEntityAsyncStatsGroup1 struct {
-	ID   uint64 `orm:"custom_async_group=test-group"`
+	ID   uint64
 	Name string `orm:"required"`
 }
 
 type flushEntityAsyncStatsGroup2 struct {
-	ID   uint64 `orm:"custom_async_group=test-group"`
+	ID   uint64
 	Name string `orm:"required"`
 }
 
-func TestAsyncStatistics(t *testing.T) {
+func TestAsync(t *testing.T) {
 	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntityAsyncStats{})
 	schema := getEntitySchema[flushEntityAsyncStats](c)
@@ -34,7 +34,7 @@ func TestAsyncStatistics(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	stats := ReadAsyncFlushEventsStatistics(c)
+	stats := ReadAsyncFlushEvents(c)
 	assert.Len(t, stats, 1)
 	stat := stats[0]
 	assert.Len(t, stat.EntitySchemas(), 1)
@@ -89,7 +89,7 @@ func TestAsyncStatistics(t *testing.T) {
 	assert.Contains(t, errors[0].QueryAttributes[1], "test 1")
 }
 
-func TestAsyncStatisticsGrouped(t *testing.T) {
+func TestAsyncGrouped(t *testing.T) {
 	registry := NewRegistry()
 	c := PrepareTables(t, registry, &flushEntityAsyncStats{}, &flushEntityAsyncStatsGroup1{}, &flushEntityAsyncStatsGroup2{})
 	schema := getEntitySchema[flushEntityAsyncStats](c)
@@ -107,7 +107,7 @@ func TestAsyncStatisticsGrouped(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	stats := ReadAsyncFlushEventsStatistics(c)
+	stats := ReadAsyncFlushEvents(c)
 	assert.Len(t, stats, 2)
 	for i := 0; i < 2; i++ {
 		stat := stats[0]

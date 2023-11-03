@@ -10,22 +10,22 @@ import (
 )
 
 type flushEntityAsync struct {
-	ID   uint64 `orm:"custom_async_group=test-group"`
+	ID   uint64
 	Name string `orm:"required"`
 }
 
 type flushEntityAsyncSecondRedis struct {
-	ID   uint64 `orm:"custom_async_group=test-group;redisCache=second"`
+	ID   uint64 `orm:"redisCache=second"`
 	Name string `orm:"required"`
 }
 
 type flushEntityAsync2 struct {
-	ID   uint64 `orm:"custom_async_group=test-group"`
+	ID   uint64
 	Name string `orm:"required"`
 }
 
 type flushEntityAsync3 struct {
-	ID   uint64 `orm:"custom_async_group"`
+	ID   uint64 `orm:"split_async_flush"`
 	Name string `orm:"required"`
 }
 
@@ -104,9 +104,7 @@ func TestAsyncConsumer(t *testing.T) {
 	asyncEntitySecondRedis.Name = "test reference custom async group"
 	err = c.FlushAsync()
 	assert.NoError(t, err)
-	assert.Equal(t, int64(1), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
-	assert.Equal(t, int64(2), c.Engine().Redis(DefaultPoolCode).LLen(c, schema3.asyncCacheKey))
-	assert.Equal(t, int64(2), c.Engine().Redis(DefaultPoolCode).LLen(c, schema4.asyncCacheKey))
+	assert.Equal(t, int64(3), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(1), c.Engine().Redis("second").LLen(c, schema5.asyncCacheKey))
 	assert.Equal(t, int64(1), c.Engine().Redis(DefaultPoolCode).LLen(c, schema6.asyncCacheKey))
 	err = ConsumeAsyncFlushEvents(c, false)

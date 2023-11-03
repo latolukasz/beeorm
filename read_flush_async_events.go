@@ -2,7 +2,7 @@ package beeorm
 
 import jsoniter "github.com/json-iterator/go"
 
-type AsyncFlushEventsStatistics interface {
+type AsyncFlushEvents interface {
 	EntitySchemas() []EntitySchema
 	EventsCount() uint64
 	ErrorsCount() uint64
@@ -12,7 +12,7 @@ type AsyncFlushEventsStatistics interface {
 	TrimErrors(total int)
 }
 
-type asyncFlushEventsStatistics struct {
+type asyncFlushEvents struct {
 	c             Context
 	listName      string
 	redisPoolName string
@@ -29,21 +29,21 @@ type FlushEventWithError struct {
 	Error string
 }
 
-func (s *asyncFlushEventsStatistics) EntitySchemas() []EntitySchema {
+func (s *asyncFlushEvents) EntitySchemas() []EntitySchema {
 	return s.schemas
 }
 
-func (s *asyncFlushEventsStatistics) EventsCount() uint64 {
+func (s *asyncFlushEvents) EventsCount() uint64 {
 	r := s.c.Engine().Redis(s.redisPoolName)
 	return uint64(r.LLen(s.c, s.listName))
 }
 
-func (s *asyncFlushEventsStatistics) ErrorsCount() uint64 {
+func (s *asyncFlushEvents) ErrorsCount() uint64 {
 	r := s.c.Engine().Redis(s.redisPoolName)
 	return uint64(r.LLen(s.c, s.listName+flushAsyncEventsListErrorSuffix)) / 2
 }
 
-func (s *asyncFlushEventsStatistics) Events(total int) []FlushEvent {
+func (s *asyncFlushEvents) Events(total int) []FlushEvent {
 	r := s.c.Engine().Redis(s.redisPoolName)
 	events := r.LRange(s.c, s.listName, 0, int64(total-1))
 	results := make([]FlushEvent, len(events))
@@ -60,7 +60,7 @@ func (s *asyncFlushEventsStatistics) Events(total int) []FlushEvent {
 	return results
 }
 
-func (s *asyncFlushEventsStatistics) Errors(total int) []FlushEventWithError {
+func (s *asyncFlushEvents) Errors(total int) []FlushEventWithError {
 	r := s.c.Engine().Redis(s.redisPoolName)
 	events := r.LRange(s.c, s.listName+flushAsyncEventsListErrorSuffix, 0, int64(total*2-1))
 	results := make([]FlushEventWithError, len(events)/2)
@@ -83,27 +83,27 @@ func (s *asyncFlushEventsStatistics) Errors(total int) []FlushEventWithError {
 	return results
 }
 
-func (s *asyncFlushEventsStatistics) TrimEvents(total int) {
+func (s *asyncFlushEvents) TrimEvents(total int) {
 	r := s.c.Engine().Redis(s.redisPoolName)
 	r.Ltrim(s.c, s.listName, int64(total), int64(-total))
 }
 
-func (s *asyncFlushEventsStatistics) TrimErrors(total int) {
+func (s *asyncFlushEvents) TrimErrors(total int) {
 	total = total * 2
 	r := s.c.Engine().Redis(s.redisPoolName)
 	r.Ltrim(s.c, s.listName+flushAsyncEventsListErrorSuffix, int64(total), int64(-total))
 }
 
-func ReadAsyncFlushEventsStatistics(c Context) []AsyncFlushEventsStatistics {
-	stats := make([]AsyncFlushEventsStatistics, 0)
-	mapped := make(map[string]*asyncFlushEventsStatistics)
+func ReadAsyncFlushEvents(c Context) []AsyncFlushEvents {
+	stats := make([]AsyncFlushEvents, 0)
+	mapped := make(map[string]*asyncFlushEvents)
 	for _, schema := range c.Engine().Registry().(*engineRegistryImplementation).entitySchemas {
 		stat, has := mapped[schema.asyncCacheKey]
 		if has {
 			stat.schemas = append(stat.schemas, schema)
 			continue
 		}
-		stat = &asyncFlushEventsStatistics{c: c, schemas: []EntitySchema{schema}, listName: schema.asyncCacheKey,
+		stat = &asyncFlushEvents{c: c, schemas: []EntitySchema{schema}, listName: schema.asyncCacheKey,
 			redisPoolName: schema.getForcedRedisCode()}
 		stats = append(stats, stat)
 		mapped[schema.asyncCacheKey] = stat

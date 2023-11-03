@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/bsm/redislock"
+
 	"github.com/go-sql-driver/mysql"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -38,7 +40,7 @@ const asyncConsumerLockName = "async_consumer"
 func ConsumeAsyncFlushEvents(c Context, block bool) error {
 	lock, lockObtained := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, asyncConsumerLockName, time.Minute, 0)
 	if !lockObtained {
-		return nil
+		return redislock.ErrNotObtained
 	}
 	defer func() {
 		lock.Release(c)
