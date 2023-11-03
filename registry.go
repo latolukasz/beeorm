@@ -139,6 +139,10 @@ func (r *registry) Validate() (Engine, error) {
 			logSchema := e.registry.entitySchemas[entityType]
 			targetType := logEntity.getLogEntityTarget()
 			targetSchema := e.registry.entitySchemas[targetType]
+			logPool := targetSchema.getTag("log-pool", "default", "")
+			if logPool != "" {
+				logSchema.mysqlPoolCode = logPool
+			}
 			logSchema.tableName = "_LogEntity_" + targetSchema.mysqlPoolCode + "_" + targetType.Name()
 			e.registry.entityLogSchemas[targetType] = logSchema
 		}

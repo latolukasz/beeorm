@@ -336,14 +336,12 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.redisCacheName = redisCacheName
 	e.hasRedisCache = redisCacheName != ""
 	e.cacheKey = cacheKey
-
-	asyncList := e.getTag("split_async_flush", e.t.String(), "")
-	if asyncList == "" {
-		asyncList = flushAsyncEventsList
-	}
 	e.asyncCacheKey = flushAsyncEventsList
-	if e.getTag("split_async_flush", "true", "") == "true" {
+	asyncGroup := e.getTag("split_async_flush", "true", "")
+	if asyncGroup == "true" {
 		e.asyncCacheKey += ":" + e.cacheKey
+	} else if asyncGroup != "" {
+		e.asyncCacheKey = asyncGroup
 	}
 	e.uniqueIndices = make(map[string][]string)
 	for name, index := range uniqueIndices {
