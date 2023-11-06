@@ -178,6 +178,20 @@ func TestRedis(t *testing.T) {
 	r.FlushAll(c)
 	assert.Equal(t, int64(0), r.Exists(c, "a"))
 
+	res := r.Info(c)
+	assert.Contains(t, res, "redis_version")
+
+	r.LPush(c, "test_list", "test")
+	has, _ = c.getRedisLoggers()
+	assert.Equal(t, "list", r.Type(c, "test_list"))
+
+	val = r.LMove(c, "test_list", "test_list_next", "RIGHT", "LEFT")
+	assert.Equal(t, "test", val)
+	val = r.BLMove(c, "test_list_next", "test_list", "RIGHT", "LEFT", time.Second)
+	assert.Equal(t, "test", val)
+	r.SAdd(c, "test_set", "test", "value")
+	assert.True(t, r.SIsMember(c, "test_set", "test"))
+
 	registry = NewRegistry()
 	registry.RegisterRedis("localhost:6399", 15, DefaultPoolCode, nil)
 	validatedRegistry, err = registry.Validate()
@@ -197,10 +211,4 @@ func TestRedis(t *testing.T) {
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
 		c.Engine().Redis(DefaultPoolCode).Incr(c, "test")
 	})
-
-	res := r.Info(c)
-	assert.Contains(t, res, "redis_version")
-
-	r.LPush(c, "test_list", "test")
-	assert.Equal(t, "list", r.Type(c, "test_list"))
 }

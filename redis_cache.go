@@ -12,17 +12,12 @@ import (
 	"github.com/shamaton/msgpack"
 )
 
-type RedisCacheSetter interface {
+type RedisCache interface {
 	Set(c Context, key string, value any, expiration time.Duration)
 	MSet(c Context, pairs ...any)
 	Del(c Context, keys ...string)
-	xAdd(c Context, stream string, values []string) (id string)
 	HSet(c Context, key string, values ...any)
 	HDel(c Context, key string, keys ...string)
-}
-
-type RedisCache interface {
-	RedisCacheSetter
 	GetSet(c Context, key string, expiration time.Duration, provider func() any) any
 	Info(c Context, section ...string) string
 	GetConfig() RedisPoolConfig
@@ -967,19 +962,6 @@ func (r *redisCache) XPendingExt(c Context, a *redis.XPendingExtArgs) []redis.XP
 	}
 	checkError(err)
 	return res
-}
-
-func (r *redisCache) xAdd(c Context, stream string, values []string) (id string) {
-	hasLogger, _ := c.getRedisLoggers()
-	a := &redis.XAddArgs{Stream: stream, ID: "*", Values: values}
-	start := getNow(hasLogger)
-	id, err := r.client.XAdd(c.Ctx(), a).Result()
-	if hasLogger {
-		message := "XADD " + stream + " " + strings.Join(values, " ")
-		r.fillLogFields(c, "XADD", message, start, false, err)
-	}
-	checkError(err)
-	return id
 }
 
 func (r *redisCache) XLen(c Context, stream string) int64 {
