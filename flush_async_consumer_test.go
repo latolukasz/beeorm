@@ -31,8 +31,8 @@ type flushEntityAsync3 struct {
 
 func TestAsyncConsumer(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, &flushEntity{}, &flushEntityReference{}, &flushEntityAsync{},
-		&flushEntityAsync2{}, &flushEntityAsync3{}, &flushEntityAsyncSecondRedis{})
+	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{}, flushEntityAsync{},
+		flushEntityAsync2{}, flushEntityAsync3{}, flushEntityAsyncSecondRedis{})
 	schema := getEntitySchema[flushEntity](c)
 	schema.DisableCache(true, true)
 	schema2 := getEntitySchema[flushEntityReference](c)

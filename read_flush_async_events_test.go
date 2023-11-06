@@ -24,7 +24,7 @@ type flushEntityAsyncStatsGroup2 struct {
 
 func TestAsync(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, &flushEntityAsyncStats{})
+	c := PrepareTables(t, registry, flushEntityAsyncStats{})
 	schema := getEntitySchema[flushEntityAsyncStats](c)
 
 	for i := 0; i < asyncConsumerPage+10; i++ {
@@ -91,7 +91,7 @@ func TestAsync(t *testing.T) {
 
 func TestAsyncGrouped(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, &flushEntityAsyncStats{}, &flushEntityAsyncStatsGroup1{}, &flushEntityAsyncStatsGroup2{})
+	c := PrepareTables(t, registry, flushEntityAsyncStats{}, flushEntityAsyncStatsGroup1{}, flushEntityAsyncStatsGroup2{})
 	schema := getEntitySchema[flushEntityAsyncStats](c)
 	schemaGroup1 := getEntitySchema[flushEntityAsyncStatsGroup1](c)
 	schemaGroup2 := getEntitySchema[flushEntityAsyncStatsGroup2](c)

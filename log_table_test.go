@@ -16,7 +16,7 @@ type logTableEntity struct {
 
 func TestLogTable(t *testing.T) {
 	var entity *logTableEntity
-	c := PrepareTables(t, NewRegistry(), entity, &LogEntity[logTableEntity]{})
+	c := PrepareTables(t, NewRegistry(), entity, LogEntity[logTableEntity]{})
 	assert.NotNil(t, c)
 
 	entity = NewEntity[logTableEntity](c)
