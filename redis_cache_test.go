@@ -197,4 +197,10 @@ func TestRedis(t *testing.T) {
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
 		c.Engine().Redis(DefaultPoolCode).Incr(c, "test")
 	})
+
+	res := r.Info(c)
+	assert.Contains(t, res, "redis_version")
+
+	r.LPush(c, "test_list", "test")
+	assert.Equal(t, "list", r.Type(c, "test_list"))
 }
