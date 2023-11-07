@@ -20,10 +20,12 @@ import (
 type Registry interface {
 	Validate() (Engine, error)
 	RegisterEntity(entity ...any)
+	RegisterPlugin(plugin ...any)
 	RegisterMySQL(dataSourceName string, poolCode string, poolOptions *MySQLOptions)
 	RegisterLocalCache(code string, limit int)
 	RegisterRedis(address string, db int, poolCode string, options *RedisOptions)
 	InitByYaml(yaml map[string]any) error
+	SetOption(key string, value any)
 }
 
 type registry struct {
@@ -31,6 +33,8 @@ type registry struct {
 	localCaches map[string]LocalCache
 	redisPools  map[string]RedisPoolConfig
 	entities    map[string]reflect.Type
+	plugins     []any
+	options     map[string]any
 }
 
 func NewRegistry() Registry {
@@ -41,11 +45,13 @@ func (r *registry) Validate() (Engine, error) {
 	maxPoolLen := 0
 	e := &engineImplementation{}
 	e.registry = &engineRegistryImplementation{engine: e}
+	e.registry.options = make(map[string]any)
 	e.registry.asyncConsumerBlockTime = asyncConsumerBlockTime
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
+	e.options = make(map[string]any)
 	if e.dbServers == nil {
 		e.dbServers = make(map[string]DB)
 	}
@@ -169,7 +175,27 @@ func (r *registry) Validate() (Engine, error) {
 		}
 		schema.engine = e
 	}
+	for _, plugin := range r.plugins {
+		pluginInterfaceValidateRegistry, isInterface := plugin.(PluginInterfaceValidateRegistry)
+		if isInterface {
+			err := pluginInterfaceValidateRegistry.ValidateRegistry(e, r)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	for key, value := range r.options {
+		e.registry.options[key] = value
+	}
 	return e, nil
+}
+
+func (r *registry) SetOption(key string, value any) {
+	if r.options == nil {
+		r.options = map[string]any{key: value}
+		return
+	}
+	r.options[key] = value
 }
 
 func (r *registry) RegisterEntity(entity ...any) {
@@ -186,6 +212,10 @@ func (r *registry) RegisterEntity(entity ...any) {
 		}
 		r.entities[t.String()] = t
 	}
+}
+
+func (r *registry) RegisterPlugin(plugin ...any) {
+	r.plugins = append(r.plugins, plugin...)
 }
 
 type MySQLOptions struct {

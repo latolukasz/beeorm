@@ -27,7 +27,12 @@ func getEntitySchema[E any](c Context) *entitySchema {
 	return schema
 }
 
+type EntitySchemaSetter interface {
+	SetOption(key string, value any)
+}
+
 type EntitySchema interface {
+	EntitySchemaSetter
 	GetTableName() string
 	GetType() reflect.Type
 	DropTable(c Context)
@@ -41,6 +46,7 @@ type EntitySchema interface {
 	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(c Context) (alters []Alter, has bool)
 	GetTag(field, key, trueValue, defaultValue string) string
+	Option(key string) any
 	DisableCache(local, redis bool)
 	getCacheKey() string
 	uuid() uint64
@@ -65,6 +71,7 @@ type entitySchema struct {
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
+	options                   map[string]any
 	cacheAll                  bool
 	hasLocalCache             bool
 	localCache                *localCache
@@ -238,6 +245,7 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.t = entityType
 	e.tSlice = reflect.SliceOf(reflect.PtrTo(entityType))
 	e.tags = extractTags(registry, entityType, "")
+	e.options = make(map[string]any)
 	e.references = make(map[string]referenceDefinition)
 	e.cachedReferences = make(map[string]referenceDefinition)
 	e.mapBindToScanPointer = mapBindToScanPointer{}
@@ -350,7 +358,20 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 			e.uniqueIndices[name][i-1] = index[i]
 		}
 	}
-	return e.validateIndexes(uniqueIndices, indices)
+	err := e.validateIndexes(uniqueIndices, indices)
+	if err != nil {
+		return err
+	}
+	for _, plugin := range registry.plugins {
+		pluginInterfaceValidateEntitySchema, isInterface := plugin.(PluginInterfaceValidateEntitySchema)
+		if isInterface {
+			err = pluginInterfaceValidateEntitySchema.ValidateEntitySchema(e)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func (e *entitySchema) validateIndexes(uniqueIndices map[string]map[int]string, indices map[string]map[int]string) error {
@@ -403,6 +424,14 @@ func (e *entitySchema) GetTag(field, key, trueValue, defaultValue string) string
 		return userValue
 	}
 	return defaultValue
+}
+
+func (e *entitySchema) SetOption(key string, value any) {
+	e.options[key] = value
+}
+
+func (e *entitySchema) Option(key string) any {
+	return e.options[key]
 }
 
 func (e *entitySchema) uuid() uint64 {

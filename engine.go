@@ -15,8 +15,13 @@ type EngineRegistry interface {
 	LocalCachePools() map[string]LocalCache
 	RedisPools() map[string]RedisCache
 	Entities() map[string]reflect.Type
+	Option(key string) any
 	getDefaultQueryLogger() LogHandler
 	getDBTables() map[string]map[string]bool
+}
+
+type EngineSetter interface {
+	SetOption(key string, value any)
 }
 
 type Engine interface {
@@ -25,16 +30,17 @@ type Engine interface {
 	LocalCache(code string) LocalCache
 	Redis(code string) RedisCache
 	Registry() EngineRegistry
+	Option(key string) any
 }
 
 type engineRegistryImplementation struct {
 	engine                 *engineImplementation
-	oneAppMode             bool
 	entities               map[string]reflect.Type
 	entitySchemas          map[reflect.Type]*entitySchema
 	entityLogSchemas       map[reflect.Type]*entitySchema
 	defaultQueryLogger     *defaultLogLogger
 	dbTables               map[string]map[string]bool
+	options                map[string]any
 	asyncConsumerBlockTime time.Duration
 }
 
@@ -43,6 +49,7 @@ type engineImplementation struct {
 	localCacheServers map[string]LocalCache
 	dbServers         map[string]DB
 	redisServers      map[string]RedisCache
+	options           map[string]any
 }
 
 func (e *engineImplementation) NewContext(parent context.Context) Context {
@@ -51,6 +58,14 @@ func (e *engineImplementation) NewContext(parent context.Context) Context {
 
 func (e *engineImplementation) Registry() EngineRegistry {
 	return e.registry
+}
+
+func (e *engineImplementation) Option(key string) any {
+	return e.options[key]
+}
+
+func (e *engineImplementation) SetOption(key string, value any) {
+	e.options[key] = value
 }
 
 func (e *engineImplementation) DB(code string) DB {
@@ -106,6 +121,10 @@ func (er *engineRegistryImplementation) getDBTables() map[string]map[string]bool
 
 func (er *engineRegistryImplementation) Entities() map[string]reflect.Type {
 	return er.entities
+}
+
+func (er *engineRegistryImplementation) Option(key string) any {
+	return er.options[key]
 }
 
 func (er *engineRegistryImplementation) getDefaultQueryLogger() LogHandler {
