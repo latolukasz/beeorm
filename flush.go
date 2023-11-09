@@ -11,7 +11,8 @@ import (
 type entitySQLOperations map[FlushType][]EntityFlush
 type schemaSQLOperations map[*entitySchema]entitySQLOperations
 type sqlOperations map[DB]schemaSQLOperations
-type AfterDBCommitAction func(db DBBase)
+type dbAction func(db DBBase)
+type PostFlushAction func(c Context)
 
 func (c *contextImplementation) Flush() error {
 	return c.flush(false)
@@ -82,7 +83,7 @@ func (c *contextImplementation) flush(async bool) error {
 		pipeline.Exec(c)
 	}
 	for _, action := range c.flushPostActions {
-		action()
+		action(c)
 	}
 	c.trackedEntities = c.trackedEntities[0:0]
 	c.flushDBActions = nil
@@ -150,7 +151,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			}
 		}
 		if hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func() {
+			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 				lc.setEntity(c, operation.ID(), nil)
 			})
 		}
@@ -173,7 +174,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func() {
+				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 					idAsInt, _ := strconv.ParseUint(id, 10, 64)
 					lc.removeReference(c, refColumn, idAsInt)
 				})
@@ -183,7 +184,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 		}
 		if schema.cacheAll {
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func() {
+				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
 				})
 			}
@@ -226,7 +227,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 				return err
 			}
 			if after != nil {
-				c.appendDBAction(schema, after)
+				c.flushPostActions = append(c.flushPostActions, after)
 			}
 		}
 	}
@@ -260,7 +261,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 					return err
 				}
 				if after != nil {
-					c.appendDBAction(schema, after)
+					c.flushPostActions = append(c.flushPostActions, after)
 				}
 			}
 		}
@@ -341,7 +342,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
 		}
 		if hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func() {
+			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 				lc.setEntity(c, insert.ID(), insert.getEntity())
 			})
 		}
@@ -352,7 +353,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func() {
+				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 					idAsInt, _ := strconv.ParseUint(id, 10, 64)
 					lc.removeReference(c, refColumn, idAsInt)
 				})
@@ -362,7 +363,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		}
 		if schema.cacheAll {
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func() {
+				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
 				})
 			}
@@ -403,7 +404,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 					return err
 				}
 				if after != nil {
-					c.appendDBAction(schema, after)
+					c.flushPostActions = append(c.flushPostActions, after)
 				}
 			}
 		}
@@ -505,7 +506,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 
 		if hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func() {
+			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 				sourceValue := update.getSourceValue()
 				copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.fields)
 				lc.setEntity(c, operation.ID(), update.getEntity())
@@ -536,7 +537,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			}
 			if oldAsInt > 0 {
 				if hasLocalCache {
-					c.flushPostActions = append(c.flushPostActions, func() {
+					c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 						lc.removeReference(c, refColumn, oldAsInt)
 					})
 				}
@@ -545,7 +546,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			}
 			if newAsInt > 0 {
 				if hasLocalCache {
-					c.flushPostActions = append(c.flushPostActions, func() {
+					c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 						lc.removeReference(c, refColumn, newAsInt)
 					})
 				}
@@ -577,9 +578,9 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(schema EntitySchema, action AfterDBCommitAction) {
+func (c *contextImplementation) appendDBAction(schema EntitySchema, action dbAction) {
 	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]AfterDBCommitAction)
+		c.flushDBActions = make(map[string][]dbAction)
 	}
 	poolCode := schema.GetDB().GetConfig().GetCode()
 	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)

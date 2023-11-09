@@ -15,5 +15,5 @@ type PluginInterfaceValidateEntitySchema interface {
 }
 
 type PluginInterfaceEntityFlush interface {
-	EntityFlush(schema EntitySchema, entity reflect.Value, before, after Bind, engine Engine) (AfterDBCommitAction, error)
+	EntityFlush(schema EntitySchema, entity reflect.Value, before, after Bind, engine Engine) (PostFlushAction, error)
 }

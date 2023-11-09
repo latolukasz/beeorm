@@ -44,20 +44,24 @@ func (p *testPluginToTest) ValidateEntitySchema(schema EntitySchemaSetter) error
 	return nil
 }
 
-func (p *testPluginToTest) EntityFlush(schema EntitySchema, entity reflect.Value, before, after Bind, engine Engine) (AfterDBCommitAction, error) {
+func (p *testPluginToTest) EntityFlush(schema EntitySchema, entity reflect.Value, before, after Bind, engine Engine) (PostFlushAction, error) {
 	if p.option == 4 {
 		return nil, errors.New("error 4")
 	}
 	p.lastValue = []any{schema, entity, before, after, engine}
 	if p.option == 5 {
 		after["Name"] = "a1"
-		return func(db DBBase) {
+		return func(_ Context) {
 			entity.FieldByName("Name").SetString("a1")
 		}, nil
 	} else if p.option == 6 {
 		after["Name"] = "b1"
-		return func(db DBBase) {
+		return func(_ Context) {
 			entity.FieldByName("Name").SetString("b1")
+		}, nil
+	} else if p.option == 7 {
+		return func(_ Context) {
+			p.option = 100
 		}, nil
 	}
 	return nil, nil
@@ -172,6 +176,40 @@ func TestPlugin(t *testing.T) {
 	p.option = 4
 	entity = EditEntity(c, entity)
 	entity.Name = "d"
+	err = c.Flush()
+	assert.EqualError(t, err, "error 4")
+
+	p.option = 4
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	err = c.Flush()
+	assert.EqualError(t, err, "error 4")
+
+	registry = NewRegistry()
+	p = &testPluginToTest{option: 7}
+	registry.RegisterPlugin(p)
+	c = PrepareTables(t, registry, testPluginEntity{})
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	err = c.Flush()
+	DeleteEntity(c, entity)
+	err = c.Flush()
+	assert.NoError(t, err)
+	values = p.lastValue.([]any)
+	assert.Len(t, values, 5)
+	assert.Equal(t, schema.GetTableName(), values[0].(EntitySchema).GetTableName())
+	assert.NotNil(t, values[2])
+	assert.Nil(t, values[3])
+	assert.Len(t, values[2], 2)
+	entity = GetByID[testPluginEntity](c, entity.ID)
+	assert.Nil(t, entity)
+	assert.Equal(t, 100, p.option)
+
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	_ = c.Flush()
+	p.option = 4
+	DeleteEntity(c, entity)
 	err = c.Flush()
 	assert.EqualError(t, err, "error 4")
 }
