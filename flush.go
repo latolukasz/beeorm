@@ -11,6 +11,7 @@ import (
 type entitySQLOperations map[FlushType][]EntityFlush
 type schemaSQLOperations map[*entitySchema]entitySQLOperations
 type sqlOperations map[DB]schemaSQLOperations
+type AfterDBCommitAction func(db DBBase)
 
 func (c *contextImplementation) Flush() error {
 	return c.flush(false)
@@ -213,6 +214,21 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
 			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
 		}
+		for _, p := range c.engine.pluginFlush {
+			if bind == nil {
+				bind, err = deleteFlush.getOldBind()
+				if err != nil {
+					return err
+				}
+			}
+			after, err := p.EntityFlush(schema, deleteFlush.getValue(), bind, nil, c.engine)
+			if err != nil {
+				return err
+			}
+			if after != nil {
+				c.appendDBAction(schema, after)
+			}
+		}
 	}
 	return nil
 }
@@ -235,6 +251,18 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		bind, err := insert.getBind()
 		if err != nil {
 			return err
+		}
+		if len(c.engine.pluginFlush) > 0 {
+			elem := insert.getValue().Elem()
+			for _, p := range c.engine.pluginFlush {
+				after, err := p.EntityFlush(schema, elem, nil, bind, c.engine)
+				if err != nil {
+					return err
+				}
+				if after != nil {
+					c.appendDBAction(schema, after)
+				}
+			}
 		}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
@@ -513,6 +541,15 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}
+		for _, p := range c.engine.pluginFlush {
+			after, err := p.EntityFlush(schema, update.getValue(), oldBind, newBind, c.engine)
+			if err != nil {
+				return err
+			}
+			if after != nil {
+				c.appendDBAction(schema, after)
+			}
+		}
 	}
 	return nil
 }
@@ -537,9 +574,9 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(schema EntitySchema, action func(db DBBase)) {
+func (c *contextImplementation) appendDBAction(schema EntitySchema, action AfterDBCommitAction) {
 	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]func(db DBBase))
+		c.flushDBActions = make(map[string][]AfterDBCommitAction)
 	}
 	poolCode := schema.GetDB().GetConfig().GetCode()
 	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)

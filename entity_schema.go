@@ -32,7 +32,6 @@ type EntitySchemaSetter interface {
 }
 
 type EntitySchema interface {
-	EntitySchemaSetter
 	GetTableName() string
 	GetType() reflect.Type
 	DropTable(c Context)

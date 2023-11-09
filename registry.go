@@ -183,6 +183,10 @@ func (r *registry) Validate() (Engine, error) {
 				return nil, err
 			}
 		}
+		pluginInterfaceEntityFlush, isInterface := plugin.(PluginInterfaceEntityFlush)
+		if isInterface {
+			e.pluginFlush = append(e.pluginFlush, pluginInterfaceEntityFlush)
+		}
 	}
 	for key, value := range r.options {
 		e.registry.options[key] = value

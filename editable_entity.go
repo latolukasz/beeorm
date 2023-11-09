@@ -28,6 +28,7 @@ type entityFlushInsert interface {
 type entityFlushDelete interface {
 	EntityFlush
 	getOldBind() (Bind, error)
+	getValue() reflect.Value
 }
 
 type entityFlushUpdate interface {
@@ -97,6 +98,7 @@ func (e *editableEntity[E]) getSourceValue() reflect.Value {
 type removableEntity[E any] struct {
 	writableEntity[E]
 	id     uint64
+	value  reflect.Value
 	source *E
 }
 
@@ -106,6 +108,10 @@ func (r *removableEntity[E]) flushType() FlushType {
 
 func (r *removableEntity[E]) SourceEntity() *E {
 	return r.source
+}
+
+func (r *removableEntity[E]) getValue() reflect.Value {
+	return r.value
 }
 
 type editableEntity[E any] struct {
@@ -154,7 +160,8 @@ func DeleteEntity[E any](c Context, source *E) {
 	toRemove := &removableEntity[E]{}
 	toRemove.c = c
 	toRemove.source = source
-	toRemove.id = reflect.ValueOf(source).Elem().Field(0).Uint()
+	toRemove.value = reflect.ValueOf(source).Elem()
+	toRemove.id = toRemove.value.Field(0).Uint()
 	schema := getEntitySchema[E](c)
 	toRemove.schema = schema
 	c.trackEntity(toRemove)

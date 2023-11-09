@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/pkg/errors"
@@ -43,6 +44,20 @@ func (p *testPluginToTest) ValidateEntitySchema(schema EntitySchemaSetter) error
 	return nil
 }
 
+func (p *testPluginToTest) EntityFlush(schema EntitySchema, entity reflect.Value, before, after Bind, engine Engine) (AfterDBCommitAction, error) {
+	if p.option == 4 {
+		return nil, errors.New("error 4")
+	}
+	p.lastValue = []any{schema, entity, before, after, engine}
+	if p.option == 5 {
+		after["Name"] = "a1"
+		return func(db DBBase) {
+			entity.FieldByName("Name").SetString("a1")
+		}, nil
+	}
+	return nil, nil
+}
+
 func TestPlugin(t *testing.T) {
 	registry := NewRegistry()
 	registry.RegisterPlugin(&testPluginToTest{})
@@ -76,4 +91,41 @@ func TestPlugin(t *testing.T) {
 	c = PrepareTables(t, registry, testPluginEntity{})
 	schema := GetEntitySchema[testPluginEntity](c)
 	assert.Equal(t, "c", schema.Option("ValidateEntitySchema"))
+
+	registry = NewRegistry()
+	p = &testPluginToTest{option: 5}
+	registry.RegisterPlugin(p)
+	c = PrepareTables(t, registry, testPluginEntity{})
+	entity := NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	err = c.Flush()
+	assert.NoError(t, err)
+	values := p.lastValue.([]any)
+	assert.Len(t, values, 5)
+	assert.Equal(t, schema.GetTableName(), values[0].(EntitySchema).GetTableName())
+	assert.Nil(t, values[2])
+	assert.NotNil(t, values[3])
+	assert.Len(t, values[3], 2)
+	assert.Equal(t, c.Engine(), values[4])
+	assert.Equal(t, "a1", entity.Name)
+	entity = GetByID[testPluginEntity](c, entity.ID)
+	assert.Equal(t, "a1", entity.Name)
+
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "b"
+	err = c.FlushAsync()
+	err = ConsumeAsyncFlushEvents(c, false)
+	assert.NoError(t, err)
+	values = p.lastValue.([]any)
+	assert.Nil(t, values[2])
+	assert.NotNil(t, values[3])
+	assert.Len(t, values[3], 2)
+	entity = GetByID[testPluginEntity](c, entity.ID)
+	assert.Equal(t, "a1", entity.Name)
+
+	p.option = 4
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	err = c.Flush()
+	assert.EqualError(t, err, "error 4")
 }
