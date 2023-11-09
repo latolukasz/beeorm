@@ -395,6 +395,18 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		if len(newBind) == 0 {
 			continue
 		}
+		if len(c.engine.pluginFlush) > 0 {
+			elem := update.getValue().Elem()
+			for _, p := range c.engine.pluginFlush {
+				after, err := p.EntityFlush(schema, elem, oldBind, newBind, c.engine)
+				if err != nil {
+					return err
+				}
+				if after != nil {
+					c.appendDBAction(schema, after)
+				}
+			}
+		}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
 			cache := c.Engine().Redis(schema.getForcedRedisCode())
@@ -539,15 +551,6 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				}
 				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
 				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
-			}
-		}
-		for _, p := range c.engine.pluginFlush {
-			after, err := p.EntityFlush(schema, update.getValue(), oldBind, newBind, c.engine)
-			if err != nil {
-				return err
-			}
-			if after != nil {
-				c.appendDBAction(schema, after)
 			}
 		}
 	}

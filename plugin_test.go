@@ -54,6 +54,11 @@ func (p *testPluginToTest) EntityFlush(schema EntitySchema, entity reflect.Value
 		return func(db DBBase) {
 			entity.FieldByName("Name").SetString("a1")
 		}, nil
+	} else if p.option == 6 {
+		after["Name"] = "b1"
+		return func(db DBBase) {
+			entity.FieldByName("Name").SetString("b1")
+		}, nil
 	}
 	return nil, nil
 }
@@ -126,6 +131,47 @@ func TestPlugin(t *testing.T) {
 	p.option = 4
 	entity = NewEntity[testPluginEntity](c)
 	entity.Name = "a"
+	err = c.Flush()
+	assert.EqualError(t, err, "error 4")
+
+	registry = NewRegistry()
+	p = &testPluginToTest{option: 6}
+	registry.RegisterPlugin(p)
+	c = PrepareTables(t, registry, testPluginEntity{})
+	entity = NewEntity[testPluginEntity](c)
+	entity.Name = "a"
+	err = c.Flush()
+	entity = EditEntity(c, entity)
+	entity.Name = "b"
+	err = c.Flush()
+	assert.NoError(t, err)
+	values = p.lastValue.([]any)
+	assert.Len(t, values, 5)
+	assert.Equal(t, schema.GetTableName(), values[0].(EntitySchema).GetTableName())
+	assert.NotNil(t, values[2])
+	assert.NotNil(t, values[3])
+	assert.Len(t, values[2], 1)
+	assert.Len(t, values[3], 1)
+	assert.Equal(t, "b1", entity.Name)
+	entity = GetByID[testPluginEntity](c, entity.ID)
+	assert.Equal(t, "b1", entity.Name)
+
+	entity = EditEntity(c, entity)
+	entity.Name = "c"
+	err = c.FlushAsync()
+	err = ConsumeAsyncFlushEvents(c, false)
+	assert.NoError(t, err)
+	values = p.lastValue.([]any)
+	assert.NotNil(t, values[2])
+	assert.NotNil(t, values[3])
+	assert.Len(t, values[2], 1)
+	assert.Len(t, values[3], 1)
+	entity = GetByID[testPluginEntity](c, entity.ID)
+	assert.Equal(t, "b1", entity.Name)
+
+	p.option = 4
+	entity = EditEntity(c, entity)
+	entity.Name = "d"
 	err = c.Flush()
 	assert.EqualError(t, err, "error 4")
 }
