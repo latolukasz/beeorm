@@ -29,23 +29,28 @@ func getEntitySchema[E any](c Context) *entitySchema {
 
 type EntitySchemaSetter interface {
 	SetOption(key string, value any)
+	EntitySchemaShared
+}
+
+type EntitySchemaShared interface {
+	GetTableName() string
+	GetType() reflect.Type
+	GetColumns() []string
+	GetTag(field, key, trueValue, defaultValue string) string
+	Option(key string) any
+	GetUniqueIndexes() map[string][]string
+	GetDB() DB
+	GetLocalCache() (cache LocalCache, has bool)
+	GetRedisCache() (cache RedisCache, has bool)
 }
 
 type EntitySchema interface {
-	GetTableName() string
-	GetType() reflect.Type
+	EntitySchemaShared
 	DropTable(c Context)
 	TruncateTable(c Context)
 	UpdateSchema(c Context)
 	UpdateSchemaAndTruncateTable(c Context)
-	GetDB() DB
-	GetLocalCache() (cache LocalCache, has bool)
-	GetRedisCache() (cache RedisCache, has bool)
-	GetColumns() []string
-	GetUniqueIndexes() map[string][]string
 	GetSchemaChanges(c Context) (alters []Alter, has bool)
-	GetTag(field, key, trueValue, defaultValue string) string
-	Option(key string) any
 	DisableCache(local, redis bool)
 	getCacheKey() string
 	uuid() uint64

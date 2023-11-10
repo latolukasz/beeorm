@@ -1,0 +1,129 @@
+package modified
+
+import (
+	"fmt"
+	"reflect"
+	"strings"
+	"time"
+
+	"github.com/latolukasz/beeorm/v3"
+)
+
+const optionKey = "_github.com/latolukasz/beeorm/plugins/modified/AddedField"
+const emptyTime = "0001-01-01 00:00:00"
+const emptyDate = "0001-01-01"
+
+type PluginOptions struct {
+	AddedAtField    string
+	ModifiedAtField string
+}
+
+type schemaOptions struct {
+	FieldAdded       string
+	FieldModified    string
+	TimeAdded        bool
+	TimeModified     bool
+	OptionalAdded    bool
+	OptionalModified bool
+}
+
+func New(addedAtField, modifiedAtField string) any {
+	addedAtField = strings.TrimSpace(addedAtField)
+	modifiedAtField = strings.TrimSpace(modifiedAtField)
+	if addedAtField != "" && strings.ToUpper(addedAtField[0:1]) != addedAtField[0:1] {
+		return fmt.Errorf("addedAt field '%s' must be public", addedAtField)
+	}
+	if modifiedAtField != "" && strings.ToUpper(modifiedAtField[0:1]) != modifiedAtField[0:1] {
+		return fmt.Errorf("modifiedAtField field '%s' must be public", modifiedAtField)
+	}
+	return &plugin{addedAtField: addedAtField, modifiedAtField: modifiedAtField}
+}
+
+type plugin struct {
+	addedAtField    string
+	modifiedAtField string
+}
+
+func (p *plugin) ValidateEntitySchema(schema beeorm.EntitySchemaSetter) error {
+	fields := make([]string, 0)
+	if p.addedAtField != "" {
+		fields = append(fields, p.addedAtField)
+	}
+	if p.modifiedAtField != "" && p.modifiedAtField != p.addedAtField {
+		fields = append(fields, p.modifiedAtField)
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	options := schemaOptions{}
+	for _, fieldName := range fields {
+		field, has := schema.GetType().FieldByName(fieldName)
+		if !has {
+			continue
+		}
+		if schema.GetTag(fieldName, "ignore", "true", "") == "true" {
+			continue
+		}
+		typeName := field.Type.String()
+		isOptional := typeName == "*time.Time"
+		if !isOptional && typeName != "time.Time" {
+			continue
+		}
+		withTime := schema.GetTag(fieldName, "time", "true", "") == "true"
+		if fieldName == p.addedAtField {
+			options.FieldAdded = fieldName
+			options.TimeAdded = withTime
+			options.OptionalAdded = isOptional
+		}
+		if fieldName == p.modifiedAtField {
+			options.FieldModified = fieldName
+			options.TimeModified = withTime
+			options.OptionalModified = isOptional
+		}
+	}
+	schema.SetOption(optionKey, options)
+	return nil
+}
+
+func (p *plugin) EntityFlush(schema beeorm.EntitySchema, entity reflect.Value, before, after beeorm.Bind, _ beeorm.Engine) (beeorm.PostFlushAction, error) {
+	if after == nil && before != nil {
+		return nil, nil
+	}
+	option := schema.Option(optionKey)
+	if option == nil {
+		return nil, nil
+	}
+	options := option.(schemaOptions)
+	now := time.Now().UTC()
+	if before == nil {
+		if options.FieldAdded != "" {
+			setDate(now, after, entity, options.FieldAdded, options.TimeAdded, options.OptionalAdded)
+		}
+	} else {
+		if options.FieldModified != "" {
+			setDate(now, after, entity, options.FieldModified, options.TimeModified, options.OptionalModified)
+		}
+	}
+	return nil, nil
+}
+
+func setDate(now time.Time, bind beeorm.Bind, entity reflect.Value, field string, withTime, optional bool) {
+	before, hasBefore := bind[field]
+	if hasBefore {
+		if (optional && before != "NULL") || (withTime && before != emptyTime) || (!withTime && before != emptyDate) {
+			return
+		}
+	}
+	if withTime {
+		now = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), 0, time.UTC)
+		bind[field] = now.Format(time.DateTime)
+	} else {
+		now = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
+		bind[field] = now.Format(time.DateOnly)
+	}
+	if optional {
+		entity.FieldByName(field).Set(reflect.ValueOf(&now))
+	} else {
+		entity.FieldByName(field).Set(reflect.ValueOf(now))
+	}
+}
