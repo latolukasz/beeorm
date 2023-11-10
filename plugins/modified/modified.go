@@ -2,6 +2,7 @@ package modified
 
 import (
 	"fmt"
+	"github.com/pkg/errors"
 	"reflect"
 	"strings"
 	"time"
@@ -30,11 +31,14 @@ type schemaOptions struct {
 func New(addedAtField, modifiedAtField string) any {
 	addedAtField = strings.TrimSpace(addedAtField)
 	modifiedAtField = strings.TrimSpace(modifiedAtField)
+	if addedAtField == "" && modifiedAtField == "" {
+		panic(errors.New("at least one column name must be defined"))
+	}
 	if addedAtField != "" && strings.ToUpper(addedAtField[0:1]) != addedAtField[0:1] {
-		return fmt.Errorf("addedAt field '%s' must be public", addedAtField)
+		panic(fmt.Errorf("addedAt field '%s' must be public", addedAtField))
 	}
 	if modifiedAtField != "" && strings.ToUpper(modifiedAtField[0:1]) != modifiedAtField[0:1] {
-		return fmt.Errorf("modifiedAtField field '%s' must be public", modifiedAtField)
+		panic(fmt.Errorf("modifiedAtField field '%s' must be public", modifiedAtField))
 	}
 	return &plugin{addedAtField: addedAtField, modifiedAtField: modifiedAtField}
 }
@@ -52,10 +56,8 @@ func (p *plugin) ValidateEntitySchema(schema beeorm.EntitySchemaSetter) error {
 	if p.modifiedAtField != "" && p.modifiedAtField != p.addedAtField {
 		fields = append(fields, p.modifiedAtField)
 	}
-	if len(fields) == 0 {
-		return nil
-	}
 	options := schemaOptions{}
+	hasField := false
 	for _, fieldName := range fields {
 		field, has := schema.GetType().FieldByName(fieldName)
 		if !has {
@@ -74,14 +76,18 @@ func (p *plugin) ValidateEntitySchema(schema beeorm.EntitySchemaSetter) error {
 			options.FieldAdded = fieldName
 			options.TimeAdded = withTime
 			options.OptionalAdded = isOptional
+			hasField = true
 		}
 		if fieldName == p.modifiedAtField {
 			options.FieldModified = fieldName
 			options.TimeModified = withTime
 			options.OptionalModified = isOptional
+			hasField = true
 		}
 	}
-	schema.SetOption(optionKey, options)
+	if hasField {
+		schema.SetOption(optionKey, options)
+	}
 	return nil
 }
 
@@ -110,7 +116,15 @@ func (p *plugin) EntityFlush(schema beeorm.EntitySchema, entity reflect.Value, b
 func setDate(now time.Time, bind beeorm.Bind, entity reflect.Value, field string, withTime, optional bool) {
 	before, hasBefore := bind[field]
 	if hasBefore {
-		if (optional && before != "NULL") || (withTime && before != emptyTime) || (!withTime && before != emptyDate) {
+		if optional {
+			if before != "NULL" {
+				return
+			}
+		} else if withTime {
+			if before != emptyTime {
+				return
+			}
+		} else if before != emptyDate {
 			return
 		}
 	}
