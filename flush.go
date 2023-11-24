@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/puzpuzpuz/xsync/v2"
+
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -25,7 +27,7 @@ func (c *contextImplementation) FlushAsync() error {
 func (c *contextImplementation) flush(async bool) error {
 	c.mutexFlush.Lock()
 	defer c.mutexFlush.Unlock()
-	if len(c.trackedEntities) == 0 {
+	if c.trackedEntities == nil || c.trackedEntities.Size() == 0 {
 		return nil
 	}
 	sqlGroup := c.groupSQLOperations()
@@ -85,7 +87,7 @@ func (c *contextImplementation) flush(async bool) error {
 	for _, action := range c.flushPostActions {
 		action(c)
 	}
-	c.trackedEntities = c.trackedEntities[0:0]
+	c.trackedEntities.Clear()
 	c.flushDBActions = nil
 	c.flushPostActions = c.flushPostActions[0:0]
 	c.redisPipeLines = nil
@@ -95,7 +97,7 @@ func (c *contextImplementation) flush(async bool) error {
 func (c *contextImplementation) ClearFlush() {
 	c.mutexFlush.Lock()
 	defer c.mutexFlush.Unlock()
-	c.trackedEntities = c.trackedEntities[0:0]
+	c.trackedEntities.Clear()
 	c.flushDBActions = nil
 	c.flushPostActions = c.flushPostActions[0:0]
 	c.redisPipeLines = nil
@@ -560,21 +562,25 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 
 func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	sqlGroup := make(sqlOperations)
-	for _, val := range c.trackedEntities {
-		schema := val.Schema()
-		db := c.engine.DB(schema.mysqlPoolCode)
-		poolSQLGroup, has := sqlGroup[db]
-		if !has {
-			poolSQLGroup = make(schemaSQLOperations)
-			sqlGroup[db] = poolSQLGroup
-		}
-		tableSQLGroup, has := poolSQLGroup[schema]
-		if !has {
-			tableSQLGroup = make(map[FlushType][]EntityFlush)
-			poolSQLGroup[schema] = tableSQLGroup
-		}
-		tableSQLGroup[val.flushType()] = append(tableSQLGroup[val.flushType()], val)
-	}
+	c.trackedEntities.Range(func(_ uint64, value *xsync.MapOf[uint64, EntityFlush]) bool {
+		value.Range(func(_ uint64, flush EntityFlush) bool {
+			schema := flush.Schema()
+			db := c.engine.DB(schema.mysqlPoolCode)
+			poolSQLGroup, has := sqlGroup[db]
+			if !has {
+				poolSQLGroup = make(schemaSQLOperations)
+				sqlGroup[db] = poolSQLGroup
+			}
+			tableSQLGroup, has := poolSQLGroup[schema]
+			if !has {
+				tableSQLGroup = make(map[FlushType][]EntityFlush)
+				poolSQLGroup[schema] = tableSQLGroup
+			}
+			tableSQLGroup[flush.flushType()] = append(tableSQLGroup[flush.flushType()], flush)
+			return true
+		})
+		return true
+	})
 	return sqlGroup
 }
 

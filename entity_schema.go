@@ -60,6 +60,7 @@ type EntitySchema interface {
 type columnAttrToStringSetter func(v any) (string, error)
 
 type entitySchema struct {
+	index                     uint64
 	tableName                 string
 	archived                  bool
 	mysqlPoolCode             string

@@ -2,10 +2,11 @@ package modified
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/latolukasz/beeorm/v3"
 )

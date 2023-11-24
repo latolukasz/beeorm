@@ -127,8 +127,10 @@ func (r *registry) Validate() (Engine, error) {
 			maxPoolLen = len(k)
 		}
 	}
+	index := uint64(0)
 	for name, entityType := range r.entities {
-		schema := &entitySchema{engine: e}
+		schema := &entitySchema{engine: e, index: index}
+		index++
 		err := schema.init(r, entityType)
 		if err != nil {
 			return nil, err

@@ -2,8 +2,11 @@ package beeorm
 
 import (
 	"context"
+	"hash/maphash"
 	"strings"
 	"sync"
+
+	"github.com/puzpuzpuz/xsync/v2"
 )
 
 type Meta map[string]string
@@ -35,7 +38,7 @@ type Context interface {
 type contextImplementation struct {
 	parent                 context.Context
 	engine                 *engineImplementation
-	trackedEntities        []EntityFlush
+	trackedEntities        *xsync.MapOf[uint64, *xsync.MapOf[uint64, EntityFlush]]
 	queryLoggersDB         []LogHandler
 	queryLoggersRedis      []LogHandler
 	queryLoggersLocalCache []LogHandler
@@ -134,5 +137,19 @@ func (c *contextImplementation) getLocalCacheLoggers() (bool, []LogHandler) {
 func (c *contextImplementation) trackEntity(e EntityFlush) {
 	c.mutexFlush.Lock()
 	defer c.mutexFlush.Unlock()
-	c.trackedEntities = append(c.trackedEntities, e)
+	if c.trackedEntities == nil {
+		c.trackedEntities = xsync.NewTypedMapOf[uint64, *xsync.MapOf[uint64, EntityFlush]](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+	}
+	entities, loaded := c.trackedEntities.LoadOrCompute(e.Schema().index, func() *xsync.MapOf[uint64, EntityFlush] {
+		entities := xsync.NewTypedMapOf[uint64, EntityFlush](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+		entities.Store(e.ID(), e)
+		return entities
+	})
+	if loaded {
+		entities.Store(e.ID(), e)
+	}
 }
