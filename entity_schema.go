@@ -58,6 +58,8 @@ type EntitySchema interface {
 }
 
 type columnAttrToStringSetter func(v any) (string, error)
+type fieldBindSetter func(v any) (any, error)
+type fieldSetter func(v any, e reflect.Value)
 
 type entitySchema struct {
 	index                     uint64
@@ -73,6 +75,8 @@ type entitySchema struct {
 	columnNames               []string
 	columnMapping             map[string]int
 	columnAttrToStringSetters map[string]columnAttrToStringSetter
+	fieldBindSetters          map[string]fieldBindSetter
+	fieldSetters              map[string]fieldSetter
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
@@ -321,7 +325,9 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 		}
 	}
 	e.columnAttrToStringSetters = make(map[string]columnAttrToStringSetter)
-	e.fields = e.buildTableFields(entityType, registry, 0, "", e.tags)
+	e.fieldBindSetters = make(map[string]fieldBindSetter)
+	e.fieldSetters = make(map[string]fieldSetter)
+	e.fields = e.buildTableFields(entityType, registry, 0, "", nil, e.tags)
 	e.columnNames, e.fieldsQuery = e.fields.buildColumnNames("")
 	if len(e.fieldsQuery) > 0 {
 		e.fieldsQuery = e.fieldsQuery[1:]
@@ -465,7 +471,7 @@ func (e *entitySchema) DisableCache(local, redis bool) {
 }
 
 func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
-	start int, prefix string, schemaTags map[string]map[string]string) *tableFields {
+	start int, prefix string, parents []int, schemaTags map[string]map[string]string) *tableFields {
 	fields := &tableFields{t: t, prefix: prefix, fields: make(map[int]reflect.StructField)}
 	fields.forcedOldBid = make(map[int]bool)
 	fields.arrays = make(map[int]int)
@@ -484,6 +490,7 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 			Fields:   fields,
 			Tags:     tags,
 			Index:    i,
+			Parents:  parents,
 			Prefix:   prefix,
 			Field:    f,
 			TypeName: f.Type.String(),
@@ -571,6 +578,7 @@ type schemaFieldAttributes struct {
 	Tags     map[string]string
 	Fields   *tableFields
 	Index    int
+	Parents  []int
 	Prefix   string
 	IsArray  bool
 }
@@ -606,6 +614,7 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 			return *val.(*uint64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true)
 	}
 }
 
@@ -782,8 +791,10 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 		attributes.Fields.strings = append(attributes.Fields.strings, attributes.Index)
 	}
 	for i, columnName := range attributes.GetColumnNames() {
+		isRequired := false
+		stringLength := 255
 		if i == 0 {
-			stringLength := 255
+			isRequired = attributes.Tags["required"] == "true"
 			length := attributes.Tags["length"]
 			if length == "max" {
 				stringLength = 16777215
@@ -792,10 +803,10 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 			}
 			if attributes.IsArray {
 				attributes.Fields.stringMaxLengthsArray = append(attributes.Fields.stringMaxLengthsArray, stringLength)
-				attributes.Fields.stringsRequiredArray = append(attributes.Fields.stringsRequiredArray, attributes.Tags["required"] == "true")
+				attributes.Fields.stringsRequiredArray = append(attributes.Fields.stringsRequiredArray, isRequired)
 			} else {
 				attributes.Fields.stringMaxLengths = append(attributes.Fields.stringMaxLengths, stringLength)
-				attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, attributes.Tags["required"] == "true")
+				attributes.Fields.stringsRequired = append(attributes.Fields.stringsRequired, isRequired)
 			}
 		}
 		e.mapBindToScanPointer[columnName] = func() any {
@@ -809,8 +820,9 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 			return nil
 		}
 		e.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
+		e.fieldBindSetters[columnName] = createStringFieldBindSetter(columnName, stringLength, isRequired)
+		e.fieldSetters[columnName] = createStringFieldSetter(attributes)
 	}
-
 }
 
 func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
@@ -1027,9 +1039,14 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 
 func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, registry *registry,
 	schemaTags map[string]map[string]string) {
+	var parents []int
+	if attributes.Parents != nil {
+		parents = append(parents, attributes.Parents...)
+	}
+	parents = append(parents, attributes.Index)
 	if attributes.IsArray {
 		attributes.Fields.structsArray = append(attributes.Fields.structsArray, attributes.Index)
-		subFields := e.buildTableFields(attributes.Field.Type.Elem(), registry, 0, attributes.Field.Name, schemaTags)
+		subFields := e.buildTableFields(attributes.Field.Type.Elem(), registry, 0, attributes.Field.Name, parents, schemaTags)
 		attributes.Fields.structsFieldsArray = append(attributes.Fields.structsFieldsArray, subFields)
 	} else {
 		attributes.Fields.structs = append(attributes.Fields.structs, attributes.Index)
@@ -1037,7 +1054,7 @@ func (e *entitySchema) buildStructField(attributes schemaFieldAttributes, regist
 		if !attributes.Field.Anonymous {
 			subPrefix = attributes.Field.Name
 		}
-		subFields := e.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, schemaTags)
+		subFields := e.buildTableFields(attributes.Field.Type, registry, 0, subPrefix, parents, schemaTags)
 		attributes.Fields.structsFields = append(attributes.Fields.structsFields, subFields)
 	}
 }

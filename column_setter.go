@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -61,6 +62,56 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 	}
 }
 
+func createNumberFieldBindSetter(columnName string, unsigned bool) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		switch v.(type) {
+		case string:
+			asNumber, err := strconv.ParseUint(v.(string), 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid number for column `%s`", columnName)
+			}
+			return asNumber, nil
+		case uint8:
+		case uint16:
+		case uint:
+		case uint32:
+		case uint64:
+			return v, nil
+		case int8:
+			i := v.(int8)
+			if i < 0 && unsigned {
+				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+			}
+			return i, nil
+		case int16:
+			i := v.(int16)
+			if i < 0 && unsigned {
+				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+			}
+			return i, nil
+		case int:
+			i := v.(int)
+			if i < 0 && unsigned {
+				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+			}
+			return i, nil
+		case int32:
+			i := v.(int32)
+			if i < 0 && unsigned {
+				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+			}
+			return i, nil
+		case int64:
+			i := v.(int64)
+			if i < 0 && unsigned {
+				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+			}
+			return i, nil
+		}
+		return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+	}
+}
+
 func createStringColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
 		switch v.(type) {
@@ -68,6 +119,49 @@ func createStringColumnSetter(columnName string) func(v any) (string, error) {
 			return v.(string), nil
 		default:
 			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		}
+	}
+}
+
+func createStringFieldBindSetter(columnName string, length int, required bool) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil {
+			if required {
+				return nil, &BindError{Field: columnName, Message: "empty string not allowed"}
+			}
+			return nil, nil
+		}
+		switch v.(type) {
+		case string:
+			asString := v.(string)
+			if v == "" {
+				if required {
+					return nil, &BindError{Field: columnName, Message: "empty string not allowed"}
+				}
+				return nil, nil
+			}
+			if len(asString) > length {
+				return nil, &BindError{Field: columnName,
+					Message: fmt.Sprintf("text too long, max %d allowed", length)}
+			}
+			return asString, nil
+		default:
+			return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		}
+	}
+}
+
+func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetString("")
+		} else {
+			field.SetString(v.(string))
 		}
 	}
 }
