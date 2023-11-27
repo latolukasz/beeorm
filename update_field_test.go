@@ -9,11 +9,13 @@ import (
 
 type updateSubField struct {
 	SubName string
+	Uint    uint16
 }
 
 type updateEntity struct {
 	ID     uint64 `orm:"localCache;redisCache"`
 	Name   string `orm:"length=10;required"`
+	Uint   uint16
 	Level1 updateSubField
 }
 
@@ -38,7 +40,8 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	err := c.Flush()
 	assert.NoError(t, err)
 
-	/* String */
+	/* string */
+
 	entity = GetByID[updateEntity](c, ids[0])
 	err = UpdateEntityField(c, entity, "Name", "New", true)
 	assert.NoError(t, err)
@@ -70,4 +73,15 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 
 	err = UpdateEntityField(c, entity, "Name", "", true)
 	assert.EqualError(t, err, "[Name] empty string not allowed")
+
+	/* uint */
+	uintValues := []any{uint8(14), uint16(14), uint32(14), uint(14), uint64(14), int8(14), int16(14), int32(14), int64(14), 14}
+	for _, val := range uintValues {
+		err = UpdateEntityField(c, entity, "Uint", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(14), entity.Uint)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, uint16(14), entity.Uint)
+	}
+
 }

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"hash/fnv"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -503,12 +504,16 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 		}
 
 		switch attributes.TypeName {
-		case "uint",
-			"uint8",
-			"uint16",
-			"uint32",
-			"uint64":
-			e.buildUintField(attributes)
+		case "uint":
+			e.buildUintField(attributes, math.MaxUint)
+		case "uint8":
+			e.buildUintField(attributes, math.MaxUint8)
+		case "uint16":
+			e.buildUintField(attributes, math.MaxUint16)
+		case "uint32":
+			e.buildUintField(attributes, math.MaxUint32)
+		case "uint64":
+			e.buildUintField(attributes, math.MaxUint64)
 		case "*uint",
 			"*uint8",
 			"*uint16",
@@ -598,7 +603,7 @@ func (attributes schemaFieldAttributes) GetColumnNames() []string {
 	return names
 }
 
-func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildUintField(attributes schemaFieldAttributes, max uint64) {
 	if attributes.IsArray {
 		attributes.Fields.uIntegersArray = append(attributes.Fields.uIntegersArray, attributes.Index)
 	} else {
@@ -614,7 +619,8 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes) {
 			return *val.(*uint64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
-		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, max)
+		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true)
 	}
 }
 

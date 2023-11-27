@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -62,53 +63,58 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 	}
 }
 
-func createNumberFieldBindSetter(columnName string, unsigned bool) func(v any) (any, error) {
+func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) func(v any) (any, error) {
 	return func(v any) (any, error) {
+		var asUint64 uint64
+		var asInt64 int64
+		var err error
 		switch v.(type) {
 		case string:
-			asNumber, err := strconv.ParseUint(v.(string), 10, 64)
+			asUint64, err = strconv.ParseUint(v.(string), 10, 64)
 			if err != nil {
-				return nil, fmt.Errorf("invalid number for column `%s`", columnName)
+				return nil, &BindError{columnName, fmt.Sprintf("invalid number for column `%s`", columnName)}
 			}
-			return asNumber, nil
 		case uint8:
+			asUint64 = uint64(v.(uint8))
 		case uint16:
+			asUint64 = uint64(v.(uint16))
 		case uint:
+			asUint64 = uint64(v.(uint))
 		case uint32:
+			asUint64 = uint64(v.(uint32))
 		case uint64:
-			return v, nil
+			asUint64 = v.(uint64)
 		case int8:
-			i := v.(int8)
-			if i < 0 && unsigned {
-				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
-			}
-			return i, nil
+			asInt64 = int64(v.(int8))
 		case int16:
-			i := v.(int16)
-			if i < 0 && unsigned {
-				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
-			}
-			return i, nil
+			asInt64 = int64(v.(int16))
 		case int:
-			i := v.(int)
-			if i < 0 && unsigned {
-				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
-			}
-			return i, nil
+			asInt64 = int64(v.(int))
 		case int32:
-			i := v.(int32)
-			if i < 0 && unsigned {
-				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
-			}
-			return i, nil
+			asInt64 = int64(v.(int32))
 		case int64:
-			i := v.(int64)
-			if i < 0 && unsigned {
-				return nil, fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
-			}
-			return i, nil
+			asInt64 = v.(int64)
+		default:
+			return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
 		}
-		return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		if !unsigned {
+			if asUint64 > 0 {
+				asInt64 = int64(asUint64)
+			}
+			if uint64(math.Abs(float64(asInt64))) > max {
+				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max allowed value", v)}
+			}
+			return asUint64, nil
+		}
+		if asInt64 < 0 {
+			return nil, &BindError{columnName, fmt.Sprintf("unsigned number %d not allowed", v)}
+		} else if asInt64 > 0 {
+			asUint64 = uint64(asInt64)
+		}
+		if asUint64 > max {
+			return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max value of %d exceeded", v, max)}
+		}
+		return asUint64, nil
 	}
 }
 
@@ -162,6 +168,21 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 			field.SetString("")
 		} else {
 			field.SetString(v.(string))
+		}
+	}
+}
+
+func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned bool) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if unsigned {
+			field.SetUint(v.(uint64))
+		} else {
+			field.SetInt(v.(int64))
 		}
 	}
 }
