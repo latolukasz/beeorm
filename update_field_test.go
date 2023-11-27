@@ -9,17 +9,21 @@ import (
 )
 
 type updateSubField struct {
-	SubName string
-	Uint    uint16
-	Int     int16
+	SubName      string
+	Uint         uint16
+	Int          int16
+	UintNullable *uint16
+	IntNullable  *int16
 }
 
 type updateEntity struct {
-	ID     uint64 `orm:"localCache;redisCache"`
-	Name   string `orm:"length=10;required"`
-	Uint   uint16
-	Int    int16
-	Level1 updateSubField
+	ID           uint64 `orm:"localCache;redisCache"`
+	Name         string `orm:"length=10;required"`
+	Uint         uint16
+	Int          int16
+	UintNullable *uint16
+	IntNullable  *int16
+	Level1       updateSubField
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -95,6 +99,8 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Uint] negative number -14 not allowed")
 	err = UpdateEntityField(c, entity, "Uint", math.MaxUint16+1, true)
 	assert.EqualError(t, err, "[Uint] value 65536 exceeded max allowed value")
+	err = UpdateEntityField(c, entity, "Uint", "invalid", true)
+	assert.EqualError(t, err, "[Uint] invalid number invalid")
 
 	/* int */
 	for _, val := range intValues {
@@ -113,4 +119,44 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Int] value 32768 exceeded max allowed value")
 	err = UpdateEntityField(c, entity, "Int", math.MinInt16-1, true)
 	assert.EqualError(t, err, "[Int] value -32769 exceeded min allowed value")
+	err = UpdateEntityField(c, entity, "Int", "invalid", true)
+	assert.EqualError(t, err, "[Int] invalid number invalid")
+
+	/* *uint */
+	for _, val := range intValues {
+		err = UpdateEntityField(c, entity, "UintNullable", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(14), *entity.UintNullable)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, uint16(14), *entity.UintNullable)
+		err = UpdateEntityField(c, entity, "Level1UintNullable", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(14), *entity.Level1.UintNullable)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, uint16(14), *entity.Level1.UintNullable)
+	}
+	err = UpdateEntityField(c, entity, "UintNullable", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.UintNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.UintNullable)
+
+	/* *int */
+	for _, val := range intValues {
+		err = UpdateEntityField(c, entity, "IntNullable", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, int16(14), *entity.IntNullable)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, int16(14), *entity.IntNullable)
+		err = UpdateEntityField(c, entity, "Level1IntNullable", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, int16(14), *entity.Level1.IntNullable)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, int16(14), *entity.Level1.IntNullable)
+	}
+	err = UpdateEntityField(c, entity, "IntNullable", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.IntNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.IntNullable)
 }

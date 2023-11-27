@@ -514,12 +514,16 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 			e.buildUintField(attributes, 0, math.MaxUint32)
 		case "uint64":
 			e.buildUintField(attributes, 0, math.MaxUint64)
-		case "*uint",
-			"*uint8",
-			"*uint16",
-			"*uint32",
-			"*uint64":
-			e.buildUintPointerField(attributes)
+		case "*uint":
+			e.buildUintPointerField(attributes, 0, math.MaxUint)
+		case "*uint8":
+			e.buildUintPointerField(attributes, 0, math.MaxUint8)
+		case "*uint16":
+			e.buildUintPointerField(attributes, 0, math.MaxUint16)
+		case "*uint32":
+			e.buildUintPointerField(attributes, 0, math.MaxUint32)
+		case "*uint64":
+			e.buildUintPointerField(attributes, 0, math.MaxUint64)
 		case "int":
 			e.buildIntField(attributes, math.MinInt, math.MaxInt)
 		case "int8":
@@ -530,12 +534,17 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 			e.buildIntField(attributes, math.MinInt32, math.MaxInt32)
 		case "int64":
 			e.buildIntField(attributes, math.MinInt64, math.MaxInt64)
-		case "*int",
-			"*int8",
-			"*int16",
-			"*int32",
-			"*int64":
-			e.buildIntPointerField(attributes)
+
+		case "*int":
+			e.buildIntPointerField(attributes, math.MinInt, math.MaxInt)
+		case "*int8":
+			e.buildIntPointerField(attributes, math.MinInt8, math.MaxInt8)
+		case "*int16":
+			e.buildIntPointerField(attributes, math.MinInt16, math.MaxInt16)
+		case "*int32":
+			e.buildIntPointerField(attributes, math.MinInt32, math.MaxInt32)
+		case "*int64":
+			e.buildIntPointerField(attributes, math.MinInt64, math.MaxInt64)
 		case "string":
 			e.buildStringField(attributes)
 		case "[]uint8":
@@ -623,8 +632,8 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes, min int6
 			return *val.(*uint64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
-		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, min, max)
-		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, false, min, max)
+		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true, false)
 	}
 }
 
@@ -662,7 +671,7 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 	}
 }
 
-func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes, min int64, max uint64) {
 	if attributes.IsArray {
 		attributes.Fields.uIntegersNullableArray = append(attributes.Fields.uIntegersNullableArray, attributes.Index)
 	} else {
@@ -701,6 +710,8 @@ func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanIntNullablePointer
 		e.mapPointerToValue[columnName] = pointerUintNullableScan
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, true)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, true, min, max)
+		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true, true)
 	}
 }
 
@@ -719,12 +730,12 @@ func (e *entitySchema) buildIntField(attributes schemaFieldAttributes, min int64
 			return *val.(*int64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
-		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, false, min, max)
-		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, false)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, false, false, min, max)
+		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, false, false)
 	}
 }
 
-func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
+func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes, min int64, max uint64) {
 	if attributes.IsArray {
 		attributes.Fields.integersNullableArray = append(attributes.Fields.integersNullableArray, attributes.Index)
 	} else {
@@ -763,6 +774,8 @@ func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanIntNullablePointer
 		e.mapPointerToValue[columnName] = pointerIntNullableScan
 		e.columnAttrToStringSetters[columnName] = createNumberColumnSetter(columnName, false)
+		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, false, true, min, max)
+		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, false, true)
 	}
 }
 

@@ -62,16 +62,29 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 	}
 }
 
-func createNumberFieldBindSetter(columnName string, unsigned bool, min int64, max uint64) func(v any) (any, error) {
+func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min int64, max uint64) func(v any) (any, error) {
 	return func(v any) (any, error) {
+		if v == nil {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
 		var asUint64 uint64
 		var asInt64 int64
 		var err error
 		switch v.(type) {
 		case string:
-			asUint64, err = strconv.ParseUint(v.(string), 10, 64)
-			if err != nil {
-				return nil, &BindError{columnName, fmt.Sprintf("invalid number for column `%s`", columnName)}
+			if unsigned {
+				asUint64, err = strconv.ParseUint(v.(string), 10, 64)
+				if err != nil {
+					return nil, &BindError{columnName, fmt.Sprintf("invalid number %s", v.(string))}
+				}
+			} else {
+				asInt64, err = strconv.ParseInt(v.(string), 10, 64)
+				if err != nil {
+					return nil, &BindError{columnName, fmt.Sprintf("invalid number %s", v.(string))}
+				}
 			}
 		case uint8:
 			asUint64 = uint64(v.(uint8))
@@ -178,18 +191,32 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 	}
 }
 
-func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned bool) func(v any, elem reflect.Value) {
+func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullable bool) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
 		field := elem
 		for _, i := range attributes.Parents {
 			field = field.Field(i)
 		}
 		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		if nullable {
+			val := reflect.New(field.Type().Elem())
+			if unsigned {
+				val.Elem().SetUint(v.(uint64))
+			} else {
+				val.Elem().SetInt(v.(int64))
+			}
+			field.Set(val)
+			return
+		}
 		if unsigned {
 			field.SetUint(v.(uint64))
-		} else {
-			field.SetInt(v.(int64))
+			return
 		}
+		field.SetInt(v.(int64))
 	}
 }
 
