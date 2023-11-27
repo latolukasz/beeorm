@@ -2,6 +2,7 @@ package beeorm
 
 import (
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,12 +11,14 @@ import (
 type updateSubField struct {
 	SubName string
 	Uint    uint16
+	Int     int16
 }
 
 type updateEntity struct {
 	ID     uint64 `orm:"localCache;redisCache"`
 	Name   string `orm:"length=10;required"`
 	Uint   uint16
+	Int    int16
 	Level1 updateSubField
 }
 
@@ -75,14 +78,39 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Name] empty string not allowed")
 
 	/* uint */
-	uintValues := []any{"14", float32(14), float64(14), uint8(14), uint16(14), uint32(14), uint(14), uint64(14), int8(14), int16(14), int32(14), int64(14), 14}
-	for _, val := range uintValues {
+	intValues := []any{"14", float32(14), float64(14), uint8(14), uint16(14), uint32(14), uint(14), uint64(14), int8(14), int16(14), int32(14), int64(14), 14}
+	for _, val := range intValues {
 		err = UpdateEntityField(c, entity, "Uint", val, true)
 		assert.NoError(t, err)
 		assert.Equal(t, uint16(14), entity.Uint)
 		entity = GetByID[updateEntity](c, ids[1])
 		assert.Equal(t, uint16(14), entity.Uint)
+		err = UpdateEntityField(c, entity, "Level1Uint", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(14), entity.Level1.Uint)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, uint16(14), entity.Level1.Uint)
 	}
 	err = UpdateEntityField(c, entity, "Uint", -14, true)
 	assert.EqualError(t, err, "[Uint] negative number -14 not allowed")
+	err = UpdateEntityField(c, entity, "Uint", math.MaxUint16+1, true)
+	assert.EqualError(t, err, "[Uint] value 65536 exceeded max allowed value")
+
+	/* int */
+	for _, val := range intValues {
+		err = UpdateEntityField(c, entity, "Int", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, int16(14), entity.Int)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, int16(14), entity.Int)
+		err = UpdateEntityField(c, entity, "Level1Int", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, int16(14), entity.Level1.Int)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, int16(14), entity.Level1.Int)
+	}
+	err = UpdateEntityField(c, entity, "Int", math.MaxInt16+1, true)
+	assert.EqualError(t, err, "[Int] value 32768 exceeded max allowed value")
+	err = UpdateEntityField(c, entity, "Int", math.MinInt16-1, true)
+	assert.EqualError(t, err, "[Int] value -32769 exceeded min allowed value")
 }

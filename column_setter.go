@@ -2,7 +2,6 @@ package beeorm
 
 import (
 	"fmt"
-	"math"
 	"reflect"
 	"strconv"
 	"strings"
@@ -63,7 +62,7 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 	}
 }
 
-func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) func(v any) (any, error) {
+func createNumberFieldBindSetter(columnName string, unsigned bool, min int64, max uint64) func(v any) (any, error) {
 	return func(v any) (any, error) {
 		var asUint64 uint64
 		var asInt64 int64
@@ -105,10 +104,13 @@ func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) f
 			if asUint64 > 0 {
 				asInt64 = int64(asUint64)
 			}
-			if uint64(math.Abs(float64(asInt64))) > max {
+			if asInt64 > 0 && uint64(asInt64) > max {
 				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max allowed value", v)}
 			}
-			return asUint64, nil
+			if asInt64 < 0 && asInt64 < min {
+				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded min allowed value", v)}
+			}
+			return asInt64, nil
 		}
 		if asInt64 < 0 {
 			return nil, &BindError{columnName, fmt.Sprintf("negative number %d not allowed", v)}
@@ -116,7 +118,7 @@ func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) f
 			asUint64 = uint64(asInt64)
 		}
 		if asUint64 > max {
-			return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max value of %d exceeded", v, max)}
+			return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max allowed value", v)}
 		}
 		return asUint64, nil
 	}
