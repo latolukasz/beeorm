@@ -94,6 +94,10 @@ func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) f
 			asInt64 = int64(v.(int32))
 		case int64:
 			asInt64 = v.(int64)
+		case float32:
+			asInt64 = int64(v.(float32))
+		case float64:
+			asInt64 = int64(v.(float64))
 		default:
 			return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
 		}
@@ -107,7 +111,7 @@ func createNumberFieldBindSetter(columnName string, unsigned bool, max uint64) f
 			return asUint64, nil
 		}
 		if asInt64 < 0 {
-			return nil, &BindError{columnName, fmt.Sprintf("unsigned number %d not allowed", v)}
+			return nil, &BindError{columnName, fmt.Sprintf("negative number %d not allowed", v)}
 		} else if asInt64 > 0 {
 			asUint64 = uint64(asInt64)
 		}

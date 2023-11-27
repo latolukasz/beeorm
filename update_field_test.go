@@ -75,7 +75,7 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Name] empty string not allowed")
 
 	/* uint */
-	uintValues := []any{uint8(14), uint16(14), uint32(14), uint(14), uint64(14), int8(14), int16(14), int32(14), int64(14), 14}
+	uintValues := []any{"14", float32(14), float64(14), uint8(14), uint16(14), uint32(14), uint(14), uint64(14), int8(14), int16(14), int32(14), int64(14), 14}
 	for _, val := range uintValues {
 		err = UpdateEntityField(c, entity, "Uint", val, true)
 		assert.NoError(t, err)
@@ -83,5 +83,6 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 		entity = GetByID[updateEntity](c, ids[1])
 		assert.Equal(t, uint16(14), entity.Uint)
 	}
-
+	err = UpdateEntityField(c, entity, "Uint", -14, true)
+	assert.EqualError(t, err, "[Uint] negative number -14 not allowed")
 }
