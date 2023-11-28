@@ -790,8 +790,8 @@ func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definiti
 		attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
 	}
 	for i, columnName := range attributes.GetColumnNames() {
+		def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
 		if i == 0 {
-			def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
 			if attributes.IsArray {
 				attributes.Fields.enumsArray = append(attributes.Fields.enumsArray, def)
 			} else {
@@ -810,6 +810,9 @@ func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definiti
 			return nil
 		}
 		e.columnAttrToStringSetters[columnName] = createStringColumnSetter(columnName)
+		stringSetter := createStringFieldBindSetter(columnName, 0, def.required)
+		e.fieldBindSetters[columnName] = createEnumFieldBindSetter(columnName, stringSetter, def)
+		e.fieldSetters[columnName] = createStringFieldSetter(attributes)
 	}
 }
 

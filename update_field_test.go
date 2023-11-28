@@ -15,6 +15,7 @@ type updateSubField struct {
 	UintNullable *uint16
 	IntNullable  *int16
 	Reference    *Reference[updateEntityReference] `orm:"required"`
+	Enum         testEnum                          `orm:"required"`
 }
 
 type updateEntityReference struct {
@@ -30,6 +31,7 @@ type updateEntity struct {
 	IntNullable  *int16
 	Level1       updateSubField
 	Reference    *Reference[updateEntityReference]
+	Enum         testEnum
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -50,6 +52,7 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 		entity.Name = fmt.Sprintf("name %d", i)
 		entity.Level1.SubName = fmt.Sprintf("sub name %d", i)
 		entity.Level1.Reference = &Reference[updateEntityReference]{ID: 1}
+		entity.Level1.Enum = testEnumDefinition.A
 		ids = append(ids, entity.ID)
 	}
 	err := c.Flush()
@@ -205,4 +208,33 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.Nil(t, entity.Reference)
 	err = UpdateEntityField(c, entity, "Reference", "invalid", true)
 	assert.EqualError(t, err, "[Reference] invalid number invalid")
+
+	/* enum */
+	err = UpdateEntityField(c, entity, "Enum", testEnumDefinition.B, true)
+	assert.NoError(t, err)
+	assert.Equal(t, testEnumDefinition.B, entity.Enum)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, testEnumDefinition.B, entity.Enum)
+	err = UpdateEntityField(c, entity, "Enum", "c", true)
+	assert.NoError(t, err)
+	assert.Equal(t, testEnumDefinition.C, entity.Enum)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, testEnumDefinition.C, entity.Enum)
+	err = UpdateEntityField(c, entity, "Enum", "", true)
+	assert.NoError(t, err)
+	assert.Equal(t, testEnum(""), entity.Enum)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, testEnum(""), entity.Enum)
+	_ = UpdateEntityField(c, entity, "Enum", testEnumDefinition.B, true)
+	err = UpdateEntityField(c, entity, "Enum", nil, true)
+	assert.NoError(t, err)
+	assert.Equal(t, testEnum(""), entity.Enum)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, testEnum(""), entity.Enum)
+	err = UpdateEntityField(c, entity, "Enum", "invalid", true)
+	assert.EqualError(t, err, "[Enum] invalid value: invalid")
+	err = UpdateEntityField(c, entity, "Level1Enum", nil, true)
+	assert.EqualError(t, err, "[Level1Enum] nil is not allowed")
+	err = UpdateEntityField(c, entity, "Level1Enum", "", true)
+	assert.EqualError(t, err, "[Level1Enum] nil is not allowed")
 }

@@ -170,6 +170,26 @@ func createReferenceFieldBindSetter(columnName string, idSetter fieldBindSetter,
 	}
 }
 
+func createEnumFieldBindSetter(columnName string, stringSetter fieldBindSetter, def *enumDefinition) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil || v == "" {
+			if def.required {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		v = fmt.Sprintf("%s", v)
+		val, err := stringSetter(v)
+		if err != nil {
+			return nil, err
+		}
+		if !def.Has(val.(string)) {
+			return nil, &BindError{columnName, fmt.Sprintf("invalid value: %s", v)}
+		}
+		return val, nil
+	}
+}
+
 func createStringColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
 		switch v.(type) {
@@ -198,7 +218,7 @@ func createStringFieldBindSetter(columnName string, length int, required bool) f
 				}
 				return nil, nil
 			}
-			if len(asString) > length {
+			if length > 0 && len(asString) > length {
 				return nil, &BindError{Field: columnName,
 					Message: fmt.Sprintf("text too long, max %d allowed", length)}
 			}
