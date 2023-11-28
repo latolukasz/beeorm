@@ -905,6 +905,8 @@ func (e *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanBoolPointer
 		e.mapPointerToValue[columnName] = pointerBoolScan
 		e.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
+		e.fieldBindSetters[columnName] = createBoolFieldBindSetter(columnName)
+		e.fieldSetters[columnName] = createBoolFieldSetter(attributes)
 	}
 }
 
@@ -918,6 +920,9 @@ func (e *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanBoolNullablePointer
 		e.mapPointerToValue[columnName] = pointerBoolNullableScan
 		e.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
+		boolSetter := createBoolFieldBindSetter(columnName)
+		e.fieldBindSetters[columnName] = createBoolNullableFieldBindSetter(boolSetter)
+		e.fieldSetters[columnName] = createBoolNullableFieldSetter(attributes)
 	}
 }
 

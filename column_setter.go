@@ -279,6 +279,31 @@ func createBytesFieldBindSetter(columnName string) func(v any) (any, error) {
 	}
 }
 
+func createBoolFieldBindSetter(columnName string) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		switch v.(type) {
+		case bool:
+			return v, nil
+		case int:
+			return v.(int) == 1, nil
+		case string:
+			s := strings.ToLower(v.(string))
+			return s == "true" || s == "1" || s == "yes", nil
+		default:
+			return nil, &BindError{columnName, "invalid value"}
+		}
+	}
+}
+
+func createBoolNullableFieldBindSetter(boolSetter fieldBindSetter) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil {
+			return nil, nil
+		}
+		return boolSetter(v)
+	}
+}
+
 func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
 		field := elem
@@ -306,6 +331,34 @@ func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem r
 		} else {
 			field.SetBytes([]byte(v.(string)))
 		}
+	}
+}
+
+func createBoolFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		field.SetBool(v.(bool))
+	}
+}
+
+func createBoolNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		val := reflect.New(field.Type().Elem())
+		val.Elem().SetBool(v.(bool))
+		field.Set(val)
 	}
 }
 

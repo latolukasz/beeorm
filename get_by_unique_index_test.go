@@ -80,7 +80,7 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Name", "Missing")
 	assert.Nil(t, entity)
 
-	assert.PanicsWithError(t, "invalid value `time.Time` for column `Name`", func() {
+	assert.PanicsWithError(t, "[Name] invalid value", func() {
 		entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Name", time.Now())
 	})
 
@@ -168,11 +168,11 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 		GetByUniqueIndex[time.Time](c, "Name", nil)
 	})
 
-	assert.PanicsWithError(t, "type int not supported, column `BirthDate`", func() {
+	assert.PanicsWithError(t, "[BirthDate] invalid value", func() {
 		GetByUniqueIndex[getByUniqueIndexEntity](c, "Time", 23)
 	})
 
-	assert.PanicsWithError(t, "invalid value `time.Time` for column `Died`", func() {
+	assert.PanicsWithError(t, "[Died] invalid value", func() {
 		GetByUniqueIndex[getByUniqueIndexEntity](c, "Died", time.Now(), died)
 	})
 }

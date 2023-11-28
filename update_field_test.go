@@ -35,6 +35,8 @@ type updateEntity struct {
 	Enum         testEnum
 	Set          []testEnum
 	Blob         []uint8
+	Bool         bool
+	BoolNullable *bool
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -285,4 +287,43 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.Nil(t, entity.Blob)
 	entity = GetByID[updateEntity](c, ids[1])
 	assert.Nil(t, entity.Blob)
+
+	/* boolean */
+	err = UpdateEntityField(c, entity, "Bool", true, true)
+	assert.NoError(t, err)
+	assert.True(t, entity.Bool)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.True(t, entity.Bool)
+	err = UpdateEntityField(c, entity, "Bool", false, true)
+	assert.NoError(t, err)
+	assert.False(t, entity.Bool)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.False(t, entity.Bool)
+	err = UpdateEntityField(c, entity, "Bool", 1, true)
+	assert.NoError(t, err)
+	assert.True(t, entity.Bool)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.True(t, entity.Bool)
+	_ = UpdateEntityField(c, entity, "Bool", false, true)
+	err = UpdateEntityField(c, entity, "Bool", "true", true)
+	assert.NoError(t, err)
+	assert.True(t, entity.Bool)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.True(t, entity.Bool)
+	err = UpdateEntityField(c, entity, "Bool", []string{}, true)
+	assert.EqualError(t, err, "[Bool] invalid value")
+
+	/* *boolean */
+	err = UpdateEntityField(c, entity, "BoolNullable", true, true)
+	assert.NoError(t, err)
+	assert.True(t, *entity.BoolNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.True(t, *entity.BoolNullable)
+	err = UpdateEntityField(c, entity, "BoolNullable", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.BoolNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.BoolNullable)
+	err = UpdateEntityField(c, entity, "BoolNullable", []string{}, true)
+	assert.EqualError(t, err, "[BoolNullable] invalid value")
 }
