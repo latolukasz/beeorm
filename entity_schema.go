@@ -648,10 +648,11 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		fType = fType.Elem()
 	}
 	for i, columnName := range attributes.GetColumnNames() {
+		isRequired := attributes.Tags["required"] == "true"
 		if attributes.IsArray {
-			attributes.Fields.referencesRequiredArray = append(attributes.Fields.referencesRequiredArray, attributes.Tags["required"] == "true")
+			attributes.Fields.referencesRequiredArray = append(attributes.Fields.referencesRequiredArray, isRequired)
 		} else {
-			attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, attributes.Tags["required"] == "true")
+			attributes.Fields.referencesRequired = append(attributes.Fields.referencesRequired, isRequired)
 		}
 
 		e.mapBindToScanPointer[columnName] = scanIntNullablePointer
@@ -668,6 +669,9 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 			}
 			e.references[columnName] = def
 		}
+		idSetter := createNumberFieldBindSetter(columnName, true, !isRequired, 0, math.MaxUint64)
+		e.fieldBindSetters[columnName] = createReferenceFieldBindSetter(columnName, idSetter, !isRequired)
+		e.fieldSetters[columnName] = createReferenceFieldSetter(attributes)
 	}
 }
 

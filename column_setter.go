@@ -137,6 +137,39 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 	}
 }
 
+func createReferenceFieldBindSetter(columnName string, idSetter fieldBindSetter, nullable bool) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		reference, is := v.(referenceInterface)
+		if is {
+			id := reference.getID()
+			if id == 0 {
+				if !nullable {
+					return nil, &BindError{columnName, "nil is not allowed"}
+				}
+				return nil, nil
+			}
+			return id, nil
+		}
+		id, err := idSetter(v)
+		if err != nil {
+			return nil, err
+		}
+		if id == uint64(0) {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		return id, nil
+	}
+}
+
 func createStringColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
 		switch v.(type) {
@@ -217,6 +250,24 @@ func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullabl
 			return
 		}
 		field.SetInt(v.(int64))
+	}
+}
+
+func createReferenceFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		val := reflect.New(field.Type().Elem())
+		reference := val.Interface().(referenceInterface)
+		reference.setID(v.(uint64))
+		field.Set(val)
 	}
 }
 
