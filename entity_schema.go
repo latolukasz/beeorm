@@ -875,16 +875,21 @@ func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, d
 		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
 	}
 	for i, columnName := range attributes.GetColumnNames() {
+		def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
 		if i == 0 {
 			if attributes.IsArray {
-				attributes.Fields.setsArray = append(attributes.Fields.setsArray, initEnumDefinition(definition, attributes.Tags["required"] == "true"))
+				attributes.Fields.setsArray = append(attributes.Fields.setsArray, def)
 			} else {
-				attributes.Fields.sets = append(attributes.Fields.sets, initEnumDefinition(definition, attributes.Tags["required"] == "true"))
+				attributes.Fields.sets = append(attributes.Fields.sets, def)
 			}
 		}
 		e.mapBindToScanPointer[columnName] = scanStringNullablePointer
 		e.mapPointerToValue[columnName] = pointerStringNullableScan
 		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+		stringSetter := createStringFieldBindSetter(columnName, 0, def.required)
+		enumSetter := createEnumFieldBindSetter(columnName, stringSetter, def)
+		e.fieldBindSetters[columnName] = createSetFieldBindSetter(columnName, enumSetter, def)
+		e.fieldSetters[columnName] = createSetFieldSetter(attributes)
 	}
 }
 

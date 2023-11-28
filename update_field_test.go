@@ -16,6 +16,7 @@ type updateSubField struct {
 	IntNullable  *int16
 	Reference    *Reference[updateEntityReference] `orm:"required"`
 	Enum         testEnum                          `orm:"required"`
+	Set          []testEnum                        `orm:"required"`
 }
 
 type updateEntityReference struct {
@@ -32,6 +33,7 @@ type updateEntity struct {
 	Level1       updateSubField
 	Reference    *Reference[updateEntityReference]
 	Enum         testEnum
+	Set          []testEnum
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -53,6 +55,7 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 		entity.Level1.SubName = fmt.Sprintf("sub name %d", i)
 		entity.Level1.Reference = &Reference[updateEntityReference]{ID: 1}
 		entity.Level1.Enum = testEnumDefinition.A
+		entity.Level1.Set = []testEnum{testEnumDefinition.A}
 		ids = append(ids, entity.ID)
 	}
 	err := c.Flush()
@@ -237,4 +240,31 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Level1Enum] nil is not allowed")
 	err = UpdateEntityField(c, entity, "Level1Enum", "", true)
 	assert.EqualError(t, err, "[Level1Enum] nil is not allowed")
+
+	/* set */
+	err = UpdateEntityField(c, entity, "Set", testEnumDefinition.B, true)
+	assert.NoError(t, err)
+	assert.Equal(t, []testEnum{testEnumDefinition.B}, entity.Set)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, []testEnum{testEnumDefinition.B}, entity.Set)
+	err = UpdateEntityField(c, entity, "Set", []testEnum{testEnumDefinition.A, testEnumDefinition.C}, true)
+	assert.NoError(t, err)
+	assert.Equal(t, []testEnum{testEnumDefinition.A, testEnumDefinition.C}, entity.Set)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, []testEnum{testEnumDefinition.A, testEnumDefinition.C}, entity.Set)
+	err = UpdateEntityField(c, entity, "Set", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.Set)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.Set)
+	_ = UpdateEntityField(c, entity, "Set", testEnumDefinition.B, true)
+	err = UpdateEntityField(c, entity, "Set", []testEnum{}, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.Set)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.Set)
+	err = UpdateEntityField(c, entity, "Set", "invalid", true)
+	assert.EqualError(t, err, "[Set] invalid value: invalid")
+	err = UpdateEntityField(c, entity, "Level1Set", "", true)
+	assert.EqualError(t, err, "[Level1Set] nil is not allowed")
 }

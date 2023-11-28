@@ -190,6 +190,32 @@ func createEnumFieldBindSetter(columnName string, stringSetter fieldBindSetter, 
 	}
 }
 
+func createSetFieldBindSetter(columnName string, enumSetter fieldBindSetter, def *enumDefinition) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil || v == "" {
+			if def.required {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		toReturn := strings.Trim(strings.ReplaceAll(fmt.Sprintf("%v", v), " ", ","), "[]")
+		if toReturn == "" {
+			if def.required {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		values := strings.Split(toReturn, ",")
+		for _, option := range values {
+			_, err := enumSetter(option)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return toReturn, nil
+	}
+}
+
 func createStringColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
 		switch v.(type) {
@@ -241,6 +267,26 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 		} else {
 			field.SetString(v.(string))
 		}
+	}
+}
+
+func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		values := strings.Split(v.(string), ",")
+		val := reflect.MakeSlice(field.Type(), len(values), len(values))
+		for i, value := range values {
+			val.Index(i).SetString(value)
+		}
+		field.Set(val)
 	}
 }
 
