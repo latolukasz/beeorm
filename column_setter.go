@@ -222,7 +222,7 @@ func createStringColumnSetter(columnName string) func(v any) (string, error) {
 		case string:
 			return v.(string), nil
 		default:
-			return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+			return "", &BindError{columnName, "invalid value"}
 		}
 	}
 }
@@ -250,7 +250,31 @@ func createStringFieldBindSetter(columnName string, length int, required bool) f
 			}
 			return asString, nil
 		default:
-			return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+			return nil, &BindError{columnName, "invalid value"}
+		}
+	}
+}
+
+func createBytesFieldBindSetter(columnName string) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil {
+			return nil, nil
+		}
+		switch v.(type) {
+		case string:
+			asString := v.(string)
+			if v == "" {
+				return nil, nil
+			}
+			return asString, nil
+		case []byte:
+			asString := string(v.([]byte))
+			if v == "" {
+				return nil, nil
+			}
+			return asString, nil
+		default:
+			return nil, &BindError{columnName, "invalid value"}
 		}
 	}
 }
@@ -266,6 +290,21 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 			field.SetString("")
 		} else {
 			field.SetString(v.(string))
+		}
+	}
+}
+
+func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+		} else {
+			field.SetBytes([]byte(v.(string)))
 		}
 	}
 }
@@ -366,7 +405,7 @@ func createBoolColumnSetter(columnName string) func(v any) (string, error) {
 				return "0", nil
 			}
 		}
-		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		return "", &BindError{columnName, "invalid value"}
 	}
 }
 
@@ -380,6 +419,6 @@ func createDateTimeColumnSetter(columnName string, withTime bool) func(v any) (s
 			}
 			return t.Format(time.DateOnly), nil
 		}
-		return "", fmt.Errorf("type %T not supported, column `%s`", v, columnName)
+		return "", &BindError{columnName, "invalid value"}
 	}
 }

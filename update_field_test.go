@@ -34,6 +34,7 @@ type updateEntity struct {
 	Reference    *Reference[updateEntityReference]
 	Enum         testEnum
 	Set          []testEnum
+	Blob         []uint8
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -267,4 +268,21 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Set] invalid value: invalid")
 	err = UpdateEntityField(c, entity, "Level1Set", "", true)
 	assert.EqualError(t, err, "[Level1Set] nil is not allowed")
+
+	/* byte */
+	err = UpdateEntityField(c, entity, "Blob", "hello", true)
+	assert.NoError(t, err)
+	assert.Equal(t, "hello", string(entity.Blob))
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, "hello", string(entity.Blob))
+	err = UpdateEntityField(c, entity, "Blob", []byte("hello 2"), true)
+	assert.NoError(t, err)
+	assert.Equal(t, "hello 2", string(entity.Blob))
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, "hello 2", string(entity.Blob))
+	err = UpdateEntityField(c, entity, "Blob", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.Blob)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.Blob)
 }

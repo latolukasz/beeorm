@@ -865,6 +865,8 @@ func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
 	}
 	for _, columnName := range attributes.GetColumnNames() {
 		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+		e.fieldBindSetters[columnName] = createBytesFieldBindSetter(columnName)
+		e.fieldSetters[columnName] = createBytesFieldSetter(attributes)
 	}
 }
 
