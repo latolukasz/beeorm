@@ -932,11 +932,16 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 	} else {
 		attributes.Fields.floats = append(attributes.Fields.floats, attributes.Index)
 	}
+	precision := 8
+	decimalSize := -1
+	unsigned := false
+	floatBitSize := 32
 	for i, columnName := range attributes.GetColumnNames() {
 		if i == 0 {
-			precision := 8
-			decimalSize := -1
-			if attributes.TypeName == "float32" {
+			if attributes.TypeName == "float64" {
+				floatBitSize = 64
+			}
+			if floatBitSize == 32 {
 				precision = 4
 				if attributes.IsArray {
 					attributes.Fields.floatsSizeArray = append(attributes.Fields.floatsSizeArray, 64)
@@ -963,14 +968,15 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 					decimalSize -= precision
 				}
 			}
+			unsigned = attributes.Tags["unsigned"] == "true"
 			if attributes.IsArray {
 				attributes.Fields.floatsPrecisionArray = append(attributes.Fields.floatsPrecisionArray, precision)
 				attributes.Fields.floatsDecimalSizeArray = append(attributes.Fields.floatsDecimalSizeArray, decimalSize)
-				attributes.Fields.floatsUnsignedArray = append(attributes.Fields.floatsUnsignedArray, attributes.Tags["unsigned"] == "true")
+				attributes.Fields.floatsUnsignedArray = append(attributes.Fields.floatsUnsignedArray, unsigned)
 			} else {
 				attributes.Fields.floatsPrecision = append(attributes.Fields.floatsPrecision, precision)
 				attributes.Fields.floatsDecimalSize = append(attributes.Fields.floatsDecimalSize, decimalSize)
-				attributes.Fields.floatsUnsigned = append(attributes.Fields.floatsUnsigned, attributes.Tags["unsigned"] == "true")
+				attributes.Fields.floatsUnsigned = append(attributes.Fields.floatsUnsigned, unsigned)
 			}
 		}
 		e.mapBindToScanPointer[columnName] = func() any {
@@ -981,6 +987,8 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 			return *val.(*float64)
 		}
 		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+		e.fieldBindSetters[columnName] = createFloatFieldBindSetter(columnName, unsigned, false, precision, floatBitSize, decimalSize)
+		e.fieldSetters[columnName] = createFloatFieldSetter(attributes)
 	}
 }
 

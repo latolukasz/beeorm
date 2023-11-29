@@ -14,7 +14,7 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 		case string:
 			_, err := strconv.ParseUint(v.(string), 10, 64)
 			if err != nil {
-				return "", fmt.Errorf("invalid number for column `%s`", columnName)
+				return "", &BindError{columnName, "invalid number"}
 			}
 			return v.(string), nil
 		case uint8:
@@ -30,35 +30,35 @@ func createNumberColumnSetter(columnName string, unsigned bool) func(v any) (str
 		case int8:
 			i := v.(int8)
 			if i < 0 && unsigned {
-				return "", fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+				return "", &BindError{columnName, "unsigned number not allowed"}
 			}
 			return strconv.FormatInt(int64(i), 10), nil
 		case int16:
 			i := v.(int16)
 			if i < 0 && unsigned {
-				return "", fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+				return "", &BindError{columnName, "unsigned number not allowed"}
 			}
 			return strconv.FormatInt(int64(i), 10), nil
 		case int:
 			i := v.(int)
 			if i < 0 && unsigned {
-				return "", fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+				return "", &BindError{columnName, "unsigned number not allowed"}
 			}
 			return strconv.FormatInt(int64(i), 10), nil
 		case int32:
 			i := v.(int32)
 			if i < 0 && unsigned {
-				return "", fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+				return "", &BindError{columnName, "unsigned number not allowed"}
 			}
 			return strconv.FormatInt(int64(i), 10), nil
 		case int64:
 			i := v.(int64)
 			if i < 0 && unsigned {
-				return "", fmt.Errorf("unsigned number for column `%s` not allowed", columnName)
+				return "", &BindError{columnName, "unsigned number not allowed"}
 			}
 			return strconv.FormatInt(i, 10), nil
 		}
-		return "", fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+		return "", &BindError{columnName, "invalid value"}
 	}
 }
 
@@ -111,7 +111,7 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 		case float64:
 			asInt64 = int64(v.(float64))
 		default:
-			return nil, fmt.Errorf("invalid value `%T` for column `%s`", v, columnName)
+			return nil, &BindError{columnName, "invalid value"}
 		}
 		if !unsigned {
 			if asUint64 > 0 {
@@ -295,6 +295,65 @@ func createBoolFieldBindSetter(columnName string) func(v any) (any, error) {
 	}
 }
 
+func createFloatFieldBindSetter(columnName string, unsigned, nullable bool, floatsPrecision, floatsSize, floatsDecimalSize int) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		if v == nil {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
+		var asFloat64 float64
+		var err error
+		switch v.(type) {
+		case string:
+			asFloat64, err = strconv.ParseFloat(v.(string), 10)
+			if err != nil {
+				return nil, &BindError{columnName, fmt.Sprintf("invalid number %s", v.(string))}
+			}
+		case uint8:
+			asFloat64 = float64(v.(uint8))
+		case uint16:
+			asFloat64 = float64(v.(uint16))
+		case uint:
+			asFloat64 = float64(v.(uint))
+		case uint32:
+			asFloat64 = float64(v.(uint32))
+		case uint64:
+			asFloat64 = float64(v.(uint64))
+		case int8:
+			asFloat64 = float64(v.(int8))
+		case int16:
+			asFloat64 = float64(v.(int16))
+		case int:
+			asFloat64 = float64(v.(int))
+		case int32:
+			asFloat64 = float64(v.(int32))
+		case int64:
+			asFloat64 = float64(v.(int64))
+		case float32:
+			asFloat64 = float64(v.(float32))
+		case float64:
+			asFloat64 = v.(float64)
+		default:
+			return nil, &BindError{columnName, "invalid value"}
+		}
+		if unsigned && asFloat64 < 0 {
+			return nil, &BindError{columnName, fmt.Sprintf("negative number %d not allowed", v)}
+		}
+		if asFloat64 == 0 {
+			return "0", nil
+		}
+		roundV := roundFloat(asFloat64, floatsPrecision)
+		val := strconv.FormatFloat(roundV, 'f', floatsPrecision, floatsSize)
+		decimalSize := floatsDecimalSize
+		if decimalSize != -1 && strings.Index(val, ".") > decimalSize {
+			return nil, &BindError{Field: columnName, Message: fmt.Sprintf("decimal size too big, max %d allowed", decimalSize)}
+		}
+		return val, nil
+	}
+}
+
 func createBoolNullableFieldBindSetter(boolSetter fieldBindSetter) func(v any) (any, error) {
 	return func(v any) (any, error) {
 		if v == nil {
@@ -342,6 +401,18 @@ func createBoolFieldSetter(attributes schemaFieldAttributes) func(v any, elem re
 		}
 		field = field.Field(attributes.Index)
 		field.SetBool(v.(bool))
+	}
+}
+
+func createFloatFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		f, _ := strconv.ParseFloat(v.(string), 64)
+		field.SetFloat(f)
 	}
 }
 
@@ -431,7 +502,7 @@ func createReferenceFieldSetter(attributes schemaFieldAttributes) func(v any, el
 
 func createNotSupportedColumnSetter(columnName string) func(v any) (string, error) {
 	return func(v any) (string, error) {
-		return "", fmt.Errorf("type %T is not supported, column `%s`", v, columnName)
+		return "", &BindError{columnName, fmt.Sprintf("type %T is not supported", v)}
 	}
 }
 

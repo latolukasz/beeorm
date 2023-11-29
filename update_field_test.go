@@ -37,6 +37,8 @@ type updateEntity struct {
 	Blob         []uint8
 	Bool         bool
 	BoolNullable *bool
+	Float        float64 `orm:"precision=2"`
+	Decimal      float64 `orm:"decimal=5,2;unsigned"`
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -326,4 +328,34 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.Nil(t, entity.BoolNullable)
 	err = UpdateEntityField(c, entity, "BoolNullable", []string{}, true)
 	assert.EqualError(t, err, "[BoolNullable] invalid value")
+
+	/* float */
+	for i, val := range intValues {
+		err = UpdateEntityField(c, entity, "Float", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, float64(i+1), entity.Float)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, float64(i+1), entity.Float)
+	}
+	err = UpdateEntityField(c, entity, "Float", 12.13, true)
+	assert.NoError(t, err)
+	assert.Equal(t, 12.13, entity.Float)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, 12.13, entity.Float)
+	err = UpdateEntityField(c, entity, "Float", "12.14", true)
+	assert.NoError(t, err)
+	assert.Equal(t, 12.14, entity.Float)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, 12.14, entity.Float)
+	err = UpdateEntityField(c, entity, "Float", 12.136, true)
+	assert.NoError(t, err)
+	assert.Equal(t, 12.14, entity.Float)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, 12.14, entity.Float)
+	err = UpdateEntityField(c, entity, "Decimal", -1, true)
+	assert.EqualError(t, err, "[Decimal] negative number -1 not allowed")
+	err = UpdateEntityField(c, entity, "Decimal", 1234.45, true)
+	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
+	err = UpdateEntityField(c, entity, "Decimal", "invalid", true)
+	assert.EqualError(t, err, "[Decimal] invalid number invalid")
 }
