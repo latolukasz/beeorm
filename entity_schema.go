@@ -1073,6 +1073,9 @@ func (e *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanStringNullablePointer
 		e.mapPointerToValue[columnName] = pointerStringNullableScan
 		e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
+		timeSetter := createDateFieldBindSetter(columnName, time.DateTime)
+		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(timeSetter)
+		e.fieldSetters[columnName] = createTimeNullableFieldSetter(attributes, time.DateTime)
 	}
 }
 
@@ -1095,6 +1098,8 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 		e.mapBindToScanPointer[columnName] = scanStringPointer
 		e.mapPointerToValue[columnName] = pointerStringScan
 		e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
+		e.fieldBindSetters[columnName] = createDateFieldBindSetter(columnName, time.DateTime)
+		e.fieldSetters[columnName] = createTimeFieldSetter(attributes, time.DateTime)
 	}
 }
 

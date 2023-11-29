@@ -295,6 +295,27 @@ func createBoolFieldBindSetter(columnName string) func(v any) (any, error) {
 	}
 }
 
+func createDateFieldBindSetter(columnName string, layout string) func(v any) (any, error) {
+	return func(v any) (any, error) {
+		switch v.(type) {
+		case time.Time:
+			t := v.(time.Time)
+			if t.Location() != time.UTC {
+				return nil, &BindError{Field: columnName, Message: "time must be in UTC location"}
+			}
+			return t.Format(layout), nil
+		case string:
+			t, err := time.ParseInLocation(layout, v.(string), time.UTC)
+			if err != nil {
+				return nil, &BindError{columnName, fmt.Sprintf("invalid time %s", v)}
+			}
+			return t.Format(layout), nil
+		default:
+			return nil, &BindError{columnName, "invalid value"}
+		}
+	}
+}
+
 func createFloatFieldBindSetter(columnName string, unsigned, nullable bool, floatsPrecision, floatsSize, floatsDecimalSize int) func(v any) (any, error) {
 	return func(v any) (any, error) {
 		if v == nil {
@@ -365,11 +386,7 @@ func createNullableFieldBindSetter(setter fieldBindSetter) func(v any) (any, err
 
 func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetString("")
 		} else {
@@ -380,11 +397,7 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 
 func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 		} else {
@@ -395,22 +408,42 @@ func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem r
 
 func createBoolFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
-		field.SetBool(v.(bool))
+		getSetterField(elem, attributes).SetBool(v.(bool))
 	}
+}
+
+func createTimeFieldSetter(attributes schemaFieldAttributes, layout string) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := getSetterField(elem, attributes)
+		t, _ := time.ParseInLocation(layout, v.(string), time.UTC)
+		field.Set(reflect.ValueOf(t))
+	}
+}
+
+func createTimeNullableFieldSetter(attributes schemaFieldAttributes, layout string) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := getSetterField(elem, attributes)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		t, _ := time.ParseInLocation(layout, v.(string), time.UTC)
+		field.Set(reflect.ValueOf(&t))
+	}
+}
+
+func getSetterField(elem reflect.Value, attributes schemaFieldAttributes) reflect.Value {
+	field := elem
+	for _, i := range attributes.Parents {
+		field = field.Field(i)
+	}
+	field = field.Field(attributes.Index)
+	return field
 }
 
 func createFloatFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		f, _ := strconv.ParseFloat(v.(string), 64)
 		field.SetFloat(f)
 	}
@@ -418,11 +451,7 @@ func createFloatFieldSetter(attributes schemaFieldAttributes) func(v any, elem r
 
 func createFloatNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 			return
@@ -436,11 +465,7 @@ func createFloatNullableFieldSetter(attributes schemaFieldAttributes) func(v any
 
 func createBoolNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 			return
@@ -453,11 +478,7 @@ func createBoolNullableFieldSetter(attributes schemaFieldAttributes) func(v any,
 
 func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 			return
@@ -473,11 +494,7 @@ func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem ref
 
 func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullable bool) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 			return
@@ -502,11 +519,7 @@ func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullabl
 
 func createReferenceFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := elem
-		for _, i := range attributes.Parents {
-			field = field.Field(i)
-		}
-		field = field.Field(attributes.Index)
+		field := getSetterField(elem, attributes)
 		if v == nil {
 			field.SetZero()
 			return

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -37,9 +38,11 @@ type updateEntity struct {
 	Blob          []uint8
 	Bool          bool
 	BoolNullable  *bool
-	Float         float64  `orm:"precision=2"`
-	Decimal       float64  `orm:"decimal=5,2;unsigned"`
-	FloatNullable *float32 `orm:"precision=2"`
+	Float         float64    `orm:"precision=2"`
+	Decimal       float64    `orm:"decimal=5,2;unsigned"`
+	FloatNullable *float32   `orm:"precision=2"`
+	Time          time.Time  `orm:"time"`
+	TimeNullable  *time.Time `orm:"time"`
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -370,4 +373,29 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	}
 	err = UpdateEntityField(c, entity, "FloatNullable", "invalid", true)
 	assert.EqualError(t, err, "[FloatNullable] invalid number invalid")
+
+	/* time.Time */
+	date := time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
+	err = UpdateEntityField(c, entity, "Time", date, true)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), entity.Time)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), entity.Time)
+	err = UpdateEntityField(c, entity, "Time", "2024-02-03 11:44:55", true)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Date(2024, 2, 3, 11, 44, 55, 0, time.UTC), entity.Time)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, time.Date(2024, 2, 3, 11, 44, 55, 0, time.UTC), entity.Time)
+	err = UpdateEntityField(c, entity, "Time", "invalid", true)
+	assert.EqualError(t, err, "[Time] invalid time invalid")
+	l, _ := time.LoadLocation("Africa/Asmara")
+	err = UpdateEntityField(c, entity, "Time", time.Now().In(l), true)
+	assert.EqualError(t, err, "[Time] time must be in UTC location")
+
+	/* *time.Time */
+	err = UpdateEntityField(c, entity, "TimeNullable", date, true)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), *entity.TimeNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), *entity.TimeNullable)
 }
