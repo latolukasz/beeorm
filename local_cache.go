@@ -3,6 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"hash/maphash"
+	"sync"
 
 	"github.com/puzpuzpuz/xsync/v2"
 )
@@ -45,6 +46,7 @@ type localCache struct {
 	cache           *xsync.Map
 	cacheEntities   *xsync.MapOf[uint64, any]
 	cacheReferences map[string]*xsync.MapOf[uint64, any]
+	mutex           sync.Mutex
 }
 
 func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
