@@ -354,12 +354,12 @@ func createFloatFieldBindSetter(columnName string, unsigned, nullable bool, floa
 	}
 }
 
-func createBoolNullableFieldBindSetter(boolSetter fieldBindSetter) func(v any) (any, error) {
+func createNullableFieldBindSetter(setter fieldBindSetter) func(v any) (any, error) {
 	return func(v any) (any, error) {
 		if v == nil {
 			return nil, nil
 		}
-		return boolSetter(v)
+		return setter(v)
 	}
 }
 
@@ -413,6 +413,24 @@ func createFloatFieldSetter(attributes schemaFieldAttributes) func(v any, elem r
 		field = field.Field(attributes.Index)
 		f, _ := strconv.ParseFloat(v.(string), 64)
 		field.SetFloat(f)
+	}
+}
+
+func createFloatNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+	return func(v any, elem reflect.Value) {
+		field := elem
+		for _, i := range attributes.Parents {
+			field = field.Field(i)
+		}
+		field = field.Field(attributes.Index)
+		if v == nil {
+			field.SetZero()
+			return
+		}
+		f, _ := strconv.ParseFloat(v.(string), 64)
+		val := reflect.New(field.Type().Elem())
+		val.Elem().SetFloat(f)
+		field.Set(val)
 	}
 }
 

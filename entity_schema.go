@@ -921,7 +921,7 @@ func (e *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
 		e.mapPointerToValue[columnName] = pointerBoolNullableScan
 		e.columnAttrToStringSetters[columnName] = createBoolColumnSetter(columnName)
 		boolSetter := createBoolFieldBindSetter(columnName)
-		e.fieldBindSetters[columnName] = createBoolNullableFieldBindSetter(boolSetter)
+		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(boolSetter)
 		e.fieldSetters[columnName] = createBoolNullableFieldSetter(attributes)
 	}
 }
@@ -998,11 +998,17 @@ func (e *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) 
 	} else {
 		attributes.Fields.floatsNullable = append(attributes.Fields.floatsNullable, attributes.Index)
 	}
+	unsigned := false
+	precision := 8
+	decimalSize := -1
+	floatBitSize := 32
 	for i, columnName := range attributes.GetColumnNames() {
 		if i == 0 {
-			precision := 8
-			decimalSize := -1
-			if attributes.TypeName == "*float32" {
+			unsigned = attributes.Tags["unsigned"] == "true"
+			if attributes.TypeName == "*float64" {
+				floatBitSize = 64
+			}
+			if floatBitSize == 32 {
 				precision = 4
 				if attributes.IsArray {
 					attributes.Fields.floatsNullableSizeArray = append(attributes.Fields.floatsNullableSizeArray, 32)
@@ -1032,16 +1038,19 @@ func (e *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) 
 			if attributes.IsArray {
 				attributes.Fields.floatsNullablePrecisionArray = append(attributes.Fields.floatsNullablePrecisionArray, precision)
 				attributes.Fields.floatsNullableDecimalSizeArray = append(attributes.Fields.floatsNullableDecimalSizeArray, decimalSize)
-				attributes.Fields.floatsNullableUnsignedArray = append(attributes.Fields.floatsNullableUnsignedArray, attributes.Tags["unsigned"] == "true")
+				attributes.Fields.floatsNullableUnsignedArray = append(attributes.Fields.floatsNullableUnsignedArray, unsigned)
 			} else {
 				attributes.Fields.floatsNullablePrecision = append(attributes.Fields.floatsNullablePrecision, precision)
 				attributes.Fields.floatsNullableDecimalSize = append(attributes.Fields.floatsNullableDecimalSize, decimalSize)
-				attributes.Fields.floatsNullableUnsigned = append(attributes.Fields.floatsNullableUnsigned, attributes.Tags["unsigned"] == "true")
+				attributes.Fields.floatsNullableUnsigned = append(attributes.Fields.floatsNullableUnsigned, unsigned)
 			}
 		}
 		e.mapBindToScanPointer[columnName] = scanFloatNullablePointer
 		e.mapPointerToValue[columnName] = pointerFloatNullableScan
 		e.columnAttrToStringSetters[columnName] = createNotSupportedColumnSetter(columnName)
+		floatSetter := createFloatFieldBindSetter(columnName, unsigned, false, precision, floatBitSize, decimalSize)
+		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(floatSetter)
+		e.fieldSetters[columnName] = createFloatNullableFieldSetter(attributes)
 	}
 }
 

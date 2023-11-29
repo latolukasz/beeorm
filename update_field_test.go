@@ -24,21 +24,22 @@ type updateEntityReference struct {
 }
 
 type updateEntity struct {
-	ID           uint64 `orm:"localCache;redisCache"`
-	Name         string `orm:"length=10;required"`
-	Uint         uint16
-	Int          int16
-	UintNullable *uint16
-	IntNullable  *int16
-	Level1       updateSubField
-	Reference    *Reference[updateEntityReference]
-	Enum         testEnum
-	Set          []testEnum
-	Blob         []uint8
-	Bool         bool
-	BoolNullable *bool
-	Float        float64 `orm:"precision=2"`
-	Decimal      float64 `orm:"decimal=5,2;unsigned"`
+	ID            uint64 `orm:"localCache;redisCache"`
+	Name          string `orm:"length=10;required"`
+	Uint          uint16
+	Int           int16
+	UintNullable  *uint16
+	IntNullable   *int16
+	Level1        updateSubField
+	Reference     *Reference[updateEntityReference]
+	Enum          testEnum
+	Set           []testEnum
+	Blob          []uint8
+	Bool          bool
+	BoolNullable  *bool
+	Float         float64  `orm:"precision=2"`
+	Decimal       float64  `orm:"decimal=5,2;unsigned"`
+	FloatNullable *float32 `orm:"precision=2"`
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -358,4 +359,15 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	err = UpdateEntityField(c, entity, "Decimal", "invalid", true)
 	assert.EqualError(t, err, "[Decimal] invalid number invalid")
+
+	/* *float */
+	for i, val := range intValues {
+		err = UpdateEntityField(c, entity, "FloatNullable", val, true)
+		assert.NoError(t, err)
+		assert.Equal(t, float32(i+1), *entity.FloatNullable)
+		entity = GetByID[updateEntity](c, ids[1])
+		assert.Equal(t, float32(i+1), *entity.FloatNullable)
+	}
+	err = UpdateEntityField(c, entity, "FloatNullable", "invalid", true)
+	assert.EqualError(t, err, "[FloatNullable] invalid number invalid")
 }
