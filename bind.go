@@ -1427,9 +1427,9 @@ func convertBindToRedisValue(bind Bind, schema *entitySchema) []any {
 	return values
 }
 
-func convertBindValueToRedisValue(value string) string {
-	if value == nullAsString || value == zeroAsString || value == zeroTimeAsString || value == zeroDateAsString {
-		return ""
+func convertBindValueToRedisValue(value any) any {
+	if value == nil || value == "" {
+		return nullAsString
 	}
 	return value
 }

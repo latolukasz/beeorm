@@ -47,15 +47,23 @@ type updateEntity struct {
 	DateNullable  *time.Time
 }
 
-func TestUpdateExecuteNoCache(t *testing.T) {
-	testUpdateExecute(t, false, false)
+func TestUpdateFieldExecuteNoCache(t *testing.T) {
+	testUpdateFieldExecute(t, false, false)
 }
 
-func TestUpdateExecuteLocalCache(t *testing.T) {
-	testUpdateExecute(t, true, false)
+func TestUpdateFieldExecuteLocalCache(t *testing.T) {
+	testUpdateFieldExecute(t, true, false)
 }
 
-func testUpdateExecute(t *testing.T, local, redis bool) {
+func TestUpdateFieldExecuteRedis(t *testing.T) {
+	testUpdateFieldExecute(t, false, true)
+}
+
+func TestUpdateFieldExecuteLocalCacheRedis(t *testing.T) {
+	testUpdateFieldExecute(t, true, true)
+}
+
+func testUpdateFieldExecute(t *testing.T, local, redis bool) {
 	var entity *updateEntity
 	var reference *updateEntityReference
 	c := PrepareTables(t, NewRegistry(), entity, reference)

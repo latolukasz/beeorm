@@ -310,7 +310,7 @@ func (r *redisCache) LSet(c Context, key string, index int64, value any) {
 	start := getNow(hasLogger)
 	_, err := r.client.LSet(c.Ctx(), key, index, value).Result()
 	if hasLogger {
-		message := fmt.Sprintf("LSET %d %v", index, value)
+		message := fmt.Sprintf("LSET %s %d %v", key, index, value)
 		r.fillLogFields(c, "LSET", message, start, false, err)
 	}
 	checkError(err)

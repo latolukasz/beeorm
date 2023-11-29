@@ -3,6 +3,7 @@ package beeorm
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 )
 
 func EditEntityField[E any](c Context, entity *E, field string, value any, execute bool) error {
@@ -17,8 +18,9 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 	}
 	if execute {
 		elem := reflect.ValueOf(entity).Elem()
+		id := elem.Field(0).Uint()
 		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID = ?"
-		schema.GetDB().Exec(c, sql, bindValue, elem.Field(0).Uint())
+		schema.GetDB().Exec(c, sql, bindValue, id)
 		fSetter := schema.fieldSetters[field]
 		if schema.hasLocalCache {
 			func() {
@@ -28,6 +30,11 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 			}()
 		} else {
 			fSetter(bindValue, elem)
+		}
+		if schema.hasRedisCache {
+			index := int64(schema.columnMapping[field] + 1)
+			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
+			schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(bindValue))
 		}
 	}
 	return nil

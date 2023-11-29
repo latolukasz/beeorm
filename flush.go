@@ -518,9 +518,10 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 		if schema.hasRedisCache {
 			p := c.RedisPipeLine(schema.redisCache.GetCode())
+			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(update.ID(), 10)
 			for column, val := range newBind {
 				index := int64(schema.columnMapping[column] + 1)
-				p.LSet(schema.getCacheKey()+":"+strconv.FormatUint(update.ID(), 10), index, convertBindValueToRedisValue(val))
+				p.LSet(rKey, index, convertBindValueToRedisValue(val))
 			}
 		}
 		for columnName := range schema.cachedReferences {
