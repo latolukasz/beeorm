@@ -1069,13 +1069,17 @@ func (e *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
 			attributes.Fields.datesNullable = append(attributes.Fields.datesNullable, attributes.Index)
 		}
 	}
+	layout := time.DateOnly
+	if hasTime {
+		layout = time.DateTime
+	}
 	for _, columnName := range attributes.GetColumnNames() {
 		e.mapBindToScanPointer[columnName] = scanStringNullablePointer
 		e.mapPointerToValue[columnName] = pointerStringNullableScan
 		e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
-		timeSetter := createDateFieldBindSetter(columnName, time.DateTime)
+		timeSetter := createDateFieldBindSetter(columnName, layout)
 		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(timeSetter)
-		e.fieldSetters[columnName] = createTimeNullableFieldSetter(attributes, time.DateTime)
+		e.fieldSetters[columnName] = createTimeNullableFieldSetter(attributes, layout)
 	}
 }
 
@@ -1094,12 +1098,16 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 			attributes.Fields.dates = append(attributes.Fields.dates, attributes.Index)
 		}
 	}
+	layout := time.DateOnly
+	if hasTime {
+		layout = time.DateTime
+	}
 	for _, columnName := range attributes.GetColumnNames() {
 		e.mapBindToScanPointer[columnName] = scanStringPointer
 		e.mapPointerToValue[columnName] = pointerStringScan
 		e.columnAttrToStringSetters[columnName] = createDateTimeColumnSetter(columnName, hasTime)
-		e.fieldBindSetters[columnName] = createDateFieldBindSetter(columnName, time.DateTime)
-		e.fieldSetters[columnName] = createTimeFieldSetter(attributes, time.DateTime)
+		e.fieldBindSetters[columnName] = createDateFieldBindSetter(columnName, layout)
+		e.fieldSetters[columnName] = createTimeFieldSetter(attributes, layout)
 	}
 }
 

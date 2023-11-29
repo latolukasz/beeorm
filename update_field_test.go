@@ -43,6 +43,8 @@ type updateEntity struct {
 	FloatNullable *float32   `orm:"precision=2"`
 	Time          time.Time  `orm:"time"`
 	TimeNullable  *time.Time `orm:"time"`
+	Date          time.Time
+	DateNullable  *time.Time
 }
 
 func TestUpdateExecuteNoCache(t *testing.T) {
@@ -374,7 +376,7 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	err = UpdateEntityField(c, entity, "FloatNullable", "invalid", true)
 	assert.EqualError(t, err, "[FloatNullable] invalid number invalid")
 
-	/* time.Time */
+	/* time */
 	date := time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	err = UpdateEntityField(c, entity, "Time", date, true)
 	assert.NoError(t, err)
@@ -392,10 +394,34 @@ func testUpdateExecute(t *testing.T, local, redis bool) {
 	err = UpdateEntityField(c, entity, "Time", time.Now().In(l), true)
 	assert.EqualError(t, err, "[Time] time must be in UTC location")
 
-	/* *time.Time */
+	/* *time */
 	err = UpdateEntityField(c, entity, "TimeNullable", date, true)
 	assert.NoError(t, err)
 	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), *entity.TimeNullable)
 	entity = GetByID[updateEntity](c, ids[1])
 	assert.Equal(t, time.Date(2023, 11, 12, 22, 12, 34, 0, time.UTC), *entity.TimeNullable)
+	err = UpdateEntityField(c, entity, "TimeNullable", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.TimeNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.TimeNullable)
+
+	/* date */
+	err = UpdateEntityField(c, entity, "Date", date, true)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), entity.Date)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), entity.Date)
+
+	/* *date */
+	err = UpdateEntityField(c, entity, "DateNullable", date, true)
+	assert.NoError(t, err)
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *entity.DateNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *entity.DateNullable)
+	err = UpdateEntityField(c, entity, "DateNullable", nil, true)
+	assert.NoError(t, err)
+	assert.Nil(t, entity.DateNullable)
+	entity = GetByID[updateEntity](c, ids[1])
+	assert.Nil(t, entity.DateNullable)
 }
