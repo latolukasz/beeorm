@@ -46,6 +46,12 @@ func ConsumeAsyncFlushEvents(c Context, block bool) error {
 		lock.Release(c)
 	}()
 	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				lockObtained = false
+				time.Sleep(time.Second * 50)
+			}
+		}()
 		time.Sleep(time.Second * 50)
 		if !lock.Refresh(c, time.Minute) {
 			lockObtained = false
@@ -180,11 +186,6 @@ func handleAsyncEvent(c Context, db DBBase, value string) (err *mysql.MySQLError
 	if len(data) == 1 {
 		db.Exec(c, sql)
 		return nil
-	}
-	for i, arg := range data[1:] {
-		if arg == nullAsString {
-			data[i+1] = nil
-		}
 	}
 	db.Exec(c, sql, data[1:]...)
 	return nil

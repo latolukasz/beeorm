@@ -26,7 +26,7 @@ func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E 
 		if attr == nil {
 			panic(fmt.Errorf("nil attribute for index name `%s` is not allowed", indexName))
 		}
-		val, err := schema.columnAttrToStringSetters[columns[i]](attr)
+		val, err := schema.columnAttrToStringSetters[columns[i]](attr, false)
 		checkError(err)
 		s += val
 	}

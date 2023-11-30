@@ -146,7 +146,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
 				if hasKey {
 					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
 				}
@@ -171,17 +171,17 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 				}
 			}
 			id := bind[columnName]
-			if id == nullAsString {
+			if id == nil {
 				continue
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
 				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					idAsInt, _ := strconv.ParseUint(id, 10, 64)
-					lc.removeReference(c, refColumn, idAsInt)
+					lc.removeReference(c, refColumn, id.(uint64))
 				})
 			}
-			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+			idAsString := strconv.FormatUint(id.(uint64), 10)
+			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + idAsString
 			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
 		if schema.cacheAll {
@@ -195,7 +195,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
-			data := make([]string, 6)
+			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`) VALUES(?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = strconv.FormatUint(operation.ID(), 10)
@@ -204,7 +204,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
 				data[4] = asJSON
 			} else {
-				data[4] = nullAsString
+				data[4] = nil
 			}
 			if bind == nil {
 				bind, err = deleteFlush.getOldBind()
@@ -272,7 +272,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			cache := c.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(indexColumns, bind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
 				if !hasKey {
 					continue
 				}
@@ -284,9 +284,9 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 				c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
-		var asyncData []string
+		var asyncData []any
 		if async {
-			asyncData = make([]string, len(columns))
+			asyncData = make([]any, len(columns)+1)
 		}
 
 		if i > 0 && !async {
@@ -298,18 +298,24 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		if !async {
 			args = append(args, bind["ID"])
 		} else {
-			asyncData[0] = bind["ID"]
+			if async {
+				asyncData[1] = strconv.FormatUint(bind["ID"].(uint64), 10)
+			} else {
+				asyncData[1] = bind["ID"]
+			}
 		}
 		for j, column := range columns[1:] {
 			v := bind[column]
-			if !async {
-				if v == nullAsString {
-					args = append(args, nil)
-				} else {
-					args = append(args, v)
+			if async {
+				vAsUint64, isUint64 := v.(uint64)
+				if isUint64 {
+					v = strconv.FormatUint(vAsUint64, 10)
 				}
+			}
+			if !async {
+				args = append(args, v)
 			} else {
-				asyncData[j+1] = v
+				asyncData[j+2] = v
 			}
 			if !async || i == 0 {
 				sql += ",?"
@@ -319,24 +325,22 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			sql += ")"
 		}
 		if async {
-			data := make([]string, 0, len(asyncData)+1)
-			data = append(data, sql)
-			data = append(data, asyncData...)
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(data)
+			asyncData[0] = sql
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncData)
 			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
 		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
-			data := make([]string, 6)
+			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`After`) VALUES(?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
-			data[2] = bind["ID"]
+			data[2] = strconv.FormatUint(bind["ID"].(uint64), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(c.meta) > 0 {
 				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
 				data[4] = asJSON
 			} else {
-				data[4] = nullAsString
+				data[4] = nil
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
@@ -350,17 +354,16 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		}
 		for columnName := range schema.cachedReferences {
 			id := bind[columnName]
-			if id == nullAsString {
+			if id == nil {
 				continue
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
 				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					idAsInt, _ := strconv.ParseUint(id, 10, 64)
-					lc.removeReference(c, refColumn, idAsInt)
+					lc.removeReference(c, refColumn, id.(uint64))
 				})
 			}
-			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(id.(uint64), 10)
 			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if schema.cacheAll {
@@ -373,7 +376,8 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {
-			c.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+bind["ID"], convertBindToRedisValue(bind, schema)...)
+			idAsString := strconv.FormatUint(bind["ID"].(uint64), 10)
+			c.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+idAsString, convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	if !async {
@@ -424,7 +428,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 					continue
 				}
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(indexColumns, newBind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind)
 				if hasKey {
 					previousID, inUse := cache.HGet(c, hSetKey, hField)
 					if inUse {
@@ -433,7 +437,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 					}
 					c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
-				hFieldOld, hasKey := buildUniqueKeyHSetField(indexColumns, oldBind)
+				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind)
 				if hasKey {
 					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}
@@ -446,9 +450,9 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		sql := queryPrefix
 		k := 0
 		var args []any
-		var asyncArgs []string
+		var asyncArgs []any
 		if async {
-			asyncArgs = make([]string, len(newBind)+2)
+			asyncArgs = make([]any, len(newBind)+2)
 		} else {
 			args = make([]any, len(newBind)+1)
 		}
@@ -458,13 +462,13 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			}
 			sql += "`" + column + "`=?"
 			if async {
+				asUint64, isUint64 := value.(uint64)
+				if isUint64 {
+					value = strconv.FormatUint(asUint64, 10)
+				}
 				asyncArgs[k+1] = value
 			} else {
-				if value == nullAsString {
-					args[k] = nil
-				} else {
-					args[k] = value
-				}
+				args[k] = value
 			}
 			k++
 		}
@@ -486,7 +490,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
-			data := make([]string, 7)
+			data := make([]any, 7)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = strconv.FormatUint(update.ID(), 10)
@@ -495,7 +499,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
 				data[4] = asJSON
 			} else {
-				data[4] = nullAsString
+				data[4] = nil
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
 			data[5] = asJSON
@@ -534,11 +538,11 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 
 			newAsInt := uint64(0)
 			oldAsInt := uint64(0)
-			if id != nullAsString {
-				newAsInt, _ = strconv.ParseUint(id, 10, 64)
+			if id != nil {
+				newAsInt, _ = id.(uint64)
 			}
-			if before != nullAsString {
-				oldAsInt, _ = strconv.ParseUint(before, 10, 64)
+			if before != nil {
+				oldAsInt, _ = before.(uint64)
 			}
 			if oldAsInt > 0 {
 				if schema.hasLocalCache {
@@ -546,7 +550,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 						schema.localCache.removeReference(c, refColumn, oldAsInt)
 					})
 				}
-				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + before
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(before.(uint64), 10)
 				c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 			if newAsInt > 0 {
@@ -555,7 +559,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 						schema.localCache.removeReference(c, refColumn, newAsInt)
 					})
 				}
-				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + id
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(id.(uint64), 10)
 				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}
@@ -595,20 +599,24 @@ func (c *contextImplementation) appendDBAction(schema EntitySchema, action dbAct
 	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)
 }
 
-func buildUniqueKeyHSetField(indexColumns []string, bind Bind) (string, bool) {
+func buildUniqueKeyHSetField(schema *entitySchema, indexColumns []string, bind Bind) (string, bool) {
 	hField := ""
 	hasNil := false
 	hasInBind := false
 	for _, column := range indexColumns {
 		bindValue, has := bind[column]
-		if bindValue == nullAsString {
+		if bindValue == nil {
 			hasNil = true
 			break
 		}
 		if has {
 			hasInBind = true
 		}
-		hField += bindValue
+		asString, err := schema.columnAttrToStringSetters[column](bindValue, true)
+		if err != nil {
+			panic(err)
+		}
+		hField += asString
 	}
 	if hasNil || !hasInBind {
 		return "", false

@@ -100,23 +100,19 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 		assert.Equal(t, "Name 4", entity.Name)
 	}
 
-	negativeNumbers := []any{int8(-4), int16(-4), int32(-4), int(-4), int8(-4), int16(-4), int32(-4), int64(-4)}
+	negativeNumbers := []any{int8(-4), int16(-4), int32(-4), -4, int8(-4), int16(-4), int32(-4), int64(-4)}
 	for _, number := range negativeNumbers {
-		assert.PanicsWithError(t, "[Age] unsigned number not allowed", func() {
+		assert.PanicsWithError(t, "[Age] negative number -4 not allowed", func() {
 			entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Multi", number, 0)
 		})
 	}
 
-	assert.PanicsWithError(t, "[Age] invalid number", func() {
+	assert.PanicsWithError(t, "[Age] invalid number invalid", func() {
 		entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Multi", "invalid", 0)
 	})
 
 	assert.PanicsWithError(t, "[Age] invalid value", func() {
 		entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Multi", time.Now(), 0)
-	})
-
-	assert.PanicsWithError(t, "[Price] type float32 is not supported", func() {
-		entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Price", float32(123))
 	})
 
 	entity = GetByUniqueIndex[getByUniqueIndexEntity](c, "Ref", refs[4].ID)

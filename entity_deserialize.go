@@ -223,7 +223,7 @@ func deserializeFieldsFromRedis(data []string, fields *tableFields, elem reflect
 }
 
 func deserializeUintFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == "0" {
 		f.SetUint(0)
 	} else {
 		val, _ := strconv.ParseUint(v, 10, 64)
@@ -232,7 +232,7 @@ func deserializeUintFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeReferencesFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == nullRedisValue {
 		f.SetZero()
 	} else {
 		val := reflect.New(f.Type().Elem())
@@ -244,7 +244,7 @@ func deserializeReferencesFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeIntFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == "0" {
 		f.SetInt(0)
 	} else {
 		val, _ := strconv.ParseInt(v, 10, 64)
@@ -257,7 +257,7 @@ func deserializeBoolFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeFloatFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == "0" {
 		f.SetFloat(0)
 	} else {
 		val, _ := strconv.ParseFloat(v, 64)
@@ -266,7 +266,7 @@ func deserializeFloatFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeTimeFromRedis(v string, f reflect.Value) {
-	if v != nullAsString {
+	if v != zeroTimeAsString {
 		t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
 		f.Set(reflect.ValueOf(t))
 	} else {
@@ -275,7 +275,7 @@ func deserializeTimeFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeDateFromRedis(v string, f reflect.Value) {
-	if v != nullAsString {
+	if v != zeroDateAsString {
 		t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
 		f.Set(reflect.ValueOf(t))
 	} else {
@@ -284,7 +284,7 @@ func deserializeDateFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeStringFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == nullRedisValue {
 		f.SetString("")
 		return
 	}
@@ -292,7 +292,7 @@ func deserializeStringFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeUIntegersPointersFromRedis(v string, f reflect.Value, size int) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		asInt, _ := strconv.ParseUint(v, 10, 64)
 		switch size {
 		case 0:
@@ -316,7 +316,7 @@ func deserializeUIntegersPointersFromRedis(v string, f reflect.Value, size int) 
 }
 
 func deserializeIntegersPointersFromRedis(v string, f reflect.Value, size int) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		asInt, _ := strconv.ParseInt(v, 10, 64)
 		switch size {
 		case 0:
@@ -340,7 +340,7 @@ func deserializeIntegersPointersFromRedis(v string, f reflect.Value, size int) {
 }
 
 func deserializeBytesFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == nullRedisValue {
 		f.SetZero()
 	} else {
 		f.SetBytes([]byte(v))
@@ -348,7 +348,7 @@ func deserializeBytesFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeSliceStringFromRedis(v string, f reflect.Value) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		values := strings.Split(v, ",")
 		l := len(values)
 		newSlice := reflect.MakeSlice(f.Type(), l, l)
@@ -362,16 +362,16 @@ func deserializeSliceStringFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeBoolPointersFromRedis(v string, f reflect.Value) {
-	if v == nullAsString {
+	if v == nullRedisValue {
 		f.SetZero()
 	} else {
-		b := v != zeroAsString
+		b := v != "0"
 		f.Set(reflect.ValueOf(&b))
 	}
 }
 
 func deserializeFloatPointersFromRedis(v string, f reflect.Value, size int) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		asFloat, _ := strconv.ParseFloat(v, 64)
 		if size == 32 {
 			val := float32(asFloat)
@@ -385,7 +385,7 @@ func deserializeFloatPointersFromRedis(v string, f reflect.Value, size int) {
 }
 
 func deserializeTimePointersFromRedis(v string, f reflect.Value) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		t, _ := time.ParseInLocation(time.DateTime, v, time.UTC)
 		f.Set(reflect.ValueOf(&t))
 		return
@@ -394,7 +394,7 @@ func deserializeTimePointersFromRedis(v string, f reflect.Value) {
 }
 
 func deserializeDatePointersFromRedis(v string, f reflect.Value) {
-	if v != nullAsString {
+	if v != nullRedisValue {
 		t, _ := time.ParseInLocation(time.DateOnly, v, time.UTC)
 		f.Set(reflect.ValueOf(&t))
 		return

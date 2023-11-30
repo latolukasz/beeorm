@@ -118,7 +118,7 @@ func setDate(now time.Time, bind beeorm.Bind, entity reflect.Value, field string
 	before, hasBefore := bind[field]
 	if hasBefore {
 		if optional {
-			if before != "NULL" {
+			if before != nil {
 				return
 			}
 		} else if withTime {

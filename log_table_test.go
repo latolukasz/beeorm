@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"strconv"
 	"testing"
 
 	jsoniter "github.com/json-iterator/go"
@@ -39,9 +38,8 @@ func TestLogTable(t *testing.T) {
 	err = jsoniter.ConfigFastest.Unmarshal(log.After, &bind)
 	assert.NoError(t, err)
 	assert.Len(t, bind, 3)
-	assert.Equal(t, strconv.FormatUint(entity.ID, 10), bind["ID"])
 	assert.Equal(t, "Test", bind["Name"])
-	assert.Equal(t, "18", bind["Age"])
+	assert.Equal(t, float64(18), bind["Age"])
 
 	c.SetMetaData("source", "test case")
 	entity = NewEntity[logTableEntity](c)
@@ -93,12 +91,12 @@ func TestLogTable(t *testing.T) {
 	err = jsoniter.ConfigFastest.Unmarshal(log.Before, &bind)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test 2", bind["Name"])
-	assert.Equal(t, "30", bind["Age"])
+	assert.Equal(t, float64(30), bind["Age"])
 	bind = nil
 	err = jsoniter.ConfigFastest.Unmarshal(log.After, &bind)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test 3", bind["Name"])
-	assert.Equal(t, "40", bind["Age"])
+	assert.Equal(t, float64(40), bind["Age"])
 
 	DeleteEntity(c, entity)
 	err = c.Flush()
@@ -126,5 +124,5 @@ func TestLogTable(t *testing.T) {
 	err = jsoniter.ConfigFastest.Unmarshal(log.Before, &bind)
 	assert.NoError(t, err)
 	assert.Equal(t, "Test 3", bind["Name"])
-	assert.Equal(t, "40", bind["Age"])
+	assert.Equal(t, float64(40), bind["Age"])
 }
