@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func createNumberAttrToStringSetter(setter fieldBindSetter) func(any, bool) (string, error) {
+func createUint64AttrToStringSetter(setter fieldBindSetter) func(any, bool) (string, error) {
 	return func(v any, fromBind bool) (string, error) {
 		if fromBind {
 			return strconv.FormatUint(v.(uint64), 10), nil
@@ -18,6 +18,19 @@ func createNumberAttrToStringSetter(setter fieldBindSetter) func(any, bool) (str
 			return "", err
 		}
 		return strconv.FormatUint(v2.(uint64), 10), nil
+	}
+}
+
+func createInt64AttrToStringSetter(setter fieldBindSetter) func(any, bool) (string, error) {
+	return func(v any, fromBind bool) (string, error) {
+		if fromBind {
+			return strconv.FormatInt(v.(int64), 10), nil
+		}
+		v2, err := setter(v)
+		if err != nil {
+			return "", err
+		}
+		return strconv.FormatInt(v2.(int64), 10), nil
 	}
 }
 

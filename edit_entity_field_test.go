@@ -26,9 +26,9 @@ type updateEntityReference struct {
 
 type updateEntity struct {
 	ID            uint64 `orm:"localCache;redisCache"`
-	Name          string `orm:"length=10;required"`
-	Uint          uint16
-	Int           int16
+	Name          string `orm:"length=10;required;unique=Name"`
+	Uint          uint16 `orm:"unique=Multi"`
+	Int           int16  `orm:"unique=Multi:2"`
 	UintNullable  *uint16
 	IntNullable   *int16
 	Level1        updateSubField
@@ -74,6 +74,8 @@ func testUpdateFieldExecute(t *testing.T, local, redis bool) {
 	var ids []uint64
 	for i := 1; i <= 10; i++ {
 		entity = NewEntity[updateEntity](c)
+		entity.Uint = uint16(i)
+		entity.Int = int16(i)
 		entity.Name = fmt.Sprintf("name %d", i)
 		entity.Level1.SubName = fmt.Sprintf("sub name %d", i)
 		entity.Level1.Reference = &Reference[updateEntityReference]{ID: 1}
@@ -436,4 +438,18 @@ func testUpdateFieldExecute(t *testing.T, local, redis bool) {
 	assert.Nil(t, entity.DateNullable)
 	entity = GetByID[updateEntity](c, ids[1])
 	assert.Nil(t, entity.DateNullable)
+
+	/* unique index */
+	err = EditEntityField(c, entity, "Name", "name 3", true)
+	assert.EqualError(t, err, "duplicated value for unique index 'Name'")
+	err = EditEntityField(c, entity, "Name", "name 100", true)
+	assert.NoError(t, err)
+	entity = GetByUniqueIndex[updateEntity](c, "Name", "name 100")
+	assert.NotNil(t, entity)
+	assert.Equal(t, ids[1], entity.ID)
+	err = EditEntityField(c, entity, "Int", 100, true)
+	assert.NoError(t, err)
+	entity = GetByUniqueIndex[updateEntity](c, "Multi", 13, 100)
+	assert.NotNil(t, entity)
+	assert.Equal(t, ids[1], entity.ID)
 }
