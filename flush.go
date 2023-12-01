@@ -550,7 +550,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 						schema.localCache.removeReference(c, refColumn, oldAsInt)
 					})
 				}
-				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(before.(uint64), 10)
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(oldAsInt, 10)
 				c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 			if newAsInt > 0 {
@@ -559,7 +559,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 						schema.localCache.removeReference(c, refColumn, newAsInt)
 					})
 				}
-				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(id.(uint64), 10)
+				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(newAsInt, 10)
 				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}

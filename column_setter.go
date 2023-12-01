@@ -200,7 +200,7 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 	}
 }
 
-func createReferenceFieldBindSetter(columnName string, idSetter fieldBindSetter, nullable bool) func(v any) (any, error) {
+func createReferenceFieldBindSetter(columnName string, t reflect.Type, idSetter fieldBindSetter, nullable bool) func(v any) (any, error) {
 	return func(v any) (any, error) {
 		if v == nil {
 			if !nullable {
@@ -208,8 +208,22 @@ func createReferenceFieldBindSetter(columnName string, idSetter fieldBindSetter,
 			}
 			return nil, nil
 		}
+		elem := reflect.Indirect(reflect.ValueOf(v))
+		if elem.Type() == t {
+			id := elem.Field(0).Uint()
+			if id == 0 {
+				if !nullable {
+					return nil, &BindError{columnName, "nil is not allowed"}
+				}
+				return nil, nil
+			}
+			return id, nil
+		}
 		reference, is := v.(referenceInterface)
 		if is {
+			if reference.getType() != t {
+				return nil, &BindError{columnName, "invalid reference type"}
+			}
 			id := reference.getID()
 			if id == 0 {
 				if !nullable {

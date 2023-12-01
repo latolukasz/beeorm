@@ -100,7 +100,38 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 		}
 	}
 
-	// start
+	for columnName := range schema.cachedReferences {
+		if columnName != field {
+			continue
+		}
+		refColumn := columnName
+
+		newAsInt := uint64(0)
+		oldAsInt := uint64(0)
+		if newValue != nil {
+			newAsInt, _ = newValue.(uint64)
+		}
+		if oldValue != nil {
+			oldAsInt, _ = oldValue.(uint64)
+		}
+		if oldAsInt > 0 {
+			if schema.hasLocalCache {
+				schema.localCache.removeReference(c, refColumn, oldAsInt)
+			}
+			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(oldAsInt, 10)
+			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
+			flushPipeline.SRem(redisSetKey, strconv.FormatUint(id, 10))
+		}
+		if newAsInt > 0 {
+			if schema.hasLocalCache {
+				schema.localCache.removeReference(c, refColumn, newAsInt)
+			}
+			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(newAsInt, 10)
+			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
+			flushPipeline.SAdd(redisSetKey, strconv.FormatUint(id, 10))
+		}
+	}
+
 	logTableSchema, hasLogTable := c.Engine().Registry().(*engineRegistryImplementation).entityLogSchemas[schema.t]
 	if hasLogTable {
 		data := make([]any, 7)
@@ -131,7 +162,6 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 			pipeline.Exec(c)
 		}
 	}
-	// end
 
 	if flushPipeline != nil {
 		flushPipeline.Exec(c)
