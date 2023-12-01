@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 func EditEntityField[E any](c Context, entity *E, field string, value any, execute bool) error {
@@ -12,15 +15,25 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 	if !has {
 		return fmt.Errorf("field '%s' not found", field)
 	}
-	bindValue, err := setter(value)
+	newValue, err := setter(value)
 	if err != nil {
 		return err
 	}
 	elem := reflect.ValueOf(entity).Elem()
+	getter := schema.fieldGetters[field]
+	oldValue, err := setter(getter(elem))
+	if err != nil {
+		panic(err)
+	}
+	if oldValue == newValue {
+		return nil
+	}
 	id := elem.Field(0).Uint()
 
 	var flushPipeline *RedisPipeLine
 	uniqueIndexes := schema.GetUniqueIndexes()
+	var newBind Bind
+	var oldBind Bind
 	if len(uniqueIndexes) > 0 {
 		cache := c.Engine().Redis(schema.getForcedRedisCode())
 		for indexName, indexColumns := range uniqueIndexes {
@@ -35,18 +48,20 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 				continue
 			}
 			hSetKey := schema.getCacheKey() + ":" + indexName
-			newBind := make(Bind)
-			oldBind := make(Bind)
-			newBind[field] = bindValue
-			for _, column := range indexColumns {
-				setter, _ = schema.fieldBindSetters[column]
-				val, _ := setter(elem.FieldByName(column).Interface())
-				if column != field {
-					newBind[column] = val
+			newBind = make(Bind)
+			oldBind = make(Bind)
+			newBind[field] = newValue
+			oldBind[field] = oldValue
+			if len(indexColumns) > 1 {
+				for _, column := range indexColumns {
+					if column != field {
+						setter, _ = schema.fieldBindSetters[column]
+						val, _ := setter(elem.FieldByName(column).Interface())
+						newBind[column] = val
+						oldBind[column] = val
+					}
 				}
-				oldBind[column] = val
 			}
-
 			hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind)
 			if hasKey {
 				previousID, inUse := cache.HGet(c, hSetKey, hField)
@@ -67,23 +82,57 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 
 	if execute {
 		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID = ?"
-		schema.GetDB().Exec(c, sql, bindValue, id)
+		schema.GetDB().Exec(c, sql, newValue, id)
 		fSetter := schema.fieldSetters[field]
 		if schema.hasLocalCache {
 			func() {
 				schema.localCache.mutex.Lock()
 				defer schema.localCache.mutex.Unlock()
-				fSetter(bindValue, elem)
+				fSetter(newValue, elem)
 			}()
 		} else {
-			fSetter(bindValue, elem)
+			fSetter(newValue, elem)
 		}
 		if schema.hasRedisCache {
 			index := int64(schema.columnMapping[field] + 1)
 			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
-			schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(bindValue))
+			schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(newValue))
 		}
 	}
+
+	// start
+	logTableSchema, hasLogTable := c.Engine().Registry().(*engineRegistryImplementation).entityLogSchemas[schema.t]
+	if hasLogTable {
+		data := make([]any, 7)
+		data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
+		data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+		data[2] = strconv.FormatUint(id, 10)
+		data[3] = time.Now().Format(time.DateTime)
+		if len(c.GetMetaData()) > 0 {
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.GetMetaData())
+			data[4] = asJSON
+		} else {
+			data[4] = nil
+		}
+		if oldBind == nil {
+			oldBind = Bind{field: oldValue}
+		}
+		if newBind == nil {
+			newBind = Bind{field: newValue}
+		}
+		asJSON, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
+		data[5] = asJSON
+		asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
+		data[6] = asJSON
+		asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
+		pipeline := c.RedisPipeLine(schema.getForcedRedisCode())
+		pipeline.RPush(logTableSchema.asyncCacheKey, asJSON)
+		if flushPipeline == nil || flushPipeline.r.config.GetCode() != pipeline.r.config.GetCode() {
+			pipeline.Exec(c)
+		}
+	}
+	// end
+
 	if flushPipeline != nil {
 		flushPipeline.Exec(c)
 	}

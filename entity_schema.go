@@ -61,6 +61,7 @@ type EntitySchema interface {
 type columnAttrToStringSetter func(v any, fromBind bool) (string, error)
 type fieldBindSetter func(v any) (any, error)
 type fieldSetter func(v any, e reflect.Value)
+type fieldGetter func(reflect.Value) any
 
 type entitySchema struct {
 	index                     uint64
@@ -78,6 +79,7 @@ type entitySchema struct {
 	columnAttrToStringSetters map[string]columnAttrToStringSetter
 	fieldBindSetters          map[string]fieldBindSetter
 	fieldSetters              map[string]fieldSetter
+	fieldGetters              map[string]fieldGetter
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
@@ -328,6 +330,7 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.columnAttrToStringSetters = make(map[string]columnAttrToStringSetter)
 	e.fieldBindSetters = make(map[string]fieldBindSetter)
 	e.fieldSetters = make(map[string]fieldSetter)
+	e.fieldGetters = make(map[string]fieldGetter)
 	e.fields = e.buildTableFields(entityType, registry, 0, "", nil, e.tags)
 	e.columnNames, e.fieldsQuery = e.fields.buildColumnNames("")
 	if len(e.fieldsQuery) > 0 {
@@ -634,6 +637,7 @@ func (e *entitySchema) buildUintField(attributes schemaFieldAttributes, min int6
 		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, false, min, max)
 		e.columnAttrToStringSetters[columnName] = createUint64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true, false)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -672,6 +676,7 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createReferenceFieldBindSetter(columnName, idSetter, !isRequired)
 		e.columnAttrToStringSetters[columnName] = createUint64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createReferenceFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -716,6 +721,7 @@ func (e *entitySchema) buildUintPointerField(attributes schemaFieldAttributes, m
 		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, true, true, min, max)
 		e.columnAttrToStringSetters[columnName] = createUint64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, true, true)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -736,6 +742,7 @@ func (e *entitySchema) buildIntField(attributes schemaFieldAttributes, min int64
 		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, false, false, min, max)
 		e.columnAttrToStringSetters[columnName] = createInt64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, false, false)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -780,6 +787,7 @@ func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes, mi
 		e.fieldBindSetters[columnName] = createNumberFieldBindSetter(columnName, false, true, min, max)
 		e.columnAttrToStringSetters[columnName] = createInt64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createNumberFieldSetter(attributes, false, true)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -813,6 +821,7 @@ func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definiti
 		e.fieldBindSetters[columnName] = createEnumFieldBindSetter(columnName, stringSetter, def)
 		e.columnAttrToStringSetters[columnName] = createStringAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createStringFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -854,6 +863,7 @@ func (e *entitySchema) buildStringField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createStringFieldBindSetter(columnName, stringLength, isRequired)
 		e.columnAttrToStringSetters[columnName] = createStringAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createStringFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -867,6 +877,7 @@ func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
 		e.columnAttrToStringSetters[columnName] = createNotSupportedAttrToStringSetter(columnName)
 		e.fieldBindSetters[columnName] = createBytesFieldBindSetter(columnName)
 		e.fieldSetters[columnName] = createBytesFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -892,6 +903,7 @@ func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, d
 		enumSetter := createEnumFieldBindSetter(columnName, stringSetter, def)
 		e.fieldBindSetters[columnName] = createSetFieldBindSetter(columnName, enumSetter, def)
 		e.fieldSetters[columnName] = createSetFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -907,6 +919,7 @@ func (e *entitySchema) buildBoolField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createBoolFieldBindSetter(columnName)
 		e.columnAttrToStringSetters[columnName] = createBoolAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createBoolFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -923,6 +936,7 @@ func (e *entitySchema) buildBoolPointerField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(boolSetter)
 		e.columnAttrToStringSetters[columnName] = createBoolAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createBoolNullableFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -989,6 +1003,7 @@ func (e *entitySchema) buildFloatField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createFloatFieldBindSetter(columnName, unsigned, false, precision, floatBitSize, decimalSize)
 		e.columnAttrToStringSetters[columnName] = createFloatAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createFloatFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 
@@ -1051,6 +1066,7 @@ func (e *entitySchema) buildFloatPointerField(attributes schemaFieldAttributes) 
 		floatSetter := createFloatFieldBindSetter(columnName, unsigned, false, precision, floatBitSize, decimalSize)
 		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(floatSetter)
 		e.fieldSetters[columnName] = createFloatNullableFieldSetter(attributes)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -1076,10 +1092,11 @@ func (e *entitySchema) buildTimePointerField(attributes schemaFieldAttributes) {
 	for _, columnName := range attributes.GetColumnNames() {
 		e.mapBindToScanPointer[columnName] = scanStringNullablePointer
 		e.mapPointerToValue[columnName] = pointerStringNullableScan
-		timeSetter := createDateFieldBindSetter(columnName, layout)
+		timeSetter := createDateFieldBindSetter(columnName, layout, true)
 		e.fieldBindSetters[columnName] = createNullableFieldBindSetter(timeSetter)
 		e.columnAttrToStringSetters[columnName] = createDateTimeAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createTimeNullableFieldSetter(attributes, layout)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
 	}
 }
 
@@ -1105,9 +1122,10 @@ func (e *entitySchema) buildTimeField(attributes schemaFieldAttributes) {
 	for _, columnName := range attributes.GetColumnNames() {
 		e.mapBindToScanPointer[columnName] = scanStringPointer
 		e.mapPointerToValue[columnName] = pointerStringScan
-		e.fieldBindSetters[columnName] = createDateFieldBindSetter(columnName, layout)
+		e.fieldBindSetters[columnName] = createDateFieldBindSetter(columnName, layout, false)
 		e.columnAttrToStringSetters[columnName] = createDateTimeAttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createTimeFieldSetter(attributes, layout)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 

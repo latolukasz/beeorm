@@ -44,6 +44,7 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 		}
 		var asUint64 uint64
 		var asInt64 int64
+		isNil := false
 		var err error
 		switch v.(type) {
 		case string:
@@ -60,30 +61,120 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 			}
 		case uint8:
 			asUint64 = uint64(v.(uint8))
+		case *uint8:
+			i := v.(*uint8)
+			if i == nil {
+				isNil = true
+			} else {
+				asUint64 = uint64(*i)
+			}
 		case uint16:
 			asUint64 = uint64(v.(uint16))
+		case *uint16:
+			i := v.(*uint16)
+			if i == nil {
+				isNil = true
+			} else {
+				asUint64 = uint64(*i)
+			}
 		case uint:
 			asUint64 = uint64(v.(uint))
+		case *uint:
+			i := v.(*uint)
+			if i == nil {
+				isNil = true
+			} else {
+				asUint64 = uint64(*i)
+			}
 		case uint32:
 			asUint64 = uint64(v.(uint32))
+		case *uint32:
+			i := v.(*uint32)
+			if i == nil {
+				isNil = true
+			} else {
+				asUint64 = uint64(*i)
+			}
 		case uint64:
 			asUint64 = v.(uint64)
+		case *uint64:
+			i := v.(*uint64)
+			if i == nil {
+				isNil = true
+			} else {
+				asUint64 = *i
+			}
 		case int8:
 			asInt64 = int64(v.(int8))
+		case *int8:
+			i := v.(*int8)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		case int16:
 			asInt64 = int64(v.(int16))
+		case *int16:
+			i := v.(*int16)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		case int:
 			asInt64 = int64(v.(int))
+		case *int:
+			i := v.(*int)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		case int32:
 			asInt64 = int64(v.(int32))
+		case *int32:
+			i := v.(*int32)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		case int64:
 			asInt64 = v.(int64)
+		case *int64:
+			i := v.(*int64)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = *i
+			}
 		case float32:
 			asInt64 = int64(v.(float32))
+		case *float32:
+			i := v.(*float32)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		case float64:
 			asInt64 = int64(v.(float64))
+		case *float64:
+			i := v.(*float64)
+			if i == nil {
+				isNil = true
+			} else {
+				asInt64 = int64(*i)
+			}
 		default:
 			return nil, &BindError{columnName, "invalid value"}
+		}
+		if isNil {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
 		}
 		if !unsigned {
 			if asUint64 > 0 {
@@ -144,13 +235,19 @@ func createReferenceFieldBindSetter(columnName string, idSetter fieldBindSetter,
 
 func createEnumFieldBindSetter(columnName string, stringSetter fieldBindSetter, def *enumDefinition) func(v any) (any, error) {
 	return func(v any) (any, error) {
-		if v == nil || v == "" {
+		if v == nil {
 			if def.required {
 				return nil, &BindError{columnName, "nil is not allowed"}
 			}
 			return nil, nil
 		}
 		v = fmt.Sprintf("%s", v)
+		if v == "" {
+			if def.required {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
 		val, err := stringSetter(v)
 		if err != nil {
 			return nil, err
@@ -258,6 +355,12 @@ func createBoolFieldBindSetter(columnName string) func(v any) (any, error) {
 		switch v.(type) {
 		case bool:
 			return v, nil
+		case *bool:
+			b := v.(*bool)
+			if b == nil {
+				return nil, nil
+			}
+			return *b, nil
 		case int:
 			return v.(int) == 1, nil
 		case string:
@@ -269,11 +372,23 @@ func createBoolFieldBindSetter(columnName string) func(v any) (any, error) {
 	}
 }
 
-func createDateFieldBindSetter(columnName string, layout string) func(v any) (any, error) {
+func createDateFieldBindSetter(columnName string, layout string, nullable bool) func(v any) (any, error) {
 	return func(v any) (any, error) {
+		if v == nil {
+			if !nullable {
+				return nil, &BindError{columnName, "nil is not allowed"}
+			}
+			return nil, nil
+		}
 		switch v.(type) {
 		case time.Time:
 			t := v.(time.Time)
+			if t.Location() != time.UTC {
+				return nil, &BindError{Field: columnName, Message: "time must be in UTC location"}
+			}
+			return t.Format(layout), nil
+		case *time.Time:
+			t := v.(*time.Time)
 			if t.Location() != time.UTC {
 				return nil, &BindError{Field: columnName, Message: "time must be in UTC location"}
 			}
@@ -328,8 +443,20 @@ func createFloatFieldBindSetter(columnName string, unsigned, nullable bool, floa
 			asFloat64 = float64(v.(int64))
 		case float32:
 			asFloat64 = float64(v.(float32))
+		case *float32:
+			f := v.(*float32)
+			if f == nil {
+				return nil, nil
+			}
+			asFloat64 = float64(*f)
 		case float64:
 			asFloat64 = v.(float64)
+		case *float64:
+			f := v.(*float64)
+			if f == nil {
+				return nil, nil
+			}
+			asFloat64 = *f
 		default:
 			return nil, &BindError{columnName, "invalid value"}
 		}
@@ -463,6 +590,16 @@ func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem ref
 			val.Index(i).SetString(value)
 		}
 		field.Set(val)
+	}
+}
+
+func createFieldGetter(attributes schemaFieldAttributes, nullable bool) func(elem reflect.Value) any {
+	return func(elem reflect.Value) any {
+		field := getSetterField(elem, attributes)
+		if nullable && field.IsNil() {
+			return nil
+		}
+		return field.Interface()
 	}
 }
 

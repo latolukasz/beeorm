@@ -125,4 +125,31 @@ func TestLogTable(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Test 3", bind["Name"])
 	assert.Equal(t, float64(40), bind["Age"])
+
+	entity = NewEntity[logTableEntity](c)
+	entity.Name = "Tom"
+	entity.Age = 41
+	assert.NoError(t, c.Flush())
+	err = EditEntityField(c, entity, "Age", 42, true)
+	assert.NoError(t, c.Flush())
+	assert.NoError(t, ConsumeAsyncFlushEvents(c, false))
+	logs = Search[LogEntity[logTableEntity]](c, NewWhere("EntityID = ?", entity.ID), nil)
+	assert.Equal(t, 2, logs.Len())
+	logs.Next()
+	logs.Next()
+	log = logs.Entity()
+	assert.Equal(t, entity.ID, log.EntityID)
+	assert.NotNil(t, log.Meta)
+	assert.NotNil(t, log.After)
+	assert.NotNil(t, log.Before)
+	bind = nil
+	err = jsoniter.ConfigFastest.Unmarshal(log.Before, &bind)
+	assert.NoError(t, err)
+	assert.Len(t, bind, 1)
+	assert.Equal(t, float64(41), bind["Age"])
+	bind = nil
+	err = jsoniter.ConfigFastest.Unmarshal(log.After, &bind)
+	assert.NoError(t, err)
+	assert.Len(t, bind, 1)
+	assert.Equal(t, float64(42), bind["Age"])
 }
