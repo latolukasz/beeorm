@@ -30,10 +30,26 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 	}
 	id := elem.Field(0).Uint()
 
-	var flushPipeline *RedisPipeLine
-	uniqueIndexes := schema.GetUniqueIndexes()
 	var newBind Bind
 	var oldBind Bind
+
+	engine := c.Engine().(*engineImplementation)
+	var postAction PostFlushAction
+	if len(engine.pluginFlush) > 0 {
+		newBind = make(Bind)
+		oldBind = make(Bind)
+		newBind[field] = newValue
+		oldBind[field] = oldValue
+		for _, p := range engine.pluginFlush {
+			postAction, err = p.EntityFlush(schema, elem, oldBind, newBind, engine)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	var flushPipeline *RedisPipeLine
+	uniqueIndexes := schema.GetUniqueIndexes()
 	if len(uniqueIndexes) > 0 {
 		cache := c.Engine().Redis(schema.getForcedRedisCode())
 		for indexName, indexColumns := range uniqueIndexes {
@@ -48,8 +64,10 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 				continue
 			}
 			hSetKey := schema.getCacheKey() + ":" + indexName
-			newBind = make(Bind)
-			oldBind = make(Bind)
+			if newBind == nil {
+				newBind = make(Bind)
+				oldBind = make(Bind)
+			}
 			newBind[field] = newValue
 			oldBind[field] = oldValue
 			if len(indexColumns) > 1 {
@@ -165,6 +183,9 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 
 	if flushPipeline != nil {
 		flushPipeline.Exec(c)
+	}
+	if postAction != nil {
+		postAction(c)
 	}
 	return nil
 }

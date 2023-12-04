@@ -128,6 +128,12 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, entity.ModifiedAtTimeOptional)
 	assert.Equal(t, entity.ModifiedAtTimeOptional.Format(time.DateTime), later.Format(time.DateTime))
 
+	now = time.Now().UTC()
+	time.Sleep(time.Second)
+	assert.NoError(t, beeorm.EditEntityField(c, entity, "Name", "g2", true))
+	later = now.Add(time.Second)
+	assert.Equal(t, entity.ModifiedAtTimeOptional.Format(time.DateTime), later.Format(time.DateTime))
+
 	registry = beeorm.NewRegistry()
 	registry.RegisterPlugin(New("Invalid", "Invalid"))
 	c = beeorm.PrepareTables(t, registry, testPluginModifiedEntity{})

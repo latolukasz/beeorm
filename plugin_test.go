@@ -173,6 +173,16 @@ func TestPlugin(t *testing.T) {
 	entity = GetByID[testPluginEntity](c, entity.ID)
 	assert.Equal(t, "b1", entity.Name)
 
+	p.lastValue = nil
+	p.option = 0
+	err = EditEntityField(c, entity, "Name", "c2", true)
+	assert.NoError(t, err)
+	values = p.lastValue.([]any)
+	assert.Len(t, values[2], 1)
+	assert.Len(t, values[3], 1)
+	assert.Equal(t, "b1", values[2].(Bind)["Name"])
+	assert.Equal(t, "c2", values[3].(Bind)["Name"])
+
 	p.option = 4
 	entity = EditEntity(c, entity)
 	entity.Name = "d"
