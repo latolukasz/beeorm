@@ -45,9 +45,9 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 		var asUint64 uint64
 		var asInt64 int64
 		isNil := false
-		var err error
 		switch v.(type) {
 		case string:
+			var err error
 			if unsigned {
 				asUint64, err = strconv.ParseUint(v.(string), 10, 64)
 				if err != nil {
@@ -124,6 +124,13 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 			}
 		case int:
 			asInt64 = int64(v.(int))
+			if asInt64 > 0 && uint64(asInt64) > max {
+				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max allowed value", v)}
+			}
+			if asInt64 < 0 && asInt64 < min {
+				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded min allowed value", v)}
+			}
+			return asUint64, nil
 		case *int:
 			i := v.(*int)
 			if i == nil {
@@ -605,6 +612,10 @@ func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem ref
 		}
 		field.Set(val)
 	}
+}
+
+func createFieldGetterNumber(attributes schemaFieldAttributes, fieldType string) func(elem reflect.Value) any {
+	return nil
 }
 
 func createFieldGetter(attributes schemaFieldAttributes, nullable bool) func(elem reflect.Value) any {

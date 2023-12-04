@@ -1,7 +1,6 @@
 package beeorm
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 	"time"
@@ -10,10 +9,18 @@ import (
 )
 
 func EditEntityField[E any](c Context, entity *E, field string, value any, execute bool) error {
+	return editEntityField(c, entity, field, value, false, execute)
+}
+
+func EditEntityFieldAsync[E any](c Context, entity *E, field string, value any, execute bool) error {
+	return editEntityField(c, entity, field, value, true, execute)
+}
+
+func editEntityField[E any](c Context, entity *E, field string, value any, async, execute bool) error {
 	schema := getEntitySchema[E](c)
 	setter, has := schema.fieldBindSetters[field]
 	if !has {
-		return fmt.Errorf("field '%s' not found", field)
+		return &BindError{field, "unknown field"}
 	}
 	newValue, err := setter(value)
 	if err != nil {
@@ -21,7 +28,8 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 	}
 	elem := reflect.ValueOf(entity).Elem()
 	getter := schema.fieldGetters[field]
-	oldValue, err := setter(getter(elem))
+	v := getter(elem)
+	oldValue, err := setter(v)
 	if err != nil {
 		panic(err)
 	}
@@ -29,6 +37,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 		return nil
 	}
 	id := elem.Field(0).Uint()
+	idAsString := strconv.FormatUint(id, 10)
 
 	var newBind Bind
 	var oldBind Bind
@@ -88,7 +97,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
 				flushPipeline = c.RedisPipeLine(cache.GetConfig().GetCode())
-				flushPipeline.HSet(hSetKey, hField, strconv.FormatUint(id, 10))
+				flushPipeline.HSet(hSetKey, hField, idAsString)
 			}
 			hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind)
 			if hasKey {
@@ -100,7 +109,18 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 
 	if execute {
 		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID = ?"
-		schema.GetDB().Exec(c, sql, newValue, id)
+		if async {
+			asyncArgs := []any{sql, newValue, idAsString}
+			asUint64, is := asyncArgs[1].(uint64)
+			if is {
+				asyncArgs[1] = strconv.FormatUint(asUint64, 10)
+			}
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncArgs)
+			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
+			flushPipeline.RPush(schema.asyncCacheKey, asJSON)
+		} else {
+			schema.GetDB().Exec(c, sql, newValue, id)
+		}
 		fSetter := schema.fieldSetters[field]
 		if schema.hasLocalCache {
 			func() {
@@ -113,7 +133,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 		}
 		if schema.hasRedisCache {
 			index := int64(schema.columnMapping[field] + 1)
-			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
+			rKey := schema.getCacheKey() + ":" + idAsString
 			schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(newValue))
 		}
 	}
@@ -138,7 +158,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(oldAsInt, 10)
 			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
-			flushPipeline.SRem(redisSetKey, strconv.FormatUint(id, 10))
+			flushPipeline.SRem(redisSetKey, idAsString)
 		}
 		if newAsInt > 0 {
 			if schema.hasLocalCache {
@@ -146,7 +166,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(newAsInt, 10)
 			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
-			flushPipeline.SAdd(redisSetKey, strconv.FormatUint(id, 10))
+			flushPipeline.SAdd(redisSetKey, idAsString)
 		}
 	}
 
@@ -155,7 +175,7 @@ func EditEntityField[E any](c Context, entity *E, field string, value any, execu
 		data := make([]any, 7)
 		data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
 		data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
-		data[2] = strconv.FormatUint(id, 10)
+		data[2] = idAsString
 		data[3] = time.Now().Format(time.DateTime)
 		if len(c.GetMetaData()) > 0 {
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.GetMetaData())
