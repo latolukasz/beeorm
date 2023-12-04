@@ -124,13 +124,6 @@ func createNumberFieldBindSetter(columnName string, unsigned, nullable bool, min
 			}
 		case int:
 			asInt64 = int64(v.(int))
-			if asInt64 > 0 && uint64(asInt64) > max {
-				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded max allowed value", v)}
-			}
-			if asInt64 < 0 && asInt64 < min {
-				return nil, &BindError{columnName, fmt.Sprintf("value %d exceeded min allowed value", v)}
-			}
-			return asUint64, nil
 		case *int:
 			i := v.(*int)
 			if i == nil {
