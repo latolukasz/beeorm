@@ -112,6 +112,7 @@ func TestAsyncConsumer(t *testing.T) {
 	stop = ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
 		panic(err)
 	})
+	stop()
 	time.Sleep(time.Second)
 	assert.Equal(t, int64(3), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(1), c.Engine().Redis("second").LLen(c, schema5.asyncCacheKey))

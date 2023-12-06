@@ -32,9 +32,9 @@ func TestAsync(t *testing.T) {
 		entity.Name = "test " + strconv.Itoa(i)
 		err := c.FlushAsync()
 		assert.NoError(t, err)
-		stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
-		stop()
 	}
+	stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
+	stop()
 
 	stats := ReadAsyncFlushEvents(c)
 	assert.Len(t, stats, 1)

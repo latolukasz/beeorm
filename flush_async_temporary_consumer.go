@@ -17,25 +17,29 @@ func publishAsyncEvent(schema *entitySchema, event asyncTemporaryQueueEvent) {
 }
 
 func ConsumeAsyncFlushTemporaryEvents(c Context, errF func(err error)) (stop func()) {
+	engine := c.Engine().(*engineImplementation)
+	if engine.asyncTemporaryIsQueueRunning {
+		panic("consumer is already running")
+	}
+	engine.asyncTemporaryIsQueueRunning = true
 	entities := c.Engine().Registry().Entities()
-	running := true
 	stop = func() {
-		if !running {
+		if !engine.asyncTemporaryIsQueueRunning {
 			return
 		}
 		for _, entityType := range entities {
 			schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
 			schema.asyncTemporaryQueue.TryEnqueue(nil)
 		}
-		maxIterations := 5000
+		maxIterations := 10000
 		for {
-			if running {
-				time.Sleep(time.Millisecond * 10)
-				return
-			}
 			maxIterations--
 			if maxIterations == 0 {
 				return
+			}
+			if engine.asyncTemporaryIsQueueRunning {
+				time.Sleep(time.Millisecond)
+				continue
 			}
 			return
 		}
@@ -50,12 +54,8 @@ func ConsumeAsyncFlushTemporaryEvents(c Context, errF func(err error)) (stop fun
 				consumeAsyncTempEvent(c.Clone(), schema, errF)
 			}()
 		}
-		go func() {
-			<-c.Ctx().Done()
-			stop()
-		}()
 		waitGroup.Wait()
-		running = false
+		engine.asyncTemporaryIsQueueRunning = false
 	}()
 	return stop
 }

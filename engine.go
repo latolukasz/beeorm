@@ -45,12 +45,13 @@ type engineRegistryImplementation struct {
 }
 
 type engineImplementation struct {
-	registry          *engineRegistryImplementation
-	localCacheServers map[string]LocalCache
-	dbServers         map[string]DB
-	redisServers      map[string]RedisCache
-	options           map[string]any
-	pluginFlush       []PluginInterfaceEntityFlush
+	registry                     *engineRegistryImplementation
+	localCacheServers            map[string]LocalCache
+	dbServers                    map[string]DB
+	redisServers                 map[string]RedisCache
+	options                      map[string]any
+	pluginFlush                  []PluginInterfaceEntityFlush
+	asyncTemporaryIsQueueRunning bool
 }
 
 func (e *engineImplementation) NewContext(parent context.Context) Context {
