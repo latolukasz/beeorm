@@ -123,6 +123,20 @@ type editableEntity[E any] struct {
 	source      *E
 }
 
+type editableFields[E any] struct {
+	writableEntity[E]
+	id   uint64
+	bind Bind
+}
+
+func (f *editableFields[E]) ID() uint64 {
+	return f.id
+}
+
+func (f *editableFields[E]) flushType() FlushType {
+	return Update
+}
+
 func (e *editableEntity[E]) ID() uint64 {
 	return e.id
 }

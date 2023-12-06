@@ -1,9 +1,12 @@
 package beeorm
 
 import (
+	"hash/maphash"
 	"reflect"
 	"strconv"
 	"time"
+
+	"github.com/puzpuzpuz/xsync/v2"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -25,6 +28,54 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 	newValue, err := setter(value)
 	if err != nil {
 		return err
+	}
+	if !execute {
+		elem := reflect.ValueOf(entity).Elem()
+		id := elem.Field(0).Uint()
+		cImplementation := c.(*contextImplementation)
+		var asyncError error
+		func() {
+			cImplementation.mutexFlush.Lock()
+			defer cImplementation.mutexFlush.Unlock()
+			if cImplementation.trackedEntities == nil {
+				cImplementation.trackedEntities = xsync.NewTypedMapOf[uint64, *xsync.MapOf[uint64, EntityFlush]](func(seed maphash.Seed, u uint64) uint64 {
+					return u
+				})
+			}
+			entities, _ := cImplementation.trackedEntities.LoadOrCompute(schema.index, func() *xsync.MapOf[uint64, EntityFlush] {
+				return xsync.NewTypedMapOf[uint64, EntityFlush](func(seed maphash.Seed, u uint64) uint64 {
+					return u
+				})
+			})
+			actual, loaded := entities.LoadOrCompute(id, func() EntityFlush {
+				editable := &editableFields[E]{}
+				editable.c = c
+				editable.schema = schema
+				editable.id = id
+				editable.bind = Bind{field: newValue}
+				return editable
+			})
+			if loaded {
+				editable, is := actual.(*editableFields[E])
+				if is {
+					editable.bind[field] = newValue
+					return
+				}
+				fSetter := schema.fieldSetters[field]
+				editableE, is := actual.(*editableEntity[E])
+				if is {
+					fSetter(newValue, editableE.value)
+					return
+				}
+				insertableE, is := actual.(*insertableEntity[E])
+				if is {
+					fSetter(newValue, insertableE.value)
+					return
+				}
+				asyncError = &BindError{Field: field, Message: "setting field in entity marked to delete not allowed"}
+			}
+		}()
+		return asyncError
 	}
 	elem := reflect.ValueOf(entity).Elem()
 	getter := schema.fieldGetters[field]
@@ -105,33 +156,31 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 			}
 		}
 	}
-	if execute {
-		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID=" + idAsString
-		if async {
-			asyncArgs := []any{sql, newValue}
-			asUint64, is := asyncArgs[1].(uint64)
-			if is {
-				asyncArgs[1] = strconv.FormatUint(asUint64, 10)
-			}
-			publishAsyncEvent(schema, asyncArgs)
-		} else {
-			schema.GetDB().Exec(c, sql, newValue)
+	sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID=" + idAsString
+	if async {
+		asyncArgs := []any{sql, newValue}
+		asUint64, is := asyncArgs[1].(uint64)
+		if is {
+			asyncArgs[1] = strconv.FormatUint(asUint64, 10)
 		}
-		fSetter := schema.fieldSetters[field]
-		if schema.hasLocalCache {
-			func() {
-				schema.localCache.mutex.Lock()
-				defer schema.localCache.mutex.Unlock()
-				fSetter(newValue, elem)
-			}()
-		} else {
+		publishAsyncEvent(schema, asyncArgs)
+	} else {
+		schema.GetDB().Exec(c, sql, newValue)
+	}
+	fSetter := schema.fieldSetters[field]
+	if schema.hasLocalCache {
+		func() {
+			schema.localCache.mutex.Lock()
+			defer schema.localCache.mutex.Unlock()
 			fSetter(newValue, elem)
-		}
-		if schema.hasRedisCache {
-			index := int64(schema.columnMapping[field] + 1)
-			rKey := schema.getCacheKey() + ":" + idAsString
-			schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(newValue))
-		}
+		}()
+	} else {
+		fSetter(newValue, elem)
+	}
+	if schema.hasRedisCache {
+		index := int64(schema.columnMapping[field] + 1)
+		rKey := schema.getCacheKey() + ":" + idAsString
+		schema.redisCache.LSet(c, rKey, index, convertBindValueToRedisValue(newValue))
 	}
 
 	for columnName := range schema.cachedReferences {
