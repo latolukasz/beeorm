@@ -607,10 +607,6 @@ func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem ref
 	}
 }
 
-func createFieldGetterNumber(attributes schemaFieldAttributes, fieldType string) func(elem reflect.Value) any {
-	return nil
-}
-
 func createFieldGetter(attributes schemaFieldAttributes, nullable bool) func(elem reflect.Value) any {
 	return func(elem reflect.Value) any {
 		field := getSetterField(elem, attributes)

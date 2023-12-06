@@ -39,15 +39,13 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 	id := elem.Field(0).Uint()
 	idAsString := strconv.FormatUint(id, 10)
 
-	var newBind Bind
+	newBind := Bind{field: newValue}
 	var oldBind Bind
 
 	engine := c.Engine().(*engineImplementation)
 	var postAction PostFlushAction
 	if len(engine.pluginFlush) > 0 {
-		newBind = make(Bind)
 		oldBind = make(Bind)
-		newBind[field] = newValue
 		oldBind[field] = oldValue
 		for _, p := range engine.pluginFlush {
 			postAction, err = p.EntityFlush(schema, elem, oldBind, newBind, engine)
@@ -73,12 +71,10 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 				continue
 			}
 			hSetKey := schema.getCacheKey() + ":" + indexName
-			if newBind == nil {
-				newBind = make(Bind)
-				oldBind = make(Bind)
+			if oldBind == nil {
+				oldBind = Bind{field: oldValue}
 			}
-			newBind[field] = newValue
-			oldBind[field] = oldValue
+
 			if len(indexColumns) > 1 {
 				for _, column := range indexColumns {
 					if column != field {
@@ -106,20 +102,17 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 			}
 		}
 	}
-
 	if execute {
-		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID = ?"
+		sql := "UPDATE `" + schema.GetTableName() + "` SET `" + field + "` = ? WHERE ID=" + idAsString
 		if async {
-			asyncArgs := []any{sql, newValue, idAsString}
+			asyncArgs := []any{sql, newValue}
 			asUint64, is := asyncArgs[1].(uint64)
 			if is {
 				asyncArgs[1] = strconv.FormatUint(asUint64, 10)
 			}
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncArgs)
-			flushPipeline = c.RedisPipeLine(schema.getForcedRedisCode())
-			flushPipeline.RPush(schema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, asyncArgs)
 		} else {
-			schema.GetDB().Exec(c, sql, newValue, id)
+			schema.GetDB().Exec(c, sql, newValue)
 		}
 		fSetter := schema.fieldSetters[field]
 		if schema.hasLocalCache {
@@ -186,19 +179,11 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 		if oldBind == nil {
 			oldBind = Bind{field: oldValue}
 		}
-		if newBind == nil {
-			newBind = Bind{field: newValue}
-		}
 		asJSON, _ := jsoniter.ConfigFastest.MarshalToString(oldBind)
 		data[5] = asJSON
 		asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
 		data[6] = asJSON
-		asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-		pipeline := c.RedisPipeLine(schema.getForcedRedisCode())
-		pipeline.RPush(logTableSchema.asyncCacheKey, asJSON)
-		if flushPipeline == nil || flushPipeline.r.config.GetCode() != pipeline.r.config.GetCode() {
-			pipeline.Exec(c)
-		}
+		publishAsyncEvent(schema, data)
 	}
 
 	if flushPipeline != nil {

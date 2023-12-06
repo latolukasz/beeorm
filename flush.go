@@ -128,8 +128,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			db.Exec(c, sql, args...)
 		})
 	} else {
-		data := `["` + sql + `"]"`
-		c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, data)
+		publishAsyncEvent(schema, []any{sql})
 	}
 
 	lc, hasLocalCache := schema.GetLocalCache()
@@ -214,8 +213,7 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
-			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, data)
 		}
 		for _, p := range c.engine.pluginFlush {
 			if bind == nil {
@@ -326,8 +324,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		}
 		if async {
 			asyncData[0] = sql
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncData)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, asyncData)
 		}
 		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
@@ -344,8 +341,7 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
-			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, data)
 		}
 		if hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
@@ -480,8 +476,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		}
 		if async {
 			asyncArgs[0] = sql
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(asyncArgs)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(schema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, asyncArgs)
 		} else {
 			c.appendDBAction(schema, func(db DBBase) {
 				db.Exec(c, sql, args...)
@@ -505,8 +500,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			data[5] = asJSON
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
 			data[6] = asJSON
-			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(data)
-			c.RedisPipeLine(schema.getForcedRedisCode()).RPush(logTableSchema.asyncCacheKey, asJSON)
+			publishAsyncEvent(schema, data)
 		}
 
 		if schema.hasLocalCache {

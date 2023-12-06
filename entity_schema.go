@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/puzpuzpuz/xsync/v2"
 )
 
 var codeStartTime = uint64(time.Now().Unix())
@@ -98,6 +100,7 @@ type entitySchema struct {
 	mapPointerToValue         mapPointerToValue
 	uuidServerID              uint64
 	uuidCounter               uint64
+	asyncTemporaryQueue       *xsync.MPMCQueueOf[asyncTemporaryQueueEvent]
 }
 
 type mapBindToScanPointer map[string]func() any
@@ -366,6 +369,7 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	} else if asyncGroup != "" {
 		e.asyncCacheKey = asyncGroup
 	}
+	e.asyncTemporaryQueue = xsync.NewMPMCQueueOf[asyncTemporaryQueueEvent](10000)
 	e.uniqueIndices = make(map[string][]string)
 	for name, index := range uniqueIndices {
 		e.uniqueIndices[name] = make([]string, len(index))

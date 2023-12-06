@@ -50,7 +50,7 @@ func TestAsyncConsumer(t *testing.T) {
 	err := c.FlushAsync()
 	assert.NoError(t, err)
 
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey+flushAsyncEventsListErrorSuffix))
@@ -70,7 +70,11 @@ func TestAsyncConsumer(t *testing.T) {
 
 	var consumeErr error
 	consumerFinished := false
+	var stop func()
 	go func() {
+		stop = ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
+			panic(err)
+		})
 		consumeErr = ConsumeAsyncFlushEvents(c2, true)
 		consumerFinished = true
 	}()
@@ -87,6 +91,7 @@ func TestAsyncConsumer(t *testing.T) {
 	assert.NoError(t, consumeErr)
 	references = Search[flushEntityReference](c, NewWhere("1"), nil)
 	assert.Equal(t, asyncConsumerPage+11, references.Len())
+	stop()
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey+flushAsyncEventsListErrorSuffix))
 	assert.Equal(t, "test reference block", GetByID[flushEntityReference](c, reference.ID).Name)
@@ -104,10 +109,14 @@ func TestAsyncConsumer(t *testing.T) {
 	asyncEntitySecondRedis.Name = "test reference custom async group"
 	err = c.FlushAsync()
 	assert.NoError(t, err)
+	stop = ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+		panic(err)
+	})
+	time.Sleep(time.Second)
 	assert.Equal(t, int64(3), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(1), c.Engine().Redis("second").LLen(c, schema5.asyncCacheKey))
 	assert.Equal(t, int64(1), c.Engine().Redis(DefaultPoolCode).LLen(c, schema6.asyncCacheKey))
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema3.asyncCacheKey))
@@ -122,7 +131,7 @@ func TestAsyncConsumer(t *testing.T) {
 
 	// broken event structure
 	c.Engine().Redis(DefaultPoolCode).RPush(c, schema2.asyncCacheKey, "invalid")
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 
@@ -150,10 +159,18 @@ func TestAsyncConsumer(t *testing.T) {
 	e3.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	err = c.FlushAsync()
 	assert.NoError(t, err)
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.Nil(t, err)
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema.asyncCacheKey))
 	assert.Equal(t, int64(2), c.Engine().Redis(DefaultPoolCode).LLen(c, schema.asyncCacheKey+flushAsyncEventsListErrorSuffix))
 	assert.Contains(t, c.Engine().Redis(DefaultPoolCode).LPop(c, schema.asyncCacheKey+flushAsyncEventsListErrorSuffix), "INSERT INTO `flushEntity`")
 	assert.Equal(t, "Error 1062 (23000): Duplicate entry 'Valid name 2' for key 'flushEntity.name'", c.Engine().Redis(DefaultPoolCode).LPop(c, schema.asyncCacheKey+flushAsyncEventsListErrorSuffix))
+}
+
+func runAsyncConsumer(c Context, block bool) error {
+	stop := ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+		panic(err)
+	})
+	stop()
+	return ConsumeAsyncFlushEvents(c, block)
 }

@@ -123,7 +123,7 @@ func TestPlugin(t *testing.T) {
 	entity = NewEntity[testPluginEntity](c)
 	entity.Name = "b"
 	err = c.FlushAsync()
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.NoError(t, err)
 	values = p.lastValue.([]any)
 	assert.Nil(t, values[2])
@@ -163,7 +163,7 @@ func TestPlugin(t *testing.T) {
 	entity = EditEntity(c, entity)
 	entity.Name = "c"
 	err = c.FlushAsync()
-	err = ConsumeAsyncFlushEvents(c, false)
+	err = runAsyncConsumer(c, false)
 	assert.NoError(t, err)
 	values = p.lastValue.([]any)
 	assert.NotNil(t, values[2])

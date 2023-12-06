@@ -232,7 +232,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		assert.NotNil(t, entity)
 	} else if async {
 		assert.Nil(t, entity)
-		err = ConsumeAsyncFlushEvents(c, false)
+		err = runAsyncConsumer(c, false)
 		assert.NoError(t, err)
 		entity = GetByID[flushEntity](c, newEntity.ID)
 		assert.NotNil(t, entity)
@@ -405,7 +405,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	}
 	assert.NoError(t, testFlush(c, async))
 	if async {
-		err = ConsumeAsyncFlushEvents(c, false)
+		err = runAsyncConsumer(c, false)
 		assert.NoError(t, err)
 	}
 	entity = GetByID[flushEntity](c, newEntity.ID)
@@ -698,7 +698,7 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 	}
 
 	if async {
-		err = ConsumeAsyncFlushEvents(c, false)
+		err = runAsyncConsumer(c, false)
 		assert.NoError(t, err)
 	}
 
@@ -839,7 +839,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 1)
 	} else {
 		assert.Len(t, loggerDB.Logs, 0)
-		err = ConsumeAsyncFlushEvents(c, false)
+		err = runAsyncConsumer(c, false)
 		assert.NoError(t, err)
 	}
 	loggerDB.Clear()

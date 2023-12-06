@@ -32,6 +32,8 @@ func TestAsync(t *testing.T) {
 		entity.Name = "test " + strconv.Itoa(i)
 		err := c.FlushAsync()
 		assert.NoError(t, err)
+		stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
+		stop()
 	}
 
 	stats := ReadAsyncFlushEvents(c)
@@ -69,7 +71,7 @@ func TestAsync(t *testing.T) {
 	}
 
 	schema.GetDB().Exec(c, "ALTER TABLE flushEntityAsyncStats DROP COLUMN Name")
-	err := ConsumeAsyncFlushEvents(c, false)
+	err := runAsyncConsumer(c, false)
 	assert.NoError(t, err)
 
 	assert.Equal(t, uint64(0), stat.EventsCount())
@@ -105,6 +107,8 @@ func TestAsyncGrouped(t *testing.T) {
 		entity3.Name = "b " + strconv.Itoa(i)
 		err := c.FlushAsync()
 		assert.NoError(t, err)
+		stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
+		stop()
 	}
 
 	stats := ReadAsyncFlushEvents(c)

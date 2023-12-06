@@ -103,7 +103,6 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, err)
 
 	/* string */
-
 	entity = GetByID[updateEntity](c, ids[0])
 	err = runEditEntityField(c, entity, "Name", "New", async)
 	assert.NoError(t, err)
@@ -476,6 +475,10 @@ func runEditEntityField(c Context, entity *updateEntity, field string, value any
 		if err != nil {
 			return err
 		}
+		stop := ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+			panic(err)
+		})
+		stop()
 		return ConsumeAsyncFlushEvents(c, false)
 	}
 	return EditEntityField(c, entity, field, value, true)
