@@ -39,14 +39,14 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 	id := elem.Field(0).Uint()
 	idAsString := strconv.FormatUint(id, 10)
 
-	newBind := Bind{field: newValue}
+	var newBind Bind
 	var oldBind Bind
 
 	engine := c.Engine().(*engineImplementation)
 	var postAction PostFlushAction
 	if len(engine.pluginFlush) > 0 {
-		oldBind = make(Bind)
-		oldBind[field] = oldValue
+		newBind = Bind{field: newValue}
+		oldBind = Bind{field: oldValue}
 		for _, p := range engine.pluginFlush {
 			postAction, err = p.EntityFlush(schema, elem, oldBind, newBind, engine)
 			if err != nil {
@@ -71,6 +71,9 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 				continue
 			}
 			hSetKey := schema.getCacheKey() + ":" + indexName
+			if newBind == nil {
+				newBind = Bind{field: newValue}
+			}
 			if oldBind == nil {
 				oldBind = Bind{field: oldValue}
 			}
@@ -175,6 +178,9 @@ func editEntityField[E any](c Context, entity *E, field string, value any, async
 			data[4] = asJSON
 		} else {
 			data[4] = nil
+		}
+		if newBind == nil {
+			newBind = Bind{field: newValue}
 		}
 		if oldBind == nil {
 			oldBind = Bind{field: oldValue}

@@ -70,11 +70,11 @@ func TestAsyncConsumer(t *testing.T) {
 
 	var consumeErr error
 	consumerFinished := false
-	var stop func()
 	go func() {
-		stop = ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
+		stop := ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
 			panic(err)
 		})
+		stop()
 		consumeErr = ConsumeAsyncFlushEvents(c2, true)
 		consumerFinished = true
 	}()
@@ -84,6 +84,10 @@ func TestAsyncConsumer(t *testing.T) {
 	reference.Name = "test reference block"
 	err = c.FlushAsync()
 	assert.NoError(t, err)
+	stop := ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
+		panic(err)
+	})
+	stop()
 	time.Sleep(time.Millisecond * 300)
 	cancel()
 	time.Sleep(time.Millisecond * 200)
@@ -91,7 +95,6 @@ func TestAsyncConsumer(t *testing.T) {
 	assert.NoError(t, consumeErr)
 	references = Search[flushEntityReference](c, NewWhere("1"), nil)
 	assert.Equal(t, asyncConsumerPage+11, references.Len())
-	stop()
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey))
 	assert.Equal(t, int64(0), c.Engine().Redis(DefaultPoolCode).LLen(c, schema2.asyncCacheKey+flushAsyncEventsListErrorSuffix))
 	assert.Equal(t, "test reference block", GetByID[flushEntityReference](c, reference.ID).Name)
