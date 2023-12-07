@@ -36,7 +36,8 @@ func BenchmarkEditByFieldAsync(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = EditEntityFieldAsync(c, entity, field, n, true)
+		_ = EditEntityField(c, entity, field, n)
+		_ = c.FlushAsync()
 	}
 	publishAsyncEvent(schema, nil)
 }
@@ -59,7 +60,8 @@ func BenchmarkEditByFieldAsyncWithRedis(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = EditEntityFieldAsync(c, entity, field, n, true)
+		_ = EditEntityField(c, entity, field, n)
+		_ = c.FlushAsync()
 	}
 	stop()
 }

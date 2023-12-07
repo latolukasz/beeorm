@@ -130,7 +130,8 @@ func TestPlugin(t *testing.T) {
 
 	now = time.Now().UTC()
 	time.Sleep(time.Second)
-	assert.NoError(t, beeorm.EditEntityField(c, entity, "Name", "g2", true))
+	assert.NoError(t, beeorm.EditEntityField(c, entity, "Name", "g2"))
+	assert.NoError(t, c.Flush())
 	later = now.Add(time.Second)
 	assert.Equal(t, entity.ModifiedAtTimeOptional.Format(time.DateTime), later.Format(time.DateTime))
 

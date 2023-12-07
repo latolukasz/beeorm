@@ -175,8 +175,9 @@ func TestPlugin(t *testing.T) {
 
 	p.lastValue = nil
 	p.option = 0
-	err = EditEntityField(c, entity, "Name", "c2", true)
+	err = EditEntityField(c, entity, "Name", "c2")
 	assert.NoError(t, err)
+	assert.NoError(t, c.Flush())
 	values = p.lastValue.([]any)
 	assert.Len(t, values[2], 1)
 	assert.Len(t, values[3], 1)

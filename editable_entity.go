@@ -125,8 +125,10 @@ type editableEntity[E any] struct {
 
 type editableFields[E any] struct {
 	writableEntity[E]
-	id   uint64
-	bind Bind
+	id      uint64
+	value   reflect.Value
+	newBind Bind
+	oldBind Bind
 }
 
 func (f *editableFields[E]) ID() uint64 {
@@ -135,6 +137,22 @@ func (f *editableFields[E]) ID() uint64 {
 
 func (f *editableFields[E]) flushType() FlushType {
 	return Update
+}
+
+func (f *editableFields[E]) getBind() (new, old Bind, err error) {
+	return f.newBind, f.oldBind, nil
+}
+
+func (f *editableFields[E]) getEntity() any {
+	return nil
+}
+
+func (f *editableFields[E]) getSourceValue() reflect.Value {
+	return f.value
+}
+
+func (f *editableFields[E]) getValue() reflect.Value {
+	return f.value
 }
 
 func (e *editableEntity[E]) ID() uint64 {

@@ -203,14 +203,16 @@ func testGetByReference(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
 
-	err = EditEntityField(c, entities[0], "RefCached", ref2, true)
+	err = EditEntityField(c, entities[0], "RefCached", ref2)
 	assert.NoError(t, err)
+	assert.NoError(t, c.Flush())
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref2.ID)
 	assert.Equal(t, 2, rows.Len())
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
 	assert.Equal(t, 7, rows.Len())
-	err = EditEntityField(c, entities[0], "RefCached", ref, true)
+	err = EditEntityField(c, entities[0], "RefCached", ref)
 	assert.NoError(t, err)
+	assert.NoError(t, c.Flush())
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref2.ID)
 	assert.Equal(t, 1, rows.Len())
 	rows = GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)

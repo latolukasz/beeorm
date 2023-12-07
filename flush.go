@@ -390,6 +390,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
 		newBind, oldBind, err := update.getBind()
+		elem := update.getValue().Elem()
 		if err != nil {
 			return err
 		}
@@ -397,7 +398,6 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			continue
 		}
 		if len(c.engine.pluginFlush) > 0 {
-			elem := update.getValue().Elem()
 			for _, p := range c.engine.pluginFlush {
 				after, err := p.EntityFlush(schema, elem, oldBind, newBind, c.engine)
 				if err != nil {
@@ -503,7 +503,20 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			publishAsyncEvent(schema, data)
 		}
 
-		if schema.hasLocalCache {
+		if update.getEntity() == nil {
+			for field, newValue := range newBind {
+				fSetter := schema.fieldSetters[field]
+				if schema.hasLocalCache {
+					func() {
+						schema.localCache.mutex.Lock()
+						defer schema.localCache.mutex.Unlock()
+						fSetter(newValue, elem)
+					}()
+				} else {
+					fSetter(newValue, elem)
+				}
+			}
+		} else if schema.hasLocalCache {
 			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
 				sourceValue := update.getSourceValue()
 				func() {
@@ -514,6 +527,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				schema.localCache.setEntity(c, operation.ID(), update.getEntity())
 			})
 		}
+
 		if schema.hasRedisCache {
 			p := c.RedisPipeLine(schema.redisCache.GetCode())
 			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(update.ID(), 10)

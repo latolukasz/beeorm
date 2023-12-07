@@ -130,7 +130,8 @@ func TestLogTable(t *testing.T) {
 	entity.Name = "Tom"
 	entity.Age = 41
 	assert.NoError(t, c.Flush())
-	err = EditEntityField(c, entity, "Age", 42, true)
+	err = EditEntityField(c, entity, "Age", 42)
+	assert.NoError(t, err)
 	assert.NoError(t, c.Flush())
 	assert.NoError(t, runAsyncConsumer(c, false))
 	logs = Search[LogEntity[logTableEntity]](c, NewWhere("EntityID = ?", entity.ID), nil)
