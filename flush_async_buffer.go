@@ -16,7 +16,7 @@ func publishAsyncEvent(schema *entitySchema, event asyncTemporaryQueueEvent) {
 	schema.asyncTemporaryQueue.Enqueue(event)
 }
 
-func ConsumeAsyncFlushTemporaryEvents(c Context, errF func(err error)) (stop func()) {
+func ConsumeAsyncBuffer(c Context, errF func(err error)) (stop func()) {
 	engine := c.Engine().(*engineImplementation)
 	if engine.asyncTemporaryIsQueueRunning {
 		panic("consumer is already running")

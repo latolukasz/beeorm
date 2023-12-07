@@ -488,7 +488,7 @@ func runEditEntityField(c Context, entity *updateEntity, field string, value any
 		if err != nil {
 			return err
 		}
-		stop := ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+		stop := ConsumeAsyncBuffer(c, func(err error) {
 			panic(err)
 		})
 		stop()

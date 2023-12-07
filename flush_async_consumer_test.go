@@ -71,7 +71,7 @@ func TestAsyncConsumer(t *testing.T) {
 	var consumeErr error
 	consumerFinished := false
 	go func() {
-		stop := ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
+		stop := ConsumeAsyncBuffer(c2, func(err error) {
 			panic(err)
 		})
 		stop()
@@ -84,7 +84,7 @@ func TestAsyncConsumer(t *testing.T) {
 	reference.Name = "test reference block"
 	err = c.FlushAsync()
 	assert.NoError(t, err)
-	stop := ConsumeAsyncFlushTemporaryEvents(c2, func(err error) {
+	stop := ConsumeAsyncBuffer(c2, func(err error) {
 		panic(err)
 	})
 	stop()
@@ -112,7 +112,7 @@ func TestAsyncConsumer(t *testing.T) {
 	asyncEntitySecondRedis.Name = "test reference custom async group"
 	err = c.FlushAsync()
 	assert.NoError(t, err)
-	stop = ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+	stop = ConsumeAsyncBuffer(c, func(err error) {
 		panic(err)
 	})
 	stop()
@@ -172,7 +172,7 @@ func TestAsyncConsumer(t *testing.T) {
 }
 
 func runAsyncConsumer(c Context, block bool) error {
-	stop := ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+	stop := ConsumeAsyncBuffer(c, func(err error) {
 		panic(err)
 	})
 	stop()

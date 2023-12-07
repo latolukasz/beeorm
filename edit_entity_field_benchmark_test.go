@@ -53,7 +53,7 @@ func BenchmarkEditByFieldAsyncWithRedis(b *testing.B) {
 	GetByID[editByFieldAsyncBenchmarkEntity](c, entity.ID)
 	field := "Age"
 
-	stop := ConsumeAsyncFlushTemporaryEvents(c, func(err error) {
+	stop := ConsumeAsyncBuffer(c, func(err error) {
 		panic(err)
 	})
 

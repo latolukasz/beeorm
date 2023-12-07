@@ -33,7 +33,7 @@ func TestAsync(t *testing.T) {
 		err := c.FlushAsync()
 		assert.NoError(t, err)
 	}
-	stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
+	stop := ConsumeAsyncBuffer(c, func(error) {})
 	stop()
 
 	stats := ReadAsyncFlushEvents(c)
@@ -107,7 +107,7 @@ func TestAsyncGrouped(t *testing.T) {
 		entity3.Name = "b " + strconv.Itoa(i)
 		err := c.FlushAsync()
 		assert.NoError(t, err)
-		stop := ConsumeAsyncFlushTemporaryEvents(c, func(error) {})
+		stop := ConsumeAsyncBuffer(c, func(error) {})
 		stop()
 	}
 
