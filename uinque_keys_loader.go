@@ -60,7 +60,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				print(".")
 			}
 			total := uint64(0)
-			db.QueryRow(c, whereCount, []any{&total})
+			db.QueryRow(c, NewWhere(whereCount), &total)
 			if total == 0 {
 				if debug {
 					print(strings.Repeat(".", 100))

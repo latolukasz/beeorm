@@ -53,7 +53,7 @@ func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (
 	}
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE ID = ? LIMIT 1"
 	pointers := prepareScan(schema)
-	found := schema.GetDB().QueryRow(c, query, pointers, id)
+	found := schema.GetDB().QueryRow(c, NewWhere(query, id), pointers...)
 	if found {
 		value := reflect.New(schema.t)
 		entity = value.Interface().(*E)

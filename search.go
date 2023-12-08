@@ -259,7 +259,7 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	if schema.hasLocalCache {
 		query := "SELECT ID FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 		var id uint64
-		if pool.QueryRow(c, query, []any{&id}, where.parameters...) {
+		if pool.QueryRow(c, NewWhere(query, where.parameters...), &id) {
 			return GetByID[E](c, id)
 		}
 		return nil
@@ -268,7 +268,7 @@ func searchRow[E any](c Context, where *Where) (entity *E) {
 	/* #nosec */
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 	pointers := prepareScan(schema)
-	found := pool.QueryRow(c, query, pointers, where.GetParameters()...)
+	found := pool.QueryRow(c, NewWhere(query, where.GetParameters()...), pointers...)
 	if !found {
 		return nil
 	}
@@ -354,7 +354,7 @@ func getTotalRows(c Context, withCount bool, pager *Pager, where *Where, schema 
 			query := "SELECT count(1) FROM `" + schema.GetTableName() + "` WHERE " + where.String()
 			var foundTotal string
 			pool := schema.GetDB()
-			pool.QueryRow(c, query, where.GetParameters(), &foundTotal)
+			pool.QueryRow(c, NewWhere(query, where.GetParameters()...), &foundTotal)
 			totalRows, _ = strconv.Atoi(foundTotal)
 		} else {
 			totalRows += (pager.GetCurrentPage() - 1) * pager.GetPageSize()
