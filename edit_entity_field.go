@@ -7,11 +7,11 @@ import (
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
-func EditEntityField[E any](c Context, entity *E, field string, value any) error {
+func EditEntityField[E any](c Context, entity E, field string, value any) error {
 	return editEntityField(c, entity, field, value)
 }
 
-func editEntityField[E any](c Context, entity *E, field string, value any) error {
+func editEntityField[E any](c Context, entity E, field string, value any) error {
 	schema := getEntitySchema[E](c)
 	setter, has := schema.fieldBindSetters[field]
 	if !has {
