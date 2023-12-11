@@ -1015,10 +1015,12 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.NotNil(t, copiedEntity)
 	assert.NotEqual(t, copiedEntity.ID, editedEntity.ID)
 	assert.Equal(t, copiedEntity.Name, editedEntity.Name)
+	copiedEntity.City = "Copy"
+	copiedEntity.Name = "Copy"
 	assert.NoError(t, c.Flush())
 	copiedEntity = GetByID[flushEntity](c, copiedEntity.ID)
 	assert.NotNil(t, copiedEntity)
-	assert.Equal(t, copiedEntity.Name, editedEntity.Name)
+	assert.Equal(t, copiedEntity.Age, editedEntity.Age)
 
 	// invalid values
 

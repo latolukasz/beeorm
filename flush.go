@@ -522,7 +522,7 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				func() {
 					schema.localCache.mutex.Lock()
 					defer schema.localCache.mutex.Unlock()
-					copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.fields)
+					copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.fields, true)
 				}()
 				schema.localCache.setEntity(c, operation.ID(), update.getEntity())
 			})

@@ -7,7 +7,7 @@ import (
 func Copy[E any](c Context, source E) E {
 	schema := c.Engine().Registry().EntitySchema(source).(*entitySchema)
 	insertable := newEntityInsertable(c, schema)
-	copyEntity(reflect.ValueOf(source), insertable.value.Elem(), schema.fields)
+	copyEntity(reflect.ValueOf(source).Elem(), insertable.value.Elem(), schema.fields, false)
 	return insertable.entity.(E)
 }
 
@@ -20,13 +20,19 @@ func copyToEdit[E any](c Context, source *E) *editableEntity[E] {
 	writable.entity = value.Interface().(*E)
 	writable.value = value
 	writable.sourceValue = reflect.ValueOf(source)
-	copyEntity(writable.sourceValue.Elem(), value.Elem(), schema.fields)
+	copyEntity(writable.sourceValue.Elem(), value.Elem(), schema.fields, true)
 	return writable
 }
 
-func copyEntity(source, target reflect.Value, fields *tableFields) {
-	for _, i := range fields.uIntegers {
-		target.Field(i).SetUint(source.Field(i).Uint())
+func copyEntity(source, target reflect.Value, fields *tableFields, withID bool) {
+	if withID {
+		for _, i := range fields.uIntegers {
+			target.Field(i).SetUint(source.Field(i).Uint())
+		}
+	} else {
+		for _, i := range fields.uIntegers[1:] {
+			target.Field(i).SetUint(source.Field(i).Uint())
+		}
 	}
 	for _, i := range fields.uIntegersArray {
 		fTarget := target.Field(i)
@@ -152,13 +158,13 @@ func copyEntity(source, target reflect.Value, fields *tableFields) {
 		copyField(source, target, fields, i)
 	}
 	for k, i := range fields.structs {
-		copyEntity(source.Field(i), target.Field(i), fields.structsFields[k])
+		copyEntity(source.Field(i), target.Field(i), fields.structsFields[k], true)
 	}
 	for k, i := range fields.structsArray {
 		fTarget := target.Field(i)
 		fSource := source.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			copyEntity(fSource.Index(j), fTarget.Index(j), fields.structsFieldsArray[k])
+			copyEntity(fSource.Index(j), fTarget.Index(j), fields.structsFieldsArray[k], true)
 		}
 	}
 }
