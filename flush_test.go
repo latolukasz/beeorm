@@ -218,7 +218,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	c.RegisterQueryLogger(loggerRedis, false, true, false)
 
 	// Adding empty entity
-	newEntity := NewEntity[flushEntity](c)
+	newEntity := schema.NewEntity(c).(*flushEntity)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)

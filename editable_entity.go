@@ -43,39 +43,35 @@ type EntityFlushedEvent interface {
 	FlushType() FlushType
 }
 
-type writableEntity[E any] struct {
+type writableEntity struct {
 	c      Context
 	schema *entitySchema
 }
 
-func (w *writableEntity[E]) Schema() *entitySchema {
+func (w *writableEntity) Schema() *entitySchema {
 	return w.schema
 }
 
-type insertableEntity[E any] struct {
-	writableEntity[E]
-	entity *E
+type insertableEntity struct {
+	writableEntity
+	entity any
 	id     uint64
 	value  reflect.Value
 }
 
-func (m *insertableEntity[E]) ID() uint64 {
+func (m *insertableEntity) ID() uint64 {
 	return m.id
 }
 
-func (m *insertableEntity[E]) TrackedEntity() *E {
+func (m *insertableEntity) getEntity() any {
 	return m.entity
 }
 
-func (m *insertableEntity[E]) getEntity() any {
-	return m.entity
-}
-
-func (m *insertableEntity[E]) flushType() FlushType {
+func (m *insertableEntity) flushType() FlushType {
 	return Insert
 }
 
-func (m *insertableEntity[E]) getValue() reflect.Value {
+func (m *insertableEntity) getValue() reflect.Value {
 	return m.value
 }
 
@@ -96,7 +92,7 @@ func (e *editableEntity[E]) getSourceValue() reflect.Value {
 }
 
 type removableEntity[E any] struct {
-	writableEntity[E]
+	writableEntity
 	id     uint64
 	value  reflect.Value
 	source *E
@@ -115,7 +111,7 @@ func (r *removableEntity[E]) getValue() reflect.Value {
 }
 
 type editableEntity[E any] struct {
-	writableEntity[E]
+	writableEntity
 	entity      *E
 	id          uint64
 	value       reflect.Value
@@ -124,7 +120,7 @@ type editableEntity[E any] struct {
 }
 
 type editableFields[E any] struct {
-	writableEntity[E]
+	writableEntity
 	id      uint64
 	value   reflect.Value
 	newBind Bind
@@ -172,20 +168,23 @@ func (e *editableEntity[E]) SourceEntity() *E {
 }
 
 func NewEntity[E any](c Context) *E {
-	newEntity := &insertableEntity[E]{}
-	newEntity.c = c
-	schema := getEntitySchema[E](c)
-	newEntity.schema = schema
+	return newEntity(c, getEntitySchema[E](c)).(*E)
+}
+
+func newEntity(c Context, schema *entitySchema) any {
+	entity := &insertableEntity{}
+	entity.c = c
+	entity.schema = schema
 	value := reflect.New(schema.t)
 	elem := value.Elem()
 	initNewEntity(elem, schema.fields)
-	newEntity.entity = value.Interface().(*E)
+	entity.entity = value.Interface()
 	id := schema.uuid()
-	newEntity.id = id
+	entity.id = id
 	elem.Field(0).SetUint(id)
-	newEntity.value = value
-	c.trackEntity(newEntity)
-	return newEntity.getEntity().(*E)
+	entity.value = value
+	c.trackEntity(entity)
+	return entity.getEntity()
 }
 
 func DeleteEntity[E any](c Context, source *E) {

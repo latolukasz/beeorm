@@ -73,7 +73,7 @@ func editEntityField[E any](c Context, entity *E, field string, value any) error
 				fSetter(newValue, editableE.value)
 				return
 			}
-			insertableE, is := actual.(*insertableEntity[E])
+			insertableE, is := actual.(*insertableEntity)
 			if is {
 				fSetter(newValue, insertableE.value)
 				return

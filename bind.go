@@ -41,7 +41,7 @@ func (b Bind) Get(key string) any {
 	return b[key]
 }
 
-func (m *insertableEntity[E]) getBind() (Bind, error) {
+func (m *insertableEntity) getBind() (Bind, error) {
 	bind := Bind{}
 	bind["ID"] = m.id
 	schema := m.Schema()
