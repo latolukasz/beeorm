@@ -171,7 +171,7 @@ func NewEntity[E any](c Context) *E {
 	return newEntity(c, getEntitySchema[E](c)).(*E)
 }
 
-func newEntity(c Context, schema *entitySchema) any {
+func newEntityInsertable(c Context, schema *entitySchema) *insertableEntity {
 	entity := &insertableEntity{}
 	entity.c = c
 	entity.schema = schema
@@ -184,7 +184,11 @@ func newEntity(c Context, schema *entitySchema) any {
 	elem.Field(0).SetUint(id)
 	entity.value = value
 	c.trackEntity(entity)
-	return entity.getEntity()
+	return entity
+}
+
+func newEntity(c Context, schema *entitySchema) any {
+	return newEntityInsertable(c, schema).entity
 }
 
 func DeleteEntity[E any](c Context, source *E) {

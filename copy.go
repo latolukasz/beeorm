@@ -4,8 +4,11 @@ import (
 	"reflect"
 )
 
-func Copy[E any](c Context, source *E) *E {
-	return copyToEdit[E](c, source).entity
+func Copy[E any](c Context, source E) E {
+	schema := c.Engine().Registry().EntitySchema(source).(*entitySchema)
+	insertable := newEntityInsertable(c, schema)
+	copyEntity(reflect.ValueOf(source), insertable.value.Elem(), schema.fields)
+	return insertable.entity.(E)
 }
 
 func copyToEdit[E any](c Context, source *E) *editableEntity[E] {

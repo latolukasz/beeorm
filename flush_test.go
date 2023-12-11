@@ -1010,6 +1010,16 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, testFlush(c, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
+	// copy entity
+	copiedEntity := Copy(c, editedEntity)
+	assert.NotNil(t, copiedEntity)
+	assert.NotEqual(t, copiedEntity.ID, editedEntity.ID)
+	assert.Equal(t, copiedEntity.Name, editedEntity.Name)
+	assert.NoError(t, c.Flush())
+	copiedEntity = GetByID[flushEntity](c, copiedEntity.ID)
+	assert.NotNil(t, copiedEntity)
+	assert.Equal(t, copiedEntity.Name, editedEntity.Name)
+
 	// invalid values
 
 	// empty string
