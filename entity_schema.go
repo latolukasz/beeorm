@@ -56,6 +56,7 @@ type EntitySchema interface {
 	GetSchemaChanges(c Context) (alters []Alter, has bool)
 	DisableCache(local, redis bool)
 	NewEntity(c Context) any
+	GetByID(c Context, id uint64) any
 	getCacheKey() string
 	uuid() uint64
 	getForcedRedisCode() string
@@ -481,6 +482,10 @@ func (e *entitySchema) DisableCache(local, redis bool) {
 
 func (e *entitySchema) NewEntity(c Context) any {
 	return newEntity(c, c.Engine().Registry().EntitySchema(e.t).(*entitySchema))
+}
+
+func (e *entitySchema) GetByID(c Context, id uint64) any {
+	return getByID(c.(*contextImplementation), id, c.Engine().Registry().EntitySchema(e.t).(*entitySchema))
 }
 
 func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,

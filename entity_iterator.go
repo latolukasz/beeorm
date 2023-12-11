@@ -55,7 +55,11 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 	if lc.hasRows {
 		return lc.rows[lc.index]
 	}
-	return getByID[E](lc.c, lc.ids[lc.index], lc.schema)
+	value := getByID(lc.c, lc.ids[lc.index], lc.schema)
+	if value == nil {
+		return nil
+	}
+	return value.(*E)
 }
 
 type emptyResultsIterator[E any] struct{}

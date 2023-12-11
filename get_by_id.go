@@ -13,18 +13,21 @@ func GetByID[E any](c Context, id uint64) (entity *E) {
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
-	entity = getByID[E](cE, id, schema)
-	return
+	value := getByID(cE, id, schema)
+	if value == nil {
+		return nil
+	}
+	return value.(*E)
 }
 
-func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (entity *E) {
+func getByID(c *contextImplementation, id uint64, schema *entitySchema) (entity any) {
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(c, id)
 		if has {
 			if e == nil {
 				return
 			}
-			entity = e.(*E)
+			entity = e
 			return
 		}
 	}
@@ -42,7 +45,7 @@ func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (
 				return
 			}
 			value := reflect.New(schema.t)
-			entity = value.Interface().(*E)
+			entity = value.Interface()
 			if deserializeFromRedis(row, schema, value.Elem()) {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(c, id, entity)
@@ -56,7 +59,7 @@ func getByID[E any](c *contextImplementation, id uint64, schema *entitySchema) (
 	found := schema.GetDB().QueryRow(c, NewWhere(query, id), pointers...)
 	if found {
 		value := reflect.New(schema.t)
-		entity = value.Interface().(*E)
+		entity = value.Interface()
 		deserializeFromDB(schema.fields, value.Elem(), pointers)
 	}
 	if entity == nil {

@@ -64,7 +64,7 @@ func testGetByID(t *testing.T, local, redis bool) {
 		rc, _ := schema.GetRedisCache()
 		rc.FlushDB(c)
 	}
-	entity = GetByID[getByIDEntity](c, ids[0])
+	entity = schema.GetByID(c, ids[0]).(*getByIDEntity)
 	assert.NotNil(t, entity)
 	assert.Equal(t, "Name 0", entity.Name)
 	assert.Len(t, loggerDB.Logs, 1)
