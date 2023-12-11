@@ -165,7 +165,7 @@ func TestPlugin(t *testing.T) {
 	entity = beeorm.GetByID[testPluginModifiedEntity](c, entity.ID)
 	assert.Equal(t, "g", entity.Name)
 
-	beeorm.DeleteEntity[testPluginModifiedEntity](c, entity)
+	beeorm.DeleteEntity(c, entity)
 	assert.NoError(t, c.Flush())
 
 	assert.PanicsWithError(t, "at least one column name must be defined", func() {

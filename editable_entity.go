@@ -95,14 +95,14 @@ type removableEntity[E any] struct {
 	writableEntity
 	id     uint64
 	value  reflect.Value
-	source *E
+	source E
 }
 
 func (r *removableEntity[E]) flushType() FlushType {
 	return Delete
 }
 
-func (r *removableEntity[E]) SourceEntity() *E {
+func (r *removableEntity[E]) SourceEntity() E {
 	return r.source
 }
 
@@ -191,7 +191,7 @@ func newEntity(c Context, schema *entitySchema) any {
 	return newEntityInsertable(c, schema).entity
 }
 
-func DeleteEntity[E any](c Context, source *E) {
+func DeleteEntity[E any](c Context, source E) {
 	toRemove := &removableEntity[E]{}
 	toRemove.c = c
 	toRemove.source = source
