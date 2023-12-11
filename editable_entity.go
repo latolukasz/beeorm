@@ -112,11 +112,11 @@ func (r *removableEntity[E]) getValue() reflect.Value {
 
 type editableEntity[E any] struct {
 	writableEntity
-	entity      *E
+	entity      E
 	id          uint64
 	value       reflect.Value
 	sourceValue reflect.Value
-	source      *E
+	source      E
 }
 
 type editableFields[E any] struct {
@@ -159,11 +159,11 @@ func (r *removableEntity[E]) ID() uint64 {
 	return r.id
 }
 
-func (e *editableEntity[E]) TrackedEntity() *E {
+func (e *editableEntity[E]) TrackedEntity() E {
 	return e.entity
 }
 
-func (e *editableEntity[E]) SourceEntity() *E {
+func (e *editableEntity[E]) SourceEntity() E {
 	return e.source
 }
 
@@ -202,8 +202,8 @@ func DeleteEntity[E any](c Context, source *E) {
 	c.trackEntity(toRemove)
 }
 
-func EditEntity[E any](c Context, source *E) *E {
-	writable := copyToEdit[E](c, source)
+func EditEntity[E any](c Context, source E) E {
+	writable := copyToEdit(c, source)
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source
 	c.trackEntity(writable)

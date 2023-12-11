@@ -23,7 +23,7 @@ func GetEntitySchema[E any](c Context) EntitySchema {
 func getEntitySchema[E any](c Context) *entitySchema {
 	ci := c.(*contextImplementation)
 	var entity E
-	schema, has := ci.engine.registry.entitySchemas[reflect.TypeOf(entity)]
+	schema, has := ci.engine.registry.entitySchemasQuickMap[reflect.TypeOf(entity)]
 	if !has {
 		panic(fmt.Errorf("entity '%T' is not registered", entity))
 	}

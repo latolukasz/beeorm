@@ -158,7 +158,7 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	// update change id
-	entity = EditEntity[getByReferenceEntity](c, entities[3])
+	entity = EditEntity(c, entities[3])
 	entity.Ref = &Reference[getByReferenceReference]{ID: ref2.ID}
 	entity.RefCached = &Reference[getByReferenceReference]{ID: ref2.ID}
 	entity.RefCachedNoCache = &Reference[getByReferenceReferenceNoCache]{ID: refNoCache2.ID}

@@ -37,6 +37,7 @@ type engineRegistryImplementation struct {
 	engine                 *engineImplementation
 	entities               map[string]reflect.Type
 	entitySchemas          map[reflect.Type]*entitySchema
+	entitySchemasQuickMap  map[reflect.Type]*entitySchema
 	entityLogSchemas       map[reflect.Type]*entitySchema
 	defaultQueryLogger     *defaultLogLogger
 	dbTables               map[string]map[string]bool

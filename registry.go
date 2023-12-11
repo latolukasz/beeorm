@@ -49,6 +49,7 @@ func (r *registry) Validate() (Engine, error) {
 	e.registry.asyncConsumerBlockTime = asyncConsumerBlockTime
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
+	e.registry.entitySchemasQuickMap = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
 	e.options = make(map[string]any)
@@ -136,6 +137,8 @@ func (r *registry) Validate() (Engine, error) {
 			return nil, err
 		}
 		e.registry.entitySchemas[entityType] = schema
+		e.registry.entitySchemasQuickMap[entityType] = schema
+		e.registry.entitySchemasQuickMap[reflect.PointerTo(entityType)] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
 			r.localCaches[schema.getCacheKey()] = newLocalCache(schema.getCacheKey(), schema.localCacheLimit, schema)
