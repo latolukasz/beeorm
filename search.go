@@ -289,7 +289,6 @@ func search[E any](c Context, where *Where, pager *Pager, withCount bool) (resul
 		return &localCacheIDsIterator[E]{c: c.(*contextImplementation), schema: schema, ids: ids, index: -1}, total
 	}
 	whereQuery := where.String()
-	/* #nosec */
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
 	if pager != nil {
 		query += " " + pager.String()

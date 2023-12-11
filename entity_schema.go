@@ -57,6 +57,10 @@ type EntitySchema interface {
 	DisableCache(local, redis bool)
 	NewEntity(c Context) any
 	GetByID(c Context, id uint64) any
+	Search(c Context, where *Where, pager *Pager) EntityAnonymousIterator
+	SearchWithCount(c Context, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int)
+	SearchIDs(c Context, where *Where, pager *Pager) []uint64
+	SearchIDsWithCount(c Context, where *Where, pager *Pager) (results []uint64, totalRows int)
 	getCacheKey() string
 	uuid() uint64
 	getForcedRedisCode() string
@@ -486,6 +490,64 @@ func (e *entitySchema) NewEntity(c Context) any {
 
 func (e *entitySchema) GetByID(c Context, id uint64) any {
 	return getByID(c.(*contextImplementation), id, c.Engine().Registry().EntitySchema(e.t).(*entitySchema))
+}
+
+func (e *entitySchema) SearchWithCount(c Context, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int) {
+	return e.search(c, where, pager, true)
+}
+
+func (e *entitySchema) Search(c Context, where *Where, pager *Pager) EntityAnonymousIterator {
+	results, _ := e.search(c, where, pager, false)
+	return results
+}
+
+func (e *entitySchema) SearchIDs(c Context, where *Where, pager *Pager) []uint64 {
+	schema := c.Engine().Registry().EntitySchema(e.t).(*entitySchema)
+	ids, _ := searchIDs(c, schema, where, pager, false)
+	return ids
+}
+
+func (e *entitySchema) SearchIDsWithCount(c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
+	schema := c.Engine().Registry().EntitySchema(e.t).(*entitySchema)
+	return searchIDs(c, schema, where, pager, true)
+}
+
+func (e *entitySchema) search(c Context, where *Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {
+	schema := c.Engine().Registry().EntitySchema(e.t).(*entitySchema)
+	entities := reflect.New(reflect.SliceOf(e.t))
+	if schema.hasLocalCache {
+		ids, total := searchIDs(c, schema, where, pager, withCount)
+		if total == 0 {
+			return emptyResultsAnonymousIteratorInstance, 0
+		}
+		return &localCacheIDsAnonymousIterator{c: c.(*contextImplementation), schema: schema, ids: ids, index: -1}, total
+	}
+	whereQuery := where.String()
+	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
+	if pager != nil {
+		query += " " + pager.String()
+	}
+	pool := schema.GetDB()
+	queryResults, def := pool.Query(c, query, where.GetParameters()...)
+	defer def()
+
+	i := 0
+	for queryResults.Next() {
+		pointers := prepareScan(schema)
+		queryResults.Scan(pointers...)
+		value := reflect.New(schema.t)
+		deserializeFromDB(schema.fields, value.Elem(), pointers)
+		entities = reflect.Append(entities, value)
+		i++
+	}
+	def()
+	totalRows = i
+	if pager != nil {
+		totalRows = getTotalRows(c, withCount, pager, where, schema, i)
+	}
+	resultsIterator := &entityAnonymousIterator{index: -1}
+	resultsIterator.rows = entities
+	return resultsIterator, totalRows
 }
 
 func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
