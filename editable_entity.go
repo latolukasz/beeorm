@@ -227,3 +227,31 @@ func initNewEntity(elem reflect.Value, fields *tableFields) {
 		}
 	}
 }
+
+func IsDirty[E any](c Context, id uint64) (oldValues, newValues Bind, hasChanges bool) {
+	tracked := c.(*contextImplementation).trackedEntities
+	if tracked == nil {
+		return nil, nil, false
+	}
+	schema := getEntitySchema[E](c)
+	if schema == nil {
+		return nil, nil, false
+	}
+	values, has := tracked.Load(schema.index)
+	if !has {
+		return nil, nil, false
+	}
+	row, has := values.Load(id)
+	if !has {
+		return nil, nil, false
+	}
+	editable, is := row.(entityFlushUpdate)
+	if !is {
+		return nil, nil, false
+	}
+	oldValues, newValues, _ = editable.getBind()
+	if len(oldValues) == 0 && len(newValues) == 0 {
+		return nil, nil, false
+	}
+	return oldValues, newValues, true
+}

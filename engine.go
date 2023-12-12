@@ -16,6 +16,7 @@ type EngineRegistry interface {
 	RedisPools() map[string]RedisCache
 	Entities() map[string]reflect.Type
 	Option(key string) any
+	Enums() map[string][]string
 	getDefaultQueryLogger() LogHandler
 	getDBTables() map[string]map[string]bool
 }
@@ -42,6 +43,7 @@ type engineRegistryImplementation struct {
 	defaultQueryLogger     *defaultLogLogger
 	dbTables               map[string]map[string]bool
 	options                map[string]any
+	enums                  map[string][]string
 	asyncConsumerBlockTime time.Duration
 }
 
@@ -128,6 +130,10 @@ func (er *engineRegistryImplementation) Entities() map[string]reflect.Type {
 
 func (er *engineRegistryImplementation) Option(key string) any {
 	return er.options[key]
+}
+
+func (er *engineRegistryImplementation) Enums() map[string][]string {
+	return er.enums
 }
 
 func (er *engineRegistryImplementation) getDefaultQueryLogger() LogHandler {

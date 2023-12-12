@@ -13,6 +13,7 @@ type enumDefinition struct {
 	mapping      map[string]int
 	required     bool
 	defaultValue string
+	name         string
 }
 
 func (d *enumDefinition) GetFields() []string {
@@ -32,6 +33,7 @@ func initEnumDefinition(def any, required bool) *enumDefinition {
 	enum := &enumDefinition{required: required}
 	e := reflect.ValueOf(def)
 	enum.mapping = make(map[string]int)
+	enum.name = reflect.TypeOf(def).Name()
 	enum.fields = make([]string, 0)
 	for i := 0; i < e.Type().NumField(); i++ {
 		name := e.Field(i).String()

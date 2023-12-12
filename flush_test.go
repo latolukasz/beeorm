@@ -833,6 +833,13 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		editedEntity.FlushStructArray[i].Sub.Age3 = i + 1
 	}
 
+	oldValues, newValues, isDirty := IsDirty[flushEntity](c, editedEntity.ID)
+	assert.True(t, isDirty)
+	assert.NotNil(t, oldValues)
+	assert.NotNil(t, newValues)
+	assert.Len(t, oldValues, 93)
+	assert.Len(t, newValues, 91)
+
 	loggerLocal.Clear()
 	assert.NoError(t, testFlush(c, async))
 	if !async {
