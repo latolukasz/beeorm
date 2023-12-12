@@ -229,11 +229,14 @@ func initNewEntity(elem reflect.Value, fields *tableFields) {
 }
 
 func IsDirty[E any](c Context, id uint64) (oldValues, newValues Bind, hasChanges bool) {
+	return isDirty(c, getEntitySchema[E](c), id)
+}
+
+func isDirty(c Context, schema *entitySchema, id uint64) (oldValues, newValues Bind, hasChanges bool) {
 	tracked := c.(*contextImplementation).trackedEntities
 	if tracked == nil {
 		return nil, nil, false
 	}
-	schema := getEntitySchema[E](c)
 	if schema == nil {
 		return nil, nil, false
 	}

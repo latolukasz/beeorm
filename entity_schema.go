@@ -61,6 +61,7 @@ type EntitySchema interface {
 	SearchWithCount(c Context, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int)
 	SearchIDs(c Context, where *Where, pager *Pager) []uint64
 	SearchIDsWithCount(c Context, where *Where, pager *Pager) (results []uint64, totalRows int)
+	IsDirty(c Context, id uint64) (oldValues, newValues Bind, hasChanges bool)
 	getCacheKey() string
 	uuid() uint64
 	getForcedRedisCode() string
@@ -510,6 +511,10 @@ func (e *entitySchema) SearchIDs(c Context, where *Where, pager *Pager) []uint64
 func (e *entitySchema) SearchIDsWithCount(c Context, where *Where, pager *Pager) (results []uint64, totalRows int) {
 	schema := c.Engine().Registry().EntitySchema(e.t).(*entitySchema)
 	return searchIDs(c, schema, where, pager, true)
+}
+
+func (e *entitySchema) IsDirty(c Context, id uint64) (oldValues, newValues Bind, hasChanges bool) {
+	return isDirty(c, c.Engine().Registry().EntitySchema(e.t).(*entitySchema), id)
 }
 
 func (e *entitySchema) search(c Context, where *Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {
