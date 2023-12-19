@@ -45,7 +45,7 @@ func (m *insertableEntity) getBind() (Bind, error) {
 	bind := Bind{}
 	bind["ID"] = m.id
 	schema := m.Schema()
-	err := fillBindFromOneSource(m.c, bind, m.value.Elem(), schema.fields, "")
+	err := fillBindFromOneSource(m.orm, bind, m.value.Elem(), schema.fields, "")
 	if err != nil {
 		return nil, err
 	}
@@ -55,14 +55,14 @@ func (m *insertableEntity) getBind() (Bind, error) {
 func (e *editableEntity[E]) getBind() (newBind, oldBind Bind, err error) {
 	newBind = Bind{}
 	oldBind = Bind{}
-	err = fillBindFromTwoSources(e.c, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), getEntitySchema[E](e.c).fields, "")
+	err = fillBindFromTwoSources(e.orm, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), getEntitySchema[E](e.orm).fields, "")
 	return
 }
 
 func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
 	bind = Bind{}
 	schema := r.Schema()
-	err = fillBindFromOneSource(r.c, bind, reflect.ValueOf(r.source).Elem(), schema.fields, "")
+	err = fillBindFromOneSource(r.orm, bind, reflect.ValueOf(r.source).Elem(), schema.fields, "")
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func fillBindForDatesNullable(bind Bind, f reflect.Value, column string) error {
 	return nil
 }
 
-func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
+func fillBindFromOneSource(orm ORM, bind Bind, source reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
 		bind[prefix+fields.fields[i].Name] = source.Field(i).Uint()
 	}
@@ -507,7 +507,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
-		err := fillBindFromOneSource(c, bind, source.Field(i), sub, prefix+sub.prefix)
+		err := fillBindFromOneSource(orm, bind, source.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
 		}
@@ -516,7 +516,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 		f := source.Field(i)
 		sub := fields.structsFieldsArray[j]
 		for k := 0; k < fields.arrays[i]; k++ {
-			err := fillBindFromOneSource(c, bind, f.Index(k), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
+			err := fillBindFromOneSource(orm, bind, f.Index(k), sub, prefix+sub.prefix+"_"+strconv.Itoa(k+1)+"_")
 			if err != nil {
 				return err
 			}
@@ -525,7 +525,7 @@ func fillBindFromOneSource(c Context, bind Bind, source reflect.Value, fields *t
 	return nil
 }
 
-func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflect.Value, fields *tableFields, prefix string) error {
+func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
 		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
 	}
@@ -783,7 +783,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
-		err := fillBindFromTwoSources(c, bind, oldBind, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
+		err := fillBindFromTwoSources(orm, bind, oldBind, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
 		}
@@ -793,7 +793,7 @@ func fillBindFromTwoSources(c Context, bind, oldBind Bind, source, before reflec
 		f2 := before.Field(i)
 		sub := fields.structsFieldsArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindFromTwoSources(c, bind, oldBind, f1.Index(j), f2.Index(j), sub, prefix+sub.prefix+"_"+strconv.Itoa(j+1)+"_")
+			err := fillBindFromTwoSources(orm, bind, oldBind, f1.Index(j), f2.Index(j), sub, prefix+sub.prefix+"_"+strconv.Itoa(j+1)+"_")
 			if err != nil {
 				return err
 			}

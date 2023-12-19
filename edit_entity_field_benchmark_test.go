@@ -14,15 +14,15 @@ type editByFieldAsyncBenchmarkEntity struct {
 // BenchmarkEditByFieldAsync-10    	 2966167	       406.7 ns/op	     536 B/op	       9 allocs/op
 func BenchmarkEditByFieldAsync(b *testing.B) {
 	var entity *editByFieldAsyncBenchmarkEntity
-	c := PrepareTables(nil, NewRegistry(), entity)
-	entity = NewEntity[editByFieldAsyncBenchmarkEntity](c)
+	orm := PrepareTables(nil, NewRegistry(), entity)
+	entity = NewEntity[editByFieldAsyncBenchmarkEntity](orm)
 	entity.Age = 0
-	assert.NoError(b, c.Flush())
+	assert.NoError(b, orm.Flush())
 
-	GetByID[editByFieldAsyncBenchmarkEntity](c, entity.ID)
+	GetByID[editByFieldAsyncBenchmarkEntity](orm, entity.ID)
 	field := "Age"
 
-	schema := getEntitySchema[editByFieldAsyncBenchmarkEntity](c)
+	schema := getEntitySchema[editByFieldAsyncBenchmarkEntity](orm)
 
 	go func() {
 		for {
@@ -36,8 +36,8 @@ func BenchmarkEditByFieldAsync(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = EditEntityField(c, entity, field, n)
-		_ = c.FlushAsync()
+		_ = EditEntityField(orm, entity, field, n)
+		_ = orm.FlushAsync()
 	}
 	publishAsyncEvent(schema, nil)
 }
@@ -45,23 +45,23 @@ func BenchmarkEditByFieldAsync(b *testing.B) {
 // BenchmarkEditByFieldAsyncWithRedis-10    	  908324	      1304 ns/op	     688 B/op	      13 allocs/op
 func BenchmarkEditByFieldAsyncWithRedis(b *testing.B) {
 	var entity *editByFieldAsyncBenchmarkEntity
-	c := PrepareTables(nil, NewRegistry(), entity)
-	entity = NewEntity[editByFieldAsyncBenchmarkEntity](c)
+	orm := PrepareTables(nil, NewRegistry(), entity)
+	entity = NewEntity[editByFieldAsyncBenchmarkEntity](orm)
 	entity.Age = 0
-	assert.NoError(b, c.Flush())
+	assert.NoError(b, orm.Flush())
 
-	GetByID[editByFieldAsyncBenchmarkEntity](c, entity.ID)
+	GetByID[editByFieldAsyncBenchmarkEntity](orm, entity.ID)
 	field := "Age"
 
-	stop := ConsumeAsyncBuffer(c, func(err error) {
+	stop := ConsumeAsyncBuffer(orm, func(err error) {
 		panic(err)
 	})
 
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		_ = EditEntityField(c, entity, field, n)
-		_ = c.FlushAsync()
+		_ = EditEntityField(orm, entity, field, n)
+		_ = orm.FlushAsync()
 	}
 	stop()
 }

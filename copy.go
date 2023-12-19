@@ -4,18 +4,18 @@ import (
 	"reflect"
 )
 
-func Copy[E any](c Context, source E) E {
-	schema := c.Engine().Registry().EntitySchema(source).(*entitySchema)
-	insertable := newEntityInsertable(c, schema)
+func Copy[E any](orm ORM, source E) E {
+	schema := orm.Engine().Registry().EntitySchema(source).(*entitySchema)
+	insertable := newEntityInsertable(orm, schema)
 	copyEntity(reflect.ValueOf(source).Elem(), insertable.value.Elem(), schema.fields, false)
 	return insertable.entity.(E)
 }
 
-func copyToEdit[E any](c Context, source E) *editableEntity[E] {
-	schema := getEntitySchema[E](c)
+func copyToEdit[E any](orm ORM, source E) *editableEntity[E] {
+	schema := getEntitySchema[E](orm)
 	value := reflect.New(schema.t)
 	writable := &editableEntity[E]{}
-	writable.c = c
+	writable.orm = orm
 	writable.schema = schema
 	writable.entity = value.Interface().(E)
 	writable.value = value

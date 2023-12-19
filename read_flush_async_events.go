@@ -13,7 +13,7 @@ type AsyncFlushEvents interface {
 }
 
 type asyncFlushEvents struct {
-	c             Context
+	orm           ORM
 	listName      string
 	redisPoolName string
 	schemas       []EntitySchema
@@ -34,18 +34,18 @@ func (s *asyncFlushEvents) EntitySchemas() []EntitySchema {
 }
 
 func (s *asyncFlushEvents) EventsCount() uint64 {
-	r := s.c.Engine().Redis(s.redisPoolName)
-	return uint64(r.LLen(s.c, s.listName))
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	return uint64(r.LLen(s.orm, s.listName))
 }
 
 func (s *asyncFlushEvents) ErrorsCount() uint64 {
-	r := s.c.Engine().Redis(s.redisPoolName)
-	return uint64(r.LLen(s.c, s.listName+flushAsyncEventsListErrorSuffix)) / 2
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	return uint64(r.LLen(s.orm, s.listName+flushAsyncEventsListErrorSuffix)) / 2
 }
 
 func (s *asyncFlushEvents) Events(total int) []FlushEvent {
-	r := s.c.Engine().Redis(s.redisPoolName)
-	events := r.LRange(s.c, s.listName, 0, int64(total-1))
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	events := r.LRange(s.orm, s.listName, 0, int64(total-1))
 	results := make([]FlushEvent, len(events))
 	for i, event := range events {
 		var data []string
@@ -61,8 +61,8 @@ func (s *asyncFlushEvents) Events(total int) []FlushEvent {
 }
 
 func (s *asyncFlushEvents) Errors(total int) []FlushEventWithError {
-	r := s.c.Engine().Redis(s.redisPoolName)
-	events := r.LRange(s.c, s.listName+flushAsyncEventsListErrorSuffix, 0, int64(total*2-1))
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	events := r.LRange(s.orm, s.listName+flushAsyncEventsListErrorSuffix, 0, int64(total*2-1))
 	results := make([]FlushEventWithError, len(events)/2)
 	k := 0
 	for i, event := range events {
@@ -84,26 +84,26 @@ func (s *asyncFlushEvents) Errors(total int) []FlushEventWithError {
 }
 
 func (s *asyncFlushEvents) TrimEvents(total int) {
-	r := s.c.Engine().Redis(s.redisPoolName)
-	r.Ltrim(s.c, s.listName, int64(total), int64(-total))
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	r.Ltrim(s.orm, s.listName, int64(total), int64(-total))
 }
 
 func (s *asyncFlushEvents) TrimErrors(total int) {
 	total = total * 2
-	r := s.c.Engine().Redis(s.redisPoolName)
-	r.Ltrim(s.c, s.listName+flushAsyncEventsListErrorSuffix, int64(total), int64(-total))
+	r := s.orm.Engine().Redis(s.redisPoolName)
+	r.Ltrim(s.orm, s.listName+flushAsyncEventsListErrorSuffix, int64(total), int64(-total))
 }
 
-func ReadAsyncFlushEvents(c Context) []AsyncFlushEvents {
+func ReadAsyncFlushEvents(orm ORM) []AsyncFlushEvents {
 	stats := make([]AsyncFlushEvents, 0)
 	mapped := make(map[string]*asyncFlushEvents)
-	for _, schema := range c.Engine().Registry().(*engineRegistryImplementation).entitySchemas {
+	for _, schema := range orm.Engine().Registry().(*engineRegistryImplementation).entitySchemas {
 		stat, has := mapped[schema.asyncCacheKey]
 		if has {
 			stat.schemas = append(stat.schemas, schema)
 			continue
 		}
-		stat = &asyncFlushEvents{c: c, schemas: []EntitySchema{schema}, listName: schema.asyncCacheKey,
+		stat = &asyncFlushEvents{orm: orm, schemas: []EntitySchema{schema}, listName: schema.asyncCacheKey,
 			redisPoolName: schema.getForcedRedisCode()}
 		stats = append(stats, stat)
 		mapped[schema.asyncCacheKey] = stat

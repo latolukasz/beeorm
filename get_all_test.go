@@ -36,41 +36,41 @@ func TestGetAllLocalRedisCache(t *testing.T) {
 func testGetAll(t *testing.T, local, redis bool) {
 	var entity *getByAllCachedEntity
 	var entityNotCached *getByAllNotCachedEntity
-	c := PrepareTables(t, NewRegistry(), entity, entityNotCached)
-	schema := GetEntitySchema[getByAllCachedEntity](c)
+	orm := PrepareTables(t, NewRegistry(), entity, entityNotCached)
+	schema := GetEntitySchema[getByAllCachedEntity](orm)
 	schema.DisableCache(!local, !redis)
 
 	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
 
 	// getting missing rows
-	rows := GetAll[getByAllCachedEntity](c)
+	rows := GetAll[getByAllCachedEntity](orm)
 	assert.Equal(t, 0, rows.Len())
 	loggerDB.Clear()
-	rows = GetAll[getByAllCachedEntity](c)
+	rows = GetAll[getByAllCachedEntity](orm)
 	assert.Equal(t, 0, rows.Len())
 	assert.Len(t, loggerDB.Logs, 0)
 	loggerDB.Clear()
-	rows2 := GetAll[getByAllNotCachedEntity](c)
+	rows2 := GetAll[getByAllNotCachedEntity](orm)
 	assert.Equal(t, 0, rows2.Len())
 	loggerDB.Clear()
 
 	var entities []*getByAllCachedEntity
 	var entitiesNoCache []*getByAllNotCachedEntity
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByAllCachedEntity](c)
+		entity = NewEntity[getByAllCachedEntity](orm)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entities = append(entities, entity)
 
-		entityNotCached = NewEntity[getByAllNotCachedEntity](c)
+		entityNotCached = NewEntity[getByAllNotCachedEntity](orm)
 		entityNotCached.Name = fmt.Sprintf("Name %d", i)
 		entitiesNoCache = append(entitiesNoCache, entityNotCached)
 	}
-	err := c.Flush()
+	err := orm.Flush()
 	assert.NoError(t, err)
 
 	loggerDB.Clear()
-	rows = GetAll[getByAllCachedEntity](c)
+	rows = GetAll[getByAllCachedEntity](orm)
 	assert.Equal(t, 10, rows.Len())
 	rows.Next()
 	e := rows.Entity()
@@ -78,7 +78,7 @@ func testGetAll(t *testing.T, local, redis bool) {
 	assert.Equal(t, entities[0].Name, e.Name)
 
 	loggerDB.Clear()
-	rows2 = GetAll[getByAllNotCachedEntity](c)
+	rows2 = GetAll[getByAllNotCachedEntity](orm)
 	assert.Equal(t, 10, rows2.Len())
 	rows2.Next()
 	e2 := rows2.Entity()
@@ -87,7 +87,7 @@ func testGetAll(t *testing.T, local, redis bool) {
 	assert.Len(t, loggerDB.Logs, 1)
 
 	loggerDB.Clear()
-	rows = GetAll[getByAllCachedEntity](c)
+	rows = GetAll[getByAllCachedEntity](orm)
 	assert.Equal(t, 10, rows.Len())
 	rows.Next()
 	e = rows.Entity()
@@ -97,16 +97,16 @@ func testGetAll(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
 
-	DeleteEntity(c, entities[7])
-	DeleteEntity(c, entitiesNoCache[7])
-	err = c.Flush()
+	DeleteEntity(orm, entities[7])
+	DeleteEntity(orm, entitiesNoCache[7])
+	err = orm.Flush()
 	assert.NoError(t, err)
 	loggerDB.Clear()
-	rows = GetAll[getByAllCachedEntity](c)
+	rows = GetAll[getByAllCachedEntity](orm)
 	assert.Equal(t, 9, rows.Len())
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
-	rows2 = GetAll[getByAllNotCachedEntity](c)
+	rows2 = GetAll[getByAllNotCachedEntity](orm)
 	assert.Equal(t, 9, rows2.Len())
 }

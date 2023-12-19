@@ -14,42 +14,42 @@ type entitySQLOperations map[FlushType][]EntityFlush
 type schemaSQLOperations map[*entitySchema]entitySQLOperations
 type sqlOperations map[DB]schemaSQLOperations
 type dbAction func(db DBBase)
-type PostFlushAction func(c Context)
+type PostFlushAction func(orm ORM)
 
-func (c *contextImplementation) Flush() error {
-	return c.flush(false)
+func (orm *ormImplementation) Flush() error {
+	return orm.flush(false)
 }
 
-func (c *contextImplementation) FlushAsync() error {
-	return c.flush(true)
+func (orm *ormImplementation) FlushAsync() error {
+	return orm.flush(true)
 }
 
-func (c *contextImplementation) flush(async bool) error {
-	c.mutexFlush.Lock()
-	defer c.mutexFlush.Unlock()
-	if c.trackedEntities == nil || c.trackedEntities.Size() == 0 {
+func (orm *ormImplementation) flush(async bool) error {
+	orm.mutexFlush.Lock()
+	defer orm.mutexFlush.Unlock()
+	if orm.trackedEntities == nil || orm.trackedEntities.Size() == 0 {
 		return nil
 	}
-	sqlGroup := c.groupSQLOperations()
+	sqlGroup := orm.groupSQLOperations()
 	for _, operations := range sqlGroup {
 		for schema, queryOperations := range operations {
 			deletes, has := queryOperations[Delete]
 			if has {
-				err := c.handleDeletes(async, schema, deletes)
+				err := orm.handleDeletes(async, schema, deletes)
 				if err != nil {
 					return err
 				}
 			}
 			inserts, has := queryOperations[Insert]
 			if has {
-				err := c.handleInserts(async, schema, inserts)
+				err := orm.handleInserts(async, schema, inserts)
 				if err != nil {
 					return err
 				}
 			}
 			updates, has := queryOperations[Update]
 			if has {
-				err := c.handleUpdates(async, schema, updates)
+				err := orm.handleUpdates(async, schema, updates)
 				if err != nil {
 					return err
 				}
@@ -61,14 +61,14 @@ func (c *contextImplementation) flush(async bool) error {
 			var transactions []DBTransaction
 			defer func() {
 				for _, tx := range transactions {
-					tx.Rollback(c)
+					tx.Rollback(orm)
 				}
 			}()
-			for code, actions := range c.flushDBActions {
+			for code, actions := range orm.flushDBActions {
 				var d DBBase
-				d = c.Engine().DB(code)
-				if len(actions) > 1 || len(c.flushDBActions) > 1 {
-					tx := d.(DB).Begin(c)
+				d = orm.Engine().DB(code)
+				if len(actions) > 1 || len(orm.flushDBActions) > 1 {
+					tx := d.(DB).Begin(orm)
 					transactions = append(transactions, tx)
 					d = tx
 				}
@@ -77,33 +77,33 @@ func (c *contextImplementation) flush(async bool) error {
 				}
 			}
 			for _, tx := range transactions {
-				tx.Commit(c)
+				tx.Commit(orm)
 			}
 		}()
 	}
-	for _, pipeline := range c.redisPipeLines {
-		pipeline.Exec(c)
+	for _, pipeline := range orm.redisPipeLines {
+		pipeline.Exec(orm)
 	}
-	for _, action := range c.flushPostActions {
-		action(c)
+	for _, action := range orm.flushPostActions {
+		action(orm)
 	}
-	c.trackedEntities.Clear()
-	c.flushDBActions = nil
-	c.flushPostActions = c.flushPostActions[0:0]
-	c.redisPipeLines = nil
+	orm.trackedEntities.Clear()
+	orm.flushDBActions = nil
+	orm.flushPostActions = orm.flushPostActions[0:0]
+	orm.redisPipeLines = nil
 	return nil
 }
 
-func (c *contextImplementation) ClearFlush() {
-	c.mutexFlush.Lock()
-	defer c.mutexFlush.Unlock()
-	c.trackedEntities.Clear()
-	c.flushDBActions = nil
-	c.flushPostActions = c.flushPostActions[0:0]
-	c.redisPipeLines = nil
+func (orm *ormImplementation) ClearFlush() {
+	orm.mutexFlush.Lock()
+	defer orm.mutexFlush.Unlock()
+	orm.trackedEntities.Clear()
+	orm.flushDBActions = nil
+	orm.flushPostActions = orm.flushPostActions[0:0]
+	orm.redisPipeLines = nil
 }
 
-func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, operations []EntityFlush) error {
+func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, operations []EntityFlush) error {
 	var args []any
 	if !async {
 		args = make([]any, len(operations))
@@ -124,8 +124,8 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 		for i, operation := range operations {
 			args[i] = operation.ID()
 		}
-		c.appendDBAction(schema, func(db DBBase) {
-			db.Exec(c, sql, args...)
+		orm.appendDBAction(schema, func(db DBBase) {
+			db.Exec(orm, sql, args...)
 		})
 	} else {
 		publishAsyncEvent(schema, []any{sql})
@@ -142,25 +142,25 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			if err != nil {
 				return err
 			}
-			cache := c.Engine().Redis(schema.getForcedRedisCode())
+			cache := orm.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
+					orm.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
 				}
 			}
 		}
 		if hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-				lc.setEntity(c, operation.ID(), nil)
+			orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+				lc.setEntity(orm, operation.ID(), nil)
 			})
 		}
 		rc, hasRedisCache := schema.GetRedisCache()
 		if hasRedisCache {
 			cacheKey := schema.getCacheKey() + ":" + strconv.FormatUint(operation.ID(), 10)
-			c.RedisPipeLine(rc.GetCode()).Del(cacheKey)
-			c.RedisPipeLine(rc.GetCode()).LPush(cacheKey, "")
+			orm.RedisPipeLine(rc.GetCode()).Del(cacheKey)
+			orm.RedisPipeLine(rc.GetCode()).LPush(cacheKey, "")
 		}
 		for columnName := range schema.cachedReferences {
 			if bind == nil {
@@ -175,32 +175,32 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					lc.removeReference(c, refColumn, id.(uint64))
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeReference(orm, refColumn, id.(uint64))
 				})
 			}
 			idAsString := strconv.FormatUint(id.(uint64), 10)
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + idAsString
-			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
 		if schema.cacheAll {
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeReference(orm, cacheAllFakeReferenceKey, 0)
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
-			c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
-		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
+		logTableSchema, hasLogTable := orm.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`) VALUES(?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = strconv.FormatUint(operation.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
-			if len(c.meta) > 0 {
-				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+			if len(orm.meta) > 0 {
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(orm.meta)
 				data[4] = asJSON
 			} else {
 				data[4] = nil
@@ -215,26 +215,26 @@ func (c *contextImplementation) handleDeletes(async bool, schema *entitySchema, 
 			data[5] = asJSON
 			publishAsyncEvent(schema, data)
 		}
-		for _, p := range c.engine.pluginFlush {
+		for _, p := range orm.engine.pluginFlush {
 			if bind == nil {
 				bind, err = deleteFlush.getOldBind()
 				if err != nil {
 					return err
 				}
 			}
-			after, err := p.EntityFlush(schema, deleteFlush.getValue(), bind, nil, c.engine)
+			after, err := p.EntityFlush(schema, deleteFlush.getValue(), bind, nil, orm.engine)
 			if err != nil {
 				return err
 			}
 			if after != nil {
-				c.flushPostActions = append(c.flushPostActions, after)
+				orm.flushPostActions = append(orm.flushPostActions, after)
 			}
 		}
 	}
 	return nil
 }
 
-func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, operations []EntityFlush) error {
+func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, operations []EntityFlush) error {
 	columns := schema.GetColumns()
 	sql := "INSERT INTO `" + schema.GetTableName() + "`(`ID`"
 	for _, column := range columns[1:] {
@@ -253,33 +253,33 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 		if err != nil {
 			return err
 		}
-		if len(c.engine.pluginFlush) > 0 {
+		if len(orm.engine.pluginFlush) > 0 {
 			elem := insert.getValue().Elem()
-			for _, p := range c.engine.pluginFlush {
-				after, err := p.EntityFlush(schema, elem, nil, bind, c.engine)
+			for _, p := range orm.engine.pluginFlush {
+				after, err := p.EntityFlush(schema, elem, nil, bind, orm.engine)
 				if err != nil {
 					return err
 				}
 				if after != nil {
-					c.flushPostActions = append(c.flushPostActions, after)
+					orm.flushPostActions = append(orm.flushPostActions, after)
 				}
 			}
 		}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
-			cache := c.Engine().Redis(schema.getForcedRedisCode())
+			cache := orm.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
 				if !hasKey {
 					continue
 				}
-				previousID, inUse := cache.HGet(c, hSetKey, hField)
+				previousID, inUse := cache.HGet(orm, hSetKey, hField)
 				if inUse {
 					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
-				c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
+				orm.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
 		}
 		var asyncData []any
@@ -326,15 +326,15 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			asyncData[0] = sql
 			publishAsyncEvent(schema, asyncData)
 		}
-		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
+		logTableSchema, hasLogTable := orm.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`After`) VALUES(?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = strconv.FormatUint(bind["ID"].(uint64), 10)
 			data[3] = time.Now().Format(time.DateTime)
-			if len(c.meta) > 0 {
-				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+			if len(orm.meta) > 0 {
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(orm.meta)
 				data[4] = asJSON
 			} else {
 				data[4] = nil
@@ -344,8 +344,8 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			publishAsyncEvent(schema, data)
 		}
 		if hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-				lc.setEntity(c, insert.ID(), insert.getEntity())
+			orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+				lc.setEntity(orm, insert.ID(), insert.getEntity())
 			})
 		}
 		for columnName := range schema.cachedReferences {
@@ -355,37 +355,37 @@ func (c *contextImplementation) handleInserts(async bool, schema *entitySchema, 
 			}
 			refColumn := columnName
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					lc.removeReference(c, refColumn, id.(uint64))
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeReference(orm, refColumn, id.(uint64))
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(id.(uint64), 10)
-			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if schema.cacheAll {
 			if schema.hasLocalCache {
-				c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-					lc.removeReference(c, cacheAllFakeReferenceKey, 0)
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeReference(orm, cacheAllFakeReferenceKey, 0)
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
-			c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {
 			idAsString := strconv.FormatUint(bind["ID"].(uint64), 10)
-			c.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+idAsString, convertBindToRedisValue(bind, schema)...)
+			orm.RedisPipeLine(rc.GetCode()).RPush(schema.getCacheKey()+":"+idAsString, convertBindToRedisValue(bind, schema)...)
 		}
 	}
 	if !async {
-		c.appendDBAction(schema, func(db DBBase) {
-			db.Exec(c, sql, args...)
+		orm.appendDBAction(schema, func(db DBBase) {
+			db.Exec(orm, sql, args...)
 		})
 	}
 
 	return nil
 }
 
-func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, operations []EntityFlush) error {
+func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, operations []EntityFlush) error {
 	var queryPrefix string
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
@@ -397,20 +397,20 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 		if len(newBind) == 0 {
 			continue
 		}
-		if len(c.engine.pluginFlush) > 0 {
-			for _, p := range c.engine.pluginFlush {
-				after, err := p.EntityFlush(schema, elem, oldBind, newBind, c.engine)
+		if len(orm.engine.pluginFlush) > 0 {
+			for _, p := range orm.engine.pluginFlush {
+				after, err := p.EntityFlush(schema, elem, oldBind, newBind, orm.engine)
 				if err != nil {
 					return err
 				}
 				if after != nil {
-					c.flushPostActions = append(c.flushPostActions, after)
+					orm.flushPostActions = append(orm.flushPostActions, after)
 				}
 			}
 		}
 		uniqueIndexes := schema.GetUniqueIndexes()
 		if len(uniqueIndexes) > 0 {
-			cache := c.Engine().Redis(schema.getForcedRedisCode())
+			cache := orm.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				indexChanged := false
 				for _, column := range indexColumns {
@@ -426,16 +426,16 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				hSetKey := schema.getCacheKey() + ":" + indexName
 				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind)
 				if hasKey {
-					previousID, inUse := cache.HGet(c, hSetKey, hField)
+					previousID, inUse := cache.HGet(orm, hSetKey, hField)
 					if inUse {
 						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
 						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 					}
-					c.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
+					orm.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
 				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind)
 				if hasKey {
-					c.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
+					orm.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}
 			}
 		}
@@ -478,20 +478,20 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			asyncArgs[0] = sql
 			publishAsyncEvent(schema, asyncArgs)
 		} else {
-			c.appendDBAction(schema, func(db DBBase) {
-				db.Exec(c, sql, args...)
+			orm.appendDBAction(schema, func(db DBBase) {
+				db.Exec(orm, sql, args...)
 			})
 		}
 
-		logTableSchema, hasLogTable := c.engine.registry.entityLogSchemas[schema.t]
+		logTableSchema, hasLogTable := orm.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]any, 7)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
 			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
 			data[2] = strconv.FormatUint(update.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
-			if len(c.meta) > 0 {
-				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(c.meta)
+			if len(orm.meta) > 0 {
+				asJSON, _ := jsoniter.ConfigFastest.MarshalToString(orm.meta)
 				data[4] = asJSON
 			} else {
 				data[4] = nil
@@ -517,19 +517,19 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 				}
 			}
 		} else if schema.hasLocalCache {
-			c.flushPostActions = append(c.flushPostActions, func(_ Context) {
+			orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
 				sourceValue := update.getSourceValue()
 				func() {
 					schema.localCache.mutex.Lock()
 					defer schema.localCache.mutex.Unlock()
 					copyEntity(update.getValue().Elem(), sourceValue.Elem(), schema.fields, true)
 				}()
-				schema.localCache.setEntity(c, operation.ID(), update.getEntity())
+				schema.localCache.setEntity(orm, operation.ID(), update.getEntity())
 			})
 		}
 
 		if schema.hasRedisCache {
-			p := c.RedisPipeLine(schema.redisCache.GetCode())
+			p := orm.RedisPipeLine(schema.redisCache.GetCode())
 			rKey := schema.getCacheKey() + ":" + strconv.FormatUint(update.ID(), 10)
 			for column, val := range newBind {
 				index := int64(schema.columnMapping[column] + 1)
@@ -554,33 +554,33 @@ func (c *contextImplementation) handleUpdates(async bool, schema *entitySchema, 
 			}
 			if oldAsInt > 0 {
 				if schema.hasLocalCache {
-					c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-						schema.localCache.removeReference(c, refColumn, oldAsInt)
+					orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+						schema.localCache.removeReference(orm, refColumn, oldAsInt)
 					})
 				}
 				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(oldAsInt, 10)
-				c.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(update.ID(), 10))
+				orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 			if newAsInt > 0 {
 				if schema.hasLocalCache {
-					c.flushPostActions = append(c.flushPostActions, func(_ Context) {
-						schema.localCache.removeReference(c, refColumn, newAsInt)
+					orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+						schema.localCache.removeReference(orm, refColumn, newAsInt)
 					})
 				}
 				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(newAsInt, 10)
-				c.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
+				orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}
 	}
 	return nil
 }
 
-func (c *contextImplementation) groupSQLOperations() sqlOperations {
+func (orm *ormImplementation) groupSQLOperations() sqlOperations {
 	sqlGroup := make(sqlOperations)
-	c.trackedEntities.Range(func(_ uint64, value *xsync.MapOf[uint64, EntityFlush]) bool {
+	orm.trackedEntities.Range(func(_ uint64, value *xsync.MapOf[uint64, EntityFlush]) bool {
 		value.Range(func(_ uint64, flush EntityFlush) bool {
 			schema := flush.Schema()
-			db := c.engine.DB(schema.mysqlPoolCode)
+			db := orm.engine.DB(schema.mysqlPoolCode)
 			poolSQLGroup, has := sqlGroup[db]
 			if !has {
 				poolSQLGroup = make(schemaSQLOperations)
@@ -599,12 +599,12 @@ func (c *contextImplementation) groupSQLOperations() sqlOperations {
 	return sqlGroup
 }
 
-func (c *contextImplementation) appendDBAction(schema EntitySchema, action dbAction) {
-	if c.flushDBActions == nil {
-		c.flushDBActions = make(map[string][]dbAction)
+func (orm *ormImplementation) appendDBAction(schema EntitySchema, action dbAction) {
+	if orm.flushDBActions == nil {
+		orm.flushDBActions = make(map[string][]dbAction)
 	}
 	poolCode := schema.GetDB().GetConfig().GetCode()
-	c.flushDBActions[poolCode] = append(c.flushDBActions[poolCode], action)
+	orm.flushDBActions[poolCode] = append(orm.flushDBActions[poolCode], action)
 }
 
 func buildUniqueKeyHSetField(schema *entitySchema, indexColumns []string, bind Bind) (string, bool) {

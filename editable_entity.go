@@ -44,7 +44,7 @@ type EntityFlushedEvent interface {
 }
 
 type writableEntity struct {
-	c      Context
+	orm    ORM
 	schema *entitySchema
 }
 
@@ -167,13 +167,13 @@ func (e *editableEntity[E]) SourceEntity() E {
 	return e.source
 }
 
-func NewEntity[E any](c Context) *E {
-	return newEntity(c, getEntitySchema[E](c)).(*E)
+func NewEntity[E any](orm ORM) *E {
+	return newEntity(orm, getEntitySchema[E](orm)).(*E)
 }
 
-func newEntityInsertable(c Context, schema *entitySchema) *insertableEntity {
+func newEntityInsertable(orm ORM, schema *entitySchema) *insertableEntity {
 	entity := &insertableEntity{}
-	entity.c = c
+	entity.orm = orm
 	entity.schema = schema
 	value := reflect.New(schema.t)
 	elem := value.Elem()
@@ -183,30 +183,30 @@ func newEntityInsertable(c Context, schema *entitySchema) *insertableEntity {
 	entity.id = id
 	elem.Field(0).SetUint(id)
 	entity.value = value
-	c.trackEntity(entity)
+	orm.trackEntity(entity)
 	return entity
 }
 
-func newEntity(c Context, schema *entitySchema) any {
-	return newEntityInsertable(c, schema).entity
+func newEntity(orm ORM, schema *entitySchema) any {
+	return newEntityInsertable(orm, schema).entity
 }
 
-func DeleteEntity[E any](c Context, source E) {
+func DeleteEntity[E any](orm ORM, source E) {
 	toRemove := &removableEntity[E]{}
-	toRemove.c = c
+	toRemove.orm = orm
 	toRemove.source = source
 	toRemove.value = reflect.ValueOf(source).Elem()
 	toRemove.id = toRemove.value.Field(0).Uint()
-	schema := getEntitySchema[E](c)
+	schema := getEntitySchema[E](orm)
 	toRemove.schema = schema
-	c.trackEntity(toRemove)
+	orm.trackEntity(toRemove)
 }
 
-func EditEntity[E any](c Context, source E) E {
-	writable := copyToEdit(c, source)
+func EditEntity[E any](orm ORM, source E) E {
+	writable := copyToEdit(orm, source)
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source
-	c.trackEntity(writable)
+	orm.trackEntity(writable)
 	return writable.entity
 }
 
@@ -228,12 +228,12 @@ func initNewEntity(elem reflect.Value, fields *tableFields) {
 	}
 }
 
-func IsDirty[E any](c Context, id uint64) (oldValues, newValues Bind, hasChanges bool) {
-	return isDirty(c, getEntitySchema[E](c), id)
+func IsDirty[E any](orm ORM, id uint64) (oldValues, newValues Bind, hasChanges bool) {
+	return isDirty(orm, getEntitySchema[E](orm), id)
 }
 
-func isDirty(c Context, schema *entitySchema, id uint64) (oldValues, newValues Bind, hasChanges bool) {
-	tracked := c.(*contextImplementation).trackedEntities
+func isDirty(orm ORM, schema *entitySchema, id uint64) (oldValues, newValues Bind, hasChanges bool) {
+	tracked := orm.(*ormImplementation).trackedEntities
 	if tracked == nil {
 		return nil, nil, false
 	}

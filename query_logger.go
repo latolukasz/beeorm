@@ -28,7 +28,7 @@ type defaultLogLogger struct {
 	logger     *log.Logger
 }
 
-func (d *defaultLogLogger) Handle(_ Context, fields map[string]any) {
+func (d *defaultLogLogger) Handle(_ ORM, fields map[string]any) {
 	row := beeORMLogo
 	switch fields["source"] {
 	case "mysql":
@@ -62,32 +62,32 @@ func (d *defaultLogLogger) Handle(_ Context, fields map[string]any) {
 }
 
 type LogHandler interface {
-	Handle(c Context, log map[string]any)
+	Handle(orm ORM, log map[string]any)
 }
 
-func (c *contextImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
-	c.mutexData.Lock()
-	defer c.mutexData.Unlock()
+func (orm *ormImplementation) RegisterQueryLogger(handler LogHandler, mysql, redis, local bool) {
+	orm.mutexData.Lock()
+	defer orm.mutexData.Unlock()
 	if mysql {
-		c.hasDBLogger = true
-		c.queryLoggersDB = c.appendLog(c.queryLoggersDB, handler)
+		orm.hasDBLogger = true
+		orm.queryLoggersDB = orm.appendLog(orm.queryLoggersDB, handler)
 	}
 	if redis {
-		c.hasRedisLogger = true
-		c.queryLoggersRedis = c.appendLog(c.queryLoggersRedis, handler)
+		orm.hasRedisLogger = true
+		orm.queryLoggersRedis = orm.appendLog(orm.queryLoggersRedis, handler)
 	}
 	if local {
-		c.hasLocalCacheLogger = true
-		c.queryLoggersLocalCache = c.appendLog(c.queryLoggersLocalCache, handler)
+		orm.hasLocalCacheLogger = true
+		orm.queryLoggersLocalCache = orm.appendLog(orm.queryLoggersLocalCache, handler)
 	}
 }
 
-func (c *contextImplementation) EnableQueryDebug() {
-	c.EnableQueryDebugCustom(true, true, true)
+func (orm *ormImplementation) EnableQueryDebug() {
+	orm.EnableQueryDebugCustom(true, true, true)
 }
 
-func (c *contextImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
-	c.RegisterQueryLogger(c.engine.Registry().getDefaultQueryLogger(), mysql, redis, local)
+func (orm *ormImplementation) EnableQueryDebugCustom(mysql, redis, local bool) {
+	orm.RegisterQueryLogger(orm.engine.Registry().getDefaultQueryLogger(), mysql, redis, local)
 }
 
 func getNow(has bool) *time.Time {
@@ -98,7 +98,7 @@ func getNow(has bool) *time.Time {
 	return &s
 }
 
-func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
+func (orm *ormImplementation) appendLog(logs []LogHandler, toAdd LogHandler) []LogHandler {
 	for _, v := range logs {
 		if v == toAdd {
 			return logs
@@ -107,7 +107,7 @@ func (c *contextImplementation) appendLog(logs []LogHandler, toAdd LogHandler) [
 	return append(logs, toAdd)
 }
 
-func fillLogFields(context Context, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
+func fillLogFields(orm ORM, handlers []LogHandler, pool, source, operation, query string, start *time.Time, cacheMiss bool, err error) {
 	fields := map[string]any{
 		"operation": operation,
 		"query":     query,
@@ -117,7 +117,7 @@ func fillLogFields(context Context, handlers []LogHandler, pool, source, operati
 	if cacheMiss {
 		fields["miss"] = "TRUE"
 	}
-	meta := context.GetMetaData()
+	meta := orm.GetMetaData()
 	if len(meta) > 0 {
 		fields["meta"] = meta
 	}
@@ -131,6 +131,6 @@ func fillLogFields(context Context, handlers []LogHandler, pool, source, operati
 		fields["error"] = err.Error()
 	}
 	for _, handler := range handlers {
-		handler.Handle(context, fields)
+		handler.Handle(orm, fields)
 	}
 }

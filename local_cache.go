@@ -27,18 +27,18 @@ func (c *localCacheConfig) GetLimit() int {
 }
 
 type LocalCache interface {
-	Set(c Context, key string, value any)
-	Remove(c Context, key string)
+	Set(orm ORM, key string, value any)
+	Remove(orm ORM, key string)
 	GetConfig() LocalCacheConfig
-	Get(c Context, key string) (value any, ok bool)
-	Clear(c Context)
+	Get(orm ORM, key string) (value any, ok bool)
+	Clear(orm ORM)
 	GetObjectsCount() int
-	getEntity(c Context, id uint64) (value any, ok bool)
-	setEntity(c Context, id uint64, value any)
-	removeEntity(c Context, id uint64)
-	getReference(c Context, reference string, id uint64) (value any, ok bool)
-	setReference(c Context, reference string, id uint64, value any)
-	removeReference(c Context, reference string, id uint64)
+	getEntity(orm ORM, id uint64) (value any, ok bool)
+	setEntity(orm ORM, id uint64, value any)
+	removeEntity(orm ORM, id uint64)
+	getReference(orm ORM, reference string, id uint64) (value any, ok bool)
+	setReference(orm ORM, reference string, id uint64, value any)
+	removeReference(orm ORM, reference string, id uint64)
 }
 
 type localCache struct {
@@ -77,52 +77,52 @@ func (lc *localCache) GetConfig() LocalCacheConfig {
 	return lc.config
 }
 
-func (lc *localCache) Get(c Context, key string) (value any, ok bool) {
+func (lc *localCache) Get(orm ORM, key string) (value any, ok bool) {
 	value, ok = lc.cache.Load(key)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "GET", fmt.Sprintf("GET %v", key), !ok)
+		lc.fillLogFields(orm, "GET", fmt.Sprintf("GET %v", key), !ok)
 	}
 	return
 }
 
-func (lc *localCache) getEntity(c Context, id uint64) (value any, ok bool) {
+func (lc *localCache) getEntity(orm ORM, id uint64) (value any, ok bool) {
 	value, ok = lc.cacheEntities.Load(id)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "GET", fmt.Sprintf("GET ENTITY %d", id), ok)
+		lc.fillLogFields(orm, "GET", fmt.Sprintf("GET ENTITY %d", id), ok)
 	}
 	return
 }
 
-func (lc *localCache) getReference(c Context, reference string, id uint64) (value any, ok bool) {
+func (lc *localCache) getReference(orm ORM, reference string, id uint64) (value any, ok bool) {
 	value, ok = lc.cacheReferences[reference].Load(id)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "GET", fmt.Sprintf("GET REFERENCE %s %d", reference, id), ok)
+		lc.fillLogFields(orm, "GET", fmt.Sprintf("GET REFERENCE %s %d", reference, id), ok)
 	}
 	return
 }
 
-func (lc *localCache) Set(c Context, key string, value any) {
+func (lc *localCache) Set(orm ORM, key string, value any) {
 	lc.cache.Store(key, value)
 	if lc.config.limit > 0 && lc.cache.Size() > lc.config.limit {
 		lc.makeSpace(lc.cache, key)
 	}
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET ENTITY", fmt.Sprintf("SET %s %v", key, value), false)
+		lc.fillLogFields(orm, "SET ENTITY", fmt.Sprintf("SET %s %v", key, value), false)
 	}
 }
 
-func (lc *localCache) setEntity(c Context, id uint64, value any) {
+func (lc *localCache) setEntity(orm ORM, id uint64, value any) {
 	lc.cacheEntities.Store(id, value)
 	if lc.config.limit > 0 && lc.cacheEntities.Size() > lc.config.limit {
 		lc.makeSpaceUint(lc.cacheEntities, id)
 	}
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET ENTITY %d [entity value]", id), false)
+		lc.fillLogFields(orm, "SET", fmt.Sprintf("SET ENTITY %d [entity value]", id), false)
 	}
 }
 
@@ -146,39 +146,39 @@ func (lc *localCache) makeSpaceUint(cache *xsync.MapOf[uint64, any], addedKey ui
 	})
 }
 
-func (lc *localCache) setReference(c Context, reference string, id uint64, value any) {
+func (lc *localCache) setReference(orm ORM, reference string, id uint64, value any) {
 	lc.cacheReferences[reference].Store(id, value)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "SET", fmt.Sprintf("SET REFERENCE %s %d %v", reference, id, value), false)
+		lc.fillLogFields(orm, "SET", fmt.Sprintf("SET REFERENCE %s %d %v", reference, id, value), false)
 	}
 }
 
-func (lc *localCache) Remove(c Context, key string) {
+func (lc *localCache) Remove(orm ORM, key string) {
 	lc.cache.Delete(key)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE %s", key), false)
+		lc.fillLogFields(orm, "REMOVE", fmt.Sprintf("REMOVE %s", key), false)
 	}
 }
 
-func (lc *localCache) removeEntity(c Context, id uint64) {
+func (lc *localCache) removeEntity(orm ORM, id uint64) {
 	lc.cacheEntities.Delete(id)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE ENTITY %d", id), false)
+		lc.fillLogFields(orm, "REMOVE", fmt.Sprintf("REMOVE ENTITY %d", id), false)
 	}
 }
 
-func (lc *localCache) removeReference(c Context, reference string, id uint64) {
+func (lc *localCache) removeReference(orm ORM, reference string, id uint64) {
 	lc.cacheReferences[reference].Delete(id)
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "REMOVE", fmt.Sprintf("REMOVE REFERENCE %s %d", reference, id), false)
+		lc.fillLogFields(orm, "REMOVE", fmt.Sprintf("REMOVE REFERENCE %s %d", reference, id), false)
 	}
 }
 
-func (lc *localCache) Clear(c Context) {
+func (lc *localCache) Clear(orm ORM) {
 	lc.cache.Clear()
 	if lc.cacheEntities != nil {
 		lc.cacheEntities.Clear()
@@ -188,9 +188,9 @@ func (lc *localCache) Clear(c Context) {
 			cache.Clear()
 		}
 	}
-	hasLog, _ := c.getLocalCacheLoggers()
+	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(c, "CLEAR", "CLEAR", false)
+		lc.fillLogFields(orm, "CLEAR", "CLEAR", false)
 	}
 }
 
@@ -207,7 +207,7 @@ func (lc *localCache) GetObjectsCount() int {
 	return total
 }
 
-func (lc *localCache) fillLogFields(c Context, operation, query string, cacheMiss bool) {
-	_, loggers := c.getLocalCacheLoggers()
-	fillLogFields(c, loggers, lc.config.code, sourceLocalCache, operation, query, nil, cacheMiss, nil)
+func (lc *localCache) fillLogFields(orm ORM, operation, query string, cacheMiss bool) {
+	_, loggers := orm.getLocalCacheLoggers()
+	fillLogFields(orm, loggers, lc.config.code, sourceLocalCache, operation, query, nil, cacheMiss, nil)
 }

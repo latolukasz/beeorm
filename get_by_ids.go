@@ -5,17 +5,17 @@ import (
 	"strconv"
 )
 
-func GetByIDs[E any](c Context, ids ...uint64) EntityIterator[E] {
-	return getByIDs[E](c.(*contextImplementation), ids)
+func GetByIDs[E any](orm ORM, ids ...uint64) EntityIterator[E] {
+	return getByIDs[E](orm.(*ormImplementation), ids)
 }
 
-func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
-	schema := getEntitySchema[E](c)
+func getByIDs[E any](orm *ormImplementation, ids []uint64) EntityIterator[E] {
+	schema := getEntitySchema[E](orm)
 	if len(ids) == 0 {
 		return &emptyResultsIterator[E]{}
 	}
 	if schema.hasLocalCache {
-		return &localCacheIDsIterator[E]{c: c, schema: schema, ids: ids, index: -1}
+		return &localCacheIDsIterator[E]{orm: orm, schema: schema, ids: ids, index: -1}
 	}
 	results := &entityIterator[E]{index: -1}
 	results.rows = make([]*E, len(ids))
@@ -23,7 +23,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 	cacheRedis, hasRedisCache := schema.GetRedisCache()
 	var redisPipeline *RedisPipeLine
 	if hasRedisCache {
-		redisPipeline = c.RedisPipeLine(cacheRedis.GetCode())
+		redisPipeline = orm.RedisPipeLine(cacheRedis.GetCode())
 		l := int64(len(schema.columnNames) + 1)
 		var lRanges []*PipeLineSlice
 		if schema.hasLocalCache {
@@ -37,19 +37,19 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 				lRanges[i] = redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(id, 10), 0, l)
 			}
 		}
-		redisPipeline.Exec(c)
+		redisPipeline.Exec(orm)
 		if schema.hasLocalCache {
 			hasZero := false
 			for i, key := range missingKeys {
 				row := lRanges[i].Result()
 				if len(row) > 0 {
 					if len(row) == 1 {
-						schema.localCache.setEntity(c, ids[key], nil)
+						schema.localCache.setEntity(orm, ids[key], nil)
 					} else {
 						value := reflect.New(schema.t)
 						e := value.Interface().(*E)
 						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-							schema.localCache.setEntity(c, ids[key], e)
+							schema.localCache.setEntity(orm, ids[key], e)
 						}
 						results.rows[key] = e
 					}
@@ -79,7 +79,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 					value := reflect.New(schema.t)
 					e := value.Interface().(*E)
 					if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-						schema.localCache.setEntity(c, id, e)
+						schema.localCache.setEntity(orm, id, e)
 					}
 					results.rows[i] = e
 				} else {
@@ -112,7 +112,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 	}
 	sql += ")"
 	execRedisPipeline := false
-	res, def := schema.GetDB().Query(c, sql)
+	res, def := schema.GetDB().Query(orm, sql)
 	defer def()
 	foundInDB := 0
 	for res.Next() {
@@ -128,11 +128,11 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 			}
 		}
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(c, id, value.Interface().(*E))
+			schema.localCache.setEntity(orm, id, value.Interface().(*E))
 		}
 		if hasRedisCache {
 			bind := make(Bind)
-			err := fillBindFromOneSource(c, bind, value.Elem(), schema.fields, "")
+			err := fillBindFromOneSource(orm, bind, value.Elem(), schema.fields, "")
 			checkError(err)
 			values := convertBindToRedisValue(bind, schema)
 			redisPipeline.RPush(schema.getCacheKey()+":"+strconv.FormatUint(id, 10), values...)
@@ -147,7 +147,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 					break
 				}
 				if schema.hasLocalCache {
-					schema.localCache.setEntity(c, id, nil)
+					schema.localCache.setEntity(orm, id, nil)
 				}
 				if hasRedisCache {
 					cacheKey := schema.getCacheKey() + ":" + strconv.FormatUint(id, 10)
@@ -159,7 +159,7 @@ func getByIDs[E any](c *contextImplementation, ids []uint64) EntityIterator[E] {
 		}
 	}
 	if execRedisPipeline {
-		redisPipeline.Exec(c)
+		redisPipeline.Exec(orm)
 	}
 	return results
 }

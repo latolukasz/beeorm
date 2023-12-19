@@ -50,9 +50,9 @@ type ExecResult interface {
 }
 
 type PreparedStmt interface {
-	Exec(c Context, args ...any) ExecResult
-	Query(c Context, args ...any) (rows Rows, close func())
-	QueryRow(c Context, args []any, toFill ...any) (found bool)
+	Exec(orm ORM, args ...any) ExecResult
+	Query(orm ORM, args ...any) (rows Rows, close func())
+	QueryRow(orm ORM, args []any, toFill ...any) (found bool)
 	Close() error
 }
 
@@ -75,11 +75,11 @@ func (e *execResult) RowsAffected() uint64 {
 type sqlClientBase interface {
 	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...any) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	ExecContext(context context.Context, query string, args ...any) (sql.Result, error)
 	QueryRow(query string, args ...any) SQLRow
-	QueryRowContext(ctx context.Context, query string, args ...any) SQLRow
+	QueryRowContext(context context.Context, query string, args ...any) SQLRow
 	Query(query string, args ...any) (SQLRows, error)
-	QueryContext(ctx context.Context, query string, args ...any) (SQLRows, error)
+	QueryContext(context context.Context, query string, args ...any) (SQLRows, error)
 }
 
 type sqlClient interface {
@@ -96,11 +96,11 @@ type txClient interface {
 type DBClientQuery interface {
 	Prepare(query string) (*sql.Stmt, error)
 	Exec(query string, args ...any) (sql.Result, error)
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+	ExecContext(context context.Context, query string, args ...any) (sql.Result, error)
 	QueryRow(query string, args ...any) *sql.Row
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+	QueryRowContext(context context.Context, query string, args ...any) *sql.Row
 	Query(query string, args ...any) (*sql.Rows, error)
-	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	QueryContext(context context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
 type DBClient interface {
@@ -165,8 +165,8 @@ func (db *standardSQLClient) QueryRow(query string, args ...any) SQLRow {
 	return db.db.QueryRow(query, args...)
 }
 
-func (db *standardSQLClient) QueryRowContext(ctx context.Context, query string, args ...any) SQLRow {
-	return db.db.QueryRowContext(ctx, query, args...)
+func (db *standardSQLClient) QueryRowContext(context context.Context, query string, args ...any) SQLRow {
+	return db.db.QueryRowContext(context, query, args...)
 }
 
 func (db *standardSQLClient) Query(query string, args ...any) (SQLRows, error) {
@@ -177,8 +177,8 @@ func (db *standardSQLClient) Query(query string, args ...any) (SQLRows, error) {
 	return rows, nil
 }
 
-func (db *standardSQLClient) QueryContext(ctx context.Context, query string, args ...any) (SQLRows, error) {
-	rows, err := db.db.QueryContext(ctx, query, args...)
+func (db *standardSQLClient) QueryContext(context context.Context, query string, args ...any) (SQLRows, error) {
+	rows, err := db.db.QueryContext(context, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -224,8 +224,8 @@ type preparedStmtStruct struct {
 	query string
 }
 
-func (p preparedStmtStruct) Exec(c Context, args ...any) ExecResult {
-	hasLogger, _ := c.getDBLoggers()
+func (p preparedStmtStruct) Exec(orm ORM, args ...any) ExecResult {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := p.stmt.Exec(args...)
 	if hasLogger {
@@ -233,14 +233,14 @@ func (p preparedStmtStruct) Exec(c Context, args ...any) ExecResult {
 		if len(args) > 0 {
 			message += " " + fmt.Sprintf("%v", args)
 		}
-		p.db.fillLogFields(c, "PREPARED EXEC", message, start, err)
+		p.db.fillLogFields(orm, "PREPARED EXEC", message, start, err)
 	}
 	checkError(err)
 	return &execResult{r: rows}
 }
 
-func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func()) {
-	hasLogger, _ := c.getDBLoggers()
+func (p preparedStmtStruct) Query(orm ORM, args ...any) (rows Rows, close func()) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := p.stmt.Query(args...)
 	if hasLogger {
@@ -248,7 +248,7 @@ func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func
 		if len(args) > 0 {
 			message += " " + fmt.Sprintf("%v", args)
 		}
-		p.db.fillLogFields(c, "SELECT PREPARED", message, start, err)
+		p.db.fillLogFields(orm, "SELECT PREPARED", message, start, err)
 	}
 	checkError(err)
 	return &rowsStruct{result}, func() {
@@ -260,8 +260,8 @@ func (p preparedStmtStruct) Query(c Context, args ...any) (rows Rows, close func
 	}
 }
 
-func (p preparedStmtStruct) QueryRow(c Context, args []any, toFill ...any) (found bool) {
-	hasLogger, _ := c.getDBLoggers()
+func (p preparedStmtStruct) QueryRow(orm ORM, args []any, toFill ...any) (found bool) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	row := p.stmt.QueryRow(args...)
 	err := row.Scan(toFill...)
@@ -275,17 +275,17 @@ func (p preparedStmtStruct) QueryRow(c Context, args []any, toFill ...any) (foun
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
 			if hasLogger {
-				p.db.fillLogFields(c, "SELECT PREPARED", message, start, nil)
+				p.db.fillLogFields(orm, "SELECT PREPARED", message, start, nil)
 			}
 			return false
 		}
 		if hasLogger {
-			p.db.fillLogFields(c, "SELECT PREPARED", message, start, err)
+			p.db.fillLogFields(orm, "SELECT PREPARED", message, start, err)
 		}
 		checkError(err)
 	}
 	if hasLogger {
-		p.db.fillLogFields(c, "SELECT PREPARED", message, start, nil)
+		p.db.fillLogFields(orm, "SELECT PREPARED", message, start, nil)
 	}
 	return true
 }
@@ -302,21 +302,21 @@ type DBBase interface {
 	GetConfig() MySQLConfig
 	GetDBClient() DBClient
 	SetMockDBClient(mock DBClient)
-	Prepare(c Context, query string) (stmt PreparedStmt, close func())
-	Exec(c Context, query string, args ...any) ExecResult
-	QueryRow(c Context, query *Where, toFill ...any) (found bool)
-	Query(c Context, query string, args ...any) (rows Rows, close func())
+	Prepare(orm ORM, query string) (stmt PreparedStmt, close func())
+	Exec(orm ORM, query string, args ...any) ExecResult
+	QueryRow(orm ORM, query *Where, toFill ...any) (found bool)
+	Query(orm ORM, query string, args ...any) (rows Rows, close func())
 }
 
 type DB interface {
 	DBBase
-	Begin(c Context) DBTransaction
+	Begin(orm ORM) DBTransaction
 }
 
 type DBTransaction interface {
 	DBBase
-	Commit(c Context)
-	Rollback(c Context)
+	Commit(orm ORM)
+	Rollback(orm ORM)
 }
 
 type dbImplementation struct {
@@ -329,40 +329,40 @@ func (db *dbImplementation) GetConfig() MySQLConfig {
 	return db.config
 }
 
-func (db *dbImplementation) Commit(c Context) {
+func (db *dbImplementation) Commit(orm ORM) {
 	if !db.transaction {
 		return
 	}
-	hasLogger, _ := c.getDBLoggers()
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.(txClient).Commit()
 	db.transaction = false
 	if hasLogger {
-		db.fillLogFields(c, "TRANSACTION", "COMMIT", start, err)
+		db.fillLogFields(orm, "TRANSACTION", "COMMIT", start, err)
 	}
 	checkError(err)
 }
 
-func (db *dbImplementation) Rollback(c Context) {
+func (db *dbImplementation) Rollback(orm ORM) {
 	if !db.transaction {
 		return
 	}
-	hasLogger, _ := c.getDBLoggers()
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	err := db.client.(txClient).Rollback()
 	db.transaction = false
 	if hasLogger {
-		db.fillLogFields(c, "TRANSACTION", "ROLLBACK", start, err)
+		db.fillLogFields(orm, "TRANSACTION", "ROLLBACK", start, err)
 	}
 	checkError(err)
 }
 
-func (db *dbImplementation) Begin(c Context) DBTransaction {
-	hasLogger, _ := c.getDBLoggers()
+func (db *dbImplementation) Begin(orm ORM) DBTransaction {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	tx, err := db.client.Begin()
 	if hasLogger {
-		db.fillLogFields(c, "TRANSACTION", "START TRANSACTION", start, err)
+		db.fillLogFields(orm, "TRANSACTION", "START TRANSACTION", start, err)
 	}
 	checkError(err)
 	dbTX := &dbImplementation{config: db.config, client: &txSQLClient{standardSQLClient{db: tx}, tx}, transaction: true}
@@ -377,13 +377,13 @@ func (db *dbImplementation) SetMockDBClient(mock DBClient) {
 	db.client.(*standardSQLClient).db = mock
 }
 
-func (db *dbImplementation) Prepare(c Context, query string) (stmt PreparedStmt, close func()) {
-	hasLogger, _ := c.getDBLoggers()
+func (db *dbImplementation) Prepare(orm ORM, query string) (stmt PreparedStmt, close func()) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Prepare(query)
 	if hasLogger {
 		message := query
-		db.fillLogFields(c, "PREPARE", message, start, err)
+		db.fillLogFields(orm, "PREPARE", message, start, err)
 	}
 	checkError(err)
 	return &preparedStmtStruct{result, db, query}, func() {
@@ -393,14 +393,14 @@ func (db *dbImplementation) Prepare(c Context, query string) (stmt PreparedStmt,
 	}
 }
 
-func (db *dbImplementation) Exec(c Context, query string, args ...any) ExecResult {
-	results, err := db.exec(c, query, args...)
+func (db *dbImplementation) Exec(orm ORM, query string, args ...any) ExecResult {
+	results, err := db.exec(orm, query, args...)
 	checkError(err)
 	return results
 }
 
-func (db *dbImplementation) exec(c Context, query string, args ...any) (ExecResult, error) {
-	hasLogger, _ := c.getDBLoggers()
+func (db *dbImplementation) exec(orm ORM, query string, args ...any) (ExecResult, error) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	rows, err := db.client.Exec(query, args...)
 	if hasLogger {
@@ -408,13 +408,13 @@ func (db *dbImplementation) exec(c Context, query string, args ...any) (ExecResu
 		if len(args) > 0 {
 			message += " " + fmt.Sprintf("%v", args)
 		}
-		db.fillLogFields(c, "EXEC", message, start, err)
+		db.fillLogFields(orm, "EXEC", message, start, err)
 	}
 	return &execResult{r: rows}, err
 }
 
-func (db *dbImplementation) QueryRow(c Context, query *Where, toFill ...any) (found bool) {
-	hasLogger, _ := c.getDBLoggers()
+func (db *dbImplementation) QueryRow(orm ORM, query *Where, toFill ...any) (found bool) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)
 	err := row.Scan(toFill...)
@@ -428,23 +428,23 @@ func (db *dbImplementation) QueryRow(c Context, query *Where, toFill ...any) (fo
 	if err != nil {
 		if err.Error() == "sql: no rows in result set" {
 			if hasLogger {
-				db.fillLogFields(c, "SELECT", message, start, nil)
+				db.fillLogFields(orm, "SELECT", message, start, nil)
 			}
 			return false
 		}
 		if hasLogger {
-			db.fillLogFields(c, "SELECT", message, start, err)
+			db.fillLogFields(orm, "SELECT", message, start, err)
 		}
 		panic(err)
 	}
 	if hasLogger {
-		db.fillLogFields(c, "SELECT", message, start, nil)
+		db.fillLogFields(orm, "SELECT", message, start, nil)
 	}
 	return true
 }
 
-func (db *dbImplementation) Query(c Context, query string, args ...any) (rows Rows, close func()) {
-	hasLogger, _ := c.getDBLoggers()
+func (db *dbImplementation) Query(orm ORM, query string, args ...any) (rows Rows, close func()) {
+	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	result, err := db.client.Query(query, args...)
 	if hasLogger {
@@ -452,7 +452,7 @@ func (db *dbImplementation) Query(c Context, query string, args ...any) (rows Ro
 		if len(args) > 0 {
 			message += " " + fmt.Sprintf("%v", args)
 		}
-		db.fillLogFields(c, "SELECT", message, start, err)
+		db.fillLogFields(orm, "SELECT", message, start, err)
 	}
 	checkError(err)
 	return &rowsStruct{result}, func() {
@@ -464,8 +464,8 @@ func (db *dbImplementation) Query(c Context, query string, args ...any) (rows Ro
 	}
 }
 
-func (db *dbImplementation) fillLogFields(c Context, operation, query string, start *time.Time, err error) {
+func (db *dbImplementation) fillLogFields(orm ORM, operation, query string, start *time.Time, err error) {
 	query = strings.ReplaceAll(query, "\n", " ")
-	_, loggers := c.getDBLoggers()
-	fillLogFields(c, loggers, db.GetConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
+	_, loggers := orm.getDBLoggers()
+	fillLogFields(orm, loggers, db.GetConfig().GetCode(), sourceMySQL, operation, query, start, false, err)
 }

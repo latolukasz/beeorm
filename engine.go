@@ -26,7 +26,7 @@ type EngineSetter interface {
 }
 
 type Engine interface {
-	NewContext(parent context.Context) Context
+	NewContext(parent context.Context) ORM
 	DB(code string) DB
 	LocalCache(code string) LocalCache
 	Redis(code string) RedisCache
@@ -57,8 +57,8 @@ type engineImplementation struct {
 	asyncTemporaryIsQueueRunning bool
 }
 
-func (e *engineImplementation) NewContext(parent context.Context) Context {
-	return &contextImplementation{parent: parent, engine: e}
+func (e *engineImplementation) NewContext(context context.Context) ORM {
+	return &ormImplementation{context: context, engine: e}
 }
 
 func (e *engineImplementation) Registry() EngineRegistry {

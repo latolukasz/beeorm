@@ -25,19 +25,19 @@ func benchmarkGetByIDCache(b *testing.B, local, redis bool) {
 	var entity *getByIDBenchmarkEntity
 	registry := NewRegistry()
 	registry.RegisterLocalCache(DefaultPoolCode, 0)
-	c := PrepareTables(nil, registry, entity)
-	schema := GetEntitySchema[getByIDBenchmarkEntity](c)
+	orm := PrepareTables(nil, registry, entity)
+	schema := GetEntitySchema[getByIDBenchmarkEntity](orm)
 	schema.DisableCache(!local, !redis)
 
-	entity = NewEntity[getByIDBenchmarkEntity](c)
+	entity = NewEntity[getByIDBenchmarkEntity](orm)
 	entity.Name = "Name"
-	err := c.Flush()
+	err := orm.Flush()
 	assert.NoError(b, err)
 
-	GetByID[getByIDBenchmarkEntity](c, entity.ID)
+	GetByID[getByIDBenchmarkEntity](orm, entity.ID)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		GetByID[getByIDBenchmarkEntity](c, entity.ID)
+		GetByID[getByIDBenchmarkEntity](orm, entity.ID)
 	}
 }

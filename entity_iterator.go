@@ -18,7 +18,7 @@ type EntityAnonymousIterator interface {
 }
 
 type localCacheIDsIterator[E any] struct {
-	c       *contextImplementation
+	orm     *ormImplementation
 	ids     []uint64
 	index   int
 	schema  *entitySchema
@@ -64,7 +64,7 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 	if lc.hasRows {
 		return lc.rows[lc.index]
 	}
-	value := getByID(lc.c, lc.ids[lc.index], lc.schema)
+	value := getByID(lc.orm, lc.ids[lc.index], lc.schema)
 	if value == nil {
 		return nil
 	}
@@ -170,7 +170,7 @@ func (el *emptyResultsAnonymousIterator) reset() {}
 var emptyResultsAnonymousIteratorInstance = &emptyResultsAnonymousIterator{}
 
 type localCacheIDsAnonymousIterator struct {
-	c      *contextImplementation
+	c      *ormImplementation
 	ids    []uint64
 	index  int
 	schema *entitySchema

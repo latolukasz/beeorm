@@ -37,13 +37,13 @@ var mySQLErrorCodesToSkip = []uint16{
 
 const asyncConsumerLockName = "async_consumer"
 
-func ConsumeAsyncFlushEvents(c Context, block bool) error {
-	lock, lockObtained := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, asyncConsumerLockName, time.Minute, 0)
+func ConsumeAsyncFlushEvents(orm ORM, block bool) error {
+	lock, lockObtained := orm.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(orm, asyncConsumerLockName, time.Minute, 0)
 	if !lockObtained {
 		return redislock.ErrNotObtained
 	}
 	defer func() {
-		lock.Release(c)
+		lock.Release(orm)
 	}()
 	go func() {
 		defer func() {
@@ -53,25 +53,25 @@ func ConsumeAsyncFlushEvents(c Context, block bool) error {
 			}
 		}()
 		time.Sleep(time.Second * 50)
-		if !lock.Refresh(c, time.Minute) {
+		if !lock.Refresh(orm, time.Minute) {
 			lockObtained = false
 		}
 	}()
 	errorMutex := sync.Mutex{}
 	waitGroup := &sync.WaitGroup{}
-	ctxNoCancel := c.CloneWithContext(context.Background())
+	ctxNoCancel := orm.CloneWithContext(context.Background())
 	groups := make(map[DB]map[RedisCache]map[string]bool)
 	var stop uint32
 	var globalError error
-	for _, entityType := range c.Engine().Registry().Entities() {
-		schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+	for _, entityType := range orm.Engine().Registry().Entities() {
+		schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
 		db := schema.GetDB()
 		dbGroup, has := groups[db]
 		if !has {
 			dbGroup = make(map[RedisCache]map[string]bool)
 			groups[db] = dbGroup
 		}
-		r := c.Engine().Redis(schema.getForcedRedisCode())
+		r := orm.Engine().Redis(schema.getForcedRedisCode())
 		redisGroup, has := dbGroup[r]
 		if !has {
 			redisGroup = make(map[string]bool)
@@ -98,72 +98,72 @@ func ConsumeAsyncFlushEvents(c Context, block bool) error {
 					}
 				}
 			}()
-			consumeAsyncEvents(c.Ctx(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained, &stop)
+			consumeAsyncEvents(orm.Context(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained, &stop)
 		}()
 	}
 	waitGroup.Wait()
 	return globalError
 }
 
-func consumeAsyncEvents(ctx context.Context, c Context, list string, db DB, r RedisCache,
+func consumeAsyncEvents(context context.Context, orm ORM, list string, db DB, r RedisCache,
 	block bool, waitGroup *sync.WaitGroup, lockObtained *bool, stop *uint32) {
 	defer waitGroup.Done()
 	var values []string
 	for {
-		if ctx.Err() != nil || !*lockObtained || *stop > 0 {
+		if context.Err() != nil || !*lockObtained || *stop > 0 {
 			return
 		}
 
-		values = r.LRange(c, list, 0, asyncConsumerPage-1)
+		values = r.LRange(orm, list, 0, asyncConsumerPage-1)
 		if len(values) > 0 {
-			handleAsyncEvents(ctx, c, list, db, r, values)
+			handleAsyncEvents(context, orm, list, db, r, values)
 		}
 		if len(values) < asyncConsumerPage {
-			if !block || ctx.Err() != nil {
+			if !block || context.Err() != nil {
 				return
 			}
-			time.Sleep(c.Engine().Registry().(*engineRegistryImplementation).asyncConsumerBlockTime)
+			time.Sleep(orm.Engine().Registry().(*engineRegistryImplementation).asyncConsumerBlockTime)
 		}
 	}
 }
 
-func handleAsyncEvents(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
+func handleAsyncEvents(context context.Context, orm ORM, list string, db DB, r RedisCache, values []string) {
 	operations := len(values)
 	inTX := operations > 1
 	func() {
 		var d DBBase
 		defer func() {
 			if inTX && d != nil {
-				d.(DBTransaction).Rollback(c)
+				d.(DBTransaction).Rollback(orm)
 			}
 		}()
 		dbPool := db
 		if inTX {
-			d = dbPool.Begin(c)
+			d = dbPool.Begin(orm)
 		} else {
 			d = dbPool
 		}
 		for _, event := range values {
-			if ctx.Err() != nil {
+			if context.Err() != nil {
 				return
 			}
-			err := handleAsyncEvent(c, d, event)
+			err := handleAsyncEvent(orm, d, event)
 			if err != nil {
 				if inTX {
-					d.(DBTransaction).Rollback(c)
+					d.(DBTransaction).Rollback(orm)
 				}
-				handleAsyncEventsOneByOne(ctx, c, list, db, r, values)
+				handleAsyncEventsOneByOne(context, orm, list, db, r, values)
 				return
 			}
 		}
 		if inTX {
-			d.(DBTransaction).Commit(c)
+			d.(DBTransaction).Commit(orm)
 		}
-		r.Ltrim(c, list, int64(len(values)), -1)
+		r.Ltrim(orm, list, int64(len(values)), -1)
 	}()
 }
 
-func handleAsyncEvent(c Context, db DBBase, value string) (err *mysql.MySQLError) {
+func handleAsyncEvent(orm ORM, db DBBase, value string) (err *mysql.MySQLError) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			asMySQLError, isMySQLError := rec.(*mysql.MySQLError)
@@ -184,22 +184,22 @@ func handleAsyncEvent(c Context, db DBBase, value string) (err *mysql.MySQLError
 		return
 	}
 	if len(data) == 1 {
-		db.Exec(c, sql)
+		db.Exec(orm, sql)
 		return nil
 	}
-	db.Exec(c, sql, data[1:]...)
+	db.Exec(orm, sql, data[1:]...)
 	return nil
 }
 
-func handleAsyncEventsOneByOne(ctx context.Context, c Context, list string, db DB, r RedisCache, values []string) {
+func handleAsyncEventsOneByOne(context context.Context, orm ORM, list string, db DB, r RedisCache, values []string) {
 	for _, event := range values {
-		if ctx.Err() != nil {
+		if context.Err() != nil {
 			return
 		}
-		err := handleAsyncEvent(c, db, event)
+		err := handleAsyncEvent(orm, db, event)
 		if err != nil {
-			r.RPush(c, list+flushAsyncEventsListErrorSuffix, event, err.Error())
+			r.RPush(orm, list+flushAsyncEventsListErrorSuffix, event, err.Error())
 		}
-		r.Ltrim(c, list, 1, -1)
+		r.Ltrim(orm, list, 1, -1)
 	}
 }

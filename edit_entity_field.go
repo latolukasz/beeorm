@@ -7,12 +7,12 @@ import (
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
-func EditEntityField[E any](c Context, entity E, field string, value any) error {
-	return editEntityField(c, entity, field, value)
+func EditEntityField[E any](orm ORM, entity E, field string, value any) error {
+	return editEntityField(orm, entity, field, value)
 }
 
-func editEntityField[E any](c Context, entity E, field string, value any) error {
-	schema := getEntitySchema[E](c)
+func editEntityField[E any](orm ORM, entity E, field string, value any) error {
+	schema := getEntitySchema[E](orm)
 	setter, has := schema.fieldBindSetters[field]
 	if !has {
 		return &BindError{field, "unknown field"}
@@ -33,7 +33,7 @@ func editEntityField[E any](c Context, entity E, field string, value any) error 
 		return nil
 	}
 	id := elem.Field(0).Uint()
-	cImplementation := c.(*contextImplementation)
+	cImplementation := orm.(*ormImplementation)
 	var asyncError error
 	func() {
 		cImplementation.mutexFlush.Lock()
@@ -50,7 +50,7 @@ func editEntityField[E any](c Context, entity E, field string, value any) error 
 		})
 		actual, loaded := entities.LoadOrCompute(id, func() EntityFlush {
 			editable := &editableFields[E]{}
-			editable.c = c
+			editable.orm = orm
 			editable.schema = schema
 			editable.id = id
 			editable.value = reflectValue

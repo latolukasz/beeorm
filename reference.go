@@ -17,9 +17,9 @@ type Reference[E any] struct {
 	ID uint64
 }
 
-func (r *Reference[E]) GetEntity(c Context) *E {
+func (r *Reference[E]) GetEntity(orm ORM) *E {
 	if r.ID != 0 {
-		return GetByID[E](c, r.ID)
+		return GetByID[E](orm, r.ID)
 	}
 	return nil
 }

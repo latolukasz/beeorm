@@ -24,19 +24,19 @@ type flushEntityAsyncStatsGroup2 struct {
 
 func TestAsync(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, flushEntityAsyncStats{})
-	schema := getEntitySchema[flushEntityAsyncStats](c)
+	orm := PrepareTables(t, registry, flushEntityAsyncStats{})
+	schema := getEntitySchema[flushEntityAsyncStats](orm)
 
 	for i := 0; i < asyncConsumerPage+10; i++ {
-		entity := NewEntity[flushEntityAsyncStats](c)
+		entity := NewEntity[flushEntityAsyncStats](orm)
 		entity.Name = "test " + strconv.Itoa(i)
-		err := c.FlushAsync()
+		err := orm.FlushAsync()
 		assert.NoError(t, err)
 	}
-	stop := ConsumeAsyncBuffer(c, func(error) {})
+	stop := ConsumeAsyncBuffer(orm, func(error) {})
 	stop()
 
-	stats := ReadAsyncFlushEvents(c)
+	stats := ReadAsyncFlushEvents(orm)
 	assert.Len(t, stats, 1)
 	stat := stats[0]
 	assert.Len(t, stat.EntitySchemas(), 1)
@@ -64,14 +64,14 @@ func TestAsync(t *testing.T) {
 	assert.Len(t, events, 0)
 
 	for i := 0; i < asyncConsumerPage+10; i++ {
-		entity := NewEntity[flushEntityAsyncStats](c)
+		entity := NewEntity[flushEntityAsyncStats](orm)
 		entity.Name = "test " + strconv.Itoa(i)
-		err := c.FlushAsync()
+		err := orm.FlushAsync()
 		assert.NoError(t, err)
 	}
 
-	schema.GetDB().Exec(c, "ALTER TABLE flushEntityAsyncStats DROP COLUMN Name")
-	err := runAsyncConsumer(c, false)
+	schema.GetDB().Exec(orm, "ALTER TABLE flushEntityAsyncStats DROP COLUMN Name")
+	err := runAsyncConsumer(orm, false)
 	assert.NoError(t, err)
 
 	assert.Equal(t, uint64(0), stat.EventsCount())
@@ -93,25 +93,25 @@ func TestAsync(t *testing.T) {
 
 func TestAsyncGrouped(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, flushEntityAsyncStats{}, flushEntityAsyncStatsGroup1{}, flushEntityAsyncStatsGroup2{})
-	schema := getEntitySchema[flushEntityAsyncStats](c)
-	schemaGroup1 := getEntitySchema[flushEntityAsyncStatsGroup1](c)
-	schemaGroup2 := getEntitySchema[flushEntityAsyncStatsGroup2](c)
+	orm := PrepareTables(t, registry, flushEntityAsyncStats{}, flushEntityAsyncStatsGroup1{}, flushEntityAsyncStatsGroup2{})
+	schema := getEntitySchema[flushEntityAsyncStats](orm)
+	schemaGroup1 := getEntitySchema[flushEntityAsyncStatsGroup1](orm)
+	schemaGroup2 := getEntitySchema[flushEntityAsyncStatsGroup2](orm)
 
 	for i := 0; i < 10; i++ {
-		entity := NewEntity[flushEntityAsyncStats](c)
+		entity := NewEntity[flushEntityAsyncStats](orm)
 		entity.Name = "test " + strconv.Itoa(i)
-		entity2 := NewEntity[flushEntityAsyncStatsGroup1](c)
+		entity2 := NewEntity[flushEntityAsyncStatsGroup1](orm)
 		entity2.Name = "a " + strconv.Itoa(i)
-		entity3 := NewEntity[flushEntityAsyncStatsGroup2](c)
+		entity3 := NewEntity[flushEntityAsyncStatsGroup2](orm)
 		entity3.Name = "b " + strconv.Itoa(i)
-		err := c.FlushAsync()
+		err := orm.FlushAsync()
 		assert.NoError(t, err)
-		stop := ConsumeAsyncBuffer(c, func(error) {})
+		stop := ConsumeAsyncBuffer(orm, func(error) {})
 		stop()
 	}
 
-	stats := ReadAsyncFlushEvents(c)
+	stats := ReadAsyncFlushEvents(orm)
 	assert.Len(t, stats, 2)
 	for i := 0; i < 2; i++ {
 		stat := stats[0]

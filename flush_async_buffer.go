@@ -16,19 +16,19 @@ func publishAsyncEvent(schema *entitySchema, event asyncTemporaryQueueEvent) {
 	schema.asyncTemporaryQueue.Enqueue(event)
 }
 
-func ConsumeAsyncBuffer(c Context, errF func(err error)) (stop func()) {
-	engine := c.Engine().(*engineImplementation)
+func ConsumeAsyncBuffer(orm ORM, errF func(err error)) (stop func()) {
+	engine := orm.Engine().(*engineImplementation)
 	if engine.asyncTemporaryIsQueueRunning {
 		panic("consumer is already running")
 	}
 	engine.asyncTemporaryIsQueueRunning = true
-	entities := c.Engine().Registry().Entities()
+	entities := orm.Engine().Registry().Entities()
 	stop = func() {
 		if !engine.asyncTemporaryIsQueueRunning {
 			return
 		}
 		for _, entityType := range entities {
-			schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+			schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
 			schema.asyncTemporaryQueue.TryEnqueue(nil)
 		}
 		maxIterations := 10000
@@ -47,11 +47,11 @@ func ConsumeAsyncBuffer(c Context, errF func(err error)) (stop func()) {
 	go func() {
 		waitGroup := &sync.WaitGroup{}
 		for _, entityType := range entities {
-			schema := c.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+			schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()
-				consumeAsyncTempEvent(c.Clone(), schema, errF)
+				consumeAsyncTempEvent(orm.Clone(), schema, errF)
 			}()
 		}
 		waitGroup.Wait()
@@ -60,8 +60,8 @@ func ConsumeAsyncBuffer(c Context, errF func(err error)) (stop func()) {
 	return stop
 }
 
-func consumeAsyncTempEvent(c Context, schema *entitySchema, errF func(err error)) {
-	r := c.Engine().Redis(schema.getForcedRedisCode())
+func consumeAsyncTempEvent(orm ORM, schema *entitySchema, errF func(err error)) {
+	r := orm.Engine().Redis(schema.getForcedRedisCode())
 	buffer := make([]any, redisRPushPackSize)
 	for {
 		res := func() bool {
@@ -96,7 +96,7 @@ func consumeAsyncTempEvent(c Context, schema *entitySchema, errF func(err error)
 				buffer[i] = asJSON
 				rows++
 			}
-			r.RPush(c, schema.asyncCacheKey, buffer[0:rows]...)
+			r.RPush(orm, schema.asyncCacheKey, buffer[0:rows]...)
 			return !breakMe
 		}()
 		if !res {

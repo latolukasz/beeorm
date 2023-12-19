@@ -10,26 +10,26 @@ import (
 
 const loadingUniqueKeysPage = 5000
 
-func LoadUniqueKeys(c Context, debug bool) {
-	lock, got := c.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(c, "load_unique_key", time.Second*5, 0)
+func LoadUniqueKeys(orm ORM, debug bool) {
+	lock, got := orm.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(orm, "load_unique_key", time.Second*5, 0)
 	if !got {
 		return
 	}
-	defer lock.Release(c)
-	for _, entity := range c.Engine().Registry().Entities() {
-		schema := c.Engine().Registry().EntitySchema(entity)
+	defer lock.Release(orm)
+	for _, entity := range orm.Engine().Registry().Entities() {
+		schema := orm.Engine().Registry().EntitySchema(entity)
 		indexes := schema.GetUniqueIndexes()
 		if len(indexes) == 0 {
 			continue
 		}
 		cache, hasRedis := schema.GetRedisCache()
 		if !hasRedis {
-			cache = c.Engine().Redis(DefaultPoolCode)
+			cache = orm.Engine().Redis(DefaultPoolCode)
 		}
 		db := schema.GetDB()
 		for indexName, columns := range schema.GetUniqueIndexes() {
 			hSetKey := schema.getCacheKey() + ":" + indexName
-			if len(columns) == 0 || cache.Exists(c, hSetKey) > 0 {
+			if len(columns) == 0 || cache.Exists(orm, hSetKey) > 0 {
 				continue
 			}
 			where := NewWhere("")
@@ -60,7 +60,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				print(".")
 			}
 			total := uint64(0)
-			db.QueryRow(c, NewWhere(whereCount), &total)
+			db.QueryRow(orm, NewWhere(whereCount), &total)
 			if total == 0 {
 				if debug {
 					print(strings.Repeat(".", 100))
@@ -69,7 +69,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				continue
 			}
 			func() {
-				p, cl := db.Prepare(c, selectWhere.String())
+				p, cl := db.Prepare(orm, selectWhere.String())
 				defer cl()
 				lastID := uint64(0)
 				dotsPrinted := 0
@@ -77,7 +77,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 				for {
 					count := 0
 					func() {
-						rows, cl2 := p.Query(c, lastID)
+						rows, cl2 := p.Query(orm, lastID)
 						defer cl2()
 						for rows.Next() {
 							rows.Scan(pointers...)
@@ -87,7 +87,7 @@ func LoadUniqueKeys(c Context, debug bool) {
 							for i := 1; i < len(pointers); i++ {
 								hField += *pointers[i].(*string)
 							}
-							cache.HSet(c, hSetKey, hashString(hField), id)
+							cache.HSet(orm, hSetKey, hashString(hField), id)
 							count++
 							executed++
 						}

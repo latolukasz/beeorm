@@ -200,41 +200,41 @@ func TestFlushUpdateUpdateRedis(t *testing.T) {
 
 func testFlushInsert(t *testing.T, async, local, redis bool) {
 	r := NewRegistry()
-	c := PrepareTables(t, r, flushEntity{}, flushEntityReference{})
+	orm := PrepareTables(t, r, flushEntity{}, flushEntityReference{})
 
-	schema := GetEntitySchema[flushEntity](c)
+	schema := GetEntitySchema[flushEntity](orm)
 	schema.DisableCache(!local, !redis)
 
-	reference := NewEntity[flushEntityReference](c)
+	reference := NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference"
-	err := testFlush(c, async)
+	err := testFlush(orm, async)
 	assert.NoError(t, err)
 
 	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
 	loggerLocal := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerLocal, false, false, true)
+	orm.RegisterQueryLogger(loggerLocal, false, false, true)
 	loggerRedis := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerRedis, false, true, false)
+	orm.RegisterQueryLogger(loggerRedis, false, true, false)
 
 	// Adding empty entity
-	newEntity := schema.NewEntity(c).(*flushEntity)
+	newEntity := schema.NewEntity(orm).(*flushEntity)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	loggerDB.Clear()
 
-	entity := GetByID[flushEntity](c, newEntity.ID)
+	entity := GetByID[flushEntity](orm, newEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.NotNil(t, entity)
 	} else if async {
 		assert.Nil(t, entity)
-		err = runAsyncConsumer(c, false)
+		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
-		entity = GetByID[flushEntity](c, newEntity.ID)
+		entity = GetByID[flushEntity](orm, newEntity.ID)
 		assert.NotNil(t, entity)
 	}
 
@@ -314,7 +314,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	}
 
 	// Adding full entity
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.City = "New York"
 	newEntity.Name = "Test name"
 	newEntity.Age = -19
@@ -403,12 +403,12 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		newEntity.FlushStructArray[i].Sub.Name3 = fmt.Sprintf("Name %d", i)
 		newEntity.FlushStructArray[i].Sub.Age3 = i + 1
 	}
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	if async {
-		err = runAsyncConsumer(c, false)
+		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
 	}
-	entity = GetByID[flushEntity](c, newEntity.ID)
+	entity = GetByID[flushEntity](orm, newEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "New York", entity.City)
@@ -484,7 +484,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	}
 
 	// rounding dates
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "rounding dates"
 	newEntity.City = "rounding dates"
@@ -494,14 +494,14 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.TimeNullable = &timeNullable
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), newEntity.Time)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), newEntity.TimeWithTime)
 	assert.Equal(t, time.Date(2023, 11, 12, 0, 0, 0, 0, time.UTC), *newEntity.TimeNullable)
 	assert.Equal(t, time.Date(2023, 8, 16, 12, 23, 11, 0, time.UTC), *newEntity.TimeWithTimeNullable)
 
 	// rounding floats
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "rounding floats"
 	newEntity.City = "rounding floats"
@@ -511,7 +511,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.FloatNullable = &floatNullable
 	decimalNullable = 1.126
 	newEntity.DecimalNullable = &decimalNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Equal(t, 1.12346, newEntity.Float64)
 	assert.Equal(t, 1.12, newEntity.Decimal)
 	assert.Equal(t, 1.123, *newEntity.FloatNullable)
@@ -520,105 +520,105 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	// invalid values
 
 	// empty string
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] empty string not allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// string too long
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = strings.Repeat("a", 256)
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
-	c.ClearFlush()
-	assert.NoError(t, testFlush(c, async))
-	newEntity = NewEntity[flushEntity](c)
+	orm.ClearFlush()
+	assert.NoError(t, testFlush(orm, async))
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.City = strings.Repeat("a", 41)
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
 	newEntity.City = strings.Repeat("a", 40)
 	newEntity.Name = "String to long"
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 
 	// invalid decimal
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Decimal = 1234
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
-	c.ClearFlush()
-	newEntity = NewEntity[flushEntity](c)
+	orm.ClearFlush()
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	decimalNullable = 1234
 	newEntity.DecimalNullable = &decimalNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[DecimalNullable] decimal size too big, max 3 allowed")
 	assert.Equal(t, "DecimalNullable", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// float signed
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Float64Unsigned = -1
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
 	assert.Equal(t, "Float64Unsigned", err.(*BindError).Field)
 	newEntity.Float64Unsigned = 1
 	floatNullable = -1
 	newEntity.FloatNullable = &floatNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[FloatNullable] negative value not allowed")
 	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// invalid enum, set
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name 2"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.EnumNotNull = ""
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
 	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
 	newEntity.EnumNotNull = "invalid"
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[EnumNotNull] invalid value: invalid")
 	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
 	newEntity.EnumNotNull = testEnumDefinition.C
 	newEntity.SetNotNull = nil
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	newEntity.SetNotNull = []testEnum{}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	newEntity.SetNotNull = []testEnum{"invalid"}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// Time
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Time = time.Now().Local()
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Time] time must be in UTC location")
 	assert.Equal(t, "Time", err.(*BindError).Field)
 	newEntity.Time = newEntity.Time.UTC()
 	newEntity.TimeWithTime = time.Now().Local()
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
 
@@ -626,124 +626,124 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.TimeWithTime = newEntity.Time.UTC()
 	timeNullable = time.Now().Local()
 	newEntity.TimeNullable = &timeNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeNullable", err.(*BindError).Field)
 	timeWithTimeNullable = time.Now().Local()
 	timeNullable = time.Now().UTC()
 	newEntity.TimeNullable = &timeNullable
 	newEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// duplicated key
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.City = "Another city "
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
 	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	c.ClearFlush()
+	orm.ClearFlush()
 
-	c.Engine().Redis(DefaultPoolCode).FlushDB(c)
-	LoadUniqueKeys(c, false)
-	newEntity = NewEntity[flushEntity](c)
+	orm.Engine().Redis(DefaultPoolCode).FlushDB(orm)
+	LoadUniqueKeys(orm, false)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
 	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	c.ClearFlush()
+	orm.ClearFlush()
 }
 
 func testFlushDelete(t *testing.T, async, local, redis bool) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
+	orm := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
 
-	schema := GetEntitySchema[flushEntity](c)
+	schema := GetEntitySchema[flushEntity](orm)
 	schema.DisableCache(!local, !redis)
 
-	reference := NewEntity[flushEntityReference](c)
+	reference := NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference"
-	err := testFlush(c, false)
+	err := testFlush(orm, false)
 	assert.NoError(t, err)
 
-	entity := NewEntity[flushEntity](c)
+	entity := NewEntity[flushEntity](orm)
 	entity.Name = "Test 1"
 	entity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, false)
+	err = testFlush(orm, false)
 	assert.NoError(t, err)
 
 	id := entity.ID
 
-	DeleteEntity(c, entity)
-	err = testFlush(c, async)
+	DeleteEntity(orm, entity)
+	err = testFlush(orm, async)
 	assert.NoError(t, err)
 
 	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
 
 	if redis || local {
-		entity = GetByID[flushEntity](c, id)
+		entity = GetByID[flushEntity](orm, id)
 		assert.Nil(t, entity)
 		assert.Len(t, loggerDB.Logs, 0)
 		loggerDB.Clear()
 	}
 
 	if async {
-		err = runAsyncConsumer(c, false)
+		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
 	}
 
-	entity = GetByID[flushEntity](c, id)
+	entity = GetByID[flushEntity](orm, id)
 	assert.Nil(t, entity)
 
 	// duplicated key
-	entity = NewEntity[flushEntity](c)
+	entity = NewEntity[flushEntity](orm)
 	entity.Name = "Test 1"
 	entity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, false)
+	err = testFlush(orm, false)
 	assert.NoError(t, err)
 }
 
 func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
+	orm := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
 
-	schema := GetEntitySchema[flushEntity](c)
+	schema := GetEntitySchema[flushEntity](orm)
 	schema.DisableCache(!local, !redis)
 
-	reference := NewEntity[flushEntityReference](c)
+	reference := NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference"
-	err := testFlush(c, false)
+	err := testFlush(orm, false)
 	assert.NoError(t, err)
 
-	newEntity := NewEntity[flushEntity](c)
+	newEntity := NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "Name"
-	assert.NoError(t, testFlush(c, false))
+	assert.NoError(t, testFlush(orm, false))
 
 	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
 	loggerLocal := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerLocal, false, false, true)
+	orm.RegisterQueryLogger(loggerLocal, false, false, true)
 
 	// empty entity
-	editedEntity := EditEntity(c, newEntity)
+	editedEntity := EditEntity(orm, newEntity)
 	assert.Equal(t, "Name", editedEntity.Name)
 	assert.Equal(t, newEntity.ReferenceRequired, editedEntity.ReferenceRequired)
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// editing to full entity
-	editedEntityFull := EditEntity(c, editedEntity)
+	editedEntityFull := EditEntity(orm, editedEntity)
 	editedEntity = editedEntityFull
 	editedEntity.City = "New York"
 	editedEntity.Name = "Test name"
@@ -833,7 +833,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		editedEntity.FlushStructArray[i].Sub.Age3 = i + 1
 	}
 
-	oldValues, newValues, isDirty := IsDirty[flushEntity](c, editedEntity.ID)
+	oldValues, newValues, isDirty := IsDirty[flushEntity](orm, editedEntity.ID)
 	assert.True(t, isDirty)
 	assert.NotNil(t, oldValues)
 	assert.NotNil(t, newValues)
@@ -841,17 +841,17 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.Len(t, newValues, 91)
 
 	loggerLocal.Clear()
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	if !async {
 		assert.Len(t, loggerDB.Logs, 1)
 	} else {
 		assert.Len(t, loggerDB.Logs, 0)
-		err = runAsyncConsumer(c, false)
+		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
 	}
 	loggerDB.Clear()
 	loggerLocal.Clear()
-	entity := GetByID[flushEntity](c, editedEntity.ID)
+	entity := GetByID[flushEntity](orm, editedEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
@@ -933,12 +933,12 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	}
 
 	loggerDB.Clear()
-	editedEntity = EditEntity(c, editedEntity)
-	assert.NoError(t, testFlush(c, async))
+	editedEntity = EditEntity(orm, editedEntity)
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// rounding dates
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	editedEntity.Name = "rounding dates"
 	editedEntity.City = "rounding dates"
@@ -948,7 +948,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	editedEntity.TimeNullable = &timeNullable
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	if !async {
 		assert.Len(t, loggerDB.Logs, 1)
 	}
@@ -959,23 +959,23 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 
 	// same dates
 	loggerDB.Clear()
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	timeNullable = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
 	editedEntity.TimeNullable = &timeNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// same times
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.TimeWithTime = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	timeWithTimeNullable = time.Date(2023, 8, 16, 12, 23, 11, 6, time.UTC)
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// rounding floats
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Name = "rounding floats"
 	editedEntity.City = "rounding floats"
 	editedEntity.Float64 = 1.123456
@@ -984,7 +984,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	editedEntity.FloatNullable = &floatNullable
 	decimalNullable = 1.126
 	editedEntity.DecimalNullable = &decimalNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	if !async {
 		assert.Len(t, loggerDB.Logs, 1)
 	}
@@ -995,134 +995,134 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	loggerDB.Clear()
 
 	// same floats
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Float64 = 1.123456
 	editedEntity.Decimal = 1.123
 	floatNullable = 1.1234
 	editedEntity.FloatNullable = &floatNullable
 	decimalNullable = 1.126
 	editedEntity.DecimalNullable = &decimalNullable
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// same set
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.SetNullable = []testEnum{testEnumDefinition.C, testEnumDefinition.B}
 	editedEntity.SetNotNull = []testEnum{testEnumDefinition.C, testEnumDefinition.A}
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.SetNullable = []testEnum{testEnumDefinition.C, testEnumDefinition.B, testEnumDefinition.B}
 	editedEntity.SetNotNull = []testEnum{testEnumDefinition.C, testEnumDefinition.A, testEnumDefinition.A}
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 	assert.Len(t, loggerDB.Logs, 0)
 
 	// copy entity
-	copiedEntity := Copy(c, editedEntity)
+	copiedEntity := Copy(orm, editedEntity)
 	assert.NotNil(t, copiedEntity)
 	assert.NotEqual(t, copiedEntity.ID, editedEntity.ID)
 	assert.Equal(t, copiedEntity.Name, editedEntity.Name)
 	copiedEntity.City = "Copy"
 	copiedEntity.Name = "Copy"
-	assert.NoError(t, c.Flush())
-	copiedEntity = GetByID[flushEntity](c, copiedEntity.ID)
+	assert.NoError(t, orm.Flush())
+	copiedEntity = GetByID[flushEntity](orm, copiedEntity.ID)
 	assert.NotNil(t, copiedEntity)
 	assert.Equal(t, copiedEntity.Age, editedEntity.Age)
 
 	// invalid values
 
 	// empty string
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Name = ""
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] empty string not allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// string too long
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Name = strings.Repeat("a", 256)
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
-	c.ClearFlush()
-	editedEntity = EditEntity(c, editedEntity)
+	orm.ClearFlush()
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.City = strings.Repeat("a", 41)
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
 	editedEntity.City = strings.Repeat("a", 40)
 	editedEntity.Name = "String to long"
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 
 	// invalid decimal
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Decimal = 1234
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
 	assert.Equal(t, "Decimal", err.(*BindError).Field)
-	c.ClearFlush()
-	editedEntity = EditEntity(c, editedEntity)
+	orm.ClearFlush()
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Decimal = 123
 	decimalNullable = 1234
 	editedEntity.DecimalNullable = &decimalNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[DecimalNullable] decimal size too big, max 3 allowed")
 	assert.Equal(t, "DecimalNullable", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 	decimalNullable = 123
 	editedEntity.DecimalNullable = &decimalNullable
 
 	// float signed
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Float64Unsigned = -1
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
 	assert.Equal(t, "Float64Unsigned", err.(*BindError).Field)
 	editedEntity.Float64Unsigned = 1
 	floatNullable = -1
 	editedEntity.FloatNullable = &floatNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[FloatNullable] negative value not allowed")
 	assert.Equal(t, "FloatNullable", err.(*BindError).Field)
-	c.ClearFlush()
+	orm.ClearFlush()
 	floatNullable = 1
 	editedEntity.FloatNullable = &floatNullable
 
 	// invalid enum, set
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.EnumNotNull = ""
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
 	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
 	editedEntity.EnumNotNull = "invalid"
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[EnumNotNull] invalid value: invalid")
 	assert.Equal(t, "EnumNotNull", err.(*BindError).Field)
 	editedEntity.EnumNotNull = testEnumDefinition.C
 	editedEntity.SetNotNull = nil
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	editedEntity.SetNotNull = []testEnum{}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] empty value not allowed")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	editedEntity.SetNotNull = []testEnum{"invalid"}
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[SetNotNull] invalid value: invalid")
 	assert.Equal(t, "SetNotNull", err.(*BindError).Field)
 	editedEntity.SetNotNull = []testEnum{testEnumDefinition.B}
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// Time
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Time = time.Now().Local()
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Time] time must be in UTC location")
 	assert.Equal(t, "Time", err.(*BindError).Field)
 	editedEntity.Time = newEntity.Time.UTC()
 	editedEntity.TimeWithTime = time.Now().Local()
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeWithTime] time must be in UTC location")
 	assert.Equal(t, "TimeWithTime", err.(*BindError).Field)
 
@@ -1130,77 +1130,77 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	editedEntity.TimeWithTime = editedEntity.Time.UTC()
 	timeNullable = time.Now().Local()
 	editedEntity.TimeNullable = &timeNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeNullable", err.(*BindError).Field)
 	timeWithTimeNullable = time.Now().Local()
 	timeNullable = time.Now().UTC()
 	editedEntity.TimeNullable = &timeNullable
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[TimeWithTimeNullable] time must be in UTC location")
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
 	timeWithTimeNullable = time.Now().UTC()
 	editedEntity.TimeWithTimeNullable = &timeWithTimeNullable
-	c.ClearFlush()
+	orm.ClearFlush()
 
 	// duplicated key
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "Name 2"
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 
-	editedEntity = EditEntity(c, editedEntity)
+	editedEntity = EditEntity(orm, editedEntity)
 	editedEntity.Name = "Name 2"
-	err = testFlush(c, async)
+	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
 	assert.Equal(t, newEntity.ID, err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	c.ClearFlush()
+	orm.ClearFlush()
 
-	editedEntity = EditEntity(c, newEntity)
+	editedEntity = EditEntity(orm, newEntity)
 	editedEntity.Name = "Name 3"
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 
-	newEntity = NewEntity[flushEntity](c)
+	newEntity = NewEntity[flushEntity](orm)
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	newEntity.Name = "Name 2"
-	assert.NoError(t, testFlush(c, async))
+	assert.NoError(t, testFlush(orm, async))
 }
 
 func TestFlushTransaction(t *testing.T) {
 	registry := NewRegistry()
-	c := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
+	orm := PrepareTables(t, registry, flushEntity{}, flushEntityReference{})
 
-	schema := GetEntitySchema[flushEntity](c)
+	schema := GetEntitySchema[flushEntity](orm)
 	schema.DisableCache(true, true)
 
 	loggerDB := &MockLogHandler{}
-	c.RegisterQueryLogger(loggerDB, true, false, false)
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
 
-	reference := NewEntity[flushEntityReference](c)
+	reference := NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference"
-	err := testFlush(c, false)
+	err := testFlush(orm, false)
 	assert.NoError(t, err)
 	assert.Len(t, loggerDB.Logs, 1)
 	loggerDB.Clear()
 
-	reference = NewEntity[flushEntityReference](c)
+	reference = NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference 2"
-	reference2 := NewEntity[flushEntityReference](c)
+	reference2 := NewEntity[flushEntityReference](orm)
 	reference2.Name = "test reference 3"
-	err = testFlush(c, false)
+	err = testFlush(orm, false)
 	assert.NoError(t, err)
 	assert.Len(t, loggerDB.Logs, 1)
 	loggerDB.Clear()
 
-	reference = NewEntity[flushEntityReference](c)
+	reference = NewEntity[flushEntityReference](orm)
 	reference.Name = "test reference 2"
-	flushE := NewEntity[flushEntity](c)
+	flushE := NewEntity[flushEntity](orm)
 	flushE.Name = "test"
 	flushE.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
-	err = testFlush(c, false)
+	err = testFlush(orm, false)
 	assert.NoError(t, err)
 	assert.Len(t, loggerDB.Logs, 4)
 	assert.Equal(t, "START TRANSACTION", loggerDB.Logs[0]["query"])
@@ -1210,9 +1210,9 @@ func TestFlushTransaction(t *testing.T) {
 	// Skipping invalid event
 }
 
-func testFlush(c Context, async bool) error {
+func testFlush(orm ORM, async bool) error {
 	if async {
-		return c.FlushAsync()
+		return orm.FlushAsync()
 	}
-	return c.Flush()
+	return orm.Flush()
 }

@@ -14,27 +14,27 @@ func BenchmarkGetByReferenceLocalCache(b *testing.B) {
 
 func benchmarkGetByReference(b *testing.B, local, redis bool) {
 	var entity *getByReferenceEntity
-	c := PrepareTables(nil, NewRegistry(), entity, getByReferenceReference{})
-	schema := GetEntitySchema[getByReferenceEntity](c)
+	orm := PrepareTables(nil, NewRegistry(), entity, getByReferenceReference{})
+	schema := GetEntitySchema[getByReferenceEntity](orm)
 	schema.DisableCache(!local, !redis)
 
 	var entities []*getByReferenceEntity
-	ref := NewEntity[getByReferenceReference](c)
+	ref := NewEntity[getByReferenceReference](orm)
 	ref.Name = "Ref 1"
 	for i := 0; i < 10; i++ {
-		entity = NewEntity[getByReferenceEntity](c)
+		entity = NewEntity[getByReferenceEntity](orm)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.RefCached = &Reference[getByReferenceReference]{ID: ref.ID}
 		entities = append(entities, entity)
 	}
-	err := c.Flush()
+	err := orm.Flush()
 	assert.NoError(b, err)
 
-	rows := GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
+	rows := GetByReference[getByReferenceEntity](orm, "RefCached", ref.ID)
 	assert.Len(b, rows, 10)
 	b.ResetTimer()
 	b.ReportAllocs()
 	for n := 0; n < b.N; n++ {
-		GetByReference[getByReferenceEntity](c, "RefCached", ref.ID)
+		GetByReference[getByReferenceEntity](orm, "RefCached", ref.ID)
 	}
 }

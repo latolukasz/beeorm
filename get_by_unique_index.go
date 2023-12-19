@@ -6,9 +6,9 @@ import (
 	"strconv"
 )
 
-func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E {
+func GetByUniqueIndex[E any](orm ORM, indexName string, attributes ...any) *E {
 	var e E
-	schema := c.(*contextImplementation).engine.registry.entitySchemas[reflect.TypeOf(e)]
+	schema := orm.(*ormImplementation).engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
@@ -33,12 +33,12 @@ func GetByUniqueIndex[E any](c Context, indexName string, attributes ...any) *E 
 	hField := hashString(s)
 	cache, hasRedis := schema.GetRedisCache()
 	if !hasRedis {
-		cache = c.Engine().Redis(DefaultPoolCode)
+		cache = orm.Engine().Redis(DefaultPoolCode)
 	}
-	previousID, inUse := cache.HGet(c, hSetKey, hField)
+	previousID, inUse := cache.HGet(orm, hSetKey, hField)
 	if inUse {
 		id, _ := strconv.ParseUint(previousID, 10, 64)
-		return GetByID[E](c, id)
+		return GetByID[E](orm, id)
 	}
 	return nil
 }
