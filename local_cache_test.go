@@ -13,7 +13,7 @@ func TestLocalCache(t *testing.T) {
 	registry.RegisterLocalCache("with_limit", 3)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	orm := validatedRegistry.NewContext(context.Background())
+	orm := validatedRegistry.NewORM(context.Background())
 	testLogger := &MockLogHandler{}
 	orm.RegisterQueryLogger(testLogger, false, false, true)
 	testQueryLog := &MockLogHandler{}
@@ -46,7 +46,7 @@ func TestLocalCache(t *testing.T) {
 	_, found := lcLimit.Get(orm, "4")
 	assert.True(t, found)
 
-	orm = validatedRegistry.NewContext(context.Background())
+	orm = validatedRegistry.NewORM(context.Background())
 	orm.RegisterQueryLogger(testLogger, false, false, true)
 	orm.RegisterQueryLogger(testQueryLog, false, false, true)
 	lc = orm.Engine().LocalCache(DefaultPoolCode)

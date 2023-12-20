@@ -36,7 +36,7 @@ func PrepareTables(t *testing.T, registry Registry, entities ...any) (orm ORM) {
 		panic(err)
 	}
 
-	orm = engine.NewContext(context.Background())
+	orm = engine.NewORM(context.Background())
 	cacheRedis := engine.Redis(DefaultPoolCode)
 	cacheRedis.FlushDB(orm)
 	engine.Redis("second").FlushDB(orm)
@@ -55,7 +55,7 @@ func PrepareTables(t *testing.T, registry Registry, entities ...any) (orm ORM) {
 			cacheLocal.Clear(orm)
 		}
 	}
-	LoadUniqueKeys(engine.NewContext(context.Background()), false)
+	LoadUniqueKeys(engine.NewORM(context.Background()), false)
 	return orm
 }
 

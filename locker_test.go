@@ -13,7 +13,7 @@ func TestLocker(t *testing.T) {
 	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, nil)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	orm := validatedRegistry.NewContext(context.Background())
+	orm := validatedRegistry.NewORM(context.Background())
 	orm.Engine().Redis(DefaultPoolCode).FlushDB(orm)
 	testLogger := &MockLogHandler{}
 	orm.RegisterQueryLogger(testLogger, false, true, false)

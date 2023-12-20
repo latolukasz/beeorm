@@ -15,7 +15,7 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, nil)
 	validatedRegistry, err := registry.Validate()
 	assert.Nil(t, err)
-	orm := validatedRegistry.NewContext(context.Background())
+	orm := validatedRegistry.NewORM(context.Background())
 
 	r := orm.Engine().Redis(DefaultPoolCode)
 
@@ -196,7 +196,7 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedis("localhost:6399", 15, DefaultPoolCode, nil)
 	validatedRegistry, err = registry.Validate()
 	assert.NoError(t, err)
-	orm = validatedRegistry.NewContext(context.Background())
+	orm = validatedRegistry.NewORM(context.Background())
 	testLogger = &MockLogHandler{}
 	orm.RegisterQueryLogger(testLogger, false, true, false)
 	assert.Panics(t, func() {
@@ -207,7 +207,7 @@ func TestRedis(t *testing.T) {
 	registry.RegisterRedis("localhost:6385", 15, DefaultPoolCode, &RedisOptions{User: "user", Password: "pass"})
 	validatedRegistry, err = registry.Validate()
 	assert.Nil(t, err)
-	orm = validatedRegistry.NewContext(context.Background())
+	orm = validatedRegistry.NewORM(context.Background())
 	assert.PanicsWithError(t, "WRONGPASS invalid username-password pair or user is disabled.", func() {
 		orm.Engine().Redis(DefaultPoolCode).Incr(orm, "test")
 	})

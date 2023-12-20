@@ -65,7 +65,7 @@ func TestAsyncConsumer(t *testing.T) {
 
 	// more than one-page blocking mode
 	ctx, cancel := context.WithCancel(context.Background())
-	c2 := orm.Engine().NewContext(ctx)
+	c2 := orm.Engine().NewORM(ctx)
 	c2.Engine().Registry().(*engineRegistryImplementation).asyncConsumerBlockTime = time.Millisecond * 100
 
 	var consumeErr error
