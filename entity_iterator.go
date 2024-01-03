@@ -6,15 +6,15 @@ type EntityIterator[E any] interface {
 	Next() bool
 	Len() int
 	Entity() *E
-	reset()
-	all() []*E
+	All() []*E
+	Reset()
 }
 
 type EntityAnonymousIterator interface {
 	Next() bool
 	Len() int
 	Entity() any
-	reset()
+	Reset()
 }
 
 type localCacheIDsIterator[E any] struct {
@@ -38,11 +38,11 @@ func (lc *localCacheIDsIterator[E]) Len() int {
 	return len(lc.ids)
 }
 
-func (lc *localCacheIDsIterator[E]) reset() {
+func (lc *localCacheIDsIterator[E]) Reset() {
 	lc.index = -1
 }
 
-func (lc *localCacheIDsIterator[E]) all() []*E {
+func (lc *localCacheIDsIterator[E]) All() []*E {
 	if lc.hasRows {
 		return lc.rows
 	}
@@ -52,7 +52,7 @@ func (lc *localCacheIDsIterator[E]) all() []*E {
 		lc.rows[i] = lc.Entity()
 		i++
 	}
-	lc.reset()
+	lc.Reset()
 	lc.hasRows = true
 	return lc.rows
 }
@@ -85,9 +85,9 @@ func (el *emptyResultsIterator[E]) Entity() *E {
 	return nil
 }
 
-func (el *emptyResultsIterator[E]) reset() {}
+func (el *emptyResultsIterator[E]) Reset() {}
 
-func (el *emptyResultsIterator[E]) all() []*E {
+func (el *emptyResultsIterator[E]) All() []*E {
 	return nil
 }
 
@@ -115,11 +115,11 @@ func (ei *entityIterator[E]) Entity() *E {
 	return ei.rows[ei.index]
 }
 
-func (ei *entityIterator[E]) reset() {
+func (ei *entityIterator[E]) Reset() {
 	ei.index = -1
 }
 
-func (ei *entityIterator[E]) all() []*E {
+func (ei *entityIterator[E]) All() []*E {
 	return ei.rows
 }
 
@@ -147,7 +147,7 @@ func (ea *entityAnonymousIterator) Entity() any {
 	return ea.rows.Index(ea.index).Interface()
 }
 
-func (ea *entityAnonymousIterator) reset() {
+func (ea *entityAnonymousIterator) Reset() {
 	ea.index = -1
 }
 
@@ -165,7 +165,7 @@ func (el *emptyResultsAnonymousIterator) Entity() any {
 	return nil
 }
 
-func (el *emptyResultsAnonymousIterator) reset() {}
+func (el *emptyResultsAnonymousIterator) Reset() {}
 
 var emptyResultsAnonymousIteratorInstance = &emptyResultsAnonymousIterator{}
 
@@ -188,7 +188,7 @@ func (lc *localCacheIDsAnonymousIterator) Len() int {
 	return len(lc.ids)
 }
 
-func (lc *localCacheIDsAnonymousIterator) reset() {
+func (lc *localCacheIDsAnonymousIterator) Reset() {
 	lc.index = -1
 }
 

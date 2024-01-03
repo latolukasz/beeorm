@@ -82,7 +82,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 					lc.setReference(orm, referenceName, id, cacheNilValue)
 				} else {
 					if resultSchema.hasLocalCache {
-						lc.setReference(orm, referenceName, id, values.all())
+						lc.setReference(orm, referenceName, id, values.All())
 					} else {
 						lc.setReference(orm, referenceName, id, ids)
 					}
@@ -115,7 +115,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		p.Exec(orm)
 		values := GetByIDs[E](orm, ids...)
 		if resultSchema.hasLocalCache {
-			lc.setReference(orm, referenceName, id, values.all())
+			lc.setReference(orm, referenceName, id, values.All())
 		} else {
 			lc.setReference(orm, referenceName, id, ids)
 		}
@@ -138,7 +138,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 			idsForRedis[i+1] = strconv.FormatUint(reflect.ValueOf(values.Entity()).Elem().Field(0).Uint(), 10)
 			i++
 		}
-		values.reset()
+		values.Reset()
 		rc.SAdd(orm, redisSetKey, idsForRedis...)
 	}
 	return values
