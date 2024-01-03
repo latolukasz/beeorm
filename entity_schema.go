@@ -62,6 +62,10 @@ type EntitySchema interface {
 	SearchIDs(orm ORM, where *Where, pager *Pager) []uint64
 	SearchIDsWithCount(orm ORM, where *Where, pager *Pager) (results []uint64, totalRows int)
 	IsDirty(orm ORM, id uint64) (oldValues, newValues Bind, hasChanges bool)
+	Copy(orm ORM, source any) any
+	EditEntityField(orm ORM, entity any, field string, value any) error
+	EditEntity(orm ORM, entity any) any
+	DeleteEntity(orm ORM, entity any)
 	getCacheKey() string
 	uuid() uint64
 	getForcedRedisCode() string
@@ -515,6 +519,36 @@ func (e *entitySchema) SearchIDsWithCount(orm ORM, where *Where, pager *Pager) (
 
 func (e *entitySchema) IsDirty(orm ORM, id uint64) (oldValues, newValues Bind, hasChanges bool) {
 	return isDirty(orm, orm.Engine().Registry().EntitySchema(e.t).(*entitySchema), id)
+}
+
+func (e *entitySchema) Copy(orm ORM, source any) any {
+	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
+	insertable := newEntityInsertable(orm, schema)
+	copyEntity(reflect.ValueOf(source).Elem(), insertable.value.Elem(), schema.fields, false)
+	return insertable.entity
+}
+
+func (e *entitySchema) EditEntityField(orm ORM, entity any, field string, value any) error {
+	return editEntityField(orm, entity, field, value)
+}
+
+func (e *entitySchema) EditEntity(orm ORM, source any) any {
+	writable := copyToEdit(orm, source)
+	writable.id = writable.value.Elem().Field(0).Uint()
+	writable.source = source
+	orm.trackEntity(writable)
+	return writable.entity
+}
+
+func (e *entitySchema) DeleteEntity(orm ORM, source any) {
+	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
+	toRemove := &removableEntity{}
+	toRemove.orm = orm
+	toRemove.source = source
+	toRemove.value = reflect.ValueOf(source).Elem()
+	toRemove.id = toRemove.value.Field(0).Uint()
+	toRemove.schema = schema
+	orm.trackEntity(toRemove)
 }
 
 func (e *entitySchema) search(orm ORM, where *Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {

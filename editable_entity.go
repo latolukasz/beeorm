@@ -91,22 +91,22 @@ func (e *editableEntity[E]) getSourceValue() reflect.Value {
 	return e.sourceValue
 }
 
-type removableEntity[E any] struct {
+type removableEntity struct {
 	writableEntity
 	id     uint64
 	value  reflect.Value
-	source E
+	source any
 }
 
-func (r *removableEntity[E]) flushType() FlushType {
+func (r *removableEntity) flushType() FlushType {
 	return Delete
 }
 
-func (r *removableEntity[E]) SourceEntity() E {
+func (r *removableEntity) SourceEntity() any {
 	return r.source
 }
 
-func (r *removableEntity[E]) getValue() reflect.Value {
+func (r *removableEntity) getValue() reflect.Value {
 	return r.value
 }
 
@@ -155,7 +155,7 @@ func (e *editableEntity[E]) ID() uint64 {
 	return e.id
 }
 
-func (r *removableEntity[E]) ID() uint64 {
+func (r *removableEntity) ID() uint64 {
 	return r.id
 }
 
@@ -192,7 +192,7 @@ func newEntity(orm ORM, schema *entitySchema) any {
 }
 
 func DeleteEntity[E any](orm ORM, source E) {
-	toRemove := &removableEntity[E]{}
+	toRemove := &removableEntity{}
 	toRemove.orm = orm
 	toRemove.source = source
 	toRemove.value = reflect.ValueOf(source).Elem()

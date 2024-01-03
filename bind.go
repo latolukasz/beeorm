@@ -59,7 +59,7 @@ func (e *editableEntity[E]) getBind() (newBind, oldBind Bind, err error) {
 	return
 }
 
-func (r *removableEntity[E]) getOldBind() (bind Bind, err error) {
+func (r *removableEntity) getOldBind() (bind Bind, err error) {
 	bind = Bind{}
 	schema := r.Schema()
 	err = fillBindFromOneSource(r.orm, bind, reflect.ValueOf(r.source).Elem(), schema.fields, "")
