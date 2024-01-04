@@ -1,6 +1,8 @@
 package beeorm
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type referenceInterface interface {
 	getID() uint64

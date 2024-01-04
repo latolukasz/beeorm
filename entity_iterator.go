@@ -1,6 +1,8 @@
 package beeorm
 
-import "reflect"
+import (
+	"reflect"
+)
 
 type EntityIterator[E any] interface {
 	Next() bool
@@ -69,6 +71,23 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 		return nil
 	}
 	return value.(*E)
+}
+
+func (lc *localCacheIDsIterator[E]) warmup() {
+	if len(lc.ids) <= 1 {
+		return
+	}
+	var emptyIDs []uint64
+	for _, id := range lc.ids {
+		_, ok := lc.schema.localCache.getEntity(lc.orm, id)
+		if !ok {
+			emptyIDs = append(emptyIDs, id)
+		}
+	}
+	if len(emptyIDs) <= 1 {
+		return
+	}
+	getByIDs[E](lc.orm, emptyIDs, true)
 }
 
 type emptyResultsIterator[E any] struct{}

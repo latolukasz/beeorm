@@ -30,6 +30,9 @@ func (where *Where) GetParameters() []any {
 
 func (where *Where) Append(query string, parameters ...any) {
 	newWhere := NewWhere(query, parameters...)
+	if !strings.HasPrefix(query, " ") {
+		where.query += " "
+	}
 	where.query += newWhere.query
 	where.parameters = append(where.parameters, newWhere.parameters...)
 }

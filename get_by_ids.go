@@ -6,16 +6,18 @@ import (
 )
 
 func GetByIDs[E any](orm ORM, ids ...uint64) EntityIterator[E] {
-	return getByIDs[E](orm.(*ormImplementation), ids)
+	return getByIDs[E](orm.(*ormImplementation), ids, false)
 }
 
-func getByIDs[E any](orm *ormImplementation, ids []uint64) EntityIterator[E] {
+func getByIDs[E any](orm *ormImplementation, ids []uint64, skipLocalCache bool) EntityIterator[E] {
 	schema := getEntitySchema[E](orm)
 	if len(ids) == 0 {
 		return &emptyResultsIterator[E]{}
 	}
-	if schema.hasLocalCache {
-		return &localCacheIDsIterator[E]{orm: orm, schema: schema, ids: ids, index: -1}
+	if schema.hasLocalCache && !skipLocalCache {
+		iterator := &localCacheIDsIterator[E]{orm: orm, schema: schema, ids: ids, index: -1}
+		iterator.warmup()
+		return iterator
 	}
 	results := &entityIterator[E]{index: -1}
 	results.rows = make([]*E, len(ids))
@@ -25,66 +27,25 @@ func getByIDs[E any](orm *ormImplementation, ids []uint64) EntityIterator[E] {
 	if hasRedisCache {
 		redisPipeline = orm.RedisPipeLine(cacheRedis.GetCode())
 		l := int64(len(schema.columnNames) + 1)
-		var lRanges []*PipeLineSlice
-		if schema.hasLocalCache {
-			lRanges = make([]*PipeLineSlice, len(missingKeys))
-			for i, key := range missingKeys {
-				lRanges[i] = redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(ids[key], 10), 0, l)
-			}
-		} else {
-			lRanges = make([]*PipeLineSlice, len(ids))
-			for i, id := range ids {
-				lRanges[i] = redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(id, 10), 0, l)
-			}
+		lRanges := make([]*PipeLineSlice, len(ids))
+		for i, id := range ids {
+			lRanges[i] = redisPipeline.LRange(schema.cacheKey+":"+strconv.FormatUint(id, 10), 0, l)
 		}
 		redisPipeline.Exec(orm)
-		if schema.hasLocalCache {
-			hasZero := false
-			for i, key := range missingKeys {
-				row := lRanges[i].Result()
-				if len(row) > 0 {
-					if len(row) == 1 {
-						schema.localCache.setEntity(orm, ids[key], nil)
-					} else {
-						value := reflect.New(schema.t)
-						e := value.Interface().(*E)
-						if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-							schema.localCache.setEntity(orm, ids[key], e)
-						}
-						results.rows[key] = e
-					}
-					missingKeys[i] = 0
-					hasZero = true
-				} else {
-					missingKeys[i] = key
+		for i, id := range ids {
+			row := lRanges[i].Result()
+			if len(row) > 0 {
+				if len(row) == 1 {
+					continue
 				}
-			}
-			if hasZero {
-				k := 0
-				for _, id := range missingKeys {
-					if id > 0 {
-						missingKeys[k] = id
-						k++
-					}
+				value := reflect.New(schema.t)
+				e := value.Interface().(*E)
+				if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
+					schema.localCache.setEntity(orm, id, e)
 				}
-				missingKeys = missingKeys[0:k]
-			}
-		} else {
-			for i, id := range ids {
-				row := lRanges[i].Result()
-				if len(row) > 0 {
-					if len(row) == 1 {
-						continue
-					}
-					value := reflect.New(schema.t)
-					e := value.Interface().(*E)
-					if deserializeFromRedis(row, schema, value.Elem()) && schema.hasLocalCache {
-						schema.localCache.setEntity(orm, id, e)
-					}
-					results.rows[i] = e
-				} else {
-					missingKeys = append(missingKeys, i)
-				}
+				results.rows[i] = e
+			} else {
+				missingKeys = append(missingKeys, i)
 			}
 		}
 		if len(missingKeys) == 0 {
