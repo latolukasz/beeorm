@@ -701,7 +701,7 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 					fields.forcedOldBid[i] = true
 				}
 			} else {
-				panic(fmt.Errorf("field type %s is not supported", f.Type.String()))
+				panic(fmt.Errorf("%s field %s type %s is not supported", e.t.String(), f.Name, f.Type.String()))
 			}
 		}
 	}
