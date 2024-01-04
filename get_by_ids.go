@@ -15,9 +15,7 @@ func getByIDs[E any](orm *ormImplementation, ids []uint64, skipLocalCache bool) 
 		return &emptyResultsIterator[E]{}
 	}
 	if schema.hasLocalCache && !skipLocalCache {
-		iterator := &localCacheIDsIterator[E]{orm: orm, schema: schema, ids: ids, index: -1}
-		iterator.warmup()
-		return iterator
+		return &localCacheIDsIterator[E]{orm: orm, schema: schema, ids: ids, index: -1}
 	}
 	results := &entityIterator[E]{index: -1}
 	results.rows = make([]*E, len(ids))

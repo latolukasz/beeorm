@@ -20,12 +20,13 @@ type EntityAnonymousIterator interface {
 }
 
 type localCacheIDsIterator[E any] struct {
-	orm     *ormImplementation
-	ids     []uint64
-	index   int
-	schema  *entitySchema
-	hasRows bool
-	rows    []*E
+	orm            *ormImplementation
+	ids            []uint64
+	index          int
+	schema         *entitySchema
+	hasRows        bool
+	warmUpFinished bool
+	rows           []*E
 }
 
 func (lc *localCacheIDsIterator[E]) Next() bool {
@@ -66,7 +67,11 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 	if lc.hasRows {
 		return lc.rows[lc.index]
 	}
-	value := getByID(lc.orm, lc.ids[lc.index], lc.schema)
+	value, hit := getByID(lc.orm, lc.ids[lc.index], lc.schema)
+	if !hit && !lc.warmUpFinished {
+		lc.warmup()
+		lc.warmUpFinished = true
+	}
 	if value == nil {
 		return nil
 	}
@@ -74,11 +79,11 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 }
 
 func (lc *localCacheIDsIterator[E]) warmup() {
-	if len(lc.ids) <= 1 {
+	if len(lc.ids)-lc.index <= 2 {
 		return
 	}
 	var emptyIDs []uint64
-	for _, id := range lc.ids {
+	for _, id := range lc.ids[lc.index+1:] {
 		_, ok := lc.schema.localCache.getEntity(lc.orm, id)
 		if !ok {
 			emptyIDs = append(emptyIDs, id)
@@ -215,7 +220,7 @@ func (lc *localCacheIDsAnonymousIterator) Entity() any {
 	if lc.index == -1 {
 		return nil
 	}
-	value := getByID(lc.c, lc.ids[lc.index], lc.schema)
+	value, _ := getByID(lc.c, lc.ids[lc.index], lc.schema)
 	if value == nil {
 		return nil
 	}

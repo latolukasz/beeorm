@@ -494,7 +494,8 @@ func (e *entitySchema) NewEntity(orm ORM) any {
 }
 
 func (e *entitySchema) GetByID(orm ORM, id uint64) any {
-	return getByID(orm.(*ormImplementation), id, orm.Engine().Registry().EntitySchema(e.t).(*entitySchema))
+	entity, _ := getByID(orm.(*ormImplementation), id, orm.Engine().Registry().EntitySchema(e.t).(*entitySchema))
+	return entity
 }
 
 func (e *entitySchema) SearchWithCount(orm ORM, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int) {

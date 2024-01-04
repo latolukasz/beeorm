@@ -286,9 +286,7 @@ func search[E any](orm ORM, where *Where, pager *Pager, withCount bool) (results
 		if total == 0 {
 			return &emptyResultsIterator[E]{}, 0
 		}
-		iterator := &localCacheIDsIterator[E]{orm: orm.(*ormImplementation), schema: schema, ids: ids, index: -1}
-		iterator.warmup()
-		return iterator, total
+		return &localCacheIDsIterator[E]{orm: orm.(*ormImplementation), schema: schema, ids: ids, index: -1}, total
 	}
 	whereQuery := where.String()
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
