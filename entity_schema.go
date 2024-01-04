@@ -57,10 +57,10 @@ type EntitySchema interface {
 	DisableCache(local, redis bool)
 	NewEntity(orm ORM) any
 	GetByID(orm ORM, id uint64) any
-	Search(orm ORM, where *Where, pager *Pager) EntityAnonymousIterator
-	SearchWithCount(orm ORM, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int)
-	SearchIDs(orm ORM, where *Where, pager *Pager) []uint64
-	SearchIDsWithCount(orm ORM, where *Where, pager *Pager) (results []uint64, totalRows int)
+	Search(orm ORM, where Where, pager *Pager) EntityAnonymousIterator
+	SearchWithCount(orm ORM, where Where, pager *Pager) (results EntityAnonymousIterator, totalRows int)
+	SearchIDs(orm ORM, where Where, pager *Pager) []uint64
+	SearchIDsWithCount(orm ORM, where Where, pager *Pager) (results []uint64, totalRows int)
 	IsDirty(orm ORM, id uint64) (oldValues, newValues Bind, hasChanges bool)
 	Copy(orm ORM, source any) any
 	EditEntityField(orm ORM, entity any, field string, value any) error
@@ -498,22 +498,22 @@ func (e *entitySchema) GetByID(orm ORM, id uint64) any {
 	return entity
 }
 
-func (e *entitySchema) SearchWithCount(orm ORM, where *Where, pager *Pager) (results EntityAnonymousIterator, totalRows int) {
+func (e *entitySchema) SearchWithCount(orm ORM, where Where, pager *Pager) (results EntityAnonymousIterator, totalRows int) {
 	return e.search(orm, where, pager, true)
 }
 
-func (e *entitySchema) Search(orm ORM, where *Where, pager *Pager) EntityAnonymousIterator {
+func (e *entitySchema) Search(orm ORM, where Where, pager *Pager) EntityAnonymousIterator {
 	results, _ := e.search(orm, where, pager, false)
 	return results
 }
 
-func (e *entitySchema) SearchIDs(orm ORM, where *Where, pager *Pager) []uint64 {
+func (e *entitySchema) SearchIDs(orm ORM, where Where, pager *Pager) []uint64 {
 	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
 	ids, _ := searchIDs(orm, schema, where, pager, false)
 	return ids
 }
 
-func (e *entitySchema) SearchIDsWithCount(orm ORM, where *Where, pager *Pager) (results []uint64, totalRows int) {
+func (e *entitySchema) SearchIDsWithCount(orm ORM, where Where, pager *Pager) (results []uint64, totalRows int) {
 	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
 	return searchIDs(orm, schema, where, pager, true)
 }
@@ -552,7 +552,7 @@ func (e *entitySchema) DeleteEntity(orm ORM, source any) {
 	orm.trackEntity(toRemove)
 }
 
-func (e *entitySchema) search(orm ORM, where *Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {
+func (e *entitySchema) search(orm ORM, where Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {
 	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
 	entities := reflect.New(reflect.SliceOf(e.t))
 	if schema.hasLocalCache {

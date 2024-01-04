@@ -1,8 +1,10 @@
 package where
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/latolukasz/beeorm/v3"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestWhere(t *testing.T) {
@@ -20,6 +22,7 @@ func TestWhere(t *testing.T) {
 
 	expected := "`id` = ? AND `name` = ? AND `age` IN (?,?,?,?,?) OR `id` = ? AND `name` LIKE ? AND `sex` LIKE ? AND `id` IN (?,?,?,?,?)"
 
+	beeorm.Search[Query](nil, w, nil)
 	assert.Equal(t, expected, w.String())
 	assert.Equal(t, []any{
 		1, "test",
@@ -28,6 +31,6 @@ func TestWhere(t *testing.T) {
 		"%test%",
 		"%female%",
 		1, 2, 3, 4, 5,
-	}, w.Parameters())
+	}, w.GetParameters())
 
 }

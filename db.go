@@ -304,7 +304,7 @@ type DBBase interface {
 	SetMockDBClient(mock DBClient)
 	Prepare(orm ORM, query string) (stmt PreparedStmt, close func())
 	Exec(orm ORM, query string, args ...any) ExecResult
-	QueryRow(orm ORM, query *Where, toFill ...any) (found bool)
+	QueryRow(orm ORM, query Where, toFill ...any) (found bool)
 	Query(orm ORM, query string, args ...any) (rows Rows, close func())
 }
 
@@ -413,7 +413,7 @@ func (db *dbImplementation) exec(orm ORM, query string, args ...any) (ExecResult
 	return &execResult{r: rows}, err
 }
 
-func (db *dbImplementation) QueryRow(orm ORM, query *Where, toFill ...any) (found bool) {
+func (db *dbImplementation) QueryRow(orm ORM, query Where, toFill ...any) (found bool) {
 	hasLogger, _ := orm.getDBLoggers()
 	start := getNow(hasLogger)
 	row := db.client.QueryRow(query.String(), query.GetParameters()...)

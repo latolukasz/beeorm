@@ -6,25 +6,25 @@ import (
 	"strconv"
 )
 
-func SearchWithCount[E any](orm ORM, where *Where, pager *Pager) (results EntityIterator[E], totalRows int) {
+func SearchWithCount[E any](orm ORM, where Where, pager *Pager) (results EntityIterator[E], totalRows int) {
 	return search[E](orm, where, pager, true)
 }
 
-func Search[E any](orm ORM, where *Where, pager *Pager) EntityIterator[E] {
+func Search[E any](orm ORM, where Where, pager *Pager) EntityIterator[E] {
 	results, _ := search[E](orm, where, pager, false)
 	return results
 }
 
-func SearchIDsWithCount[E any](orm ORM, where *Where, pager *Pager) (results []uint64, totalRows int) {
+func SearchIDsWithCount[E any](orm ORM, where Where, pager *Pager) (results []uint64, totalRows int) {
 	return searchIDs(orm, GetEntitySchema[E](orm), where, pager, true)
 }
 
-func SearchIDs[E any](orm ORM, where *Where, pager *Pager) []uint64 {
+func SearchIDs[E any](orm ORM, where Where, pager *Pager) []uint64 {
 	ids, _ := searchIDs(orm, GetEntitySchema[E](orm), where, pager, false)
 	return ids
 }
 
-func SearchOne[E any](orm ORM, where *Where) *E {
+func SearchOne[E any](orm ORM, where Where) *E {
 	return searchOne[E](orm, where)
 }
 
@@ -251,7 +251,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []any) int {
 	return start
 }
 
-func searchRow[E any](orm ORM, where *Where) (entity *E) {
+func searchRow[E any](orm ORM, where Where) (entity *E) {
 	schema := getEntitySchema[E](orm)
 	pool := schema.GetDB()
 	whereQuery := where.String()
@@ -259,7 +259,7 @@ func searchRow[E any](orm ORM, where *Where) (entity *E) {
 	if schema.hasLocalCache {
 		query := "SELECT ID FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 		var id uint64
-		if pool.QueryRow(orm, NewWhere(query, where.parameters...), &id) {
+		if pool.QueryRow(orm, NewWhere(query, where.GetParameters()...), &id) {
 			return GetByID[E](orm, id)
 		}
 		return nil
@@ -278,7 +278,7 @@ func searchRow[E any](orm ORM, where *Where) (entity *E) {
 	return entity
 }
 
-func search[E any](orm ORM, where *Where, pager *Pager, withCount bool) (results EntityIterator[E], totalRows int) {
+func search[E any](orm ORM, where Where, pager *Pager, withCount bool) (results EntityIterator[E], totalRows int) {
 	schema := getEntitySchema[E](orm)
 	entities := make([]*E, 0)
 	if schema.hasLocalCache {
@@ -316,11 +316,11 @@ func search[E any](orm ORM, where *Where, pager *Pager, withCount bool) (results
 	return resultsIterator, totalRows
 }
 
-func searchOne[E any](orm ORM, where *Where) *E {
+func searchOne[E any](orm ORM, where Where) *E {
 	return searchRow[E](orm, where)
 }
 
-func searchIDs(orm ORM, schema EntitySchema, where *Where, pager *Pager, withCount bool) (ids []uint64, total int) {
+func searchIDs(orm ORM, schema EntitySchema, where Where, pager *Pager, withCount bool) (ids []uint64, total int) {
 	whereQuery := where.String()
 	/* #nosec */
 	query := "SELECT `ID` FROM `" + schema.GetTableName() + "` WHERE " + whereQuery
@@ -344,7 +344,7 @@ func searchIDs(orm ORM, schema EntitySchema, where *Where, pager *Pager, withCou
 	return result, totalRows
 }
 
-func getTotalRows(orm ORM, withCount bool, pager *Pager, where *Where, schema EntitySchema, foundRows int) int {
+func getTotalRows(orm ORM, withCount bool, pager *Pager, where Where, schema EntitySchema, foundRows int) int {
 	totalRows := 0
 	if withCount {
 		totalRows = foundRows

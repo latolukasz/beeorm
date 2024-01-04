@@ -92,7 +92,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		}
 	}
 	if hasLocalCache {
-		var where *Where
+		var where Where
 		if id > 0 {
 			where = NewWhere("`"+referenceName+"` = ?", id)
 		} else {
@@ -121,7 +121,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		}
 		return values
 	}
-	var where *Where
+	var where Where
 	if id > 0 {
 		where = NewWhere("`"+referenceName+"` = ?", id)
 	} else {

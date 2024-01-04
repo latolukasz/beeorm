@@ -5,39 +5,44 @@ import (
 	"strings"
 )
 
-type Where struct {
+type Where interface {
+	String() string
+	GetParameters() []any
+}
+
+type BaseWhere struct {
 	query      string
 	parameters []any
 }
 
-func (where *Where) String() string {
-	return where.query
+func (w *BaseWhere) String() string {
+	return w.query
 }
 
-func (where *Where) SetParameter(index int, param any) *Where {
-	where.parameters[index-1] = param
-	return where
+func (w *BaseWhere) SetParameter(index int, param any) *BaseWhere {
+	w.parameters[index-1] = param
+	return w
 }
 
-func (where *Where) SetParameters(params ...any) *Where {
-	where.parameters = params
-	return where
+func (w *BaseWhere) SetParameters(params ...any) *BaseWhere {
+	w.parameters = params
+	return w
 }
 
-func (where *Where) GetParameters() []any {
-	return where.parameters
+func (w *BaseWhere) GetParameters() []any {
+	return w.parameters
 }
 
-func (where *Where) Append(query string, parameters ...any) {
+func (w *BaseWhere) Append(query string, parameters ...any) {
 	newWhere := NewWhere(query, parameters...)
 	if !strings.HasPrefix(query, " ") {
-		where.query += " "
+		w.query += " "
 	}
-	where.query += newWhere.query
-	where.parameters = append(where.parameters, newWhere.parameters...)
+	w.query += newWhere.query
+	w.parameters = append(w.parameters, newWhere.parameters...)
 }
 
-func NewWhere(query string, parameters ...any) *Where {
+func NewWhere(query string, parameters ...any) *BaseWhere {
 	finalParameters := make([]any, 0, len(parameters))
 	for _, value := range parameters {
 		switch reflect.TypeOf(value).Kind().String() {
@@ -54,5 +59,5 @@ func NewWhere(query string, parameters ...any) *Where {
 		}
 		finalParameters = append(finalParameters, value)
 	}
-	return &Where{query, finalParameters}
+	return &BaseWhere{query, finalParameters}
 }

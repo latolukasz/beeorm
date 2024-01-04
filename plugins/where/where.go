@@ -23,7 +23,7 @@ func (w *Query) String() string {
 	return strings.Trim(w.query, " ")
 }
 
-func (w *Query) Parameters() []any {
+func (w *Query) GetParameters() []any {
 	var params []any
 	for _, p := range w.parameters {
 		params = append(params, p.params...)
