@@ -1,7 +1,9 @@
 package beeorm
 
 import (
+	"fmt"
 	"reflect"
+	"strings"
 )
 
 type EntityIterator[E any] interface {
@@ -10,6 +12,7 @@ type EntityIterator[E any] interface {
 	Entity() *E
 	All() []*E
 	Reset()
+	LoadReference(columns ...string)
 }
 
 type EntityAnonymousIterator interface {
@@ -78,6 +81,17 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 	return value.(*E)
 }
 
+func (lc *localCacheIDsIterator[E]) LoadReference(columns ...string) {
+	for _, row := range columns {
+		fields := strings.Split(row, "/")
+		reference, has := lc.schema.references[fields[0]]
+		if !has {
+			panic(fmt.Errorf("invalid reference name %s", row))
+		}
+		fmt.Printf("YES %s %v\n", fields[0], reference.Type.String())
+	}
+}
+
 func (lc *localCacheIDsIterator[E]) warmup() {
 	if len(lc.ids)-lc.index <= 2 {
 		return
@@ -115,6 +129,10 @@ func (el *emptyResultsIterator[E]) All() []*E {
 	return nil
 }
 
+func (el *emptyResultsIterator[E]) LoadReference(_ ...string) {
+
+}
+
 type entityIterator[E any] struct {
 	index int
 	rows  []*E
@@ -145,6 +163,10 @@ func (ei *entityIterator[E]) Reset() {
 
 func (ei *entityIterator[E]) All() []*E {
 	return ei.rows
+}
+
+func (ei *entityIterator[E]) LoadReference(_ ...string) {
+
 }
 
 type entityAnonymousIterator struct {
