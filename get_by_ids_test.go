@@ -81,7 +81,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		i++
 	}
 	if local {
-		assert.Len(t, loggerDB.Logs, 2)
+		assert.Len(t, loggerDB.Logs, 1)
 	} else {
 		assert.Len(t, loggerDB.Logs, 1)
 	}
@@ -111,7 +111,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	}
 	assert.Equal(t, 3, i)
 	if local {
-		assert.Len(t, loggerDB.Logs, 2)
+		assert.Len(t, loggerDB.Logs, 1)
 	} else {
 		assert.Len(t, loggerDB.Logs, 1)
 	}

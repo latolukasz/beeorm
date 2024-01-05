@@ -13,15 +13,14 @@ func GetByID[E any](orm ORM, id uint64) (entity *E) {
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
-	value, _ := getByID(cE, id, schema)
+	value := getByID(cE, id, schema)
 	if value == nil {
 		return nil
 	}
 	return value.(*E)
 }
 
-func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity any, cacheHit bool) {
-	cacheHit = true
+func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity any) {
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(orm, id)
 		if has {
@@ -31,7 +30,6 @@ func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity an
 			entity = e
 			return
 		}
-		cacheHit = false
 	}
 	cacheRedis, hasRedis := schema.GetRedisCache()
 	var cacheKey string
