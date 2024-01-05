@@ -182,8 +182,8 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	rows2 = GetByReference[getByReferenceEntity](orm, "RefCachedNoCache", refNoCache2.ID)
 	assert.Equal(t, 1, rows2.Len())
-	rows.Next()
-	e = rows.Entity()
+	rows2.Next()
+	e = rows2.Entity()
 	assert.Equal(t, "Name 3", e.Name)
 
 	DeleteEntity(orm, entities[7])

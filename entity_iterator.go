@@ -34,6 +34,7 @@ type localCacheIDsIterator[E any] struct {
 
 func (lc *localCacheIDsIterator[E]) Next() bool {
 	if lc.index+1 >= len(lc.ids) {
+		lc.Reset()
 		return false
 	}
 	lc.index++
@@ -82,13 +83,43 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 }
 
 func (lc *localCacheIDsIterator[E]) LoadReference(columns ...string) {
+	if lc.Len() <= 1 {
+		return
+	}
+	var ids []uint64
 	for _, row := range columns {
 		fields := strings.Split(row, "/")
 		reference, has := lc.schema.references[fields[0]]
 		if !has {
 			panic(fmt.Errorf("invalid reference name %s", row))
 		}
-		fmt.Printf("YES %s %v\n", fields[0], reference.Type.String())
+		index := lc.index
+		lc.index = -1
+		for lc.Next() {
+			entity := reflect.ValueOf(lc.Entity()).Elem()
+			field := entity.FieldByName(fields[0])
+			if field.IsNil() {
+				continue
+			}
+			field = field.Elem()
+			id := field.FieldByName("ID").Uint()
+			has = false
+			for _, before := range ids {
+				if before == id {
+					has = true
+					break
+				}
+			}
+			if !has {
+				ids = append(ids, id)
+			}
+		}
+		lc.index = index
+		if len(ids) <= 1 {
+			return
+		}
+		refSchema := lc.orm.Engine().Registry().EntitySchema(reference.Type).(*entitySchema)
+		warmup(lc.orm, refSchema, ids)
 	}
 }
 
@@ -96,17 +127,7 @@ func (lc *localCacheIDsIterator[E]) warmup() {
 	if len(lc.ids)-lc.index <= 2 {
 		return
 	}
-	var emptyIDs []uint64
-	for _, id := range lc.ids[lc.index+1:] {
-		_, ok := lc.schema.localCache.getEntity(lc.orm, id)
-		if !ok {
-			emptyIDs = append(emptyIDs, id)
-		}
-	}
-	if len(emptyIDs) <= 1 {
-		return
-	}
-	getByIDs[E](lc.orm, emptyIDs, true)
+	warmup(lc.orm, lc.schema, lc.ids[lc.index+1:])
 }
 
 type emptyResultsIterator[E any] struct{}
@@ -140,6 +161,7 @@ type entityIterator[E any] struct {
 
 func (ei *entityIterator[E]) Next() bool {
 	if ei.index+1 >= len(ei.rows) {
+		ei.Reset()
 		return false
 	}
 	ei.index++
@@ -176,6 +198,7 @@ type entityAnonymousIterator struct {
 
 func (ea *entityAnonymousIterator) Next() bool {
 	if ea.index+1 >= ea.rows.Len() {
+		ea.Reset()
 		return false
 	}
 	ea.index++
@@ -224,6 +247,7 @@ type localCacheIDsAnonymousIterator struct {
 
 func (lc *localCacheIDsAnonymousIterator) Next() bool {
 	if lc.index+1 >= len(lc.ids) {
+		lc.Reset()
 		return false
 	}
 	lc.index++

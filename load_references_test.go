@@ -80,5 +80,28 @@ func testLoadReferences(t *testing.T, local, redis bool) {
 
 	iterator := Search[loadReferenceEntity](orm, NewWhere("1"), nil)
 	assert.Equal(t, 10, iterator.Len())
+	if local {
+		schema.(*entitySchema).localCache.Clear(orm)
+		GetEntitySchema[loadSubReferenceEntity1](orm).(*entitySchema).localCache.Clear(orm)
+		GetEntitySchema[loadSubReferenceEntity2](orm).(*entitySchema).localCache.Clear(orm)
+	}
+	for iterator.Next() {
+		iterator.Entity()
+	}
+	loggerDB := &MockLogHandler{}
+	orm.RegisterQueryLogger(loggerDB, true, false, false)
+	loggerLocal := &MockLogHandler{}
+	orm.RegisterQueryLogger(loggerLocal, false, false, true)
+	loggerRedis := &MockLogHandler{}
+	orm.RegisterQueryLogger(loggerRedis, false, true, false)
 	iterator.LoadReference("Ref1a")
+	assert.Len(t, loggerDB.Logs, 1)
+	i := 0
+	for iterator.Next() {
+		entity = iterator.Entity()
+		assert.Equal(t, fmt.Sprintf("Ref1 %d", i+1), entity.Ref1a.GetEntity(orm).Name)
+		i++
+	}
+	assert.Equal(t, 10, i)
+
 }
