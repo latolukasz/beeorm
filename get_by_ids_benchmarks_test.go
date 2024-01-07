@@ -6,8 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// BenchmarkGetByIDsLocalCache-10    	 1565151	       763.9 ns/op	     896 B/op	       1 allocs/op
-// BenchmarkGetByIDsLocalCache-10    	 1420578	       835.7 ns/op	      48 B/op	       1 allocs/op
+// BenchmarkGetByIDsLocalCache-10    	 1000000	      1135 ns/op	      80 B/op	       1 allocs/op
 func BenchmarkGetByIDsLocalCache(b *testing.B) {
 	benchmarkGetByIDsCache(b, true, false)
 }
