@@ -63,6 +63,8 @@ func ConsumeAsyncBuffer(orm ORM, errF func(err error)) (stop func()) {
 func consumeAsyncTempEvent(orm ORM, schema *entitySchema, errF func(err error)) {
 	r := orm.Engine().Redis(schema.getForcedRedisCode())
 	buffer := make([]any, redisRPushPackSize)
+	var values []any
+	var ok bool
 	for {
 		res := func() bool {
 			defer func() {
@@ -75,12 +77,20 @@ func consumeAsyncTempEvent(orm ORM, schema *entitySchema, errF func(err error)) 
 					time.Sleep(time.Second * 3)
 				}
 			}()
-			e := schema.asyncTemporaryQueue.Dequeue()
-			if e == nil {
+			for {
+				values, ok = schema.asyncTemporaryQueue.TryDequeue()
+				if !ok {
+					time.Sleep(time.Millisecond * 200)
+					continue
+				}
+				break
+			}
+
+			if values == nil {
 				return false
 			}
 			rows := 1
-			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(e)
+			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(values)
 			buffer[0] = asJSON
 			breakMe := false
 			for i := 1; i < redisRPushPackSize; i++ {
