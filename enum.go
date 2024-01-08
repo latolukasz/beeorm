@@ -29,11 +29,11 @@ func (d *enumDefinition) Index(value string) int {
 	return d.mapping[value]
 }
 
-func initEnumDefinition(def any, required bool) *enumDefinition {
+func initEnumDefinition(name string, def any, required bool) *enumDefinition {
 	enum := &enumDefinition{required: required}
 	e := reflect.ValueOf(def)
 	enum.mapping = make(map[string]int)
-	enum.name = reflect.TypeOf(def).Name()
+	enum.name = name
 	enum.fields = make([]string, 0)
 	for i := 0; i < e.Type().NumField(); i++ {
 		name := e.Field(i).String()

@@ -691,10 +691,10 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 				e.buildStructField(attributes, registry, schemaTags)
 			} else if fType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				definition := reflect.New(fType).Interface().(EnumValues).EnumValues()
-				e.buildEnumField(attributes, definition)
+				e.buildEnumField(attributes, fType.String(), definition)
 			} else if k == "slice" && fType.Elem().Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				definition := reflect.New(fType.Elem()).Interface().(EnumValues).EnumValues()
-				e.buildStringSliceField(attributes, definition)
+				e.buildStringSliceField(fType.String(), attributes, definition)
 			} else if fType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
 				e.buildReferenceField(attributes)
 				if attributes.Tags["cached"] == "true" {
@@ -907,14 +907,14 @@ func (e *entitySchema) buildIntPointerField(attributes schemaFieldAttributes, mi
 	}
 }
 
-func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, definition any) {
+func (e *entitySchema) buildEnumField(attributes schemaFieldAttributes, enumName string, definition any) {
 	if attributes.IsArray {
 		attributes.Fields.stringsEnumsArray = append(attributes.Fields.stringsEnumsArray, attributes.Index)
 	} else {
 		attributes.Fields.stringsEnums = append(attributes.Fields.stringsEnums, attributes.Index)
 	}
 	for i, columnName := range attributes.GetColumnNames() {
-		def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
+		def := initEnumDefinition(enumName, definition, attributes.Tags["required"] == "true")
 		if i == 0 {
 			if attributes.IsArray {
 				attributes.Fields.enumsArray = append(attributes.Fields.enumsArray, def)
@@ -997,14 +997,14 @@ func (e *entitySchema) buildBytesField(attributes schemaFieldAttributes) {
 	}
 }
 
-func (e *entitySchema) buildStringSliceField(attributes schemaFieldAttributes, definition any) {
+func (e *entitySchema) buildStringSliceField(enumName string, attributes schemaFieldAttributes, definition any) {
 	if attributes.IsArray {
 		attributes.Fields.sliceStringsSetsArray = append(attributes.Fields.sliceStringsSetsArray, attributes.Index)
 	} else {
 		attributes.Fields.sliceStringsSets = append(attributes.Fields.sliceStringsSets, attributes.Index)
 	}
 	for i, columnName := range attributes.GetColumnNames() {
-		def := initEnumDefinition(definition, attributes.Tags["required"] == "true")
+		def := initEnumDefinition(enumName, definition, attributes.Tags["required"] == "true")
 		if i == 0 {
 			if attributes.IsArray {
 				attributes.Fields.setsArray = append(attributes.Fields.setsArray, def)

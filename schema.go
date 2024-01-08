@@ -568,13 +568,13 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 				definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
 			} else if fieldType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				def := reflect.New(fieldType).Interface().(EnumValues)
-				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("enum", schema, def, !isRequired)
+				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("enum", fieldType.String(), schema, def, !isRequired)
 				if err != nil {
 					return nil, err
 				}
 			} else if kind == "slice" && fieldType.Elem().Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				def := reflect.New(fieldType.Elem()).Interface().(EnumValues)
-				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("set", schema, def, !isRequired)
+				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("set", fieldType.String(), schema, def, !isRequired)
 			} else {
 				return nil, fmt.Errorf("field type %s is not supported, consider adding  tag `ignore`", field.Type.String())
 			}
@@ -666,8 +666,8 @@ func handleString(schema *entitySchema, attributes map[string]string, nullable b
 	}
 	return definition, !nullable, addDefaultNullIfNullable, defaultValue, nil
 }
-func handleSetEnum(fieldType string, schema *entitySchema, def EnumValues, nullable bool) (string, bool, bool, string, error) {
-	enumDef := initEnumDefinition(def.EnumValues(), !nullable)
+func handleSetEnum(fieldType, enumName string, schema *entitySchema, def EnumValues, nullable bool) (string, bool, bool, string, error) {
+	enumDef := initEnumDefinition(enumName, def.EnumValues(), !nullable)
 	if len(enumDef.GetFields()) == 0 {
 		return "", false, false, "", errors.New("empty enum not allowed")
 	}
