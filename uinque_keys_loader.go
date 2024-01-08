@@ -52,16 +52,14 @@ func LoadUniqueKeys(orm ORM, debug bool) {
 			selectWhere.Append(where.String())
 
 			if debug {
-				poolTemplate := "\u001B[1m\x1b[38;2;175;175;175;48;2;255;255;255m%-94s\u001B[0m\x1b[0m\u001B[0m\n"
-				row := beeORMLogo
-				title := fmt.Sprintf("Loading unique key '%s' from %s into redis", indexName, schema.GetType().String())
-				row += fmt.Sprintf(poolTemplate, title)
+				row := fmt.Sprintf("Loading unique key '%s' from %s into redis", indexName, schema.GetType().String())
 				print(row)
 				print(".")
 			}
 			total := uint64(0)
 			db.QueryRow(orm, NewWhere(whereCount), &total)
 			if total == 0 {
+				cache.HSet(orm, hSetKey, "", 0)
 				if debug {
 					print(strings.Repeat(".", 100))
 					println("[DONE]")

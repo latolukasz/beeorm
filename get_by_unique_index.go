@@ -38,7 +38,11 @@ func GetByUniqueIndex[E any](orm ORM, indexName string, attributes ...any) *E {
 	previousID, inUse := cache.HGet(orm, hSetKey, hField)
 	if inUse {
 		id, _ := strconv.ParseUint(previousID, 10, 64)
-		return GetByID[E](orm, id)
+		entity := GetByID[E](orm, id)
+		if entity == nil {
+			cache.HDel(orm, hSetKey, hField)
+		}
+		return entity
 	}
 	return nil
 }
