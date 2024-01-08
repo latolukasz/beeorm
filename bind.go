@@ -52,10 +52,10 @@ func (m *insertableEntity) getBind() (Bind, error) {
 	return bind, nil
 }
 
-func (e *editableEntity[E]) getBind() (newBind, oldBind Bind, err error) {
+func (e *editableEntity) getBind() (newBind, oldBind Bind, err error) {
 	newBind = Bind{}
 	oldBind = Bind{}
-	err = fillBindFromTwoSources(e.orm, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), getEntitySchema[E](e.orm).fields, "")
+	err = fillBindFromTwoSources(e.orm, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), e.schema.fields, "")
 	return
 }
 

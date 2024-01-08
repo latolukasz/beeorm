@@ -75,19 +75,19 @@ func (m *insertableEntity) getValue() reflect.Value {
 	return m.value
 }
 
-func (e *editableEntity[E]) flushType() FlushType {
+func (e *editableEntity) flushType() FlushType {
 	return Update
 }
 
-func (e *editableEntity[E]) getValue() reflect.Value {
+func (e *editableEntity) getValue() reflect.Value {
 	return e.value
 }
 
-func (e *editableEntity[E]) getEntity() any {
+func (e *editableEntity) getEntity() any {
 	return e.entity
 }
 
-func (e *editableEntity[E]) getSourceValue() reflect.Value {
+func (e *editableEntity) getSourceValue() reflect.Value {
 	return e.sourceValue
 }
 
@@ -110,16 +110,16 @@ func (r *removableEntity) getValue() reflect.Value {
 	return r.value
 }
 
-type editableEntity[E any] struct {
+type editableEntity struct {
 	writableEntity
-	entity      E
+	entity      any
 	id          uint64
 	value       reflect.Value
 	sourceValue reflect.Value
-	source      E
+	source      any
 }
 
-type editableFields[E any] struct {
+type editableFields struct {
 	writableEntity
 	id      uint64
 	value   reflect.Value
@@ -127,31 +127,31 @@ type editableFields[E any] struct {
 	oldBind Bind
 }
 
-func (f *editableFields[E]) ID() uint64 {
+func (f *editableFields) ID() uint64 {
 	return f.id
 }
 
-func (f *editableFields[E]) flushType() FlushType {
+func (f *editableFields) flushType() FlushType {
 	return Update
 }
 
-func (f *editableFields[E]) getBind() (new, old Bind, err error) {
+func (f *editableFields) getBind() (new, old Bind, err error) {
 	return f.newBind, f.oldBind, nil
 }
 
-func (f *editableFields[E]) getEntity() any {
+func (f *editableFields) getEntity() any {
 	return nil
 }
 
-func (f *editableFields[E]) getSourceValue() reflect.Value {
+func (f *editableFields) getSourceValue() reflect.Value {
 	return f.value
 }
 
-func (f *editableFields[E]) getValue() reflect.Value {
+func (f *editableFields) getValue() reflect.Value {
 	return f.value
 }
 
-func (e *editableEntity[E]) ID() uint64 {
+func (e *editableEntity) ID() uint64 {
 	return e.id
 }
 
@@ -159,11 +159,11 @@ func (r *removableEntity) ID() uint64 {
 	return r.id
 }
 
-func (e *editableEntity[E]) TrackedEntity() E {
+func (e *editableEntity) TrackedEntity() any {
 	return e.entity
 }
 
-func (e *editableEntity[E]) SourceEntity() E {
+func (e *editableEntity) SourceEntity() any {
 	return e.source
 }
 
@@ -207,7 +207,7 @@ func EditEntity[E any](orm ORM, source E) E {
 	writable.id = writable.value.Elem().Field(0).Uint()
 	writable.source = source
 	orm.trackEntity(writable)
-	return writable.entity
+	return writable.entity.(E)
 }
 
 func initNewEntity(elem reflect.Value, fields *tableFields) {

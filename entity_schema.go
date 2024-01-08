@@ -21,11 +21,15 @@ func GetEntitySchema[E any](orm ORM) EntitySchema {
 }
 
 func getEntitySchema[E any](orm ORM) *entitySchema {
-	ci := orm.(*ormImplementation)
 	var entity E
-	schema, has := ci.engine.registry.entitySchemasQuickMap[reflect.TypeOf(entity)]
+	return getEntitySchemaFromSource(orm, entity)
+}
+
+func getEntitySchemaFromSource(orm ORM, source any) *entitySchema {
+	ci := orm.(*ormImplementation)
+	schema, has := ci.engine.registry.entitySchemasQuickMap[reflect.TypeOf(source)]
 	if !has {
-		panic(fmt.Errorf("entity '%T' is not registered", entity))
+		panic(fmt.Errorf("entity '%T' is not registered", source))
 	}
 	return schema
 }

@@ -11,13 +11,13 @@ func Copy[E any](orm ORM, source E) E {
 	return insertable.entity.(E)
 }
 
-func copyToEdit[E any](orm ORM, source E) *editableEntity[E] {
-	schema := getEntitySchema[E](orm)
+func copyToEdit(orm ORM, source any) *editableEntity {
+	schema := getEntitySchemaFromSource(orm, source)
 	value := reflect.New(schema.t)
-	writable := &editableEntity[E]{}
+	writable := &editableEntity{}
 	writable.orm = orm
 	writable.schema = schema
-	writable.entity = value.Interface().(E)
+	writable.entity = value.Interface()
 	writable.value = value
 	writable.sourceValue = reflect.ValueOf(source)
 	copyEntity(writable.sourceValue.Elem(), value.Elem(), schema.fields, true)

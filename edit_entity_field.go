@@ -11,8 +11,8 @@ func EditEntityField[E any](orm ORM, entity E, field string, value any) error {
 	return editEntityField(orm, entity, field, value)
 }
 
-func editEntityField[E any](orm ORM, entity E, field string, value any) error {
-	schema := getEntitySchema[E](orm)
+func editEntityField(orm ORM, entity any, field string, value any) error {
+	schema := getEntitySchemaFromSource(orm, entity)
 	setter, has := schema.fieldBindSetters[field]
 	if !has {
 		return &BindError{field, "unknown field"}
@@ -49,7 +49,7 @@ func editEntityField[E any](orm ORM, entity E, field string, value any) error {
 			})
 		})
 		actual, loaded := entities.LoadOrCompute(id, func() EntityFlush {
-			editable := &editableFields[E]{}
+			editable := &editableFields{}
 			editable.orm = orm
 			editable.schema = schema
 			editable.id = id
@@ -60,7 +60,7 @@ func editEntityField[E any](orm ORM, entity E, field string, value any) error {
 			return editable
 		})
 		if loaded {
-			editable, is := actual.(*editableFields[E])
+			editable, is := actual.(*editableFields)
 			if is {
 				editable.newBind[field] = newValue
 				editable.oldBind[field] = oldValue
@@ -68,7 +68,7 @@ func editEntityField[E any](orm ORM, entity E, field string, value any) error {
 				return
 			}
 			fSetter := schema.fieldSetters[field]
-			editableE, is := actual.(*editableEntity[E])
+			editableE, is := actual.(*editableEntity)
 			if is {
 				fSetter(newValue, editableE.value)
 				return
