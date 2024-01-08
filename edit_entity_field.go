@@ -7,7 +7,7 @@ import (
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
-func EditEntityField[E any](orm ORM, entity E, field string, value any) error {
+func EditEntityField(orm ORM, entity any, field string, value any) error {
 	return editEntityField(orm, entity, field, value)
 }
 
@@ -70,7 +70,7 @@ func editEntityField(orm ORM, entity any, field string, value any) error {
 			fSetter := schema.fieldSetters[field]
 			editableE, is := actual.(*editableEntity)
 			if is {
-				fSetter(newValue, editableE.value)
+				fSetter(newValue, editableE.value.Elem())
 				return
 			}
 			insertableE, is := actual.(*insertableEntity)
