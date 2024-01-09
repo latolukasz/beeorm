@@ -8,8 +8,10 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/puzpuzpuz/xsync/v2"
 )
@@ -71,7 +73,7 @@ type EntitySchema interface {
 	EditEntity(orm ORM, entity any) any
 	DeleteEntity(orm ORM, entity any)
 	getCacheKey() string
-	uuid() uint64
+	uuid(orm ORM) uint64
 	getForcedRedisCode() string
 }
 
@@ -109,12 +111,12 @@ type entitySchema struct {
 	hasRedisCache             bool
 	redisCache                *redisCache
 	cacheKey                  string
+	uuidCacheKey              string
+	uuidMutex                 sync.Mutex
 	asyncCacheKey             string
 	structureHash             string
 	mapBindToScanPointer      mapBindToScanPointer
 	mapPointerToValue         mapPointerToValue
-	uuidServerID              uint64
-	uuidCounter               uint64
 	asyncTemporaryQueue       *xsync.MPMCQueueOf[asyncTemporaryQueueEvent]
 }
 
@@ -359,6 +361,7 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 		columnMapping[name] = i
 	}
 	cacheKey = hashString(cacheKey + e.fieldsQuery)
+	e.uuidCacheKey = cacheKey[0:12]
 	cacheKey = cacheKey[0:5]
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(cacheKey))
@@ -468,8 +471,40 @@ func (e *entitySchema) Option(key string) any {
 	return e.options[key]
 }
 
-func (e *entitySchema) uuid() uint64 {
-	return (e.uuidServerID&255)<<56 + (codeStartTime << 24) + atomic.AddUint64(&e.uuidCounter, 1)
+func (e *entitySchema) uuid(orm ORM) uint64 {
+	r := orm.Engine().Redis(e.getForcedRedisCode())
+	id := r.Incr(orm, e.uuidCacheKey)
+	if id == 1 {
+		e.initUUID(orm)
+		return e.uuid(orm)
+	}
+	return uint64(id)
+}
+
+func (e *entitySchema) initUUID(orm ORM) {
+	r := orm.Engine().Redis(e.getForcedRedisCode())
+	e.uuidMutex.Lock()
+	defer e.uuidMutex.Unlock()
+	now, has := r.Get(orm, e.uuidCacheKey)
+	if has && now != "1" {
+		return
+	}
+	lockName := e.uuidCacheKey + ":lock"
+	lock, obtained := r.GetLocker().Obtain(orm, lockName, time.Minute, time.Second*5)
+	if !obtained {
+		panic(errors.New("uuid lock timeout"))
+	}
+	defer lock.Release(orm)
+	now, has = r.Get(orm, e.uuidCacheKey)
+	if has && now != "1" {
+		return
+	}
+	maxID := int64(0)
+	e.GetDB().QueryRow(orm, NewWhere("SELECT IFNULL(MAX(ID), 0) FROM `"+e.GetTableName()+"`"), &maxID)
+	if maxID == 0 {
+		maxID = 1
+	}
+	r.IncrBy(orm, e.uuidCacheKey, maxID)
 }
 
 func (e *entitySchema) getForcedRedisCode() string {

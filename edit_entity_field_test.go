@@ -25,7 +25,7 @@ type updateEntityReference struct {
 }
 
 type updateEntity struct {
-	ID            uint64 `orm:"localCache;redisCache"`
+	ID            uint32 `orm:"localCache;redisCache"`
 	Name          string `orm:"length=10;required;unique=Name"`
 	Uint          uint16 `orm:"unique=Multi"`
 	Int           int16  `orm:"unique=Multi:2"`
@@ -97,7 +97,7 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 		entity.Level1.Reference = &Reference[updateEntityReference]{ID: 1}
 		entity.Level1.Enum = testEnumDefinition.A
 		entity.Level1.Set = []testEnum{testEnumDefinition.A}
-		ids = append(ids, entity.ID)
+		ids = append(ids, uint64(entity.ID))
 	}
 	err := orm.Flush()
 	assert.NoError(t, err)
@@ -470,12 +470,12 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, err)
 	entity, _ = GetByUniqueIndex[updateEntity](orm, "Name", "name 100")
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[1], entity.ID)
+	assert.Equal(t, ids[1], uint64(entity.ID))
 	err = runEditEntityField(orm, entity, "Int", 100, async)
 	assert.NoError(t, err)
 	entity, _ = GetByUniqueIndex[updateEntity](orm, "Multi", 13, 100)
 	assert.NotNil(t, entity)
-	assert.Equal(t, ids[1], entity.ID)
+	assert.Equal(t, ids[1], uint64(entity.ID))
 }
 
 func runEditEntityField(orm ORM, entity *updateEntity, field string, value any, async bool) error {

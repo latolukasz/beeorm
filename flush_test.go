@@ -43,7 +43,7 @@ var testEnumDefinition = struct {
 }
 
 type flushEntity struct {
-	ID                        uint64 `orm:"localCache;redisCache"`
+	ID                        uint16 `orm:"localCache;redisCache"`
 	City                      string `orm:"unique=city;length=40"`
 	Name                      string `orm:"unique=name;required"`
 	StringArray               [2]string
@@ -226,7 +226,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, testFlush(orm, async))
 	loggerDB.Clear()
 
-	entity, _ := GetByID[flushEntity](orm, newEntity.ID)
+	entity, _ := GetByID[flushEntity](orm, uint64(newEntity.ID))
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.NotNil(t, entity)
@@ -234,7 +234,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		assert.Nil(t, entity)
 		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
-		entity, _ = GetByID[flushEntity](orm, newEntity.ID)
+		entity, _ = GetByID[flushEntity](orm, uint64(newEntity.ID))
 		assert.NotNil(t, entity)
 	}
 
@@ -408,7 +408,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
 	}
-	entity, _ = GetByID[flushEntity](orm, newEntity.ID)
+	entity, _ = GetByID[flushEntity](orm, uint64(newEntity.ID))
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "New York", entity.City)
@@ -645,7 +645,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	orm.ClearFlush()
@@ -657,7 +657,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, firstEntityID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	orm.ClearFlush()
@@ -691,7 +691,7 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 	orm.RegisterQueryLogger(loggerDB, true, false, false)
 
 	if redis || local {
-		_, found := GetByID[flushEntity](orm, id)
+		_, found := GetByID[flushEntity](orm, uint64(id))
 		assert.False(t, found)
 		assert.Len(t, loggerDB.Logs, 0)
 		loggerDB.Clear()
@@ -702,7 +702,7 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 		assert.NoError(t, err)
 	}
 
-	entity, found := GetByID[flushEntity](orm, id)
+	entity, found := GetByID[flushEntity](orm, uint64(id))
 	assert.False(t, found)
 
 	// duplicated key
@@ -833,7 +833,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		editedEntity.FlushStructArray[i].Sub.Age3 = i + 1
 	}
 
-	oldValues, newValues, isDirty := IsDirty[flushEntity](orm, editedEntity.ID)
+	oldValues, newValues, isDirty := IsDirty[flushEntity](orm, uint64(editedEntity.ID))
 	assert.True(t, isDirty)
 	assert.NotNil(t, oldValues)
 	assert.NotNil(t, newValues)
@@ -851,7 +851,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	}
 	loggerDB.Clear()
 	loggerLocal.Clear()
-	entity, _ := GetByID[flushEntity](orm, editedEntity.ID)
+	entity, _ := GetByID[flushEntity](orm, uint64(editedEntity.ID))
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
@@ -1025,7 +1025,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	copiedEntity.City = "Copy"
 	copiedEntity.Name = "Copy"
 	assert.NoError(t, orm.Flush())
-	copiedEntity, found := GetByID[flushEntity](orm, copiedEntity.ID)
+	copiedEntity, found := GetByID[flushEntity](orm, uint64(copiedEntity.ID))
 	assert.True(t, found)
 	assert.NotNil(t, copiedEntity)
 	assert.Equal(t, copiedEntity.Age, editedEntity.Age)
@@ -1155,7 +1155,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	editedEntity.Name = "Name 2"
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, newEntity.ID, err.(*DuplicatedKeyBindError).ID)
+	assert.Equal(t, uint64(newEntity.ID), err.(*DuplicatedKeyBindError).ID)
 	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
 	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
 	orm.ClearFlush()
@@ -1184,7 +1184,7 @@ func TestFlushTransaction(t *testing.T) {
 	reference.Name = "test reference"
 	err := testFlush(orm, false)
 	assert.NoError(t, err)
-	assert.Len(t, loggerDB.Logs, 1)
+	assert.Len(t, loggerDB.Logs, 2)
 	loggerDB.Clear()
 
 	reference = NewEntity[flushEntityReference](orm)
@@ -1203,9 +1203,9 @@ func TestFlushTransaction(t *testing.T) {
 	flushE.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
 	err = testFlush(orm, false)
 	assert.NoError(t, err)
-	assert.Len(t, loggerDB.Logs, 4)
-	assert.Equal(t, "START TRANSACTION", loggerDB.Logs[0]["query"])
-	assert.Equal(t, "COMMIT", loggerDB.Logs[3]["query"])
+	assert.Len(t, loggerDB.Logs, 5)
+	assert.Equal(t, "START TRANSACTION", loggerDB.Logs[1]["query"])
+	assert.Equal(t, "COMMIT", loggerDB.Logs[4]["query"])
 	loggerDB.Clear()
 
 	// Skipping invalid event

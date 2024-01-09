@@ -102,7 +102,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	loggerDB.Clear()
 
 	// invalid ids
-	rows = GetByIDs[getByIdsEntity](orm, 1, 2, 3)
+	rows = GetByIDs[getByIdsEntity](orm, 7777, 8888, 9999)
 	assert.Equal(t, 3, rows.Len())
 	i = 0
 	for rows.Next() {
@@ -117,7 +117,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	}
 	loggerDB.Clear()
 	if local || redis {
-		rows = GetByIDs[getByIdsEntity](orm, 1, 2, 3)
+		rows = GetByIDs[getByIdsEntity](orm, 7777, 8888, 9999)
 		assert.Equal(t, 3, rows.Len())
 		for rows.Next() {
 			assert.Nil(t, rows.Entity())
@@ -128,7 +128,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		lc, _ := schema.GetLocalCache()
 		lc.Clear(orm)
 		loggerDB.Clear()
-		rows = GetByIDs[getByIdsEntity](orm, 1, 2, 3)
+		rows = GetByIDs[getByIdsEntity](orm, 7777, 8888, 9999)
 		assert.Equal(t, 3, rows.Len())
 		for rows.Next() {
 			assert.Nil(t, rows.Entity())
@@ -136,7 +136,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 		loggerLocal.Clear()
 		loggerRedis.Clear()
-		rows = GetByIDs[getByIdsEntity](orm, 1, 2, 3)
+		rows = GetByIDs[getByIdsEntity](orm, 7777, 8888, 9999)
 		assert.Equal(t, 3, rows.Len())
 		for rows.Next() {
 			assert.Nil(t, rows.Entity())
@@ -146,7 +146,7 @@ func testLoadByIds(t *testing.T, local, redis bool) {
 	}
 
 	// missing one
-	rows = GetByIDs[getByIdsEntity](orm, ids[0], 2, ids[1])
+	rows = GetByIDs[getByIdsEntity](orm, ids[0], 7777, ids[1])
 	assert.Equal(t, 3, rows.Len())
 	rows.Next()
 	assert.NotNil(t, rows.Entity())

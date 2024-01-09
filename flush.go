@@ -196,7 +196,7 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 		if hasLogTable {
 			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`) VALUES(?,?,?,?,?)"
-			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+			data[1] = strconv.FormatUint(logTableSchema.uuid(orm), 10)
 			data[2] = strconv.FormatUint(operation.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(orm.meta) > 0 {
@@ -330,7 +330,7 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 		if hasLogTable {
 			data := make([]any, 6)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`After`) VALUES(?,?,?,?,?)"
-			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+			data[1] = strconv.FormatUint(logTableSchema.uuid(orm), 10)
 			data[2] = strconv.FormatUint(bind["ID"].(uint64), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(orm.meta) > 0 {
@@ -487,7 +487,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 		if hasLogTable {
 			data := make([]any, 7)
 			data[0] = "INSERT INTO `" + logTableSchema.tableName + "`(ID,EntityID,Date,Meta,`Before`,`After`) VALUES(?,?,?,?,?,?)"
-			data[1] = strconv.FormatUint(logTableSchema.uuid(), 10)
+			data[1] = strconv.FormatUint(logTableSchema.uuid(orm), 10)
 			data[2] = strconv.FormatUint(update.ID(), 10)
 			data[3] = time.Now().Format(time.DateTime)
 			if len(orm.meta) > 0 {

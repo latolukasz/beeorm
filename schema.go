@@ -748,8 +748,8 @@ func checkStruct(engine Engine, entitySchema *entitySchema, t reflect.Type, inde
 			return nil, errors.New("field ID on position 1 is missing")
 		}
 		idType := f.Type.String()
-		if idType != "uint64" {
-			return nil, errors.New("ID column must be unit64")
+		if !strings.HasPrefix(idType, "uint") {
+			return nil, errors.New("ID column must be uint")
 		}
 	}
 	maxFields := t.NumField() - 1

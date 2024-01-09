@@ -179,7 +179,7 @@ func newEntityInsertable(orm ORM, schema *entitySchema) *insertableEntity {
 	elem := value.Elem()
 	initNewEntity(elem, schema.fields)
 	entity.entity = value.Interface()
-	id := schema.uuid()
+	id := schema.uuid(orm)
 	entity.id = id
 	elem.Field(0).SetUint(id)
 	entity.value = value
