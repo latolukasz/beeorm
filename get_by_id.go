@@ -6,6 +6,14 @@ import (
 	"strconv"
 )
 
+func MustByID[E any](orm ORM, id uint64) *E {
+	entity, found := GetByID[E](orm, id)
+	if !found {
+		panic(fmt.Errorf("entity withd ID %d not found", id))
+	}
+	return entity
+}
+
 func GetByID[E any](orm ORM, id uint64) (entity *E, found bool) {
 	var e E
 	cE := orm.(*ormImplementation)
