@@ -97,7 +97,8 @@ func TestAsyncConsumer(t *testing.T) {
 	assert.Equal(t, asyncConsumerPage+11, references.Len())
 	assert.Equal(t, int64(0), orm.Engine().Redis(DefaultPoolCode).LLen(orm, schema2.asyncCacheKey))
 	assert.Equal(t, int64(0), orm.Engine().Redis(DefaultPoolCode).LLen(orm, schema2.asyncCacheKey+flushAsyncEventsListErrorSuffix))
-	assert.Equal(t, "test reference block", GetByID[flushEntityReference](orm, reference.ID).Name)
+	e, _ := GetByID[flushEntityReference](orm, reference.ID)
+	assert.Equal(t, "test reference block", e.Name)
 
 	// custom async group
 	reference = NewEntity[flushEntityReference](orm)
@@ -127,11 +128,16 @@ func TestAsyncConsumer(t *testing.T) {
 	assert.Equal(t, int64(0), orm.Engine().Redis(DefaultPoolCode).LLen(orm, schema4.asyncCacheKey))
 	assert.Equal(t, int64(0), orm.Engine().Redis("second").LLen(orm, schema5.asyncCacheKey))
 	assert.Equal(t, int64(0), orm.Engine().Redis(DefaultPoolCode).LLen(orm, schema6.asyncCacheKey))
-	assert.Equal(t, "test reference custom async group", GetByID[flushEntityReference](orm, reference.ID).Name)
-	assert.Equal(t, "test reference custom async group", GetByID[flushEntityAsync](orm, asyncEntity.ID).Name)
-	assert.Equal(t, "test reference custom async group", GetByID[flushEntityAsync2](orm, asyncEntity2.ID).Name)
-	assert.Equal(t, "test reference custom async group", GetByID[flushEntityAsync3](orm, asyncEntity3.ID).Name)
-	assert.Equal(t, "test reference custom async group", GetByID[flushEntityAsyncSecondRedis](orm, asyncEntitySecondRedis.ID).Name)
+	a, _ := GetByID[flushEntityReference](orm, reference.ID)
+	b, _ := GetByID[flushEntityAsync](orm, asyncEntity.ID)
+	c, _ := GetByID[flushEntityAsync2](orm, asyncEntity2.ID)
+	d, _ := GetByID[flushEntityAsync3](orm, asyncEntity3.ID)
+	f, _ := GetByID[flushEntityAsyncSecondRedis](orm, asyncEntitySecondRedis.ID)
+	assert.Equal(t, "test reference custom async group", a.Name)
+	assert.Equal(t, "test reference custom async group", b.Name)
+	assert.Equal(t, "test reference custom async group", c.Name)
+	assert.Equal(t, "test reference custom async group", d.Name)
+	assert.Equal(t, "test reference custom async group", f.Name)
 
 	// broken event structure
 	orm.Engine().Redis(DefaultPoolCode).RPush(orm, schema2.asyncCacheKey, "invalid")

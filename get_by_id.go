@@ -6,29 +6,28 @@ import (
 	"strconv"
 )
 
-func GetByID[E any](orm ORM, id uint64) (entity *E) {
+func GetByID[E any](orm ORM, id uint64) (entity *E, found bool) {
 	var e E
 	cE := orm.(*ormImplementation)
 	schema := cE.engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
-	value := getByID(cE, id, schema)
+	value, found := getByID(cE, id, schema)
 	if value == nil {
-		return nil
+		return nil, false
 	}
-	return value.(*E)
+	return value.(*E), true
 }
 
-func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity any) {
+func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (any, bool) {
 	if schema.hasLocalCache {
 		e, has := schema.localCache.getEntity(orm, id)
 		if has {
 			if e == nil {
-				return
+				return nil, false
 			}
-			entity = e
-			return
+			return e, true
 		}
 	}
 	cacheRedis, hasRedis := schema.GetRedisCache()
@@ -42,15 +41,15 @@ func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity an
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(orm, id, nil)
 				}
-				return
+				return nil, false
 			}
 			value := reflect.New(schema.t)
-			entity = value.Interface()
+			entity := value.Interface()
 			if deserializeFromRedis(row, schema, value.Elem()) {
 				if schema.hasLocalCache {
 					schema.localCache.setEntity(orm, id, entity)
 				}
-				return
+				return entity, true
 			}
 		}
 	}
@@ -59,30 +58,28 @@ func getByID(orm *ormImplementation, id uint64, schema *entitySchema) (entity an
 	found := schema.GetDB().QueryRow(orm, NewWhere(query, id), pointers...)
 	if found {
 		value := reflect.New(schema.t)
-		entity = value.Interface()
+		entity := value.Interface()
 		deserializeFromDB(schema.fields, value.Elem(), pointers)
-	}
-	if entity == nil {
 		if schema.hasLocalCache {
-			schema.localCache.setEntity(orm, id, nil)
+			schema.localCache.setEntity(orm, id, entity)
 		}
 		if hasRedis {
-			p := orm.RedisPipeLine(cacheRedis.GetCode())
-			p.Del(cacheKey)
-			p.RPush(cacheKey, cacheNilValue)
-			p.Exec(orm)
+			bind := make(Bind)
+			err := fillBindFromOneSource(orm, bind, reflect.ValueOf(entity).Elem(), schema.fields, "")
+			checkError(err)
+			values := convertBindToRedisValue(bind, schema)
+			cacheRedis.RPush(orm, cacheKey, values...)
 		}
-		return
+		return entity, true
 	}
 	if schema.hasLocalCache {
-		schema.localCache.setEntity(orm, id, entity)
+		schema.localCache.setEntity(orm, id, nil)
 	}
 	if hasRedis {
-		bind := make(Bind)
-		err := fillBindFromOneSource(orm, bind, reflect.ValueOf(entity).Elem(), schema.fields, "")
-		checkError(err)
-		values := convertBindToRedisValue(bind, schema)
-		cacheRedis.RPush(orm, cacheKey, values...)
+		p := orm.RedisPipeLine(cacheRedis.GetCode())
+		p.Del(cacheKey)
+		p.RPush(cacheKey, cacheNilValue)
+		p.Exec(orm)
 	}
-	return
+	return nil, false
 }

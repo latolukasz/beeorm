@@ -80,8 +80,8 @@ func (lc *localCacheIDsIterator[E]) Entity() *E {
 		}
 		lc.warmup()
 	}
-	value := getByID(lc.orm, lc.ids[lc.index], lc.schema)
-	if value == nil {
+	value, found := getByID(lc.orm, lc.ids[lc.index], lc.schema)
+	if !found {
 		return nil
 	}
 	return value.(*E)
@@ -271,8 +271,8 @@ func (lc *localCacheIDsAnonymousIterator) Entity() any {
 	if lc.index == -1 {
 		return nil
 	}
-	value := getByID(lc.c, lc.ids[lc.index], lc.schema)
-	if value == nil {
+	value, found := getByID(lc.c, lc.ids[lc.index], lc.schema)
+	if !found {
 		return nil
 	}
 	return value

@@ -24,7 +24,7 @@ func SearchIDs[E any](orm ORM, where Where, pager *Pager) []uint64 {
 	return ids
 }
 
-func SearchOne[E any](orm ORM, where Where) *E {
+func SearchOne[E any](orm ORM, where Where) (entity *E, found bool) {
 	return searchOne[E](orm, where)
 }
 
@@ -251,7 +251,7 @@ func prepareScanForFields(fields *tableFields, start int, pointers []any) int {
 	return start
 }
 
-func searchRow[E any](orm ORM, where Where) (entity *E) {
+func searchRow[E any](orm ORM, where Where) (entity *E, found bool) {
 	schema := getEntitySchema[E](orm)
 	pool := schema.GetDB()
 	whereQuery := where.String()
@@ -262,20 +262,20 @@ func searchRow[E any](orm ORM, where Where) (entity *E) {
 		if pool.QueryRow(orm, NewWhere(query, where.GetParameters()...), &id) {
 			return GetByID[E](orm, id)
 		}
-		return nil
+		return nil, false
 	}
 
 	/* #nosec */
 	query := "SELECT " + schema.fieldsQuery + " FROM `" + schema.GetTableName() + "` WHERE " + whereQuery + " LIMIT 1"
 	pointers := prepareScan(schema)
-	found := pool.QueryRow(orm, NewWhere(query, where.GetParameters()...), pointers...)
+	found = pool.QueryRow(orm, NewWhere(query, where.GetParameters()...), pointers...)
 	if !found {
-		return nil
+		return nil, false
 	}
 	value := reflect.New(schema.t)
 	entity = value.Interface().(*E)
 	deserializeFromDB(schema.fields, value.Elem(), pointers)
-	return entity
+	return entity, true
 }
 
 func search[E any](orm ORM, where Where, pager *Pager, withCount bool) (results EntityIterator[E], totalRows int) {
@@ -316,7 +316,7 @@ func search[E any](orm ORM, where Where, pager *Pager, withCount bool) (results 
 	return resultsIterator, totalRows
 }
 
-func searchOne[E any](orm ORM, where Where) *E {
+func searchOne[E any](orm ORM, where Where) (*E, bool) {
 	return searchRow[E](orm, where)
 }
 

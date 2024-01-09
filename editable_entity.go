@@ -248,8 +248,13 @@ func isDirty(orm ORM, schema *entitySchema, id uint64) (oldValues, newValues Bin
 	if !has {
 		return nil, nil, false
 	}
-	editable, is := row.(entityFlushUpdate)
-	if !is {
+	editable, isUpdate := row.(entityFlushUpdate)
+	if !isUpdate {
+		insertable, isInsert := row.(entityFlushInsert)
+		if isInsert {
+			bind, _ := insertable.getBind()
+			return nil, bind, true
+		}
 		return nil, nil, false
 	}
 	oldValues, newValues, _ = editable.getBind()

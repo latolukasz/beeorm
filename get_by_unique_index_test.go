@@ -72,78 +72,88 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	err := orm.Flush()
 	assert.NoError(t, err)
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", "Name 3")
+	entity, found := GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", "Name 3")
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[3].ID, entity.ID)
 	assert.Equal(t, "Name 3", entity.Name)
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", "Missing")
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", "Missing")
+	assert.False(t, found)
 	assert.Nil(t, entity)
 
 	assert.PanicsWithError(t, "[Name] invalid value", func() {
-		entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", time.Now())
+		entity, _ = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", time.Now())
 	})
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", 4, false)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", 4, false)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", 4, 0)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", 4, 0)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entity.Name)
 
 	numbers := []any{uint8(4), uint16(4), uint32(4), uint(4), "4", int8(4), int16(4), int32(4), int64(4)}
 	for _, number := range numbers {
-		entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", number, 0)
+		entity, _ = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", number, 0)
 		assert.Equal(t, "Name 4", entity.Name)
 	}
 
 	negativeNumbers := []any{int8(-4), int16(-4), int32(-4), -4, int8(-4), int16(-4), int32(-4), int64(-4)}
 	for _, number := range negativeNumbers {
 		assert.PanicsWithError(t, "[Age] negative number -4 not allowed", func() {
-			entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", number, 0)
+			entity, _ = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", number, 0)
 		})
 	}
 
 	assert.PanicsWithError(t, "[Age] invalid number invalid", func() {
-		entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", "invalid", 0)
+		entity, _ = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", "invalid", 0)
 	})
 
 	assert.PanicsWithError(t, "[Age] invalid value", func() {
-		entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", time.Now(), 0)
+		entity, _ = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Multi", time.Now(), 0)
 	})
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Ref", refs[4].ID)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Ref", refs[4].ID)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[4].ID, entity.ID)
 	assert.Equal(t, "Name 4", entities[4].Name)
 
 	date = date.Add(time.Hour * -3)
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Time", date)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Time", date)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[6].ID, entity.ID)
 	assert.Equal(t, "Name 6", entities[6].Name)
 
 	died = died.Add(time.Hour * -72)
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", true, died)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", true, died)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[6].ID, entity.ID)
 	assert.Equal(t, "Name 6", entities[6].Name)
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", "true", died)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", "true", died)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[6].ID, entity.ID)
 	assert.Equal(t, "Name 6", entities[6].Name)
 
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", 1, died)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", 1, died)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[6].ID, entity.ID)
 	assert.Equal(t, "Name 6", entities[6].Name)
 
 	died = died.Add(time.Hour * -72)
-	entity = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", "false", died)
+	entity, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", "false", died)
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, entities[3].ID, entity.ID)
 	assert.Equal(t, "Name 3", entities[3].Name)

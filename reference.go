@@ -21,7 +21,11 @@ type Reference[E any] struct {
 
 func (r *Reference[E]) GetEntity(orm ORM) *E {
 	if r.ID != 0 {
-		return GetByID[E](orm, r.ID)
+		e, found := GetByID[E](orm, r.ID)
+		if !found {
+			return nil
+		}
+		return e
 	}
 	return nil
 }

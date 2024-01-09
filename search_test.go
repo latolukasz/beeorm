@@ -38,7 +38,8 @@ func TestSearch(t *testing.T) {
 	assert.Len(t, foundIDs, 8)
 	assert.Equal(t, ids[2], foundIDs[0])
 
-	entity = SearchOne[searchEntity](orm, NewWhere("ID = ?", ids[2]))
+	entity, found := SearchOne[searchEntity](orm, NewWhere("ID = ?", ids[2]))
+	assert.True(t, found)
 	assert.NotNil(t, entity)
 	assert.Equal(t, ids[2], entity.ID)
 

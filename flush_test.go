@@ -226,7 +226,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, testFlush(orm, async))
 	loggerDB.Clear()
 
-	entity := GetByID[flushEntity](orm, newEntity.ID)
+	entity, _ := GetByID[flushEntity](orm, newEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 		assert.NotNil(t, entity)
@@ -234,7 +234,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		assert.Nil(t, entity)
 		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
-		entity = GetByID[flushEntity](orm, newEntity.ID)
+		entity, _ = GetByID[flushEntity](orm, newEntity.ID)
 		assert.NotNil(t, entity)
 	}
 
@@ -408,7 +408,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		err = runAsyncConsumer(orm, false)
 		assert.NoError(t, err)
 	}
-	entity = GetByID[flushEntity](orm, newEntity.ID)
+	entity, _ = GetByID[flushEntity](orm, newEntity.ID)
 	assert.NotNil(t, entity)
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "New York", entity.City)
@@ -691,8 +691,8 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 	orm.RegisterQueryLogger(loggerDB, true, false, false)
 
 	if redis || local {
-		entity = GetByID[flushEntity](orm, id)
-		assert.Nil(t, entity)
+		_, found := GetByID[flushEntity](orm, id)
+		assert.False(t, found)
 		assert.Len(t, loggerDB.Logs, 0)
 		loggerDB.Clear()
 	}
@@ -702,8 +702,8 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 		assert.NoError(t, err)
 	}
 
-	entity = GetByID[flushEntity](orm, id)
-	assert.Nil(t, entity)
+	entity, found := GetByID[flushEntity](orm, id)
+	assert.False(t, found)
 
 	// duplicated key
 	entity = NewEntity[flushEntity](orm)
@@ -851,7 +851,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	}
 	loggerDB.Clear()
 	loggerLocal.Clear()
-	entity := GetByID[flushEntity](orm, editedEntity.ID)
+	entity, _ := GetByID[flushEntity](orm, editedEntity.ID)
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
@@ -1025,7 +1025,8 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	copiedEntity.City = "Copy"
 	copiedEntity.Name = "Copy"
 	assert.NoError(t, orm.Flush())
-	copiedEntity = GetByID[flushEntity](orm, copiedEntity.ID)
+	copiedEntity, found := GetByID[flushEntity](orm, copiedEntity.ID)
+	assert.True(t, found)
 	assert.NotNil(t, copiedEntity)
 	assert.Equal(t, copiedEntity.Age, editedEntity.Age)
 

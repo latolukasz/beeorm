@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func GetByUniqueIndex[E any](orm ORM, indexName string, attributes ...any) *E {
+func GetByUniqueIndex[E any](orm ORM, indexName string, attributes ...any) (entity *E, found bool) {
 	var e E
 	schema := orm.(*ormImplementation).engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
@@ -38,11 +38,11 @@ func GetByUniqueIndex[E any](orm ORM, indexName string, attributes ...any) *E {
 	previousID, inUse := cache.HGet(orm, hSetKey, hField)
 	if inUse {
 		id, _ := strconv.ParseUint(previousID, 10, 64)
-		entity := GetByID[E](orm, id)
-		if entity == nil {
+		entity, found = GetByID[E](orm, id)
+		if !found {
 			cache.HDel(orm, hSetKey, hField)
 		}
-		return entity
+		return entity, found
 	}
-	return nil
+	return nil, false
 }

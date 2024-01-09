@@ -38,7 +38,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, entity.AddedAtDate)
 	assert.Equal(t, entity.AddedAtDate.Format(time.DateOnly), now.Format(time.DateOnly))
 	assert.Equal(t, "0001-01-01", entity.ModifiedAtDate.Format(time.DateOnly))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, entity.AddedAtDate.Format(time.DateOnly), now.Format(time.DateOnly))
 	assert.Equal(t, "0001-01-01", entity.ModifiedAtDate.Format(time.DateOnly))
 
@@ -47,7 +47,7 @@ func TestPlugin(t *testing.T) {
 	entity.AddedAtDate = dateManual
 	assert.NoError(t, orm.Flush())
 	assert.Equal(t, "2022-02-03", entity.AddedAtDate.Format(time.DateOnly))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "2022-02-03", entity.AddedAtDate.Format(time.DateOnly))
 
 	registry = beeorm.NewRegistry()
@@ -60,7 +60,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, entity.AddedAtTime)
 	assert.Equal(t, entity.AddedAtTime.Format(time.DateTime), now.Format(time.DateTime))
 	assert.Equal(t, "0001-01-01 00:00:00", entity.ModifiedAtTime.Format(time.DateTime))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, entity.AddedAtTime.Format(time.DateTime), now.Format(time.DateTime))
 	assert.Equal(t, "0001-01-01 00:00:00", entity.ModifiedAtTime.Format(time.DateTime))
 
@@ -69,7 +69,7 @@ func TestPlugin(t *testing.T) {
 	entity.AddedAtTime = timeManual
 	assert.NoError(t, orm.Flush())
 	assert.Equal(t, "2022-02-03 04:05:06", entity.AddedAtTime.Format(time.DateTime))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "2022-02-03 04:05:06", entity.AddedAtTime.Format(time.DateTime))
 
 	registry = beeorm.NewRegistry()
@@ -82,7 +82,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, entity.AddedAtTimeOptional)
 	assert.Equal(t, entity.AddedAtTimeOptional.Format(time.DateTime), now.Format(time.DateTime))
 	assert.Nil(t, entity.ModifiedAtTimeOptional)
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, entity.AddedAtTimeOptional.Format(time.DateTime), now.Format(time.DateTime))
 	assert.Nil(t, entity.ModifiedAtTimeOptional)
 
@@ -91,7 +91,7 @@ func TestPlugin(t *testing.T) {
 	entity.AddedAtTimeOptional = &timeManual
 	assert.NoError(t, orm.Flush())
 	assert.Equal(t, "2022-02-03 04:05:06", entity.AddedAtTimeOptional.Format(time.DateTime))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "2022-02-03 04:05:06", entity.AddedAtTimeOptional.Format(time.DateTime))
 
 	registry = beeorm.NewRegistry()
@@ -104,7 +104,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, entity.AddedAtDateOptional)
 	assert.Equal(t, entity.AddedAtDateOptional.Format(time.DateOnly), now.Format(time.DateOnly))
 	assert.Nil(t, entity.ModifiedAtDateOptional)
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, entity.AddedAtDateOptional.Format(time.DateOnly), now.Format(time.DateOnly))
 	assert.Nil(t, entity.ModifiedAtDateOptional)
 
@@ -123,7 +123,7 @@ func TestPlugin(t *testing.T) {
 	assert.Equal(t, entity.AddedAtTimeOptional.Format(time.DateTime), now.Format(time.DateTime))
 	assert.NotNil(t, entity.ModifiedAtTimeOptional)
 	assert.Equal(t, entity.ModifiedAtTimeOptional.Format(time.DateTime), later.Format(time.DateTime))
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, entity.AddedAtTimeOptional.Format(time.DateTime), now.Format(time.DateTime))
 	assert.NotNil(t, entity.ModifiedAtTimeOptional)
 	assert.Equal(t, entity.ModifiedAtTimeOptional.Format(time.DateTime), later.Format(time.DateTime))
@@ -142,7 +142,7 @@ func TestPlugin(t *testing.T) {
 	entity = beeorm.NewEntity[testPluginModifiedEntity](orm)
 	entity.Name = "e"
 	assert.NoError(t, orm.Flush())
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "e", entity.Name)
 
 	registry = beeorm.NewRegistry()
@@ -152,7 +152,7 @@ func TestPlugin(t *testing.T) {
 	entity = beeorm.NewEntity[testPluginModifiedEntity](orm)
 	entity.Name = "f"
 	assert.NoError(t, orm.Flush())
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "f", entity.Name)
 
 	registry = beeorm.NewRegistry()
@@ -162,7 +162,7 @@ func TestPlugin(t *testing.T) {
 	entity = beeorm.NewEntity[testPluginModifiedEntity](orm)
 	entity.Name = "g"
 	assert.NoError(t, orm.Flush())
-	entity = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
+	entity, _ = beeorm.GetByID[testPluginModifiedEntity](orm, entity.ID)
 	assert.Equal(t, "g", entity.Name)
 
 	beeorm.DeleteEntity(orm, entity)

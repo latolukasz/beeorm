@@ -117,7 +117,7 @@ func TestPlugin(t *testing.T) {
 	assert.Len(t, values[3], 2)
 	assert.Equal(t, orm.Engine(), values[4])
 	assert.Equal(t, "a1", entity.Name)
-	entity = GetByID[testPluginEntity](orm, entity.ID)
+	entity, _ = GetByID[testPluginEntity](orm, entity.ID)
 	assert.Equal(t, "a1", entity.Name)
 
 	entity = NewEntity[testPluginEntity](orm)
@@ -129,7 +129,7 @@ func TestPlugin(t *testing.T) {
 	assert.Nil(t, values[2])
 	assert.NotNil(t, values[3])
 	assert.Len(t, values[3], 2)
-	entity = GetByID[testPluginEntity](orm, entity.ID)
+	entity, _ = GetByID[testPluginEntity](orm, entity.ID)
 	assert.Equal(t, "a1", entity.Name)
 
 	p.option = 4
@@ -157,7 +157,7 @@ func TestPlugin(t *testing.T) {
 	assert.Len(t, values[2], 1)
 	assert.Len(t, values[3], 1)
 	assert.Equal(t, "b1", entity.Name)
-	entity = GetByID[testPluginEntity](orm, entity.ID)
+	entity, _ = GetByID[testPluginEntity](orm, entity.ID)
 	assert.Equal(t, "b1", entity.Name)
 
 	entity = EditEntity(orm, entity)
@@ -170,7 +170,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, values[3])
 	assert.Len(t, values[2], 1)
 	assert.Len(t, values[3], 1)
-	entity = GetByID[testPluginEntity](orm, entity.ID)
+	entity, _ = GetByID[testPluginEntity](orm, entity.ID)
 	assert.Equal(t, "b1", entity.Name)
 
 	p.lastValue = nil
@@ -212,7 +212,7 @@ func TestPlugin(t *testing.T) {
 	assert.NotNil(t, values[2])
 	assert.Nil(t, values[3])
 	assert.Len(t, values[2], 2)
-	entity = GetByID[testPluginEntity](orm, entity.ID)
+	entity, _ = GetByID[testPluginEntity](orm, entity.ID)
 	assert.Nil(t, entity)
 	assert.Equal(t, 100, p.option)
 

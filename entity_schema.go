@@ -60,7 +60,7 @@ type EntitySchema interface {
 	GetSchemaChanges(orm ORM) (alters []Alter, has bool)
 	DisableCache(local, redis bool)
 	NewEntity(orm ORM) any
-	GetByID(orm ORM, id uint64) any
+	GetByID(orm ORM, id uint64) (entity any, found bool)
 	Search(orm ORM, where Where, pager *Pager) EntityAnonymousIterator
 	SearchWithCount(orm ORM, where Where, pager *Pager) (results EntityAnonymousIterator, totalRows int)
 	SearchIDs(orm ORM, where Where, pager *Pager) []uint64
@@ -497,7 +497,7 @@ func (e *entitySchema) NewEntity(orm ORM) any {
 	return newEntity(orm, orm.Engine().Registry().EntitySchema(e.t).(*entitySchema))
 }
 
-func (e *entitySchema) GetByID(orm ORM, id uint64) any {
+func (e *entitySchema) GetByID(orm ORM, id uint64) (entity any, found bool) {
 	return getByID(orm.(*ormImplementation), id, orm.Engine().Registry().EntitySchema(e.t).(*entitySchema))
 }
 
