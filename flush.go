@@ -213,7 +213,7 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
-			publishAsyncEvent(schema, data)
+			publishAsyncEvent(logTableSchema, data)
 		}
 		for _, p := range orm.engine.pluginFlush {
 			if bind == nil {
@@ -341,7 +341,7 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 			}
 			asJSON, _ := jsoniter.ConfigFastest.MarshalToString(bind)
 			data[5] = asJSON
-			publishAsyncEvent(schema, data)
+			publishAsyncEvent(logTableSchema, data)
 		}
 		if hasLocalCache {
 			orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
@@ -500,7 +500,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 			data[5] = asJSON
 			asJSON, _ = jsoniter.ConfigFastest.MarshalToString(newBind)
 			data[6] = asJSON
-			publishAsyncEvent(schema, data)
+			publishAsyncEvent(logTableSchema, data)
 		}
 
 		if update.getEntity() == nil {

@@ -49,7 +49,7 @@ func TestAsync(t *testing.T) {
 	assert.Contains(t, events[0].QueryAttributes[1], "test 0")
 	assert.Len(t, events[1].QueryAttributes, 2)
 	assert.Contains(t, events[1].QueryAttributes[1], "test 1")
-	errors := stat.Errors(100)
+	errors := stat.Errors(100, false)
 	assert.Len(t, errors, 0)
 
 	stat.TrimEvents(1)
@@ -76,7 +76,7 @@ func TestAsync(t *testing.T) {
 
 	assert.Equal(t, uint64(0), stat.EventsCount())
 	assert.Equal(t, uint64(asyncConsumerPage+10), stat.ErrorsCount())
-	errors = stat.Errors(10)
+	errors = stat.Errors(10, false)
 	assert.Len(t, errors, 10)
 	assert.Len(t, errors[0].QueryAttributes, 2)
 	assert.Contains(t, errors[0].QueryAttributes[1], "test 0")
@@ -86,7 +86,7 @@ func TestAsync(t *testing.T) {
 	assert.Equal(t, "Error 1054 (42S22): Unknown column 'Name' in 'field list'", errors[1].Error)
 
 	stat.TrimErrors(1)
-	errors = stat.Errors(10)
+	errors = stat.Errors(10, false)
 	assert.Len(t, errors, 10)
 	assert.Contains(t, errors[0].QueryAttributes[1], "test 1")
 }

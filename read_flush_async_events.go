@@ -1,15 +1,21 @@
 package beeorm
 
-import jsoniter "github.com/json-iterator/go"
+import (
+	"slices"
+
+	jsoniter "github.com/json-iterator/go"
+)
 
 type AsyncFlushEvents interface {
 	EntitySchemas() []EntitySchema
 	EventsCount() uint64
 	ErrorsCount() uint64
 	Events(total int) []FlushEvent
-	Errors(total int) []FlushEventWithError
+	Errors(total int, last bool) []FlushEventWithError
 	TrimEvents(total int)
 	TrimErrors(total int)
+	RedilPool() string
+	RedisList() string
 }
 
 type asyncFlushEvents struct {
@@ -31,6 +37,14 @@ type FlushEventWithError struct {
 
 func (s *asyncFlushEvents) EntitySchemas() []EntitySchema {
 	return s.schemas
+}
+
+func (s *asyncFlushEvents) RedilPool() string {
+	return s.redisPoolName
+}
+
+func (s *asyncFlushEvents) RedisList() string {
+	return s.listName
 }
 
 func (s *asyncFlushEvents) EventsCount() uint64 {
@@ -60,9 +74,15 @@ func (s *asyncFlushEvents) Events(total int) []FlushEvent {
 	return results
 }
 
-func (s *asyncFlushEvents) Errors(total int) []FlushEventWithError {
+func (s *asyncFlushEvents) Errors(total int, last bool) []FlushEventWithError {
 	r := s.orm.Engine().Redis(s.redisPoolName)
-	events := r.LRange(s.orm, s.listName+flushAsyncEventsListErrorSuffix, 0, int64(total*2-1))
+	var events []string
+
+	if last {
+		events = r.LRange(s.orm, s.listName+flushAsyncEventsListErrorSuffix, int64(-total)*2, -1)
+	} else {
+		events = r.LRange(s.orm, s.listName+flushAsyncEventsListErrorSuffix, 0, int64(total*2-1))
+	}
 	results := make([]FlushEventWithError, len(events)/2)
 	k := 0
 	for i, event := range events {
@@ -79,6 +99,9 @@ func (s *asyncFlushEvents) Errors(total int) []FlushEventWithError {
 			results[k].Error = event
 			k++
 		}
+	}
+	if last {
+		slices.Reverse(results)
 	}
 	return results
 }
