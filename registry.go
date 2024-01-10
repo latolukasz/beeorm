@@ -50,6 +50,7 @@ func (r *registry) Validate() (Engine, error) {
 	l := len(r.entities)
 	e.registry.entitySchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entitySchemasQuickMap = make(map[reflect.Type]*entitySchema, l)
+	e.registry.entitySchemaList = make([]EntitySchema, l)
 	e.registry.entityLogSchemas = make(map[reflect.Type]*entitySchema, l)
 	e.registry.entities = make(map[string]reflect.Type)
 	e.registry.enums = make(map[string][]string)
@@ -139,6 +140,7 @@ func (r *registry) Validate() (Engine, error) {
 		}
 		e.registry.entitySchemas[entityType] = schema
 		e.registry.entitySchemasQuickMap[entityType] = schema
+		e.registry.entitySchemaList[index-1] = schema
 		e.registry.entitySchemasQuickMap[reflect.PointerTo(entityType)] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
@@ -221,7 +223,14 @@ func (r *registry) RegisterEntity(entity ...any) {
 		if t.Kind().String() != "struct" {
 			panic(fmt.Errorf("invalid entity definition, must be struct, %T provided", e))
 		}
-		r.entities[t.String()] = t
+		name := t.String()
+		if strings.Index(name, "[") > 0 {
+			logEntity, isLogEntity := reflect.New(t).Interface().(logEntityInterface)
+			if isLogEntity {
+				name = "beeorm.LogEntity[" + logEntity.getLogEntityTarget().String() + "]"
+			}
+		}
+		r.entities[name] = t
 	}
 }
 

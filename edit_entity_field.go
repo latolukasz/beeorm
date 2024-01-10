@@ -26,10 +26,7 @@ func editEntityField(orm ORM, entity any, field string, value any) error {
 	getter := schema.fieldGetters[field]
 	v := getter(elem)
 	oldValue, err := setter(v)
-	if err != nil {
-		panic(err)
-	}
-	if oldValue == newValue {
+	if err == nil && oldValue == newValue {
 		return nil
 	}
 	id := elem.Field(0).Uint()
@@ -75,7 +72,7 @@ func editEntityField(orm ORM, entity any, field string, value any) error {
 			}
 			insertableE, is := actual.(*insertableEntity)
 			if is {
-				fSetter(newValue, insertableE.value)
+				fSetter(newValue, insertableE.value.Elem())
 				return
 			}
 			asyncError = &BindError{Field: field, Message: "setting field in entity marked to delete not allowed"}

@@ -22,14 +22,13 @@ func ConsumeAsyncBuffer(orm ORM, errF func(err error)) (stop func()) {
 		panic("consumer is already running")
 	}
 	engine.asyncTemporaryIsQueueRunning = true
-	entities := orm.Engine().Registry().Entities()
+	schemas := orm.Engine().Registry().Entities()
 	stop = func() {
 		if !engine.asyncTemporaryIsQueueRunning {
 			return
 		}
-		for _, entityType := range entities {
-			schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
-			schema.asyncTemporaryQueue.TryEnqueue(nil)
+		for _, schema := range schemas {
+			schema.(*entitySchema).asyncTemporaryQueue.TryEnqueue(nil)
 		}
 		maxIterations := 10000
 		for {
@@ -46,12 +45,12 @@ func ConsumeAsyncBuffer(orm ORM, errF func(err error)) (stop func()) {
 	}
 	go func() {
 		waitGroup := &sync.WaitGroup{}
-		for _, entityType := range entities {
-			schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+		for _, schema := range schemas {
+			var schemaLocal = schema.(*entitySchema)
 			waitGroup.Add(1)
 			go func() {
 				defer waitGroup.Done()
-				consumeAsyncTempEvent(orm.Clone(), schema, errF)
+				consumeAsyncTempEvent(orm.Clone(), schemaLocal, errF)
 			}()
 		}
 		waitGroup.Wait()

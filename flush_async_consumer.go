@@ -63,10 +63,10 @@ func ConsumeAsyncFlushEvents(orm ORM, block bool) error {
 	groups := make(map[DB]map[RedisCache]map[string]bool)
 	var stop uint32
 	var globalError error
-	for _, entityType := range orm.Engine().Registry().Entities() {
-		schema := orm.Engine().Registry().EntitySchema(entityType).(*entitySchema)
+	for _, schema := range orm.Engine().Registry().Entities() {
 		db := schema.GetDB()
 		dbGroup, has := groups[db]
+		asyncCacheKey := schema.(*entitySchema).asyncCacheKey
 		if !has {
 			dbGroup = make(map[RedisCache]map[string]bool)
 			groups[db] = dbGroup
@@ -77,11 +77,11 @@ func ConsumeAsyncFlushEvents(orm ORM, block bool) error {
 			redisGroup = make(map[string]bool)
 			dbGroup[r] = redisGroup
 		}
-		_, has = redisGroup[schema.asyncCacheKey]
+		_, has = redisGroup[asyncCacheKey]
 		if has {
 			continue
 		}
-		redisGroup[schema.asyncCacheKey] = true
+		redisGroup[asyncCacheKey] = true
 		waitGroup.Add(1)
 		go func() {
 			defer func() {
@@ -98,7 +98,7 @@ func ConsumeAsyncFlushEvents(orm ORM, block bool) error {
 					}
 				}
 			}()
-			consumeAsyncEvents(orm.Context(), ctxNoCancel.Clone(), schema.asyncCacheKey, db, r, block, waitGroup, &lockObtained, &stop)
+			consumeAsyncEvents(orm.Context(), ctxNoCancel.Clone(), asyncCacheKey, db, r, block, waitGroup, &lockObtained, &stop)
 		}()
 	}
 	waitGroup.Wait()

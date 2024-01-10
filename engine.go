@@ -14,7 +14,7 @@ type EngineRegistry interface {
 	DBPools() map[string]DB
 	LocalCachePools() map[string]LocalCache
 	RedisPools() map[string]RedisCache
-	Entities() map[string]reflect.Type
+	Entities() []EntitySchema
 	Option(key string) any
 	Enums() map[string][]string
 	getDefaultQueryLogger() LogHandler
@@ -37,6 +37,7 @@ type Engine interface {
 type engineRegistryImplementation struct {
 	engine                 *engineImplementation
 	entities               map[string]reflect.Type
+	entitySchemaList       []EntitySchema
 	entitySchemas          map[reflect.Type]*entitySchema
 	entitySchemasQuickMap  map[reflect.Type]*entitySchema
 	entityLogSchemas       map[reflect.Type]*entitySchema
@@ -100,7 +101,7 @@ func (er *engineRegistryImplementation) DBPools() map[string]DB {
 func (er *engineRegistryImplementation) EntitySchema(entity any) EntitySchema {
 	switch entity.(type) {
 	case reflect.Type:
-		return er.entitySchemas[entity.(reflect.Type)]
+		return er.entitySchemasQuickMap[entity.(reflect.Type)]
 	case string:
 		name := entity.(string)
 		if strings.HasPrefix(name, "*") {
@@ -124,8 +125,8 @@ func (er *engineRegistryImplementation) getDBTables() map[string]map[string]bool
 	return er.dbTables
 }
 
-func (er *engineRegistryImplementation) Entities() map[string]reflect.Type {
-	return er.entities
+func (er *engineRegistryImplementation) Entities() []EntitySchema {
+	return er.entitySchemaList
 }
 
 func (er *engineRegistryImplementation) Option(key string) any {

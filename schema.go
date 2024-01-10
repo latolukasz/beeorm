@@ -120,8 +120,8 @@ func getAlters(orm ORM) (preAlters, alters, postAlters []Alter) {
 		tablesInEntities[poolName] = make(map[string]bool)
 	}
 	alters = make([]Alter, 0)
-	for _, t := range orm.Engine().Registry().Entities() {
-		schema := orm.Engine().Registry().EntitySchema(t).(*entitySchema)
+	for _, schemaInterface := range orm.Engine().Registry().Entities() {
+		schema := schemaInterface.(*entitySchema)
 		db := schema.GetDB()
 		tablesInEntities[db.GetConfig().GetCode()][schema.GetTableName()] = true
 		pre, middle, post := getSchemaChanges(orm, schema)

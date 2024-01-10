@@ -1,23 +1,23 @@
 package beeorm
 
 import (
-	"fmt"
-	"log"
 	"strconv"
-	"strings"
 	"time"
 )
 
 const loadingUniqueKeysPage = 5000
 
-func LoadUniqueKeys(orm ORM, debug bool) {
+func LoadUniqueKeys(orm ORM, force bool, entities ...EntitySchema) (inserted int) {
 	lock, got := orm.Engine().Redis(DefaultPoolCode).GetLocker().Obtain(orm, "load_unique_key", time.Second*5, 0)
 	if !got {
 		return
 	}
 	defer lock.Release(orm)
-	for _, entity := range orm.Engine().Registry().Entities() {
-		schema := orm.Engine().Registry().EntitySchema(entity)
+	schemas := entities
+	if len(entities) == 0 {
+		schemas = orm.Engine().Registry().Entities()
+	}
+	for _, schema := range schemas {
 		indexes := schema.GetUniqueIndexes()
 		if len(indexes) == 0 {
 			continue
@@ -28,10 +28,19 @@ func LoadUniqueKeys(orm ORM, debug bool) {
 		}
 		db := schema.GetDB()
 		for indexName, columns := range schema.GetUniqueIndexes() {
-			hSetKey := schema.getCacheKey() + ":" + indexName
-			if len(columns) == 0 || cache.Exists(orm, hSetKey) > 0 {
+			if len(columns) == 0 {
 				continue
 			}
+			hSetKey := schema.getCacheKey() + ":" + indexName
+			if force {
+				cache.Del(orm, hSetKey)
+			} else if cache.Exists(orm, hSetKey) > 0 {
+				_, isValid := cache.HGet(orm, hSetKey, "_is_valid")
+				if isValid {
+					continue
+				}
+			}
+
 			where := NewWhere("")
 			pointers := make([]any, len(columns)+1)
 			var v string
@@ -51,26 +60,16 @@ func LoadUniqueKeys(orm ORM, debug bool) {
 			selectWhere.Append(" FROM `" + schema.GetTableName() + "` WHERE ID > ? AND")
 			selectWhere.Append(where.String())
 
-			if debug {
-				row := fmt.Sprintf("Loading unique key '%s' from %s into redis", indexName, schema.GetType().String())
-				print(row)
-				print(".")
-			}
 			total := uint64(0)
 			db.QueryRow(orm, NewWhere(whereCount), &total)
 			if total == 0 {
 				cache.HSet(orm, hSetKey, "", 0)
-				if debug {
-					print(strings.Repeat(".", 100))
-					println("[DONE]")
-				}
 				continue
 			}
 			func() {
 				p, cl := db.Prepare(orm, selectWhere.String())
 				defer cl()
 				lastID := uint64(0)
-				dotsPrinted := 0
 				executed := uint64(0)
 				for {
 					count := 0
@@ -88,25 +87,18 @@ func LoadUniqueKeys(orm ORM, debug bool) {
 							cache.HSet(orm, hSetKey, hashString(hField), id)
 							count++
 							executed++
+							inserted++
 						}
 						cl2()
 					}()
-					if debug {
-						dotsToPrint := int((float64(executed) / float64(total)) * 100)
-						diff := dotsToPrint - dotsPrinted
-						if diff > 0 {
-							log.Print(strings.Repeat(".", diff))
-						}
-					}
-					if debug {
-						log.Print("\n")
-					}
 					if count < loadingUniqueKeysPage {
 						break
 					}
 				}
 				cl()
 			}()
+			cache.HSet(orm, hSetKey, "_is_valid", "1")
 		}
 	}
+	return inserted
 }
