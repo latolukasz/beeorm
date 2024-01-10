@@ -592,7 +592,7 @@ func (e *entitySchema) DeleteEntity(orm ORM, source any) {
 
 func (e *entitySchema) search(orm ORM, where Where, pager *Pager, withCount bool) (results EntityAnonymousIterator, totalRows int) {
 	schema := orm.Engine().Registry().EntitySchema(e.t).(*entitySchema)
-	entities := reflect.New(reflect.SliceOf(e.t))
+	entities := reflect.New(reflect.SliceOf(reflect.PtrTo(e.t))).Elem()
 	if schema.hasLocalCache {
 		ids, total := searchIDs(orm, schema, where, pager, withCount)
 		if total == 0 {
