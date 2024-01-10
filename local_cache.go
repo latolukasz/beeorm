@@ -1,9 +1,11 @@
 package beeorm
 
 import (
+	"container/list"
 	"fmt"
 	"hash/maphash"
 	"sync"
+	"sync/atomic"
 
 	"github.com/puzpuzpuz/xsync/v2"
 )
@@ -11,11 +13,13 @@ import (
 type LocalCacheConfig interface {
 	GetCode() string
 	GetLimit() int
+	GetSchema() EntitySchema
 }
 
 type localCacheConfig struct {
-	code  string
-	limit int
+	code   string
+	limit  int
+	schema EntitySchema
 }
 
 func (c *localCacheConfig) GetCode() string {
@@ -26,13 +30,24 @@ func (c *localCacheConfig) GetLimit() int {
 	return c.limit
 }
 
+func (c *localCacheConfig) GetSchema() EntitySchema {
+	return c.schema
+}
+
+type LocalCacheUsage struct {
+	Type      string
+	Limit     uint64
+	Used      uint64
+	Evictions uint64
+}
+
 type LocalCache interface {
 	Set(orm ORM, key string, value any)
 	Remove(orm ORM, key string)
 	GetConfig() LocalCacheConfig
 	Get(orm ORM, key string) (value any, ok bool)
 	Clear(orm ORM)
-	GetObjectsCount() int
+	GetUsage() []LocalCacheUsage
 	getEntity(orm ORM, id uint64) (value any, ok bool)
 	setEntity(orm ORM, id uint64, value any)
 	removeEntity(orm ORM, id uint64)
@@ -42,31 +57,47 @@ type LocalCache interface {
 }
 
 type localCache struct {
-	config          *localCacheConfig
-	cache           *xsync.Map
-	cacheEntities   *xsync.MapOf[uint64, any]
-	cacheReferences map[string]*xsync.MapOf[uint64, any]
-	mutex           sync.Mutex
+	config              *localCacheConfig
+	cache               *xsync.Map
+	cacheEntities       *xsync.MapOf[uint64, any]
+	cacheEntitiesLRU    *list.List
+	cacheReferences     map[string]*xsync.MapOf[uint64, any]
+	cacheReferencesLRU  map[string]*list.List
+	mutex               sync.Mutex
+	evictions           uint64
+	evictionsEntities   uint64
+	evictionsReferences map[string]*uint64
 }
 
 func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
-	c := &localCache{config: &localCacheConfig{code: code, limit: limit}}
+	c := &localCache{config: &localCacheConfig{code: code, limit: limit, schema: schema}}
 	c.cache = xsync.NewMap()
 	if schema != nil && schema.hasLocalCache {
 		c.cacheEntities = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 			return u
 		})
+		if limit > 0 {
+			c.cacheEntitiesLRU = list.New()
+		}
 		if len(schema.cachedReferences) > 0 || schema.cacheAll {
 			c.cacheReferences = make(map[string]*xsync.MapOf[uint64, any])
+			c.cacheReferencesLRU = make(map[string]*list.List)
+			c.evictionsReferences = make(map[string]*uint64)
 			for reference := range schema.cachedReferences {
 				c.cacheReferences[reference] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 					return u
 				})
+				evictions := uint64(0)
+				c.evictionsReferences[reference] = &evictions
+				c.cacheReferencesLRU[reference] = list.New()
 			}
 			if schema.cacheAll {
 				c.cacheReferences[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 					return u
 				})
+				evictions := uint64(0)
+				c.evictionsReferences[cacheAllFakeReferenceKey] = &evictions
+				c.cacheReferencesLRU[cacheAllFakeReferenceKey] = list.New()
 			}
 		}
 	}
@@ -107,6 +138,7 @@ func (lc *localCache) getReference(orm ORM, reference string, id uint64) (value 
 func (lc *localCache) Set(orm ORM, key string, value any) {
 	lc.cache.Store(key, value)
 	if lc.config.limit > 0 && lc.cache.Size() > lc.config.limit {
+		atomic.AddUint64(&lc.evictions, 1)
 		lc.makeSpace(lc.cache, key)
 	}
 	hasLog, _ := orm.getLocalCacheLoggers()
@@ -117,8 +149,15 @@ func (lc *localCache) Set(orm ORM, key string, value any) {
 
 func (lc *localCache) setEntity(orm ORM, id uint64, value any) {
 	lc.cacheEntities.Store(id, value)
-	if lc.config.limit > 0 && lc.cacheEntities.Size() > lc.config.limit {
-		lc.makeSpaceUint(lc.cacheEntities, id)
+	if lc.config.limit > 0 {
+		lc.cacheEntitiesLRU.MoveToFront(&list.Element{Value: id})
+		if lc.cacheEntities.Size() > lc.config.limit {
+			toRemove := lc.cacheEntitiesLRU.Back()
+			if toRemove != nil {
+				lc.cacheEntities.Delete(toRemove.Value.(uint64))
+				atomic.AddUint64(&lc.evictionsEntities, 1)
+			}
+		}
 	}
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
@@ -136,18 +175,20 @@ func (lc *localCache) makeSpace(cache *xsync.Map, addedKey string) {
 	})
 }
 
-func (lc *localCache) makeSpaceUint(cache *xsync.MapOf[uint64, any], addedKey uint64) {
-	cache.Range(func(key uint64, value any) bool {
-		if key != addedKey {
-			cache.Delete(key)
-			return false
-		}
-		return true
-	})
-}
-
 func (lc *localCache) setReference(orm ORM, reference string, id uint64, value any) {
-	lc.cacheReferences[reference].Store(id, value)
+	c := lc.cacheReferences[reference]
+	c.Store(id, value)
+	if lc.config.limit > 0 {
+		lru := lc.cacheReferencesLRU[reference]
+		lru.MoveToFront(&list.Element{Value: id})
+		if c.Size() > lc.config.limit {
+			toRemove := lru.Back()
+			if toRemove != nil {
+				c.Delete(toRemove.Value.(uint64))
+				atomic.AddUint64(lc.evictionsReferences[reference], 1)
+			}
+		}
+	}
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
 		lc.fillLogFields(orm, "SET", fmt.Sprintf("SET REFERENCE %s %d %v", reference, id, value), false)
@@ -194,17 +235,18 @@ func (lc *localCache) Clear(orm ORM) {
 	}
 }
 
-func (lc *localCache) GetObjectsCount() int {
-	total := lc.cache.Size()
-	if lc.cacheEntities != nil {
-		total += lc.cacheEntities.Size()
+func (lc *localCache) GetUsage() []LocalCacheUsage {
+	if lc.cacheEntities == nil {
+		return []LocalCacheUsage{{Type: "Global", Used: uint64(lc.cache.Size()), Limit: uint64(lc.config.limit), Evictions: lc.evictions}}
 	}
-	if lc.cacheReferences != nil {
-		for _, cache := range lc.cacheReferences {
-			total += cache.Size()
-		}
+	usage := make([]LocalCacheUsage, len(lc.cacheReferences)+1)
+	usage[0] = LocalCacheUsage{Type: "Entities " + lc.config.schema.GetType().String(), Used: uint64(lc.cacheEntities.Size()), Limit: uint64(lc.config.limit), Evictions: lc.evictionsEntities}
+	i := 1
+	for refName, references := range lc.cacheReferences {
+		usage[i] = LocalCacheUsage{Type: "Reference " + refName + " of " + lc.config.schema.GetType().String(), Used: uint64(references.Size()), Limit: uint64(lc.config.limit), Evictions: *lc.evictionsReferences[refName]}
+		i++
 	}
-	return total
+	return usage
 }
 
 func (lc *localCache) fillLogFields(orm ORM, operation, query string, cacheMiss bool) {
