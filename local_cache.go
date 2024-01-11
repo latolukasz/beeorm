@@ -329,7 +329,7 @@ func (lc *localCache) removeReference(orm ORM, reference string, id uint64) {
 			lc.cacheReferencesLRU[reference].Remove(val.lruElement)
 		}
 	} else {
-		lc.cacheEntitiesNoLimit.Delete(id)
+		lc.cacheReferencesNoLimit[reference].Delete(id)
 	}
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
