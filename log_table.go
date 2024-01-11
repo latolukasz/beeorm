@@ -6,7 +6,7 @@ import (
 )
 
 type LogEntity[Entity any] struct {
-	ID       uint64 `orm:"archived;split_async_flush=log-entity"`
+	ID       uint64 `orm:"split_async_flush=log-entity"`
 	EntityID uint64
 	Date     time.Time `orm:"time"`
 	Meta     []byte
