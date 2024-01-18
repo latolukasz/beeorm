@@ -224,7 +224,7 @@ func createReferenceFieldBindSetter(columnName string, t reflect.Type, idSetter 
 			if reference.getType() != t {
 				return nil, &BindError{columnName, "invalid reference type"}
 			}
-			id := reference.getID()
+			id := reference.GetID()
 			if id == 0 {
 				if !nullable {
 					return nil, &BindError{columnName, "nil is not allowed"}
@@ -646,13 +646,10 @@ func createReferenceFieldSetter(attributes schemaFieldAttributes) func(v any, el
 	return func(v any, elem reflect.Value) {
 		field := getSetterField(elem, attributes)
 		if v == nil {
-			field.SetZero()
+			field.SetUint(0)
 			return
 		}
-		val := reflect.New(field.Type().Elem())
-		reference := val.Interface().(referenceInterface)
-		reference.setID(v.(uint64))
-		field.Set(val)
+		field.SetUint(v.(uint64))
 	}
 }
 

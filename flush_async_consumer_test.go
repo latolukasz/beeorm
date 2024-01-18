@@ -148,25 +148,25 @@ func TestAsyncConsumer(t *testing.T) {
 	// invalid one event, duplicated key
 	e1 := NewEntity[flushEntity](orm)
 	e1.Name = "Valid name 1"
-	e1.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e1.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	e2 := NewEntity[flushEntity](orm)
 	e2.Name = "Valid name 2"
-	e2.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e2.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	e3 := NewEntity[flushEntity](orm)
 	e3.Name = "Valid name 3"
-	e3.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e3.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = orm.Flush()
 	assert.NoError(t, err)
 	orm.Engine().Redis(DefaultPoolCode).FlushDB(orm) // clearing duplicated key data
 	e1 = NewEntity[flushEntity](orm)
 	e1.Name = "Valid name 4"
-	e1.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e1.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	e2 = NewEntity[flushEntity](orm)
 	e2.Name = "Valid name 2"
-	e2.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e2.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	e3 = NewEntity[flushEntity](orm)
 	e3.Name = "Valid name 5"
-	e3.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	e3.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = orm.FlushAsync()
 	assert.NoError(t, err)
 	err = runAsyncConsumer(orm, false)

@@ -15,9 +15,9 @@ type updateSubField struct {
 	Int          int16
 	UintNullable *uint16
 	IntNullable  *int16
-	Reference    *Reference[updateEntityReference] `orm:"required"`
-	Enum         testEnum                          `orm:"required"`
-	Set          []testEnum                        `orm:"required"`
+	Reference    Reference[updateEntityReference] `orm:"required"`
+	Enum         testEnum                         `orm:"required"`
+	Set          []testEnum                       `orm:"required"`
 }
 
 type updateEntityReference struct {
@@ -32,7 +32,7 @@ type updateEntity struct {
 	UintNullable  *uint16
 	IntNullable   *int16
 	Level1        updateSubField
-	Reference     *Reference[updateEntityReference]
+	Reference     Reference[updateEntityReference]
 	Enum          testEnum
 	Set           []testEnum
 	Blob          []uint8
@@ -94,7 +94,7 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 		entity.Int = int16(i)
 		entity.Name = fmt.Sprintf("name %d", i)
 		entity.Level1.SubName = fmt.Sprintf("sub name %d", i)
-		entity.Level1.Reference = &Reference[updateEntityReference]{ID: 1}
+		entity.Level1.Reference = 1
 		entity.Level1.Enum = testEnumDefinition.A
 		entity.Level1.Set = []testEnum{testEnumDefinition.A}
 		ids = append(ids, uint64(entity.ID))
@@ -218,37 +218,37 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 	for i, val := range intValues {
 		err = runEditEntityField(orm, entity, "Reference", val, async)
 		assert.NoError(t, err)
-		assert.Equal(t, uint64(i+1), entity.Reference.ID)
+		assert.Equal(t, uint64(i+1), uint64(entity.Reference))
 		entity, _ = GetByID[updateEntity](orm, ids[1])
-		assert.Equal(t, uint64(i+1), entity.Reference.ID)
+		assert.Equal(t, uint64(i+1), uint64(entity.Reference))
 		err = runEditEntityField(orm, entity, "Level1Reference", val, async)
 		assert.NoError(t, err)
-		assert.Equal(t, uint64(i+1), entity.Level1.Reference.ID)
+		assert.Equal(t, uint64(i+1), uint64(entity.Level1.Reference))
 		entity, _ = GetByID[updateEntity](orm, ids[1])
-		assert.Equal(t, uint64(i+1), entity.Level1.Reference.ID)
+		assert.Equal(t, uint64(i+1), uint64(entity.Level1.Reference))
 	}
-	err = runEditEntityField(orm, entity, "Reference", &Reference[updateEntityReference]{ID: 20}, async)
+	err = runEditEntityField(orm, entity, "Reference", 20, async)
 	assert.NoError(t, err)
-	assert.Equal(t, uint64(20), entity.Reference.ID)
+	assert.Equal(t, uint64(20), uint64(entity.Reference))
 	entity, _ = GetByID[updateEntity](orm, ids[1])
-	assert.Equal(t, uint64(20), entity.Reference.ID)
-	err = runEditEntityField(orm, entity, "Reference", &Reference[updateEntityReference]{ID: 0}, async)
+	assert.Equal(t, uint64(20), uint64(entity.Reference))
+	err = runEditEntityField(orm, entity, "Reference", 0, async)
 	assert.NoError(t, err)
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	entity, _ = GetByID[updateEntity](orm, ids[1])
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	_ = runEditEntityField(orm, entity, "Reference", 20, async)
 	err = runEditEntityField(orm, entity, "Reference", nil, async)
 	assert.NoError(t, err)
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	entity, _ = GetByID[updateEntity](orm, ids[1])
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	_ = runEditEntityField(orm, entity, "Reference", 20, async)
 	err = runEditEntityField(orm, entity, "Reference", 0, async)
 	assert.NoError(t, err)
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	entity, _ = GetByID[updateEntity](orm, ids[1])
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	err = runEditEntityField(orm, entity, "Reference", "invalid", async)
 	assert.EqualError(t, err, "[Reference] invalid number invalid")
 

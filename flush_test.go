@@ -103,9 +103,9 @@ type flushEntity struct {
 	Uint32Nullable            *uint32
 	Uint32NullableArray       [2]*uint32
 	Uint64Nullable            *uint64
-	Reference                 *Reference[flushEntityReference]
-	ReferenceArray            [2]*Reference[flushEntityReference]
-	ReferenceRequired         *Reference[flushEntityReference] `orm:"required"`
+	Reference                 Reference[flushEntityReference]
+	ReferenceArray            [2]Reference[flushEntityReference]
+	ReferenceRequired         Reference[flushEntityReference] `orm:"required"`
 	flushStructAnonymous
 }
 
@@ -219,7 +219,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// Adding empty entity
 	newEntity := schema.NewEntity(orm).(*flushEntity)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
 	firstEntityID := newEntity.ID
@@ -279,7 +279,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	assert.Nil(t, entity.Uint64Nullable)
 	assert.Equal(t, "", entity.SubName)
 	assert.Equal(t, float32(0), entity.SubAge)
-	assert.Nil(t, entity.Reference)
+	assert.Zero(t, entity.Reference)
 	assert.NotNil(t, reference.ID, entity.ReferenceRequired)
 
 	for i := 0; i < 2; i++ {
@@ -305,7 +305,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		assert.Nil(t, entity.TimeNullableArray[i])
 		assert.Nil(t, entity.TimeWithTimeNullableArray[i])
 		assert.Nil(t, entity.Uint32NullableArray[i])
-		assert.Nil(t, entity.ReferenceArray[i])
+		assert.Zero(t, entity.ReferenceArray[i])
 		assert.Nil(t, entity.FlushStructArray[i].TestTime)
 		assert.Equal(t, 0, entity.FlushStructArray[i].Age)
 		assert.Equal(t, "", entity.FlushStructArray[i].Name2)
@@ -372,8 +372,8 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.Uint64Nullable = &uint64Nullable
 	newEntity.SubName = "sub name"
 	newEntity.SubAge = 123
-	newEntity.Reference = &Reference[flushEntityReference]{ID: reference.ID}
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.Reference = Reference[flushEntityReference](reference.ID)
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	for i := 0; i < 2; i++ {
 		newEntity.StringArray[i] = fmt.Sprintf("Test %d", i)
 		newEntity.IntArray[i] = i + 1
@@ -397,7 +397,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		newEntity.TimeNullableArray[i] = &newEntity.TimeWithTimeArray[i]
 		newEntity.TimeWithTimeNullableArray[i] = &newEntity.TimeWithTimeArray[i]
 		newEntity.Uint32NullableArray[i] = &uint32Nullable
-		newEntity.ReferenceArray[i] = &Reference[flushEntityReference]{ID: reference.ID}
+		newEntity.ReferenceArray[i] = Reference[flushEntityReference](reference.ID)
 		newEntity.FlushStructArray[i].Age = i + 1
 		newEntity.FlushStructArray[i].Name2 = fmt.Sprintf("Name %d", i)
 		newEntity.FlushStructArray[i].Sub.Name3 = fmt.Sprintf("Name %d", i)
@@ -410,6 +410,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	}
 	entity, _ = GetByID[flushEntity](orm, uint64(newEntity.ID))
 	assert.NotNil(t, entity)
+
 	assert.Equal(t, newEntity.ID, entity.ID)
 	assert.Equal(t, "New York", entity.City)
 	assert.Equal(t, "Test name", entity.Name)
@@ -451,8 +452,8 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	assert.Equal(t, uint64(98872), *entity.Uint64Nullable)
 	assert.Equal(t, "sub name", entity.SubName)
 	assert.Equal(t, float32(123), entity.SubAge)
-	assert.Equal(t, reference.ID, entity.Reference.ID)
-	assert.Equal(t, reference.ID, entity.ReferenceRequired.ID)
+	assert.Equal(t, reference.ID, entity.Reference.GetID())
+	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, fmt.Sprintf("Test %d", i), entity.StringArray[i])
 		assert.Equal(t, i+1, entity.IntArray[i])
@@ -476,7 +477,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), *entity.TimeNullableArray[i])
 		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), *entity.TimeWithTimeNullableArray[i])
 		assert.Equal(t, uint32(2923), *entity.Uint32NullableArray[i])
-		assert.Equal(t, entity.Reference.ID, entity.ReferenceArray[i].ID)
+		assert.Equal(t, entity.Reference, entity.ReferenceArray[i])
 		assert.Equal(t, i+1, entity.FlushStructArray[i].Age)
 		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Name2)
 		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Sub.Name3)
@@ -485,7 +486,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// rounding dates
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "rounding dates"
 	newEntity.City = "rounding dates"
 	newEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
@@ -502,7 +503,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// rounding floats
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "rounding floats"
 	newEntity.City = "rounding floats"
 	newEntity.Float64 = 1.123456
@@ -521,7 +522,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// empty string
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] empty string not allowed")
 	assert.Equal(t, "Name", err.(*BindError).Field)
@@ -529,7 +530,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// string too long
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = strings.Repeat("a", 256)
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Name] text too long, max 255 allowed")
@@ -539,7 +540,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	orm.ClearFlush()
 	assert.NoError(t, testFlush(orm, async))
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.City = strings.Repeat("a", 41)
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[City] text too long, max 40 allowed")
@@ -549,7 +550,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// invalid decimal
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Decimal = 1234
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Decimal] decimal size too big, max 3 allowed")
@@ -557,7 +558,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	orm.ClearFlush()
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	decimalNullable = 1234
 	newEntity.DecimalNullable = &decimalNullable
 	err = testFlush(orm, async)
@@ -568,7 +569,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	// float signed
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Float64Unsigned = -1
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Float64Unsigned] negative value not allowed")
@@ -584,7 +585,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	// invalid enum, set
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name 2"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.EnumNotNull = ""
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[EnumNotNull] empty value not allowed")
@@ -611,7 +612,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	// Time
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Time = time.Now().Local()
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "[Time] time must be in UTC location")
@@ -642,7 +643,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.City = "Another city "
 	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
 	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
@@ -654,7 +655,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	LoadUniqueKeys(orm, false)
 	newEntity = NewEntity[flushEntity](orm)
 	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, async)
 	assert.EqualError(t, err, "duplicated value for unique index 'name'")
 	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
@@ -677,7 +678,7 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 
 	entity := NewEntity[flushEntity](orm)
 	entity.Name = "Test 1"
-	entity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	entity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, false)
 	assert.NoError(t, err)
 
@@ -708,7 +709,7 @@ func testFlushDelete(t *testing.T, async, local, redis bool) {
 	// duplicated key
 	entity = NewEntity[flushEntity](orm)
 	entity.Name = "Test 1"
-	entity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	entity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, false)
 	assert.NoError(t, err)
 }
@@ -726,7 +727,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, err)
 
 	newEntity := NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
 	assert.NoError(t, testFlush(orm, false))
 
@@ -801,8 +802,8 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	editedEntity.Uint64Nullable = &uint64Nullable
 	editedEntity.SubName = "sub name"
 	editedEntity.SubAge = 123
-	editedEntity.Reference = &Reference[flushEntityReference]{ID: reference.ID}
-	editedEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	editedEntity.Reference = Reference[flushEntityReference](reference.ID)
+	editedEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	for i := 0; i < 2; i++ {
 		editedEntity.StringArray[i] = fmt.Sprintf("Test %d", i)
 		editedEntity.IntArray[i] = i + 1
@@ -826,7 +827,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		editedEntity.TimeNullableArray[i] = &editedEntity.TimeWithTimeArray[i]
 		editedEntity.TimeWithTimeNullableArray[i] = &editedEntity.TimeWithTimeArray[i]
 		editedEntity.Uint32NullableArray[i] = &uint32Nullable
-		editedEntity.ReferenceArray[i] = &Reference[flushEntityReference]{ID: reference.ID}
+		editedEntity.ReferenceArray[i] = Reference[flushEntityReference](reference.ID)
 		editedEntity.FlushStructArray[i].Age = i + 1
 		editedEntity.FlushStructArray[i].Name2 = fmt.Sprintf("Name %d", i)
 		editedEntity.FlushStructArray[i].Sub.Name3 = fmt.Sprintf("Name %d", i)
@@ -896,8 +897,8 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.Equal(t, uint64(98872), *entity.Uint64Nullable)
 	assert.Equal(t, "sub name", entity.SubName)
 	assert.Equal(t, float32(123), entity.SubAge)
-	assert.Equal(t, reference.ID, entity.Reference.ID)
-	assert.Equal(t, reference.ID, entity.ReferenceRequired.ID)
+	assert.Equal(t, reference.ID, entity.Reference.GetID())
+	assert.Equal(t, reference.ID, entity.ReferenceRequired.GetID())
 	for i := 0; i < 2; i++ {
 		assert.Equal(t, fmt.Sprintf("Test %d", i), entity.StringArray[i])
 		assert.Equal(t, i+1, entity.IntArray[i])
@@ -921,7 +922,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 		assert.Equal(t, time.Date(1982, 11, 4, 0, 0, 0, 0, time.UTC), *entity.TimeNullableArray[i])
 		assert.Equal(t, time.Date(1982, 11, 4, 21, 0, 5, 0, time.UTC), *entity.TimeWithTimeNullableArray[i])
 		assert.Equal(t, uint32(2923), *entity.Uint32NullableArray[i])
-		assert.Equal(t, entity.Reference.ID, entity.ReferenceArray[i].ID)
+		assert.Equal(t, entity.Reference, entity.ReferenceArray[i])
 		assert.Equal(t, i+1, entity.FlushStructArray[i].Age)
 		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Name2)
 		assert.Equal(t, fmt.Sprintf("Name %d", i), entity.FlushStructArray[i].Sub.Name3)
@@ -939,7 +940,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 
 	// rounding dates
 	editedEntity = EditEntity(orm, editedEntity)
-	editedEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	editedEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	editedEntity.Name = "rounding dates"
 	editedEntity.City = "rounding dates"
 	editedEntity.Time = time.Date(2023, 11, 12, 22, 12, 34, 4, time.UTC)
@@ -1147,7 +1148,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 
 	// duplicated key
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name 2"
 	assert.NoError(t, testFlush(orm, async))
 
@@ -1165,7 +1166,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.NoError(t, testFlush(orm, async))
 
 	newEntity = NewEntity[flushEntity](orm)
-	newEntity.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name 2"
 	assert.NoError(t, testFlush(orm, async))
 }
@@ -1200,7 +1201,7 @@ func TestFlushTransaction(t *testing.T) {
 	reference.Name = "test reference 2"
 	flushE := NewEntity[flushEntity](orm)
 	flushE.Name = "test"
-	flushE.ReferenceRequired = &Reference[flushEntityReference]{ID: reference.ID}
+	flushE.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	err = testFlush(orm, false)
 	assert.NoError(t, err)
 	assert.Len(t, loggerDB.Logs, 5)

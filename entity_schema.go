@@ -817,7 +817,7 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		e.mapPointerToValue[columnName] = pointerUintNullableScan
 		var refType reflect.Type
 		if i == 0 {
-			refType = reflect.New(fType.Elem()).Interface().(referenceInterface).getType()
+			refType = reflect.New(fType).Interface().(referenceInterface).getType()
 			def := referenceDefinition{
 				Cached: attributes.Tags["cached"] == "true",
 				Type:   refType,
@@ -831,7 +831,7 @@ func (e *entitySchema) buildReferenceField(attributes schemaFieldAttributes) {
 		e.fieldBindSetters[columnName] = createReferenceFieldBindSetter(columnName, refType, idSetter, !isRequired)
 		e.columnAttrToStringSetters[columnName] = createUint64AttrToStringSetter(e.fieldBindSetters[columnName])
 		e.fieldSetters[columnName] = createReferenceFieldSetter(attributes)
-		e.fieldGetters[columnName] = createFieldGetter(attributes, true)
+		e.fieldGetters[columnName] = createFieldGetter(attributes, false)
 	}
 }
 

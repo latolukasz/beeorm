@@ -70,18 +70,14 @@ func (r *removableEntity) getOldBind() (bind Bind, err error) {
 }
 
 func fillBindForReference(bind Bind, f reflect.Value, required bool, column string) error {
-	if f.IsNil() {
+	id := f.Uint()
+	if id == 0 {
 		if required {
-			return &BindError{Field: column, Message: "nil value not allowed"}
+			return &BindError{Field: column, Message: "zero not allowed"}
 		}
-		f.SetZero()
 		bind[column] = nil
 	} else {
-		reference := f.Interface().(referenceInterface)
-		if required && reference.getID() == 0 {
-			return &BindError{Field: column, Message: "ID zero not allowed"}
-		}
-		bind[column] = reference.getID()
+		bind[column] = id
 	}
 	return nil
 }
@@ -803,35 +799,25 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 }
 
 func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, isRequired bool, prefix, suffix string) error {
-	v1 := uint64(0)
-	v2 := uint64(0)
-	v1IsNil := f1.IsNil()
-	v2IsNil := f2.IsNil()
-	if !v1IsNil {
-		v1 = f1.Interface().(referenceInterface).getID()
-		if isRequired && v1 == 0 {
-			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
-		}
-	} else if isRequired {
-		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "nil value not allowed"}
+	v1 := f1.Uint()
+	v2 := f2.Uint()
+	if v1 == 0 && isRequired {
+		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "zero not allowed"}
 	}
-	if !v2IsNil {
-		v2 = f2.Interface().(referenceInterface).getID()
-	}
-	if v1IsNil != v2IsNil || v1 != v2 {
+	if v1 != v2 {
 		name := prefix + fields.fields[i].Name + suffix
-		if v1IsNil {
+		if v1 == 0 {
 			bind[name] = nil
 		} else {
 			bind[name] = v1
 		}
-		if v2IsNil {
+		if v2 == 0 {
 			oldBind[name] = nil
 		} else {
 			oldBind[name] = v2
 		}
 	} else if fields.forcedOldBid[i] {
-		if v2IsNil {
+		if v2 == 0 {
 			oldBind[prefix+fields.fields[i].Name+suffix] = nil
 		} else {
 			oldBind[prefix+fields.fields[i].Name+suffix] = v2

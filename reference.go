@@ -4,9 +4,12 @@ import (
 	"reflect"
 )
 
+type IDGetter interface {
+	GetID() uint64
+}
+
 type referenceInterface interface {
-	getID() uint64
-	setID(id uint64)
+	IDGetter
 	getType() reflect.Type
 }
 
@@ -15,13 +18,11 @@ type referenceDefinition struct {
 	Type   reflect.Type
 }
 
-type Reference[E any] struct {
-	ID uint64
-}
+type Reference[E any] uint64
 
-func (r *Reference[E]) GetEntity(orm ORM) *E {
-	if r.ID != 0 {
-		e, found := GetByID[E](orm, r.ID)
+func (r Reference[E]) GetEntity(orm ORM) *E {
+	if r != 0 {
+		e, found := GetByID[E](orm, uint64(r))
 		if !found {
 			return nil
 		}
@@ -30,15 +31,11 @@ func (r *Reference[E]) GetEntity(orm ORM) *E {
 	return nil
 }
 
-func (r *Reference[E]) getID() uint64 {
-	return r.ID
-}
-
-func (r *Reference[E]) setID(id uint64) {
-	r.ID = id
-}
-
-func (r *Reference[E]) getType() reflect.Type {
+func (r Reference[E]) getType() reflect.Type {
 	var e E
 	return reflect.TypeOf(e)
+}
+
+func (r Reference[E]) GetID() uint64 {
+	return uint64(r)
 }

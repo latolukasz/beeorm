@@ -9,15 +9,15 @@ import (
 )
 
 type getByUniqueIndexEntity struct {
-	ID        uint64                                `orm:"localCache;redisCache"`
-	Name      string                                `orm:"unique=Name"`
-	Age       uint8                                 `orm:"unique=Multi"`
-	Active    bool                                  `orm:"unique=Multi:2"`
-	Ref       *Reference[getByUniqueIndexReference] `orm:"unique=Ref"`
-	BirthDate time.Time                             `orm:"time;unique=Time"`
-	Died      bool                                  `orm:"time;unique=Died"`
-	DeathDate time.Time                             `orm:"unique=Died:2"`
-	Price     float32                               `orm:"unique=Price"`
+	ID        uint64                               `orm:"localCache;redisCache"`
+	Name      string                               `orm:"unique=Name"`
+	Age       uint8                                `orm:"unique=Multi"`
+	Active    bool                                 `orm:"unique=Multi:2"`
+	Ref       Reference[getByUniqueIndexReference] `orm:"unique=Ref"`
+	BirthDate time.Time                            `orm:"time;unique=Time"`
+	Died      bool                                 `orm:"time;unique=Died"`
+	DeathDate time.Time                            `orm:"unique=Died:2"`
+	Price     float32                              `orm:"unique=Price"`
 }
 
 type getByUniqueIndexReference struct {
@@ -57,7 +57,7 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 		entity = NewEntity[getByUniqueIndexEntity](orm)
 		entity.Name = fmt.Sprintf("Name %d", i)
 		entity.Age = uint8(i)
-		entity.Ref = &Reference[getByUniqueIndexReference]{ID: ref.ID}
+		entity.Ref = Reference[getByUniqueIndexReference](ref.ID)
 		date = date.Add(time.Hour)
 		died = died.Add(time.Hour * 24)
 		entity.BirthDate = date

@@ -10,9 +10,9 @@ import (
 type getByReferenceEntity struct {
 	ID               uint64 `orm:"localCache;redisCache"`
 	Name             string
-	Ref              *Reference[getByReferenceReference]        `orm:"index=Ref"`
-	RefCached        *Reference[getByReferenceReference]        `orm:"index=RefCached;cached"`
-	RefCachedNoCache *Reference[getByReferenceReferenceNoCache] `orm:"index=RefCachedNoCache;cached"`
+	Ref              Reference[getByReferenceReference]        `orm:"index=Ref"`
+	RefCached        Reference[getByReferenceReference]        `orm:"index=RefCached;cached"`
+	RefCachedNoCache Reference[getByReferenceReferenceNoCache] `orm:"index=RefCachedNoCache;cached"`
 }
 
 type getByReferenceReference struct {
@@ -71,9 +71,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 	for i := 0; i < 10; i++ {
 		entity = NewEntity[getByReferenceEntity](orm)
 		entity.Name = fmt.Sprintf("Name %d", i)
-		entity.Ref = &Reference[getByReferenceReference]{ID: ref.ID}
-		entity.RefCached = &Reference[getByReferenceReference]{ID: ref.ID}
-		entity.RefCachedNoCache = &Reference[getByReferenceReferenceNoCache]{ID: refNoCache.ID}
+		entity.Ref = Reference[getByReferenceReference](ref.ID)
+		entity.RefCached = Reference[getByReferenceReference](ref.ID)
+		entity.RefCachedNoCache = Reference[getByReferenceReferenceNoCache](refNoCache.ID)
 		entities = append(entities, entity)
 	}
 	err := orm.Flush()
@@ -128,9 +128,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	// Update set to nil
 	entity = EditEntity(orm, e)
-	entity.Ref = nil
-	entity.RefCached = nil
-	entity.RefCachedNoCache = nil
+	entity.Ref = 0
+	entity.RefCached = 0
+	entity.RefCachedNoCache = 0
 	err = orm.Flush()
 	assert.NoError(t, err)
 	loggerDB.Clear()
@@ -159,9 +159,9 @@ func testGetByReference(t *testing.T, local, redis bool) {
 
 	// update change id
 	entity = EditEntity(orm, entities[3])
-	entity.Ref = &Reference[getByReferenceReference]{ID: ref2.ID}
-	entity.RefCached = &Reference[getByReferenceReference]{ID: ref2.ID}
-	entity.RefCachedNoCache = &Reference[getByReferenceReferenceNoCache]{ID: refNoCache2.ID}
+	entity.Ref = Reference[getByReferenceReference](ref2.ID)
+	entity.RefCached = Reference[getByReferenceReference](ref2.ID)
+	entity.RefCachedNoCache = Reference[getByReferenceReferenceNoCache](refNoCache2.ID)
 	err = orm.Flush()
 	assert.NoError(t, err)
 	loggerDB.Clear()

@@ -103,11 +103,10 @@ func (lc *localCacheIDsIterator[E]) LoadReference(columns ...string) {
 		for lc.Next() {
 			entity := reflect.ValueOf(lc.Entity()).Elem()
 			field := entity.FieldByName(fields[0])
-			if field.IsNil() {
+			id := field.Uint()
+			if id == 0 {
 				continue
 			}
-			field = field.Elem()
-			id := field.FieldByName("ID").Uint()
 			has = false
 			for _, before := range ids {
 				if before == id {
