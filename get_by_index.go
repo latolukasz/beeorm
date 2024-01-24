@@ -69,11 +69,7 @@ func GetByIndex[E any](orm ORM, indexName string, attributes ...any) EntityItera
 }
 
 func getCachedByColumns[E any](orm ORM, indexName string, index indexDefinition, schema *entitySchema, attributes []any, hasNil bool) EntityIterator[E] {
-	attributesHash, err := jsoniter.ConfigFastest.Marshal(attributes)
-	hash := fnv.New64()
-	_, err = hash.Write(attributesHash)
-	checkError(err)
-	bindID := hash.Sum64()
+	bindID := hashIndexAttributes(attributes)
 	if schema.hasLocalCache {
 		fromCache, hasInCache := schema.localCache.getList(orm, indexName, bindID)
 		if hasInCache {
@@ -90,7 +86,7 @@ func getCachedByColumns[E any](orm ORM, indexName string, index indexDefinition,
 		}
 	}
 	rc := orm.Engine().Redis(schema.getForcedRedisCode())
-	redisSetKey := schema.cacheKey + ":" + indexName + strconv.FormatUint(bindID, 10)
+	redisSetKey := schema.cacheKey + ":" + indexName + ":" + strconv.FormatUint(bindID, 10)
 	fromRedis := rc.SMembers(orm, redisSetKey)
 	if len(fromRedis) > 0 {
 		ids := make([]uint64, len(fromRedis))
@@ -169,4 +165,13 @@ func getCachedByColumns[E any](orm ORM, indexName string, index indexDefinition,
 		rc.SAdd(orm, redisSetKey, idsForRedis...)
 	}
 	return values
+}
+
+func hashIndexAttributes(attributes []any) uint64 {
+	attributesHash, err := jsoniter.ConfigFastest.Marshal(attributes)
+	hash := fnv.New64()
+	_, err = hash.Write(attributesHash)
+	checkError(err)
+	bindID := hash.Sum64()
+	return bindID
 }

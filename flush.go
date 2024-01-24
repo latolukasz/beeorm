@@ -192,6 +192,28 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
 			orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
 		}
+		for indexName, def := range schema.cachedIndexes {
+			if bind == nil {
+				bind, err = deleteFlush.getOldBind()
+				if err != nil {
+					return err
+				}
+			}
+			indexAttributes := make([]any, len(def.Columns))
+			for j, indexColumn := range def.Columns {
+				indexAttributes[j] = bind[indexColumn]
+			}
+			key := indexName
+			id := hashIndexAttributes(indexAttributes)
+			if schema.hasLocalCache {
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeList(orm, key, id)
+				})
+			}
+			idAsString := strconv.FormatUint(id, 10)
+			redisSetKey := schema.cacheKey + ":" + key + ":" + idAsString
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, strconv.FormatUint(deleteFlush.ID(), 10))
+		}
 		logTableSchema, hasLogTable := orm.engine.registry.entityLogSchemas[schema.t]
 		if hasLogTable {
 			data := make([]any, 6)
@@ -369,6 +391,21 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
+		}
+		for indexName, def := range schema.cachedIndexes {
+			indexAttributes := make([]any, len(def.Columns))
+			for j, indexColumn := range def.Columns {
+				indexAttributes[j] = bind[indexColumn]
+			}
+			key := indexName
+			id := hashIndexAttributes(indexAttributes)
+			if schema.hasLocalCache {
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					lc.removeList(orm, key, id)
+				})
+			}
+			redisSetKey := schema.cacheKey + ":" + key + ":" + strconv.FormatUint(id, 10)
 			orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(insert.ID(), 10))
 		}
 		if hasRedisCache {

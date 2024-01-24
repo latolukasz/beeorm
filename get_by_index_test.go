@@ -104,4 +104,30 @@ func testGetByIndex(t *testing.T, local, redis bool) {
 		assert.Len(t, loggerDB.Logs, 0)
 	}
 	loggerDB.Clear()
+
+	entity = NewEntity[getByIndexEntity](orm)
+	entity.Age = 10
+	assert.NoError(t, orm.Flush())
+	entities = append(entities, entity)
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 10, nil)
+	all := rows.All()
+	assert.Equal(t, 6, rows.Len())
+	assert.Equal(t, all[5].ID, entity.ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	DeleteEntity(orm, entities[0])
+	assert.NoError(t, orm.Flush())
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 10, nil)
+	all = rows.All()
+	assert.Equal(t, 5, rows.Len())
+	assert.Equal(t, all[0].ID, entities[1].ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
 }
