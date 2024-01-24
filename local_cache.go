@@ -56,26 +56,26 @@ type LocalCache interface {
 	getEntity(orm ORM, id uint64) (value any, ok bool)
 	setEntity(orm ORM, id uint64, value any)
 	removeEntity(orm ORM, id uint64)
-	getReference(orm ORM, reference string, id uint64) (value any, ok bool)
-	setReference(orm ORM, reference string, id uint64, value any)
-	removeReference(orm ORM, reference string, id uint64)
+	getList(orm ORM, key string, id uint64) (value any, ok bool)
+	setList(orm ORM, key string, id uint64, value any)
+	removeList(orm ORM, key string, id uint64)
 }
 
 type localCache struct {
-	config                 *localCacheConfig
-	cacheNoLimit           *xsync.Map
-	cacheLimit             *xsync.MapOf[string, *localCacheElement]
-	cacheLRU               *list.List
-	cacheEntitiesNoLimit   *xsync.MapOf[uint64, any]
-	cacheEntitiesLimit     *xsync.MapOf[uint64, *localCacheElement]
-	cacheEntitiesLRU       *list.List
-	cacheReferencesNoLimit map[string]*xsync.MapOf[uint64, any]
-	cacheReferencesLimit   map[string]*xsync.MapOf[uint64, *localCacheElement]
-	cacheReferencesLRU     map[string]*list.List
-	mutex                  sync.Mutex
-	evictions              uint64
-	evictionsEntities      uint64
-	evictionsReferences    map[string]*uint64
+	config               *localCacheConfig
+	cacheNoLimit         *xsync.Map
+	cacheLimit           *xsync.MapOf[string, *localCacheElement]
+	cacheLRU             *list.List
+	cacheEntitiesNoLimit *xsync.MapOf[uint64, any]
+	cacheEntitiesLimit   *xsync.MapOf[uint64, *localCacheElement]
+	cacheEntitiesLRU     *list.List
+	cacheListNoLimit     map[string]*xsync.MapOf[uint64, any]
+	cacheListLimit       map[string]*xsync.MapOf[uint64, *localCacheElement]
+	cacheListLRU         map[string]*list.List
+	mutex                sync.Mutex
+	evictions            uint64
+	evictionsEntities    uint64
+	evictionsList        map[string]*uint64
 }
 
 func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
@@ -101,40 +101,31 @@ func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
 		if limit > 0 {
 			c.cacheEntitiesLRU = list.New()
 		}
-		if len(schema.cachedReferences) > 0 || schema.cacheAll {
+		if len(schema.cachedReferences) > 0 || len(schema.cachedIndexes) > 0 || schema.cacheAll {
 			if limit > 0 {
-				c.cacheReferencesLimit = make(map[string]*xsync.MapOf[uint64, *localCacheElement])
-				c.cacheReferencesLRU = make(map[string]*list.List)
-				c.evictionsReferences = make(map[string]*uint64)
+				c.cacheListLimit = make(map[string]*xsync.MapOf[uint64, *localCacheElement])
+				c.cacheListLRU = make(map[string]*list.List)
+				c.evictionsList = make(map[string]*uint64)
 			} else {
-				c.cacheReferencesNoLimit = make(map[string]*xsync.MapOf[uint64, any])
+				c.cacheListNoLimit = make(map[string]*xsync.MapOf[uint64, any])
 			}
 			for reference := range schema.cachedReferences {
-				if limit > 0 {
-					c.cacheReferencesLimit[reference] = xsync.NewTypedMapOf[uint64, *localCacheElement](func(seed maphash.Seed, u uint64) uint64 {
-						return u
-					})
-
-					evictions := uint64(0)
-					c.evictionsReferences[reference] = &evictions
-					c.cacheReferencesLRU[reference] = list.New()
-				} else {
-					c.cacheReferencesNoLimit[reference] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
-						return u
-					})
-				}
+				initListCache(limit, c, reference)
+			}
+			for index := range schema.cachedIndexes {
+				initListCache(limit, c, index)
 			}
 			if schema.cacheAll {
 				if limit > 0 {
-					c.cacheReferencesLimit[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, *localCacheElement](func(seed maphash.Seed, u uint64) uint64 {
+					c.cacheListLimit[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, *localCacheElement](func(seed maphash.Seed, u uint64) uint64 {
 						return u
 					})
 
 					evictions := uint64(0)
-					c.evictionsReferences[cacheAllFakeReferenceKey] = &evictions
-					c.cacheReferencesLRU[cacheAllFakeReferenceKey] = list.New()
+					c.evictionsList[cacheAllFakeReferenceKey] = &evictions
+					c.cacheListLRU[cacheAllFakeReferenceKey] = list.New()
 				} else {
-					c.cacheReferencesNoLimit[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
+					c.cacheListNoLimit[cacheAllFakeReferenceKey] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
 						return u
 					})
 				}
@@ -142,6 +133,21 @@ func newLocalCache(code string, limit int, schema *entitySchema) *localCache {
 		}
 	}
 	return c
+}
+
+func initListCache(limit int, c *localCache, reference string) {
+	if limit > 0 {
+		c.cacheListLimit[reference] = xsync.NewTypedMapOf[uint64, *localCacheElement](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+		evictions := uint64(0)
+		c.evictionsList[reference] = &evictions
+		c.cacheListLRU[reference] = list.New()
+	} else {
+		c.cacheListNoLimit[reference] = xsync.NewTypedMapOf[uint64, any](func(seed maphash.Seed, u uint64) uint64 {
+			return u
+		})
+	}
 }
 
 func (lc *localCache) GetConfig() LocalCacheConfig {
@@ -194,26 +200,26 @@ func (lc *localCache) getEntity(orm ORM, id uint64) (value any, ok bool) {
 	return
 }
 
-func (lc *localCache) getReference(orm ORM, reference string, id uint64) (value any, ok bool) {
+func (lc *localCache) getList(orm ORM, key string, id uint64) (value any, ok bool) {
 	if lc.config.limit > 0 {
-		c := lc.cacheReferencesLimit[reference]
+		c := lc.cacheListLimit[key]
 		val, has := c.Load(id)
 		hasLog, _ := orm.getLocalCacheLoggers()
 		if hasLog {
-			lc.fillLogFields(orm, "GET", fmt.Sprintf("GET REFERENCE %s %d", reference, id), !has)
+			lc.fillLogFields(orm, "GET", fmt.Sprintf("GET LIST %s %d", key, id), !has)
 		}
 		if has {
 			if c.Size() >= lc.config.limit {
-				lc.cacheReferencesLRU[reference].MoveToFront(val.lruElement)
+				lc.cacheListLRU[key].MoveToFront(val.lruElement)
 			}
 			return val.value, true
 		}
 		return nil, false
 	}
-	value, ok = lc.cacheReferencesNoLimit[reference].Load(id)
+	value, ok = lc.cacheListNoLimit[key].Load(id)
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(orm, "GET", fmt.Sprintf("GET REFERENCE %s %d", reference, id), !ok)
+		lc.fillLogFields(orm, "GET", fmt.Sprintf("GET LIST %s %d", key, id), !ok)
 	}
 	return
 }
@@ -266,29 +272,29 @@ func (lc *localCache) setEntity(orm ORM, id uint64, value any) {
 	}
 }
 
-func (lc *localCache) setReference(orm ORM, reference string, id uint64, value any) {
+func (lc *localCache) setList(orm ORM, key string, id uint64, value any) {
 	if lc.config.limit > 0 {
 		element := lc.cacheEntitiesLRU.PushFront(id)
-		c := lc.cacheReferencesLimit[reference]
+		c := lc.cacheListLimit[key]
 		c.Store(id, &localCacheElement{lruElement: element, value: value})
-		lru := lc.cacheReferencesLRU[reference]
+		lru := lc.cacheListLRU[key]
 		if c.Size() > lc.config.limit {
 			toRemove := lru.Back()
 			if toRemove != nil {
 				c.Delete(lc.cacheEntitiesLRU.Remove(toRemove).(uint64))
-				atomic.AddUint64(lc.evictionsReferences[reference], 1)
+				atomic.AddUint64(lc.evictionsList[key], 1)
 			}
 		}
 		hasLog, _ := orm.getLocalCacheLoggers()
 		if hasLog {
-			lc.fillLogFields(orm, "SET", fmt.Sprintf("SET REFERENCE %d %v", id, value), false)
+			lc.fillLogFields(orm, "SET", fmt.Sprintf("SET LIST %d %v", id, value), false)
 		}
 		return
 	}
-	lc.cacheReferencesNoLimit[reference].Store(id, value)
+	lc.cacheListNoLimit[key].Store(id, value)
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(orm, "SET", fmt.Sprintf("SET REFERENCE %s %d %v", reference, id, value), false)
+		lc.fillLogFields(orm, "SET", fmt.Sprintf("SET LIST %s %d %v", key, id, value), false)
 	}
 }
 
@@ -322,18 +328,18 @@ func (lc *localCache) removeEntity(orm ORM, id uint64) {
 	}
 }
 
-func (lc *localCache) removeReference(orm ORM, reference string, id uint64) {
+func (lc *localCache) removeList(orm ORM, key string, id uint64) {
 	if lc.config.limit > 0 {
-		val, loaded := lc.cacheReferencesLimit[reference].LoadAndDelete(id)
+		val, loaded := lc.cacheListLimit[key].LoadAndDelete(id)
 		if loaded {
-			lc.cacheReferencesLRU[reference].Remove(val.lruElement)
+			lc.cacheListLRU[key].Remove(val.lruElement)
 		}
 	} else {
-		lc.cacheReferencesNoLimit[reference].Delete(id)
+		lc.cacheListNoLimit[key].Delete(id)
 	}
 	hasLog, _ := orm.getLocalCacheLoggers()
 	if hasLog {
-		lc.fillLogFields(orm, "REMOVE", fmt.Sprintf("REMOVE REFERENCE %s %d", reference, id), false)
+		lc.fillLogFields(orm, "REMOVE", fmt.Sprintf("REMOVE LIST %s %d", key, id), false)
 	}
 }
 
@@ -345,10 +351,10 @@ func (lc *localCache) Clear(orm ORM) {
 			lc.cacheEntitiesLimit.Clear()
 			lc.cacheEntitiesLRU.Init()
 		}
-		if lc.cacheReferencesLimit != nil {
-			for name, cache := range lc.cacheReferencesLimit {
+		if lc.cacheListLimit != nil {
+			for name, cache := range lc.cacheListLimit {
 				cache.Clear()
-				lc.cacheReferencesLRU[name].Init()
+				lc.cacheListLRU[name].Init()
 			}
 		}
 
@@ -357,8 +363,8 @@ func (lc *localCache) Clear(orm ORM) {
 		if lc.cacheEntitiesNoLimit != nil {
 			lc.cacheEntitiesNoLimit.Clear()
 		}
-		if lc.cacheReferencesNoLimit != nil {
-			for _, cache := range lc.cacheReferencesNoLimit {
+		if lc.cacheListNoLimit != nil {
+			for _, cache := range lc.cacheListNoLimit {
 				cache.Clear()
 			}
 		}
@@ -375,11 +381,11 @@ func (lc *localCache) GetUsage() []LocalCacheUsage {
 		if lc.cacheEntitiesLimit == nil {
 			return []LocalCacheUsage{{Type: "Global", Used: uint64(lc.cacheLimit.Size()), Limit: uint64(lc.config.limit), Evictions: lc.evictions}}
 		}
-		usage := make([]LocalCacheUsage, len(lc.cacheReferencesLimit)+1)
+		usage := make([]LocalCacheUsage, len(lc.cacheListLimit)+1)
 		usage[0] = LocalCacheUsage{Type: "Entities " + lc.config.schema.GetType().String(), Used: uint64(lc.cacheEntitiesLimit.Size()), Limit: uint64(lc.config.limit), Evictions: lc.evictionsEntities}
 		i := 1
-		for refName, references := range lc.cacheReferencesLimit {
-			usage[i] = LocalCacheUsage{Type: "Reference " + refName + " of " + lc.config.schema.GetType().String(), Used: uint64(references.Size()), Limit: uint64(lc.config.limit), Evictions: *lc.evictionsReferences[refName]}
+		for key, l := range lc.cacheListLimit {
+			usage[i] = LocalCacheUsage{Type: "List " + key + " of " + lc.config.schema.GetType().String(), Used: uint64(l.Size()), Limit: uint64(lc.config.limit), Evictions: *lc.evictionsList[key]}
 			i++
 		}
 		return usage
@@ -387,11 +393,11 @@ func (lc *localCache) GetUsage() []LocalCacheUsage {
 	if lc.cacheEntitiesNoLimit == nil {
 		return []LocalCacheUsage{{Type: "Global", Used: uint64(lc.cacheNoLimit.Size()), Limit: 0, Evictions: 0}}
 	}
-	usage := make([]LocalCacheUsage, len(lc.cacheReferencesNoLimit)+1)
+	usage := make([]LocalCacheUsage, len(lc.cacheListNoLimit)+1)
 	usage[0] = LocalCacheUsage{Type: "Entities " + lc.config.schema.GetType().String(), Used: uint64(lc.cacheEntitiesNoLimit.Size()), Limit: 0, Evictions: 0}
 	i := 1
-	for refName, references := range lc.cacheReferencesNoLimit {
-		usage[i] = LocalCacheUsage{Type: "Reference " + refName + " of " + lc.config.schema.GetType().String(), Used: uint64(references.Size()), Limit: 0, Evictions: 0}
+	for refName, l := range lc.cacheListNoLimit {
+		usage[i] = LocalCacheUsage{Type: "List " + refName + " of " + lc.config.schema.GetType().String(), Used: uint64(l.Size()), Limit: 0, Evictions: 0}
 		i++
 	}
 	return usage

@@ -3,6 +3,8 @@ package beeorm
 import (
 	"reflect"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 type Where interface {
@@ -45,6 +47,9 @@ func (w *BaseWhere) Append(query string, parameters ...any) {
 func NewWhere(query string, parameters ...any) *BaseWhere {
 	finalParameters := make([]any, 0, len(parameters))
 	for _, value := range parameters {
+		if value == nil {
+			panic(errors.New("nil nt allowed"))
+		}
 		switch reflect.TypeOf(value).Kind().String() {
 		case "slice", "array":
 			val := reflect.ValueOf(value)

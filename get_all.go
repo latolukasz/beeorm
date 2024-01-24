@@ -18,6 +18,5 @@ func GetAll[E any](orm ORM) EntityIterator[E] {
 	if !schema.cacheAll {
 		return Search[E](orm, allEntitiesWhere, nil)
 	}
-	lc, hasLocalCache := schema.GetLocalCache()
-	return getCachedList[E](orm, cacheAllFakeReferenceKey, 0, hasLocalCache, lc, schema, schema)
+	return getCachedByReference[E](orm, cacheAllFakeReferenceKey, 0, schema)
 }

@@ -22,23 +22,21 @@ func GetByReference[E any](orm ORM, referenceName string, id uint64) EntityItera
 	if !has {
 		panic(fmt.Errorf("unknow reference name `%s`", referenceName))
 	}
-	lc, hasLocalCache := schema.GetLocalCache()
 	if !def.Cached {
 		return Search[E](orm, NewWhere("`"+referenceName+"` = ?", id), nil)
 	}
-	defSchema := orm.Engine().Registry().EntitySchema(def.Type).(*entitySchema)
-	return getCachedList[E](orm, referenceName, id, hasLocalCache, lc, schema, defSchema)
+	return getCachedByReference[E](orm, referenceName, id, schema)
 }
 
-func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCache bool, lc LocalCache, schema, resultSchema *entitySchema) EntityIterator[E] {
-	if hasLocalCache {
-		fromCache, hasInCache := lc.getReference(orm, referenceName, id)
+func getCachedByReference[E any](orm ORM, key string, id uint64, schema *entitySchema) EntityIterator[E] {
+	if schema.hasLocalCache {
+		fromCache, hasInCache := schema.localCache.getList(orm, key, id)
 		if hasInCache {
 			if fromCache == cacheNilValue {
 				return &emptyResultsIterator[E]{}
 			}
 
-			if resultSchema.hasLocalCache {
+			if schema.hasLocalCache {
 				results := &entityIterator[E]{index: -1}
 				results.rows = fromCache.([]*E)
 				return results
@@ -47,7 +45,7 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		}
 	}
 	rc := orm.Engine().Redis(schema.getForcedRedisCode())
-	redisSetKey := schema.cacheKey + ":" + referenceName
+	redisSetKey := schema.cacheKey + ":" + key
 	if id > 0 {
 		idAsString := strconv.FormatUint(id, 10)
 		redisSetKey += ":" + idAsString
@@ -69,38 +67,38 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		}
 		if hasValidValue {
 			if k == 0 {
-				if hasLocalCache {
-					lc.setReference(orm, referenceName, id, cacheNilValue)
+				if schema.hasLocalCache {
+					schema.localCache.setList(orm, key, id, cacheNilValue)
 				}
 				return &emptyResultsIterator[E]{}
 			}
 			ids = ids[0:k]
 			slices.Sort(ids)
 			values := GetByIDs[E](orm, ids...)
-			if hasLocalCache {
+			if schema.hasLocalCache {
 				if values.Len() == 0 {
-					lc.setReference(orm, referenceName, id, cacheNilValue)
+					schema.localCache.setList(orm, key, id, cacheNilValue)
 				} else {
-					if resultSchema.hasLocalCache {
-						lc.setReference(orm, referenceName, id, values.All())
+					if schema.hasLocalCache {
+						schema.localCache.setList(orm, key, id, values.All())
 					} else {
-						lc.setReference(orm, referenceName, id, ids)
+						schema.localCache.setList(orm, key, id, ids)
 					}
 				}
 			}
 			return values
 		}
 	}
-	if hasLocalCache {
+	if schema.hasLocalCache {
 		var where Where
 		if id > 0 {
-			where = NewWhere("`"+referenceName+"` = ?", id)
+			where = NewWhere("`"+key+"` = ?", id)
 		} else {
 			where = allEntitiesWhere
 		}
 		ids := SearchIDs[E](orm, where, nil)
 		if len(ids) == 0 {
-			lc.setReference(orm, referenceName, id, cacheNilValue)
+			schema.localCache.setList(orm, key, id, cacheNilValue)
 			rc.SAdd(orm, redisSetKey, cacheNilValue)
 			return &emptyResultsIterator[E]{}
 		}
@@ -114,16 +112,16 @@ func getCachedList[E any](orm ORM, referenceName string, id uint64, hasLocalCach
 		p.SAdd(redisSetKey, idsForRedis...)
 		p.Exec(orm)
 		values := GetByIDs[E](orm, ids...)
-		if resultSchema.hasLocalCache {
-			lc.setReference(orm, referenceName, id, values.All())
+		if schema.hasLocalCache {
+			schema.localCache.setList(orm, key, id, values.All())
 		} else {
-			lc.setReference(orm, referenceName, id, ids)
+			schema.localCache.setList(orm, key, id, ids)
 		}
 		return values
 	}
 	var where Where
 	if id > 0 {
-		where = NewWhere("`"+referenceName+"` = ?", id)
+		where = NewWhere("`"+key+"` = ?", id)
 	} else {
 		where = allEntitiesWhere
 	}

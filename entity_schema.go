@@ -102,6 +102,8 @@ type entitySchema struct {
 	uniqueIndices             map[string][]string
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
+	indexes                   map[string]indexDefinition
+	cachedIndexes             map[string]indexDefinition
 	options                   map[string]any
 	cacheAll                  bool
 	hasLocalCache             bool
@@ -280,6 +282,8 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	e.options = make(map[string]any)
 	e.references = make(map[string]referenceDefinition)
 	e.cachedReferences = make(map[string]referenceDefinition)
+	e.indexes = make(map[string]indexDefinition)
+	e.cachedIndexes = make(map[string]indexDefinition)
 	e.mapBindToScanPointer = mapBindToScanPointer{}
 	e.mapPointerToValue = mapPointerToValue{}
 	e.mysqlPoolCode = e.getTag("mysql", "default", DefaultPoolCode)
@@ -398,6 +402,30 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 	err := e.validateIndexes(uniqueIndices, indices)
 	if err != nil {
 		return err
+	}
+	for indexName, indexColumns := range indices {
+		where := ""
+		for i := 0; i < len(indexColumns); i++ {
+			if i > 0 {
+				where += " AND "
+			}
+			where += "`" + indexColumns[i+1] + "`=?"
+		}
+		cached := false
+		tags, hasTag := e.tags[indexColumns[1]]
+		if hasTag {
+			cached = tags["cached"] == "true"
+		}
+		columnsList := make([]string, len(indexColumns))
+		for j := 0; j < len(indexColumns); j++ {
+			columnsList[j] = indexColumns[j+1]
+		}
+
+		definition := indexDefinition{Where: where, Cached: cached, Columns: columnsList}
+		e.indexes[indexName] = definition
+		if cached {
+			e.cachedIndexes[indexName] = definition
+		}
 	}
 	for _, plugin := range registry.plugins {
 		pluginInterfaceValidateEntitySchema, isInterface := plugin.(PluginInterfaceValidateEntitySchema)

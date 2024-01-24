@@ -176,7 +176,7 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 			refColumn := columnName
 			if schema.hasLocalCache {
 				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-					lc.removeReference(orm, refColumn, id.(uint64))
+					lc.removeList(orm, refColumn, id.(uint64))
 				})
 			}
 			idAsString := strconv.FormatUint(id.(uint64), 10)
@@ -186,7 +186,7 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 		if schema.cacheAll {
 			if schema.hasLocalCache {
 				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-					lc.removeReference(orm, cacheAllFakeReferenceKey, 0)
+					lc.removeList(orm, cacheAllFakeReferenceKey, 0)
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
@@ -356,7 +356,7 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 			refColumn := columnName
 			if schema.hasLocalCache {
 				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-					lc.removeReference(orm, refColumn, id.(uint64))
+					lc.removeList(orm, refColumn, id.(uint64))
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(id.(uint64), 10)
@@ -365,7 +365,7 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 		if schema.cacheAll {
 			if schema.hasLocalCache {
 				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-					lc.removeReference(orm, cacheAllFakeReferenceKey, 0)
+					lc.removeList(orm, cacheAllFakeReferenceKey, 0)
 				})
 			}
 			redisSetKey := schema.cacheKey + ":" + cacheAllFakeReferenceKey
@@ -555,7 +555,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 			if oldAsInt > 0 {
 				if schema.hasLocalCache {
 					orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-						schema.localCache.removeReference(orm, refColumn, oldAsInt)
+						schema.localCache.removeList(orm, refColumn, oldAsInt)
 					})
 				}
 				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(oldAsInt, 10)
@@ -564,7 +564,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 			if newAsInt > 0 {
 				if schema.hasLocalCache {
 					orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
-						schema.localCache.removeReference(orm, refColumn, newAsInt)
+						schema.localCache.removeList(orm, refColumn, newAsInt)
 					})
 				}
 				redisSetKey := schema.cacheKey + ":" + refColumn + ":" + strconv.FormatUint(newAsInt, 10)
