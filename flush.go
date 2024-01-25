@@ -145,7 +145,7 @@ func (orm *ormImplementation) handleDeletes(async bool, schema *entitySchema, op
 			cache := orm.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind, nil)
 				if hasKey {
 					orm.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hField)
 				}
@@ -292,7 +292,7 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 			cache := orm.Engine().Redis(schema.getForcedRedisCode())
 			for indexName, indexColumns := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind, nil)
 				if !hasKey {
 					continue
 				}
@@ -426,7 +426,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 	var queryPrefix string
 	for _, operation := range operations {
 		update := operation.(entityFlushUpdate)
-		newBind, oldBind, err := update.getBind()
+		newBind, oldBind, forcedNew, forcedOld, err := update.getBind()
 		elem := update.getValue().Elem()
 		if err != nil {
 			return err
@@ -461,7 +461,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 					continue
 				}
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind)
+				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind, forcedNew)
 				if hasKey {
 					previousID, inUse := cache.HGet(orm, hSetKey, hField)
 					if inUse {
@@ -470,7 +470,7 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 					}
 					orm.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
-				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind)
+				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind, forcedOld)
 				if hasKey {
 					orm.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}
@@ -608,6 +608,56 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 				orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, strconv.FormatUint(update.ID(), 10))
 			}
 		}
+		for indexName, def := range schema.cachedIndexes {
+			indexChanged := false
+			for _, indexColumn := range def.Columns {
+				_, has := newBind[indexColumn]
+				if has {
+					indexChanged = true
+					break
+				}
+			}
+			if !indexChanged {
+				continue
+			}
+			indexAttributes := make([]any, len(def.Columns))
+			for j, indexColumn := range def.Columns {
+				newVal, has := newBind[indexColumn]
+				if !has {
+					newVal, has = forcedNew[indexColumn]
+				}
+				indexAttributes[j] = newVal
+				continue
+			}
+			key := indexName
+			id := hashIndexAttributes(indexAttributes)
+			if schema.hasLocalCache {
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					schema.localCache.removeList(orm, key, id)
+				})
+			}
+			redisSetKey := schema.cacheKey + ":" + key + ":" + strconv.FormatUint(id, 10)
+			idAsString := strconv.FormatUint(update.ID(), 10)
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SAdd(redisSetKey, idAsString)
+
+			indexAttributes = indexAttributes[0:len(def.Columns)]
+			for j, indexColumn := range def.Columns {
+				oldVal, has := oldBind[indexColumn]
+				if !has {
+					oldVal, has = forcedOld[indexColumn]
+				}
+				indexAttributes[j] = oldVal
+			}
+			key2 := indexName
+			id2 := hashIndexAttributes(indexAttributes)
+			if schema.hasLocalCache {
+				orm.flushPostActions = append(orm.flushPostActions, func(_ ORM) {
+					schema.localCache.removeList(orm, key2, id2)
+				})
+			}
+			redisSetKey = schema.cacheKey + ":" + key2 + ":" + strconv.FormatUint(id2, 10)
+			orm.RedisPipeLine(schema.getForcedRedisCode()).SRem(redisSetKey, idAsString)
+		}
 	}
 	return nil
 }
@@ -644,12 +694,15 @@ func (orm *ormImplementation) appendDBAction(schema EntitySchema, action dbActio
 	orm.flushDBActions[poolCode] = append(orm.flushDBActions[poolCode], action)
 }
 
-func buildUniqueKeyHSetField(schema *entitySchema, indexColumns []string, bind Bind) (string, bool) {
+func buildUniqueKeyHSetField(schema *entitySchema, indexColumns []string, bind, forced Bind) (string, bool) {
 	hField := ""
 	hasNil := false
 	hasInBind := false
 	for _, column := range indexColumns {
 		bindValue, has := bind[column]
+		if !has {
+			bindValue, has = forced[column]
+		}
 		if bindValue == nil {
 			hasNil = true
 			break

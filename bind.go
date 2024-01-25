@@ -52,10 +52,12 @@ func (m *insertableEntity) getBind() (Bind, error) {
 	return bind, nil
 }
 
-func (e *editableEntity) getBind() (newBind, oldBind Bind, err error) {
+func (e *editableEntity) getBind() (newBind, oldBind, forcedNew, forcedOld Bind, err error) {
 	newBind = Bind{}
 	oldBind = Bind{}
-	err = fillBindFromTwoSources(e.orm, newBind, oldBind, e.value.Elem(), reflect.ValueOf(e.source).Elem(), e.schema.fields, "")
+	forcedNew = Bind{}
+	forcedOld = Bind{}
+	err = fillBindFromTwoSources(e.orm, newBind, oldBind, forcedNew, forcedOld, e.value.Elem(), reflect.ValueOf(e.source).Elem(), e.schema.fields, "")
 	return
 }
 
@@ -521,21 +523,21 @@ func fillBindFromOneSource(orm ORM, bind Bind, source reflect.Value, fields *tab
 	return nil
 }
 
-func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.Value, fields *tableFields, prefix string) error {
+func fillBindFromTwoSources(orm ORM, bind, oldBind, forcedNew, forcedOld Bind, source, before reflect.Value, fields *tableFields, prefix string) error {
 	for _, i := range fields.uIntegers {
-		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForUint(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.uIntegersArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForUint(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForUint(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.references {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
-		err := fillBindsForReference(f1, f2, bind, oldBind, fields, i, fields.referencesRequired[k], prefix, "")
+		err := fillBindsForReference(f1, f2, bind, oldBind, forcedNew, forcedOld, fields, i, fields.referencesRequired[k], prefix, "")
 		if err != nil {
 			return err
 		}
@@ -544,30 +546,30 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForReference(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.referencesRequiredArray[k], prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForReference(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, fields.referencesRequiredArray[k], prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.integers {
-		fillBindsForInt(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForInt(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.integersArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForInt(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForInt(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for _, i := range fields.booleans {
-		fillBindsForBool(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForBool(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.booleansArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForBool(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForBool(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.floats {
@@ -575,7 +577,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		unsigned := fields.floatsUnsigned[k]
 		decimalSize := fields.floatsDecimalSize[k]
 		floatSize := fields.floatsSize[k]
-		err := fillBindsForFloat(source.Field(i), before.Field(i), bind, oldBind, fields,
+		err := fillBindsForFloat(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields,
 			i, precision, decimalSize, floatSize, unsigned, prefix, "")
 		if err != nil {
 			return err
@@ -589,7 +591,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		decimalSize := fields.floatsDecimalSizeArray[k]
 		floatSize := fields.floatsSizeArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForFloat(f1.Index(j), f2.Index(j), bind, oldBind, fields,
+			err := fillBindsForFloat(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields,
 				i, precision, decimalSize, floatSize, unsigned, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
@@ -597,7 +599,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		}
 	}
 	for _, i := range fields.times {
-		err := fillBindsForTime(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		err := fillBindsForTime(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 		if err != nil {
 			return err
 		}
@@ -606,14 +608,14 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForTime(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForTime(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.dates {
-		err := fillBindsForDate(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		err := fillBindsForDate(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 		if err != nil {
 			return err
 		}
@@ -622,14 +624,14 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForDate(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForDate(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for k, i := range fields.strings {
-		err := fillBindsForString(source.Field(i), before.Field(i), bind, oldBind, fields, i,
+		err := fillBindsForString(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i,
 			fields.stringMaxLengths[k], fields.stringsRequired[k], prefix, "")
 		if err != nil {
 			return err
@@ -641,34 +643,34 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		maxLength := fields.stringMaxLengthsArray[k]
 		isRequired := fields.stringsRequiredArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForString(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, maxLength, isRequired, prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForString(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, maxLength, isRequired, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.uIntegersNullable {
-		fillBindsForUIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForUIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.uIntegersNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForUIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForUIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for _, i := range fields.integersNullable {
-		fillBindsForIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForIntegersPointers(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.integersNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForIntegersPointers(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.stringsEnums {
-		err := fillBindsForEnum(source.Field(i), before.Field(i), bind, oldBind, fields, i, fields.enums[k], prefix, "")
+		err := fillBindsForEnum(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, fields.enums[k], prefix, "")
 		if err != nil {
 			return err
 		}
@@ -677,24 +679,24 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForEnum(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.enumsArray[k], prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForEnum(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, fields.enumsArray[k], prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.bytes {
-		fillBindsForBytes(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForBytes(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.bytesArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForBytes(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForBytes(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.sliceStringsSets {
-		err := fillBindsForSet(source.Field(i), before.Field(i), bind, oldBind, fields, i, fields.sets[k], prefix, "")
+		err := fillBindsForSet(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, fields.sets[k], prefix, "")
 		if err != nil {
 			return err
 		}
@@ -703,20 +705,20 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForSet(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, fields.setsArray[k], prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForSet(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, fields.setsArray[k], prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.booleansNullable {
-		fillBindsForBoolNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		fillBindsForBoolNullable(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 	}
 	for _, i := range fields.booleansNullableArray {
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			fillBindsForBoolNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			fillBindsForBoolNullable(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 		}
 	}
 	for k, i := range fields.floatsNullable {
@@ -724,7 +726,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		unsigned := fields.floatsNullableUnsigned[k]
 		decimalSize := fields.floatsNullableDecimalSize[k]
 		floatSize := fields.floatsNullableSize[k]
-		err := fillBindsForFloatNullable(source.Field(i), before.Field(i), bind, oldBind, fields,
+		err := fillBindsForFloatNullable(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields,
 			i, precision, decimalSize, floatSize, unsigned, prefix, "")
 		if err != nil {
 			return err
@@ -738,7 +740,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		decimalSize := fields.floatsNullableDecimalSizeArray[k]
 		floatSize := fields.floatsNullableSizeArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForFloatNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields,
+			err := fillBindsForFloatNullable(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields,
 				i, precision, decimalSize, floatSize, unsigned, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
@@ -746,7 +748,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		}
 	}
 	for _, i := range fields.timesNullable {
-		err := fillBindsForTimeNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		err := fillBindsForTimeNullable(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 		if err != nil {
 			return err
 		}
@@ -755,14 +757,14 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForTimeNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForTimeNullable(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
 		}
 	}
 	for _, i := range fields.datesNullable {
-		err := fillBindsForDateNullable(source.Field(i), before.Field(i), bind, oldBind, fields, i, prefix, "")
+		err := fillBindsForDateNullable(source.Field(i), before.Field(i), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "")
 		if err != nil {
 			return err
 		}
@@ -771,7 +773,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f1 := source.Field(i)
 		f2 := before.Field(i)
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindsForDateNullable(f1.Index(j), f2.Index(j), bind, oldBind, fields, i, prefix, "_"+strconv.Itoa(j+1))
+			err := fillBindsForDateNullable(f1.Index(j), f2.Index(j), bind, oldBind, forcedNew, forcedOld, fields, i, prefix, "_"+strconv.Itoa(j+1))
 			if err != nil {
 				return err
 			}
@@ -779,7 +781,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 	}
 	for j, i := range fields.structs {
 		sub := fields.structsFields[j]
-		err := fillBindFromTwoSources(orm, bind, oldBind, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
+		err := fillBindFromTwoSources(orm, bind, oldBind, forcedNew, forcedOld, source.Field(i), before.Field(i), sub, prefix+sub.prefix)
 		if err != nil {
 			return err
 		}
@@ -789,7 +791,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 		f2 := before.Field(i)
 		sub := fields.structsFieldsArray[k]
 		for j := 0; j < fields.arrays[i]; j++ {
-			err := fillBindFromTwoSources(orm, bind, oldBind, f1.Index(j), f2.Index(j), sub, prefix+sub.prefix+"_"+strconv.Itoa(j+1)+"_")
+			err := fillBindFromTwoSources(orm, bind, oldBind, forcedNew, forcedOld, f1.Index(j), f2.Index(j), sub, prefix+sub.prefix+"_"+strconv.Itoa(j+1)+"_")
 			if err != nil {
 				return err
 			}
@@ -798,7 +800,7 @@ func fillBindFromTwoSources(orm ORM, bind, oldBind Bind, source, before reflect.
 	return nil
 }
 
-func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, isRequired bool, prefix, suffix string) error {
+func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, isRequired bool, prefix, suffix string) error {
 	v1 := f1.Uint()
 	v2 := f2.Uint()
 	if v1 == 0 && isRequired {
@@ -817,16 +819,22 @@ func fillBindsForReference(f1, f2 reflect.Value, bind, oldBind Bind, fields *tab
 			oldBind[name] = v2
 		}
 	} else if fields.forcedOldBid[i] {
-		if v2 == 0 {
-			oldBind[prefix+fields.fields[i].Name+suffix] = nil
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == 0 {
+			forcedNew[name] = nil
 		} else {
-			oldBind[prefix+fields.fields[i].Name+suffix] = v2
+			forcedNew[name] = v1
+		}
+		if v2 == 0 {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 	return nil
 }
 
-func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := f1.Uint()
 	v2 := f2.Uint()
 	if v1 != v2 {
@@ -834,11 +842,13 @@ func fillBindsForUint(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		bind[name] = v1
 		oldBind[name] = v2
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name+suffix] = v2
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1
+		forcedOld[name] = v2
 	}
 }
 
-func fillBindsForInt(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForInt(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := f1.Int()
 	v2 := f2.Int()
 	if v1 != v2 {
@@ -846,11 +856,13 @@ func fillBindsForInt(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFiel
 		bind[name] = v1
 		oldBind[name] = v2
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name+suffix] = v2
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1
+		forcedOld[name] = v2
 	}
 }
 
-func fillBindsForBool(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForBool(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := f1.Bool()
 	v2 := f2.Bool()
 	if v1 != v2 {
@@ -859,11 +871,13 @@ func fillBindsForBool(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		oldBind[name] = v2
 		return
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name] = v2
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1
+		forcedOld[name] = v2
 	}
 }
 
-func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	v1 := f1.Interface().(time.Time)
 	if v1.Location() != time.UTC {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
@@ -879,12 +893,14 @@ func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		bind[name] = v1.Format(time.DateTime)
 		oldBind[name] = v2.Format(time.DateTime)
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateTime)
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1.Format(time.DateTime)
+		forcedOld[name] = v2.Format(time.DateTime)
 	}
 	return nil
 }
 
-func fillBindsForTimeNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+func fillBindsForTimeNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	var v1 time.Time
 	var v2 time.Time
 	v1IsNil := f1.IsNil()
@@ -917,16 +933,21 @@ func fillBindsForTimeNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2.Format(time.DateTime)
+			forcedNew[name] = v1.Format(time.DateTime)
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2.Format(time.DateTime)
 		}
 	}
 	return nil
 }
 
-func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	var v1 time.Time
 	var v2 time.Time
 	v1IsNil := f1.IsNil()
@@ -959,16 +980,21 @@ func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2.Format(time.DateOnly)
+			forcedOld[name] = v1.Format(time.DateOnly)
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2.Format(time.DateOnly)
 		}
 	}
 	return nil
 }
 
-func fillBindsForDate(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) error {
+func fillBindsForDate(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	v1 := f1.Interface().(time.Time)
 	if v1.Location() != time.UTC {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
@@ -984,12 +1010,14 @@ func fillBindsForDate(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		bind[name] = v1.Format(time.DateOnly)
 		oldBind[name] = v2.Format(time.DateOnly)
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name+suffix] = v2.Format(time.DateOnly)
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1.Format(time.DateOnly)
+		forcedOld[name] = v2.Format(time.DateOnly)
 	}
 	return nil
 }
 
-func fillBindsForString(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, maxLength int, isRequired bool, prefix, suffix string) error {
+func fillBindsForString(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i, maxLength int, isRequired bool, prefix, suffix string) error {
 	v1 := f1.String()
 	if len(v1) > maxLength {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix,
@@ -1015,15 +1043,19 @@ func fillBindsForString(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableF
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		oldBind[name] = v2
+		forcedNew[name] = v1
+		if !isRequired && v1 == "" {
+			forcedNew[name] = nil
+		}
+		forcedOld[name] = v2
 		if !isRequired && v2 == "" {
-			oldBind[name] = nil
+			forcedOld[name] = nil
 		}
 	}
 	return nil
 }
 
-func fillBindsForUIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForUIntegersPointers(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := uint64(0)
 	v2 := uint64(0)
 	v1IsNil := f1.IsNil()
@@ -1042,21 +1074,26 @@ func fillBindsForUIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fie
 			bind[name] = v1
 		}
 		if v2IsNil {
-			oldBind[prefix+fields.fields[i].Name] = nil
+			oldBind[name] = nil
 		} else {
 			oldBind[name] = v2
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[prefix+fields.fields[i].Name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2
+			forcedNew[name] = v1
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 }
 
-func fillBindsForIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForIntegersPointers(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := int64(0)
 	v2 := int64(0)
 	v1IsNil := f1.IsNil()
@@ -1081,15 +1118,20 @@ func fillBindsForIntegersPointers(f1, f2 reflect.Value, bind, oldBind Bind, fiel
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2
+			forcedNew[name] = v1
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 }
 
-func fillBindsForEnum(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
+func fillBindsForEnum(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
 	v1 := f1.String()
 	v2 := f2.String()
 	if v1 == "" {
@@ -1113,16 +1155,21 @@ func fillBindsForEnum(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFie
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2 == "" && !def.required {
-			oldBind[name] = nil
+		if v1 == "" && !def.required {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2
+			forcedNew[name] = v1
+		}
+		if v2 == "" && !def.required {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 	return nil
 }
 
-func fillBindsForBytes(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForBytes(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := f1.Bytes()
 	v2 := f2.Bytes()
 	if !bytes.Equal(v1, v2) {
@@ -1138,15 +1185,21 @@ func fillBindsForBytes(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFi
 			oldBind[name] = string(v2)
 		}
 	} else if fields.forcedOldBid[i] {
-		if v2 == nil {
-			oldBind[prefix+fields.fields[i].Name+suffix] = nil
+		name := prefix + fields.fields[i].Name + suffix
+		if v1 == nil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[prefix+fields.fields[i].Name+suffix] = string(v2)
+			forcedNew[name] = string(v1)
+		}
+		if v2 == nil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = string(v2)
 		}
 	}
 }
 
-func fillBindsForSet(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
+func fillBindsForSet(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, def *enumDefinition, prefix, suffix string) error {
 	if f1.IsNil() || f1.Len() == 0 {
 		if def.required {
 			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "empty value not allowed"}
@@ -1185,16 +1238,21 @@ func fillBindsForSet(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFiel
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = strings.Join(v2, ",")
+			forcedNew[name] = strings.Join(v1, ",")
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = strings.Join(v2, ",")
 		}
 	}
 	return nil
 }
 
-func fillBindsForFloatNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
+func fillBindsForFloatNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
 	v1 := ""
 	v2 := ""
 	v1IsNil := f1.IsNil()
@@ -1236,16 +1294,21 @@ func fillBindsForFloatNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields 
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2
+			forcedNew[name] = v1
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 	return nil
 }
 
-func fillBindsForBoolNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i int, prefix, suffix string) {
+func fillBindsForBoolNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) {
 	v1 := false
 	v2 := false
 	v1IsNil := f1.IsNil()
@@ -1268,15 +1331,20 @@ func fillBindsForBoolNullable(f1, f2 reflect.Value, bind, oldBind Bind, fields *
 		}
 	} else if fields.forcedOldBid[i] {
 		name := prefix + fields.fields[i].Name + suffix
-		if v2IsNil {
-			oldBind[name] = nil
+		if v1IsNil {
+			forcedNew[name] = nil
 		} else {
-			oldBind[name] = v2
+			forcedNew[name] = v1
+		}
+		if v2IsNil {
+			forcedOld[name] = nil
+		} else {
+			forcedOld[name] = v2
 		}
 	}
 }
 
-func fillBindsForFloat(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
+func fillBindsForFloat(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i, precision, decimalSize, floatSize int, unsigned bool, prefix, suffix string) error {
 	v := f1.Float()
 	if unsigned && v < 0 {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "negative value not allowed"}
@@ -1297,7 +1365,9 @@ func fillBindsForFloat(f1, f2 reflect.Value, bind, oldBind Bind, fields *tableFi
 		bind[name] = v1
 		oldBind[name] = v2
 	} else if fields.forcedOldBid[i] {
-		oldBind[prefix+fields.fields[i].Name+suffix] = v2
+		name := prefix + fields.fields[i].Name + suffix
+		forcedNew[name] = v1
+		forcedOld[name] = v2
 	}
 	return nil
 }

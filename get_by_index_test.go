@@ -11,7 +11,7 @@ type getByIndexEntity struct {
 	ID   uint64     `orm:"localCache;redisCache"`
 	Name string     `orm:"index=Name"`
 	Age  uint32     `orm:"index=Age;cached"`
-	Born *time.Time `orm:"index=Age:2"`
+	Born *time.Time `orm:"index=Age:2;cached"`
 }
 
 func TestGetByIndexNoCache(t *testing.T) {
@@ -127,6 +127,65 @@ func testGetByIndex(t *testing.T, local, redis bool) {
 	all = rows.All()
 	assert.Equal(t, 5, rows.Len())
 	assert.Equal(t, all[0].ID, entities[1].ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	entity = EditEntity(orm, entities[6])
+	entity.Name = ""
+	entity.Age = 40
+	assert.NoError(t, orm.Flush())
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Name", nil)
+	all = rows.All()
+	assert.Equal(t, 6, rows.Len())
+	assert.Equal(t, all[4].ID, entities[6].ID)
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Name", "Test name")
+	all = rows.All()
+	assert.Equal(t, 2, rows.Len())
+	assert.Equal(t, all[0].ID, entities[5].ID)
+
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 40, now)
+	all = rows.All()
+	assert.Equal(t, 1, rows.Len())
+	assert.Equal(t, all[0].ID, entities[6].ID)
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 40, now)
+	all = rows.All()
+	assert.Equal(t, 1, rows.Len())
+	assert.Equal(t, all[0].ID, entities[6].ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 18, now)
+	all = rows.All()
+	assert.Equal(t, 2, rows.Len())
+	assert.Equal(t, all[0].ID, entities[5].ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	assert.NoError(t, EditEntityField(orm, entity, "Age", 18))
+	assert.NoError(t, orm.Flush())
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 18, now)
+	all = rows.All()
+	assert.Equal(t, 3, rows.Len())
+	assert.Equal(t, all[1].ID, entities[6].ID)
+	if local || redis {
+		assert.Len(t, loggerDB.Logs, 0)
+	}
+
+	loggerDB.Clear()
+	rows = GetByIndex[getByIndexEntity](orm, "Age", 40, now)
+	all = rows.All()
+	assert.Equal(t, 0, rows.Len())
 	if local || redis {
 		assert.Len(t, loggerDB.Logs, 0)
 	}

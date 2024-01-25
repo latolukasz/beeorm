@@ -672,6 +672,10 @@ func (e *entitySchema) buildTableFields(t reflect.Type, registry *registry,
 		if has {
 			fields.forcedOldBid[i] = true
 		}
+		_, has = tags["index"]
+		if has && tags["cached"] == "true" {
+			fields.forcedOldBid[i] = true
+		}
 		attributes := schemaFieldAttributes{
 			Fields:   fields,
 			Tags:     tags,

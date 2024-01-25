@@ -33,7 +33,7 @@ type entityFlushDelete interface {
 
 type entityFlushUpdate interface {
 	EntityFlush
-	getBind() (new, old Bind, err error)
+	getBind() (new, old, newForced, oldForced Bind, err error)
 	getValue() reflect.Value
 	getSourceValue() reflect.Value
 	getEntity() any
@@ -135,8 +135,73 @@ func (f *editableFields) flushType() FlushType {
 	return Update
 }
 
-func (f *editableFields) getBind() (new, old Bind, err error) {
-	return f.newBind, f.oldBind, nil
+func (f *editableFields) getBind() (new, old, forcedNew, forcedOld Bind, err error) {
+	forcedNew = Bind{}
+	forcedOld = Bind{}
+	uniqueIndexes := f.schema.GetUniqueIndexes()
+	if len(uniqueIndexes) > 0 {
+		for _, indexColumns := range uniqueIndexes {
+			if len(indexColumns) == 1 {
+				continue
+			}
+			indexChanged := false
+			for _, column := range indexColumns {
+				_, changed := f.newBind[column]
+				if changed {
+					indexChanged = true
+					break
+				}
+			}
+			if !indexChanged {
+				continue
+			}
+			for _, column := range indexColumns {
+				_, changed := f.newBind[column]
+				getter := f.schema.fieldGetters[column]
+				val := getter(f.value.Elem())
+				setter := f.schema.fieldBindSetters[column]
+				val, err = setter(val)
+				if err != nil {
+					return nil, nil, nil, nil, err
+				}
+				if !changed {
+					forcedNew[column] = val
+				}
+				forcedOld[column] = val
+			}
+		}
+	}
+	for _, def := range f.schema.cachedIndexes {
+		if len(def.Columns) == 1 {
+			continue
+		}
+		indexChanged := false
+		for _, indexColumn := range def.Columns {
+			_, has := f.newBind[indexColumn]
+			if has {
+				indexChanged = true
+				break
+			}
+		}
+		if !indexChanged {
+			continue
+		}
+		for _, column := range def.Columns {
+			_, changed := f.newBind[column]
+			getter := f.schema.fieldGetters[column]
+			val := getter(f.value.Elem())
+			setter := f.schema.fieldBindSetters[column]
+			val, err = setter(val)
+			if err != nil {
+				return nil, nil, nil, nil, err
+			}
+			if !changed {
+				forcedNew[column] = val
+			}
+			forcedOld[column] = val
+		}
+	}
+	return f.newBind, f.oldBind, forcedNew, forcedOld, nil
 }
 
 func (f *editableFields) getEntity() any {
@@ -257,7 +322,7 @@ func isDirty(orm ORM, schema *entitySchema, id uint64) (oldValues, newValues Bin
 		}
 		return nil, nil, false
 	}
-	oldValues, newValues, _ = editable.getBind()
+	oldValues, newValues, _, _, _ = editable.getBind()
 	if len(oldValues) == 0 && len(newValues) == 0 {
 		return nil, nil, false
 	}

@@ -839,7 +839,7 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	assert.NotNil(t, oldValues)
 	assert.NotNil(t, newValues)
 	assert.Len(t, oldValues, 93)
-	assert.Len(t, newValues, 91)
+	assert.Len(t, newValues, 93)
 
 	loggerLocal.Clear()
 	assert.NoError(t, testFlush(orm, async))
