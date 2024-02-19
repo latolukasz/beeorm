@@ -399,10 +399,6 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 			e.uniqueIndices[name][i-1] = index[i]
 		}
 	}
-	err := e.validateIndexes(uniqueIndices, indices)
-	if err != nil {
-		return err
-	}
 	for indexName, indexColumns := range indices {
 		where := ""
 		for i := 0; i < len(indexColumns); i++ {
@@ -426,6 +422,10 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 		if cached {
 			e.cachedIndexes[indexName] = definition
 		}
+	}
+	err := e.validateIndexes(uniqueIndices, indices)
+	if err != nil {
+		return err
 	}
 	for _, plugin := range registry.plugins {
 		pluginInterfaceValidateEntitySchema, isInterface := plugin.(PluginInterfaceValidateEntitySchema)
@@ -462,6 +462,18 @@ func (e *entitySchema) validateIndexes(uniqueIndices map[string]map[int]string, 
 				break
 			}
 			if same == len(v) {
+				def, found := e.indexes[k]
+				if found {
+					def.Duplicated = true
+					e.indexes[k] = def
+					break
+				}
+				def, found = e.indexes[k2]
+				if found {
+					def.Duplicated = true
+					e.indexes[k2] = def
+					break
+				}
 				return fmt.Errorf("duplicated index %s with %s in %s", k, k2, e.t.String())
 			}
 		}

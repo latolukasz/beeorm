@@ -144,6 +144,9 @@ func (r *registry) Validate() (Engine, error) {
 		e.registry.entitySchemasQuickMap[reflect.PointerTo(entityType)] = schema
 		e.registry.entities[name] = entityType
 		if schema.hasLocalCache {
+			if r.localCaches == nil {
+				r.localCaches = make(map[string]LocalCache)
+			}
 			r.localCaches[schema.getCacheKey()] = newLocalCache(schema.getCacheKey(), schema.localCacheLimit, schema)
 		}
 		extractEnums(schema.fields, e.registry)

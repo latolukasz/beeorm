@@ -8,6 +8,8 @@ import (
 
 type EntityIterator[E any] interface {
 	Next() bool
+	ID() uint64
+	Index() int
 	Len() int
 	Entity() *E
 	All() []*E
@@ -17,6 +19,8 @@ type EntityIterator[E any] interface {
 
 type EntityAnonymousIterator interface {
 	Next() bool
+	ID() uint64
+	Index() int
 	Len() int
 	Entity() any
 	Reset()
@@ -38,6 +42,17 @@ func (lc *localCacheIDsIterator[E]) Next() bool {
 	}
 	lc.index++
 	return true
+}
+
+func (lc *localCacheIDsIterator[E]) Index() int {
+	return lc.index
+}
+
+func (lc *localCacheIDsIterator[E]) ID() uint64 {
+	if lc.index == -1 {
+		return 0
+	}
+	return lc.ids[lc.index]
 }
 
 func (lc *localCacheIDsIterator[E]) Len() int {
@@ -140,6 +155,14 @@ func (el *emptyResultsIterator[E]) Next() bool {
 	return false
 }
 
+func (el *emptyResultsIterator[E]) Index() int {
+	return -1
+}
+
+func (el *emptyResultsIterator[E]) ID() uint64 {
+	return 0
+}
+
 func (el *emptyResultsIterator[E]) Len() int {
 	return 0
 }
@@ -170,6 +193,17 @@ func (ei *entityIterator[E]) Next() bool {
 	}
 	ei.index++
 	return true
+}
+
+func (ei *entityIterator[E]) ID() uint64 {
+	if ei.index == -1 {
+		return 0
+	}
+	return reflect.ValueOf(ei.rows[ei.index]).Elem().FieldByName("ID").Uint()
+}
+
+func (ei *entityIterator[E]) Index() int {
+	return ei.index
 }
 
 func (ei *entityIterator[E]) Len() int {
@@ -209,6 +243,17 @@ func (ea *entityAnonymousIterator) Next() bool {
 	return true
 }
 
+func (ea *entityAnonymousIterator) ID() uint64 {
+	if ea.index == -1 {
+		return 0
+	}
+	return ea.rows.Index(ea.index).Elem().FieldByName("ID").Uint()
+}
+
+func (ea *entityAnonymousIterator) Index() int {
+	return ea.index
+}
+
 func (ea *entityAnonymousIterator) Len() int {
 	return ea.rows.Len()
 }
@@ -228,6 +273,14 @@ type emptyResultsAnonymousIterator struct{}
 
 func (el *emptyResultsAnonymousIterator) Next() bool {
 	return false
+}
+
+func (el *emptyResultsAnonymousIterator) ID() uint64 {
+	return 0
+}
+
+func (el *emptyResultsAnonymousIterator) Index() int {
+	return -1
 }
 
 func (el *emptyResultsAnonymousIterator) Len() int {
@@ -256,6 +309,17 @@ func (lc *localCacheIDsAnonymousIterator) Next() bool {
 	}
 	lc.index++
 	return true
+}
+
+func (lc *localCacheIDsAnonymousIterator) ID() uint64 {
+	if lc.index == -1 {
+		return 0
+	}
+	return lc.ids[lc.index]
+}
+
+func (lc *localCacheIDsAnonymousIterator) Index() int {
+	return lc.index
 }
 
 func (lc *localCacheIDsAnonymousIterator) Len() int {

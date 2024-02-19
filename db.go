@@ -204,7 +204,11 @@ type rowsStruct struct {
 }
 
 func (r *rowsStruct) Next() bool {
-	return r.sqlRows.Next()
+	has := r.sqlRows.Next()
+	if !has {
+		_ = r.sqlRows.Close()
+	}
+	return has
 }
 
 func (r *rowsStruct) Columns() []string {

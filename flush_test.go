@@ -219,6 +219,7 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 
 	// Adding empty entity
 	newEntity := schema.NewEntity(orm).(*flushEntity)
+	assert.NotNil(t, newEntity.BoolArray)
 	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)

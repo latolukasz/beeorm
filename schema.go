@@ -52,7 +52,9 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 	}
 	var indexDefinitions []string
 	for _, indexEntity := range td.EntityIndexes {
-		indexDefinitions = append(indexDefinitions, buildCreateIndexSQL(indexEntity))
+		if !indexEntity.Duplicated {
+			indexDefinitions = append(indexDefinitions, buildCreateIndexSQL(indexEntity))
+		}
 	}
 	sort.Strings(indexDefinitions)
 	for _, value := range indexDefinitions {
@@ -77,6 +79,7 @@ func (td *TableSQLSchemaDefinition) CreateTableSQL() string {
 type IndexSchemaDefinition struct {
 	Name       string
 	Unique     bool
+	Duplicated bool
 	columnsMap map[int]string
 }
 
@@ -194,6 +197,18 @@ func getSchemaChanges(orm ORM, entitySchema *entitySchema) (preAlters, alters, p
 		pool.QueryRow(orm, NewWhere(fmt.Sprintf("SHOW CREATE TABLE `%s`", entitySchema.GetTableName())), &skip, &sqlSchema.DBCreateSchema)
 		lines := strings.Split(sqlSchema.DBCreateSchema, "\n")
 		for x := 1; x < len(lines); x++ {
+			l := strings.Trim(lines[x], " ")
+			if strings.HasPrefix(l, "CONSTRAINT ") {
+				alter := fmt.Sprintf("ALTER TABLE `%s`.`%s`\n", pool.GetConfig().GetDatabaseName(), entitySchema.GetTableName())
+				parts := strings.Split(l, " ")
+				alter += " DROP FOREIGN KEY " + parts[1] + ";"
+				preAlters = append(preAlters, Alter{
+					SQL:  alter,
+					Safe: true,
+					Pool: pool.GetConfig().GetCode(),
+				})
+				continue
+			}
 			if lines[x][2] != 96 {
 				for _, field := range strings.Split(lines[x], " ") {
 					if strings.HasPrefix(field, "CHARSET=") {
@@ -327,7 +342,7 @@ OUTER:
 				break
 			}
 		}
-		if !hasIndex {
+		if !hasIndex && !indexEntity.Duplicated {
 			newIndexes = append(newIndexes, buildCreateIndexSQL(indexEntity))
 			hasAlters = true
 		}
@@ -339,7 +354,7 @@ OUTER:
 		}
 		hasIndex := false
 		for _, index := range sqlSchema.EntityIndexes {
-			if index.Name == key.Name {
+			if index.Name == key.Name && !index.Duplicated {
 				hasIndex = true
 				break
 			}
@@ -491,6 +506,10 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 					current, has := indexes[indexColumn[0]]
 					if !has {
 						current = &IndexSchemaDefinition{Name: indexColumn[0], Unique: unique, columnsMap: map[int]string{location: prefix + field.Name}}
+						schemaDef, hasDef := schema.indexes[indexColumn[0]]
+						if hasDef && schemaDef.Duplicated {
+							current.Duplicated = true
+						}
 						indexes[indexColumn[0]] = current
 					} else {
 						current.columnsMap[location] = prefix + field.Name
@@ -565,7 +584,8 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 				columns = append(columns, structFields...)
 				continue
 			} else if fieldType.Implements(reflect.TypeOf((*referenceInterface)(nil)).Elem()) {
-				definition, addNotNullIfNotSet, defaultValue = handleInt("uint64", attributes, !isRequired)
+				refIDType := reflect.New(reflect.New(fieldType).Interface().(referenceInterface).getType()).Elem().FieldByName("ID").Type().String()
+				definition, addNotNullIfNotSet, defaultValue = handleInt(refIDType, attributes, !isRequired)
 			} else if fieldType.Implements(reflect.TypeOf((*EnumValues)(nil)).Elem()) {
 				def := reflect.New(fieldType).Interface().(EnumValues)
 				definition, addNotNullIfNotSet, addDefaultNullIfNullable, defaultValue, err = handleSetEnum("enum", fieldType.String(), schema, def, !isRequired)
@@ -599,7 +619,9 @@ func checkColumn(engine Engine, schema *entitySchema, field *reflect.StructField
 
 func handleInt(typeAsString string, attributes map[string]string, nullable bool) (string, bool, string) {
 	if nullable {
-		typeAsString = typeAsString[1:]
+		if strings.HasPrefix(typeAsString, "*") {
+			typeAsString = typeAsString[1:]
+		}
 		return convertIntToSchema(typeAsString, attributes), false, "nil"
 	}
 	return convertIntToSchema(typeAsString, attributes), true, "'0'"

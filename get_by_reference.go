@@ -9,7 +9,7 @@ import (
 
 const redisValidSetValue = "Y"
 
-func GetByReference[E any](orm ORM, referenceName string, id uint64) EntityIterator[E] {
+func GetByReference[E any, I ID](orm ORM, referenceName string, id I) EntityIterator[E] {
 	if id == 0 {
 		return nil
 	}
@@ -25,7 +25,7 @@ func GetByReference[E any](orm ORM, referenceName string, id uint64) EntityItera
 	if !def.Cached {
 		return Search[E](orm, NewWhere("`"+referenceName+"` = ?", id), nil)
 	}
-	return getCachedByReference[E](orm, referenceName, id, schema)
+	return getCachedByReference[E](orm, referenceName, uint64(id), schema)
 }
 
 func getCachedByReference[E any](orm ORM, key string, id uint64, schema *entitySchema) EntityIterator[E] {

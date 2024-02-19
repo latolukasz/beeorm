@@ -8,10 +8,11 @@ import (
 )
 
 type getByIndexEntity struct {
-	ID   uint64     `orm:"localCache;redisCache"`
-	Name string     `orm:"index=Name"`
-	Age  uint32     `orm:"index=Age;cached"`
-	Born *time.Time `orm:"index=Age:2;cached"`
+	ID    uint64     `orm:"localCache;redisCache"`
+	Name  string     `orm:"index=Name"`
+	Age   uint32     `orm:"index=Age;unique=Fake;cached"`
+	Born  *time.Time `orm:"index=Age:2;unique=Fake:2;cached"`
+	Other int        `orm:"unique=Fake:3"`
 }
 
 func TestGetByIndexNoCache(t *testing.T) {
@@ -53,6 +54,7 @@ func testGetByIndex(t *testing.T, local, redis bool) {
 	for i := 0; i < 10; i++ {
 		entity = NewEntity[getByIndexEntity](orm)
 		entity.Age = 10
+		entity.Other = i
 		if i >= 5 {
 			entity.Name = "Test Name"
 			entity.Age = 18

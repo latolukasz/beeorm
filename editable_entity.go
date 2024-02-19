@@ -293,8 +293,8 @@ func initNewEntity(elem reflect.Value, fields *tableFields) {
 	}
 }
 
-func IsDirty[E any](orm ORM, id uint64) (oldValues, newValues Bind, hasChanges bool) {
-	return isDirty(orm, getEntitySchema[E](orm), id)
+func IsDirty[E any, I ID](orm ORM, id I) (oldValues, newValues Bind, hasChanges bool) {
+	return isDirty(orm, getEntitySchema[E](orm), uint64(id))
 }
 
 func isDirty(orm ORM, schema *entitySchema, id uint64) (oldValues, newValues Bind, hasChanges bool) {

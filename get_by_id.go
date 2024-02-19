@@ -6,7 +6,7 @@ import (
 	"strconv"
 )
 
-func MustByID[E any](orm ORM, id uint64) *E {
+func MustByID[E any, I ID](orm ORM, id I) *E {
 	entity, found := GetByID[E](orm, id)
 	if !found {
 		panic(fmt.Errorf("entity withd ID %d not found", id))
@@ -14,14 +14,14 @@ func MustByID[E any](orm ORM, id uint64) *E {
 	return entity
 }
 
-func GetByID[E any](orm ORM, id uint64) (entity *E, found bool) {
+func GetByID[E any, I ID](orm ORM, id I) (entity *E, found bool) {
 	var e E
 	cE := orm.(*ormImplementation)
 	schema := cE.engine.registry.entitySchemas[reflect.TypeOf(e)]
 	if schema == nil {
 		panic(fmt.Errorf("entity '%T' is not registered", e))
 	}
-	value, found := getByID(cE, id, schema)
+	value, found := getByID(cE, uint64(id), schema)
 	if value == nil {
 		return nil, false
 	}

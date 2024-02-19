@@ -11,9 +11,10 @@ import (
 )
 
 type indexDefinition struct {
-	Cached  bool
-	Columns []string
-	Where   string
+	Cached     bool
+	Columns    []string
+	Where      string
+	Duplicated bool
 }
 
 func (d indexDefinition) CreteWhere(hasNil bool, attributes []any) Where {

@@ -9,6 +9,10 @@ import (
 	"github.com/puzpuzpuz/xsync/v2"
 )
 
+type ID interface {
+	int | uint | uint8 | uint16 | uint32 | uint64 | int8 | int16 | int32 | int64
+}
+
 type Meta map[string]string
 
 func (m Meta) Get(key string) string {
