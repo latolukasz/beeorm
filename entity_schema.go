@@ -99,7 +99,9 @@ type entitySchema struct {
 	fieldBindSetters          map[string]fieldBindSetter
 	fieldSetters              map[string]fieldSetter
 	fieldGetters              map[string]fieldGetter
-	uniqueIndices             map[string][]string
+	uniqueIndexes             map[string]indexDefinition
+	uniqueIndexesColumns      map[string][]string
+	cachedUniqueIndexes       map[string]indexDefinition
 	references                map[string]referenceDefinition
 	cachedReferences          map[string]referenceDefinition
 	indexes                   map[string]indexDefinition
@@ -264,7 +266,7 @@ func (e *entitySchema) GetColumns() []string {
 }
 
 func (e *entitySchema) GetUniqueIndexes() map[string][]string {
-	return e.uniqueIndices
+	return e.uniqueIndexesColumns
 }
 
 func (e *entitySchema) GetSchemaChanges(orm ORM) (alters []Alter, has bool) {
@@ -392,34 +394,25 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 		e.asyncCacheKey = asyncGroup
 	}
 	e.asyncTemporaryQueue = xsync.NewMPMCQueueOf[asyncTemporaryQueueEvent](10000)
-	e.uniqueIndices = make(map[string][]string)
-	for name, index := range uniqueIndices {
-		e.uniqueIndices[name] = make([]string, len(index))
+	e.uniqueIndexes = make(map[string]indexDefinition)
+	e.cachedIndexes = make(map[string]indexDefinition)
+	e.cachedUniqueIndexes = make(map[string]indexDefinition)
+	e.uniqueIndexesColumns = make(map[string][]string)
+	for indexName, index := range uniqueIndices {
+		e.uniqueIndexesColumns[indexName] = make([]string, len(index))
 		for i := 1; i <= len(index); i++ {
-			e.uniqueIndices[name][i-1] = index[i]
+			e.uniqueIndexesColumns[indexName][i-1] = index[i]
+		}
+		definition := createIndexDefinition(index, e)
+		e.uniqueIndexes[indexName] = definition
+		if definition.Cached {
+			e.cachedUniqueIndexes[indexName] = definition
 		}
 	}
 	for indexName, indexColumns := range indices {
-		where := ""
-		for i := 0; i < len(indexColumns); i++ {
-			if i > 0 {
-				where += " AND "
-			}
-			where += "`" + indexColumns[i+1] + "`=?"
-		}
-		cached := false
-		tags, hasTag := e.tags[indexColumns[1]]
-		if hasTag {
-			cached = tags["cached"] == "true"
-		}
-		columnsList := make([]string, len(indexColumns))
-		for j := 0; j < len(indexColumns); j++ {
-			columnsList[j] = indexColumns[j+1]
-		}
-
-		definition := indexDefinition{Where: where, Cached: cached, Columns: columnsList}
+		definition := createIndexDefinition(indexColumns, e)
 		e.indexes[indexName] = definition
-		if cached {
+		if definition.Cached {
 			e.cachedIndexes[indexName] = definition
 		}
 	}
@@ -437,6 +430,28 @@ func (e *entitySchema) init(registry *registry, entityType reflect.Type) error {
 		}
 	}
 	return nil
+}
+
+func createIndexDefinition(indexColumns map[int]string, e *entitySchema) indexDefinition {
+	where := ""
+	for i := 0; i < len(indexColumns); i++ {
+		if i > 0 {
+			where += " AND "
+		}
+		where += "`" + indexColumns[i+1] + "`=?"
+	}
+	cached := false
+	tags, hasTag := e.tags[indexColumns[1]]
+	if hasTag {
+		cached = tags["cached"] == "true"
+	}
+	columnsList := make([]string, len(indexColumns))
+	for j := 0; j < len(indexColumns); j++ {
+		columnsList[j] = indexColumns[j+1]
+	}
+
+	definition := indexDefinition{Where: where, Cached: cached, Columns: columnsList}
+	return definition
 }
 
 func (e *entitySchema) validateIndexes(uniqueIndices map[string]map[int]string, indices map[string]map[int]string) error {

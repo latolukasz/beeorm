@@ -463,19 +463,21 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 	assert.Equal(t, int16(12), entity.Int)
 
 	/* unique index */
-	err = runEditEntityField(orm, entity, "Name", "name 3", async)
-	assert.EqualError(t, err, "duplicated value for unique index 'Name'")
-	orm.ClearFlush()
-	err = runEditEntityField(orm, entity, "Name", "name 100", async)
-	assert.NoError(t, err)
-	entity, _ = GetByUniqueIndex[updateEntity](orm, "Name", "name 100")
-	assert.NotNil(t, entity)
-	assert.Equal(t, ids[1], uint64(entity.ID))
-	err = runEditEntityField(orm, entity, "Int", 100, async)
-	assert.NoError(t, err)
-	entity, _ = GetByUniqueIndex[updateEntity](orm, "Multi", 13, 100)
-	assert.NotNil(t, entity)
-	assert.Equal(t, ids[1], uint64(entity.ID))
+	if !async {
+		err = runEditEntityField(orm, entity, "Name", "name 3", async)
+		assert.EqualError(t, err, "Error 1062 (23000): Duplicate entry 'name 3' for key 'updateEntity.Name'")
+		orm.ClearFlush()
+		err = runEditEntityField(orm, entity, "Name", "name 100", async)
+		assert.NoError(t, err)
+		entity, _ = GetByUniqueIndex[updateEntity](orm, "Name", "name 100")
+		assert.NotNil(t, entity)
+		assert.Equal(t, ids[1], uint64(entity.ID))
+		err = runEditEntityField(orm, entity, "Int", 100, async)
+		assert.NoError(t, err)
+		entity, _ = GetByUniqueIndex[updateEntity](orm, "Multi", 13, 100)
+		assert.NotNil(t, entity)
+		assert.Equal(t, ids[1], uint64(entity.ID))
+	}
 }
 
 func runEditEntityField(orm ORM, entity *updateEntity, field string, value any, async bool) error {

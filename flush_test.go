@@ -223,7 +223,6 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
 	newEntity.Name = "Name"
 	assert.NotEmpty(t, newEntity.ID)
-	firstEntityID := newEntity.ID
 	assert.NoError(t, testFlush(orm, async))
 	loggerDB.Clear()
 
@@ -640,29 +639,25 @@ func testFlushInsert(t *testing.T, async, local, redis bool) {
 	assert.Equal(t, "TimeWithTimeNullable", err.(*BindError).Field)
 	orm.ClearFlush()
 
-	// duplicated key
-	newEntity = NewEntity[flushEntity](orm)
-	newEntity.City = "Another city "
-	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
-	err = testFlush(orm, async)
-	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
-	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
-	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	orm.ClearFlush()
+	if !async {
 
-	orm.Engine().Redis(DefaultPoolCode).FlushDB(orm)
-	LoadUniqueKeys(orm, false)
-	newEntity = NewEntity[flushEntity](orm)
-	newEntity.Name = "Name"
-	newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
-	err = testFlush(orm, async)
-	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, uint64(firstEntityID), err.(*DuplicatedKeyBindError).ID)
-	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
-	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	orm.ClearFlush()
+		// duplicated key
+		newEntity = NewEntity[flushEntity](orm)
+		newEntity.City = "Another city "
+		newEntity.Name = "Name"
+		newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
+		err = testFlush(orm, async)
+		assert.EqualError(t, err, "Error 1062 (23000): Duplicate entry 'Name' for key 'flushEntity.name'")
+		orm.ClearFlush()
+
+		orm.Engine().Redis(DefaultPoolCode).FlushDB(orm)
+		newEntity = NewEntity[flushEntity](orm)
+		newEntity.Name = "Name"
+		newEntity.ReferenceRequired = Reference[flushEntityReference](reference.ID)
+		err = testFlush(orm, async)
+		assert.EqualError(t, err, "Error 1062 (23000): Duplicate entry 'Name' for key 'flushEntity.name'")
+		orm.ClearFlush()
+	}
 }
 
 func testFlushDelete(t *testing.T, async, local, redis bool) {
@@ -1153,14 +1148,13 @@ func testFlushUpdate(t *testing.T, async, local, redis bool) {
 	newEntity.Name = "Name 2"
 	assert.NoError(t, testFlush(orm, async))
 
-	editedEntity = EditEntity(orm, editedEntity)
-	editedEntity.Name = "Name 2"
-	err = testFlush(orm, async)
-	assert.EqualError(t, err, "duplicated value for unique index 'name'")
-	assert.Equal(t, uint64(newEntity.ID), err.(*DuplicatedKeyBindError).ID)
-	assert.Equal(t, "name", err.(*DuplicatedKeyBindError).Index)
-	assert.Equal(t, []string{"Name"}, err.(*DuplicatedKeyBindError).Columns)
-	orm.ClearFlush()
+	if !async {
+		editedEntity = EditEntity(orm, editedEntity)
+		editedEntity.Name = "Name 2"
+		err = testFlush(orm, async)
+		assert.EqualError(t, err, "Error 1062 (23000): Duplicate entry 'Name 2' for key 'flushEntity.name'")
+		orm.ClearFlush()
+	}
 
 	editedEntity = EditEntity(orm, newEntity)
 	editedEntity.Name = "Name 3"

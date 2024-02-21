@@ -1,6 +1,7 @@
 package beeorm
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -56,12 +57,21 @@ func (orm *ormImplementation) flush(async bool) error {
 			}
 		}
 	}
+	var err error
 	if !async {
 		func() {
 			var transactions []DBTransaction
 			defer func() {
 				for _, tx := range transactions {
 					tx.Rollback(orm)
+				}
+				if rec := recover(); rec != nil {
+					asErr, isErr := rec.(error)
+					if isErr {
+						err = asErr
+						return
+					}
+					err = fmt.Errorf("%v", rec)
 				}
 			}()
 			for code, actions := range orm.flushDBActions {
@@ -91,7 +101,7 @@ func (orm *ormImplementation) flush(async bool) error {
 	orm.flushDBActions = nil
 	orm.flushPostActions = orm.flushPostActions[0:0]
 	orm.redisPipeLines = nil
-	return nil
+	return err
 }
 
 func (orm *ormImplementation) ClearFlush() {
@@ -287,19 +297,14 @@ func (orm *ormImplementation) handleInserts(async bool, schema *entitySchema, op
 				}
 			}
 		}
-		uniqueIndexes := schema.GetUniqueIndexes()
+		uniqueIndexes := schema.cachedUniqueIndexes
 		if len(uniqueIndexes) > 0 {
 			cache := orm.Engine().Redis(schema.getForcedRedisCode())
-			for indexName, indexColumns := range uniqueIndexes {
+			for indexName, definition := range uniqueIndexes {
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, bind, nil)
+				hField, hasKey := buildUniqueKeyHSetField(schema, definition.Columns, bind, nil)
 				if !hasKey {
 					continue
-				}
-				previousID, inUse := cache.HGet(orm, hSetKey, hField)
-				if inUse {
-					idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
-					return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
 				}
 				orm.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(insert.ID(), 10))
 			}
@@ -445,12 +450,11 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 				}
 			}
 		}
-		uniqueIndexes := schema.GetUniqueIndexes()
-		if len(uniqueIndexes) > 0 {
+		if len(schema.cachedUniqueIndexes) > 0 {
 			cache := orm.Engine().Redis(schema.getForcedRedisCode())
-			for indexName, indexColumns := range uniqueIndexes {
+			for indexName, definition := range schema.cachedUniqueIndexes {
 				indexChanged := false
-				for _, column := range indexColumns {
+				for _, column := range definition.Columns {
 					_, changed := newBind[column]
 					if changed {
 						indexChanged = true
@@ -461,16 +465,11 @@ func (orm *ormImplementation) handleUpdates(async bool, schema *entitySchema, op
 					continue
 				}
 				hSetKey := schema.getCacheKey() + ":" + indexName
-				hField, hasKey := buildUniqueKeyHSetField(schema, indexColumns, newBind, forcedNew)
+				hField, hasKey := buildUniqueKeyHSetField(schema, definition.Columns, newBind, forcedNew)
 				if hasKey {
-					previousID, inUse := cache.HGet(orm, hSetKey, hField)
-					if inUse {
-						idAsUint, _ := strconv.ParseUint(previousID, 10, 64)
-						return &DuplicatedKeyBindError{Index: indexName, ID: idAsUint, Columns: indexColumns}
-					}
 					orm.RedisPipeLine(cache.GetConfig().GetCode()).HSet(hSetKey, hField, strconv.FormatUint(update.ID(), 10))
 				}
-				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, indexColumns, oldBind, forcedOld)
+				hFieldOld, hasKey := buildUniqueKeyHSetField(schema, definition.Columns, oldBind, forcedOld)
 				if hasKey {
 					orm.RedisPipeLine(cache.GetConfig().GetCode()).HDel(hSetKey, hFieldOld)
 				}

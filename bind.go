@@ -27,16 +27,6 @@ func (b *BindError) Error() string {
 	return "[" + b.Field + "] " + b.Message
 }
 
-type DuplicatedKeyBindError struct {
-	Index   string
-	ID      uint64
-	Columns []string
-}
-
-func (d *DuplicatedKeyBindError) Error() string {
-	return "duplicated value for unique index '" + d.Index + "'"
-}
-
 func (b Bind) Get(key string) any {
 	return b[key]
 }

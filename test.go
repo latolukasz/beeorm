@@ -55,7 +55,6 @@ func PrepareTables(t *testing.T, registry Registry, entities ...any) (orm ORM) {
 			cacheLocal.Clear(orm)
 		}
 	}
-	LoadUniqueKeys(engine.NewORM(context.Background()), false)
 	return orm
 }
 

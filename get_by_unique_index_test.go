@@ -10,9 +10,9 @@ import (
 
 type getByUniqueIndexEntity struct {
 	ID        uint64                               `orm:"localCache;redisCache"`
-	Name      string                               `orm:"unique=Name"`
-	Age       uint8                                `orm:"unique=Multi"`
-	Active    bool                                 `orm:"unique=Multi:2"`
+	Name      string                               `orm:"unique=Name;cached"`
+	Age       uint8                                `orm:"unique=Multi;cached"`
+	Active    bool                                 `orm:"unique=Multi:2;cached"`
 	Ref       Reference[getByUniqueIndexReference] `orm:"unique=Ref"`
 	BirthDate time.Time                            `orm:"time;unique=Time"`
 	Died      bool                                 `orm:"time;unique=Died"`
@@ -181,4 +181,12 @@ func testGetByUniqueIndex(t *testing.T, local, redis bool) {
 	assert.PanicsWithError(t, "[Died] invalid value", func() {
 		GetByUniqueIndex[getByUniqueIndexEntity](orm, "Died", time.Now(), died)
 	})
+
+	r, hasRedis := schema.GetRedisCache()
+	if !hasRedis {
+		r = orm.Engine().Redis(DefaultPoolCode)
+	}
+	r.FlushAll(orm)
+	_, found = GetByUniqueIndex[getByUniqueIndexEntity](orm, "Name", "Name 9")
+	assert.True(t, found)
 }
