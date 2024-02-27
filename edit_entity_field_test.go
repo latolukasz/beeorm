@@ -25,26 +25,28 @@ type updateEntityReference struct {
 }
 
 type updateEntity struct {
-	ID            uint32 `orm:"localCache;redisCache"`
-	Name          string `orm:"length=10;required;unique=Name"`
-	Uint          uint16 `orm:"unique=Multi"`
-	Int           int16  `orm:"unique=Multi:2"`
-	UintNullable  *uint16
-	IntNullable   *int16
-	Level1        updateSubField
-	Reference     Reference[updateEntityReference]
-	Enum          testEnum
-	Set           []testEnum
-	Blob          []uint8
-	Bool          bool
-	BoolNullable  *bool
-	Float         float64    `orm:"precision=2"`
-	Decimal       float64    `orm:"decimal=5,2;unsigned"`
-	FloatNullable *float32   `orm:"precision=2"`
-	Time          time.Time  `orm:"time"`
-	TimeNullable  *time.Time `orm:"time"`
-	Date          time.Time
-	DateNullable  *time.Time
+	ID             uint32 `orm:"localCache;redisCache"`
+	Name           string `orm:"length=10;required;unique=Name"`
+	Uint           uint16 `orm:"unique=Multi"`
+	UintArray      [3]uint16
+	Int            int16 `orm:"unique=Multi:2"`
+	UintNullable   *uint16
+	IntNullable    *int16
+	Level1         updateSubField
+	Reference      Reference[updateEntityReference]
+	ReferenceArray [3]Reference[updateEntityReference]
+	Enum           testEnum
+	Set            []testEnum
+	Blob           []uint8
+	Bool           bool
+	BoolNullable   *bool
+	Float          float64    `orm:"precision=2"`
+	Decimal        float64    `orm:"decimal=5,2;unsigned"`
+	FloatNullable  *float32   `orm:"precision=2"`
+	Time           time.Time  `orm:"time"`
+	TimeNullable   *time.Time `orm:"time"`
+	Date           time.Time
+	DateNullable   *time.Time
 }
 
 func TestUpdateFieldExecuteNoCache(t *testing.T) {
@@ -91,6 +93,9 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 	for i := 1; i <= 10; i++ {
 		entity = NewEntity[updateEntity](orm)
 		entity.Uint = uint16(i)
+		entity.UintArray[0] = uint16(i)
+		entity.UintArray[1] = uint16(i + 1)
+		entity.UintArray[2] = uint16(i + 2)
 		entity.Int = int16(i)
 		entity.Name = fmt.Sprintf("name %d", i)
 		entity.Level1.SubName = fmt.Sprintf("sub name %d", i)
@@ -148,6 +153,12 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 		assert.Equal(t, uint16(i+1), entity.Level1.Uint)
 		entity, _ = GetByID[updateEntity](orm, ids[1])
 		assert.Equal(t, uint16(i+1), entity.Level1.Uint)
+
+		err = runEditEntityField(orm, entity, "UintArray_2", val, async)
+		assert.NoError(t, err)
+		assert.Equal(t, uint16(i+1), entity.UintArray[1])
+		entity, _ = GetByID[updateEntity](orm, ids[1])
+		assert.Equal(t, uint16(i+1), entity.UintArray[1])
 	}
 	err = runEditEntityField(orm, entity, "Uint", -14, async)
 	assert.EqualError(t, err, "[Uint] negative number -14 not allowed")
@@ -226,6 +237,12 @@ func testUpdateFieldExecute(t *testing.T, async, local, redis bool) {
 		assert.Equal(t, uint64(i+1), uint64(entity.Level1.Reference))
 		entity, _ = GetByID[updateEntity](orm, ids[1])
 		assert.Equal(t, uint64(i+1), uint64(entity.Level1.Reference))
+
+		err = runEditEntityField(orm, entity, "ReferenceArray_2", val, async)
+		assert.NoError(t, err)
+		assert.Equal(t, uint64(i+1), uint64(entity.ReferenceArray[1]))
+		entity, _ = GetByID[updateEntity](orm, ids[1])
+		assert.Equal(t, uint64(i+1), uint64(entity.ReferenceArray[1]))
 	}
 	err = runEditEntityField(orm, entity, "Reference", 20, async)
 	assert.NoError(t, err)

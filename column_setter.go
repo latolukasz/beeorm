@@ -499,9 +499,9 @@ func createNullableFieldBindSetter(setter fieldBindSetter) func(v any) (any, err
 	}
 }
 
-func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createStringFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetString("")
 		} else {
@@ -510,9 +510,9 @@ func createStringFieldSetter(attributes schemaFieldAttributes) func(v any, elem 
 	}
 }
 
-func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createBytesFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 		} else {
@@ -521,23 +521,23 @@ func createBytesFieldSetter(attributes schemaFieldAttributes) func(v any, elem r
 	}
 }
 
-func createBoolFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createBoolFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		getSetterField(elem, attributes).SetBool(v.(bool))
+		getSetterField(elem, attributes, arrayIndex).SetBool(v.(bool))
 	}
 }
 
-func createTimeFieldSetter(attributes schemaFieldAttributes, layout string) func(v any, elem reflect.Value) {
+func createTimeFieldSetter(attributes schemaFieldAttributes, layout string, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		t, _ := time.ParseInLocation(layout, v.(string), time.UTC)
 		field.Set(reflect.ValueOf(t))
 	}
 }
 
-func createTimeNullableFieldSetter(attributes schemaFieldAttributes, layout string) func(v any, elem reflect.Value) {
+func createTimeNullableFieldSetter(attributes schemaFieldAttributes, layout string, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 			return
@@ -547,26 +547,29 @@ func createTimeNullableFieldSetter(attributes schemaFieldAttributes, layout stri
 	}
 }
 
-func getSetterField(elem reflect.Value, attributes schemaFieldAttributes) reflect.Value {
+func getSetterField(elem reflect.Value, attributes schemaFieldAttributes, arrayIndex int) reflect.Value {
 	field := elem
 	for _, i := range attributes.Parents {
 		field = field.Field(i)
 	}
 	field = field.Field(attributes.Index)
+	if attributes.IsArray {
+		field = field.Index(arrayIndex)
+	}
 	return field
 }
 
-func createFloatFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createFloatFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		f, _ := strconv.ParseFloat(v.(string), 64)
 		field.SetFloat(f)
 	}
 }
 
-func createFloatNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createFloatNullableFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 			return
@@ -578,9 +581,9 @@ func createFloatNullableFieldSetter(attributes schemaFieldAttributes) func(v any
 	}
 }
 
-func createBoolNullableFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createBoolNullableFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 			return
@@ -591,9 +594,9 @@ func createBoolNullableFieldSetter(attributes schemaFieldAttributes) func(v any,
 	}
 }
 
-func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createSetFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 			return
@@ -607,9 +610,9 @@ func createSetFieldSetter(attributes schemaFieldAttributes) func(v any, elem ref
 	}
 }
 
-func createFieldGetter(attributes schemaFieldAttributes, nullable bool) func(elem reflect.Value) any {
+func createFieldGetter(attributes schemaFieldAttributes, nullable bool, arrayIndex int) func(elem reflect.Value) any {
 	return func(elem reflect.Value) any {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if nullable && field.IsNil() {
 			return nil
 		}
@@ -617,9 +620,9 @@ func createFieldGetter(attributes schemaFieldAttributes, nullable bool) func(ele
 	}
 }
 
-func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullable bool) func(v any, elem reflect.Value) {
+func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullable bool, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetZero()
 			return
@@ -642,9 +645,9 @@ func createNumberFieldSetter(attributes schemaFieldAttributes, unsigned, nullabl
 	}
 }
 
-func createReferenceFieldSetter(attributes schemaFieldAttributes) func(v any, elem reflect.Value) {
+func createReferenceFieldSetter(attributes schemaFieldAttributes, arrayIndex int) func(v any, elem reflect.Value) {
 	return func(v any, elem reflect.Value) {
-		field := getSetterField(elem, attributes)
+		field := getSetterField(elem, attributes, arrayIndex)
 		if v == nil {
 			field.SetUint(0)
 			return
