@@ -397,13 +397,13 @@ func createDateFieldBindSetter(columnName string, layout string, nullable bool) 
 		switch v.(type) {
 		case time.Time:
 			t := v.(time.Time)
-			if t.Location() != time.UTC {
+			if t.Location().String() != time.UTC.String() {
 				return nil, &BindError{Field: columnName, Message: "time must be in UTC location"}
 			}
 			return t.Format(layout), nil
 		case *time.Time:
 			t := v.(*time.Time)
-			if t.Location() != time.UTC {
+			if t.Location().String() != time.UTC.String() {
 				return nil, &BindError{Field: columnName, Message: "time must be in UTC location"}
 			}
 			return t.Format(layout), nil

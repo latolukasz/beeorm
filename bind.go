@@ -99,7 +99,7 @@ func fillBindForFloat(bind Bind, f reflect.Value, column string, floatsPrecision
 
 func fillBindForTime(bind Bind, f reflect.Value, column string) error {
 	v := f.Interface().(time.Time)
-	if v.Location() != time.UTC {
+	if v.Location().String() != time.UTC.String() {
 		return &BindError{Field: column, Message: "time must be in UTC location"}
 	}
 	v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
@@ -112,7 +112,7 @@ func fillBindForTime(bind Bind, f reflect.Value, column string) error {
 
 func fillBindForDate(bind Bind, f reflect.Value, column string) error {
 	v := f.Interface().(time.Time)
-	if v.Location() != time.UTC {
+	if v.Location().String() != time.UTC.String() {
 		return &BindError{Field: column, Message: "time must be in UTC location"}
 	}
 	v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
@@ -241,7 +241,7 @@ func fillBindForFloatsNullable(bind Bind, f reflect.Value, column string, unsign
 func fillBindForTimesNullable(bind Bind, f reflect.Value, column string) error {
 	if !f.IsNil() {
 		v := f.Elem().Interface().(time.Time)
-		if v.Location() != time.UTC {
+		if v.Location().String() != time.UTC.String() {
 			return &BindError{Field: column, Message: "time must be in UTC location"}
 		}
 		v2 := time.Date(v.Year(), v.Month(), v.Day(), v.Hour(), v.Minute(), v.Second(), 0, time.UTC)
@@ -258,7 +258,7 @@ func fillBindForTimesNullable(bind Bind, f reflect.Value, column string) error {
 func fillBindForDatesNullable(bind Bind, f reflect.Value, column string) error {
 	if !f.IsNil() {
 		v := f.Elem().Interface().(time.Time)
-		if v.Location() != time.UTC {
+		if v.Location().String() != time.UTC.String() {
 			return &BindError{Field: column, Message: "time must be in UTC location"}
 		}
 		v2 := time.Date(v.Year(), v.Month(), v.Day(), 0, 0, 0, 0, time.UTC)
@@ -869,7 +869,7 @@ func fillBindsForBool(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld 
 
 func fillBindsForTime(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	v1 := f1.Interface().(time.Time)
-	if v1.Location() != time.UTC {
+	if v1.Location().String() != time.UTC.String() {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
 	}
 	v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
@@ -897,7 +897,7 @@ func fillBindsForTimeNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, fo
 	v2IsNil := f2.IsNil()
 	if !v1IsNil {
 		v1 = f1.Elem().Interface().(time.Time)
-		if v1.Location() != time.UTC {
+		if v1.Location().String() != time.UTC.String() {
 			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
 		}
 		vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), v1.Hour(), v1.Minute(), v1.Second(), 0, time.UTC)
@@ -944,7 +944,7 @@ func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, fo
 	v2IsNil := f2.IsNil()
 	if !v1IsNil {
 		v1 = f1.Elem().Interface().(time.Time)
-		if v1.Location() != time.UTC {
+		if v1.Location().String() != time.UTC.String() {
 			return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
 		}
 		vFinal := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
@@ -986,7 +986,7 @@ func fillBindsForDateNullable(f1, f2 reflect.Value, bind, oldBind, forcedNew, fo
 
 func fillBindsForDate(f1, f2 reflect.Value, bind, oldBind, forcedNew, forcedOld Bind, fields *tableFields, i int, prefix, suffix string) error {
 	v1 := f1.Interface().(time.Time)
-	if v1.Location() != time.UTC {
+	if v1.Location().String() != time.UTC.String() {
 		return &BindError{Field: prefix + fields.fields[i].Name + suffix, Message: "time must be in UTC location"}
 	}
 	v1Check := time.Date(v1.Year(), v1.Month(), v1.Day(), 0, 0, 0, 0, time.UTC)
